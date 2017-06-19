@@ -13,6 +13,7 @@ DEPENDS += "libnetfilter-conntrack"
 DEPENDS += "virtual/kernel"
 
 EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
+                --enable-target=${BASEMACHINE} \
                 --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
 
 FILESPATH =+ "${WORKSPACE}:"

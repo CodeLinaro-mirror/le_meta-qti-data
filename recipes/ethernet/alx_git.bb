@@ -16,6 +16,8 @@ S = "${WORKDIR}/external/compat-wireless/drivers/net/ethernet/atheros/alx/"
 
 FILES_${PN}="/etc/init.d/start_alx_le"
 
+EXTRA_OEMAKE += "CONFIG_MDM_ALX=y"
+
 do_install() {
     module_do_install
     install -d ${D}${sysconfdir}/init.d
