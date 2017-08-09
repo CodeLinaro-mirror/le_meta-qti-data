@@ -6,8 +6,9 @@ SRC_URI += "\
     file://lighttpd.user \
     file://openssl.cnf \
     file://lighttpd.service \
-    file://mod_cgi_unpatch.patch \
 "
+SRC_URI += "${@bb.utils.contains('BASEMACHINE', 'sdxpoorwills', '', 'file://mod_cgi_unpatch.patch', d)}"
+
 DEPENDS += " openssl"
 RDEPENDS_${PN} += " \
                lighttpd-module-alias \
