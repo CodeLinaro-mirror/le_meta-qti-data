@@ -8,7 +8,7 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=0636e73ff0215e8d672dc4c32c317bb3"
 PR = "r3"
 
 #at least versions 2.15 and prior are moved to the archive folder on the server
-SRC_URI = "http://www.thekelleys.org.uk/dnsmasq/${@['archive/', ''][float(bb.data.getVar('PV',d,1).split('.')[1]) > 15]}dnsmasq-${PV}.tar.gz;name=dnsmasq-${PV} \
+SRC_URI = "http://www.thekelleys.org.uk/dnsmasq/${@['archive/', ''][float(d.getVar('PV',True).split('.')[1]) > 15]}dnsmasq-${PV}.tar.gz;name=dnsmasq-${PV} \
            file://init \
            file://dnsmasq.conf \
            file://dnsmasq_script.sh\
@@ -31,7 +31,7 @@ do_install () {
          install -m 0644 ${WORKDIR}/dnsmasq.service -D ${D}/etc/systemd/system/dnsmasq.service
          install -d ${D}/etc/systemd/system/multi-user.target.wants/
          # enable the service for multi-user.target
-         ln -sf /etc/systemd/dnsmasq.service \
+         ln -sf /etc/systemd/system/dnsmasq.service \
                ${D}/etc/systemd/system/multi-user.target.wants/dnsmasq.service
         else
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
