@@ -28,7 +28,6 @@ FILES_${PN}-doc =+ "${datadir}/xtables/"
 FILESPATH =+ "${COREBASE}/meta/recipes-extended/${PN}/${PN}:"
 SRC_URI = " \
 	http://netfilter.org/projects/iptables/files/iptables-${PV}.tar.bz2 \
-	file://103-ubicom32-nattype_lib.patch \
         file://types.h-add-defines-that-are-required-for-if_packet.patch \
 "
 
