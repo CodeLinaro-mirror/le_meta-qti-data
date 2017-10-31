@@ -9,6 +9,7 @@ FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://shortcut-fe/shortcut-fe/ "
 
 S = "${WORKDIR}/shortcut-fe/shortcut-fe"
+EXTRA_OEMAKE_append_sdxpoorwills =" CFLAGS=-DISTARGETPOORWILLS"
 
 do_install() {
     module_do_install
