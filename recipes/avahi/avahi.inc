@@ -18,7 +18,7 @@ INC_PR = "r12"
 
 DEPENDS = "expat libcap libdaemon dbus glib-2.0 glib-2.0-native"
 
-SRC_URI = "http://avahi.org/download/avahi-${PV}.tar.gz \
+SRC_URI = "https://github.com/lathiat/avahi/releases/download/v${PV}/avahi-${PV}.tar.gz \
           file://00avahi-autoipd \
           file://99avahi-autoipd \
           file://99avahi_multi.service \
