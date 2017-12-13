@@ -15,7 +15,7 @@ inherit autotools pkgconfig
 S = "${WORKDIR}/ddclient-${PV}"
 
 #All the DDClient development is on sourceforge.met
-PR = "r5"
+PR = "r6"
 
 SRC_URI = "\
     ${SOURCEFORGE_MIRROR}/ddclient/ddclient-${PV}.tar.bz2 \
@@ -30,7 +30,7 @@ do_compile() {
 
 do_install() {
    install -m 0755 ${S}/ddclient -D ${D}${sbindir}/ddclient
-   install -m 0644 ${S}/sample-etc_ddclient.conf -D ${D}${userfsdatadir}/ddclient.conf
+   install -m 0644 ${S}/sample-etc_ddclient.conf -D ${D}${sysconfdir}/data/ddclient.conf
 }
 
-FILES_${PN} += "${userfsdatadir}/ddclient.conf"
+FILES_${PN} += "${sysconfdir}/data/ddclient.conf"

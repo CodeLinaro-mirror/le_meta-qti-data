@@ -19,17 +19,17 @@ diff -u a/dhcpcd-hooks/Makefile b/dhcpcd-hooks/Makefile
  
  if [ "$reason" != "down" ]; then
 -	rm -f /var/lib/dhcpcd-"$INTERFACE".info
-+	rm -f /data/dhcpcd-"$INTERFACE".info
++	rm -f /var/run/dhcpcd-"$INTERFACE".info
  	for x in IPADDR INTERFACE NETMASK BROADCAST NETWORK DHCPSID GATEWAYS \
  		DNSSERVERS DNSDOMAIN DNSSEARCH NISDOMAIN NISSERVERS \
  		NTPSERVERS GATEWAY DNS; do
 -		eval echo "$x=\'\$$x\'" >> /var/lib/dhcpcd-"$INTERFACE".info
-+		eval echo "$x=\'\$$x\'" >> /data/dhcpcd-"$INTERFACE".info
++		eval echo "$x=\'\$$x\'" >> /var/run/dhcpcd-"$INTERFACE".info
  	done
  fi
  
 -set -- /var/lib/dhcpcd-"$INTERFACE".info "$x"
-+set -- /data/dhcpcd-"$INTERFACE".info "$x"
++set -- /var/run/dhcpcd-"$INTERFACE".info "$x"
 
 --- a/configure	2017-03-10 15:28:27.491601787 +0530
 +++ b/configure	2017-03-10 15:30:09.629944443 +0530
@@ -38,7 +38,7 @@ diff -u a/dhcpcd-hooks/Makefile b/dhcpcd-hooks/Makefile
  : ${LIBDIR:=$PREFIX/lib}
  : ${LIBEXECDIR:=$PREFIX/libexec}
 -: ${STATEDIR:=/var}
-+: ${STATEDIR:=/data}
++: ${STATEDIR:=/var/run}
  : ${DBDIR:=$STATEDIR/db}
 -: ${RUNDIR:=$STATEDIR/run}
 +: ${RUNDIR:=/var/run}

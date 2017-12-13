@@ -16,9 +16,9 @@ index 9ba474e..49ecc5e 100644
 +#syslog=yes				# log update msgs to syslog
 +#mail=root				# mail all msgs to root
 +#mail-failure=root			# mail failed update msgs to root
-+pid=/data/ddclient.pid		# record PID in file.
++pid=/var/run/ddclient.pid		# record PID in file.
 +#ssl=yes					# use ssl-support.  Works with
-+cache=/data/ddclient.cache					# ssl-library
++cache=/var/run/ddclient.cache					# ssl-library
  # postscript=script			# run script after updating.  The
  					# new IP is added as argument.
  #
