@@ -17,8 +17,6 @@ SRC_URI = "  https://github.com/zeux/pugixml/archive/v${PV}.zip \
 SRC_URI[md5sum] = "5229b9f38f938ee935f32ac63328fa18"
 SRC_URI[sha256sum] = "2ee334c7e09c5d1f0db8ef0db71a8fad73a3ab838795bc9189b6194b5e194ffd"
 
-S = "${WORKDIR}/${PN}-${PV}"
-
 inherit autotools pkgconfig
 
 do_compile () {
