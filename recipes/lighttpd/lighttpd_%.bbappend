@@ -7,7 +7,6 @@ SRC_URI += "\
     file://openssl.cnf \
     file://lighttpd.service \
 "
-SRC_URI += "${@bb.utils.contains('BASEMACHINE', 'sdxpoorwills', '', 'file://mod_cgi_unpatch.patch', d)}"
 
 DEPENDS += " openssl"
 RDEPENDS_${PN} += " \
