@@ -275,7 +275,7 @@ index ee6e47b..b29c249 100755
 -
 -IPTABLES_CREATE=/etc/miniupnpd/iptables_init.sh
 -IPTABLES_REMOVE=/etc/miniupnpd/iptables_removeall.sh
-+ARGS='-f /data/miniupnpd/miniupnpd.conf'
++ARGS='-f /etc/data/miniupnpd/miniupnpd.conf'
 
  test -f $MINIUPNPD || exit 0
  

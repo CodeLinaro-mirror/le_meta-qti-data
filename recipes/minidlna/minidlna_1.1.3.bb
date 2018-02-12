@@ -28,9 +28,9 @@ do_install_append () {
     sed -i s:#network_interface=eth0:network_interface=bridge0,ppp0:g minidlna.conf
     sed -i s:"#friendly_name=My DLNA Server":"friendly_name=9x35 MobileAP DLNA":g minidlna.conf
     install -d ${D}${sysconfdir}
-    install -d ${D}${userfsdatadir}
-    install -m 644  ${WORKDIR}/${PN}-${PV}/${PN}.conf ${D}${userfsdatadir}
+    install -d ${D}${sysconfdir}/data/
+    install -m 644  ${WORKDIR}/${PN}-${PV}/${PN}.conf ${D}${sysconfdir}/data/
     install -d ${D}${sysconfdir}/init.d/
     install ${WORKDIR}/${PN}-${PV}/linux/${PN}.init.d.script ${D}${sysconfdir}/init.d/minidlna
 }
-FILES_${PN} += "${userfsdatadir}/minidlna.conf"
+FILES_${PN} += "${sysconfdir}/data/minidlna.conf"

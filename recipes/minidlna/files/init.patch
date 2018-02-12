@@ -5,7 +5,7 @@
  MINIDLNA=/usr/sbin/minidlnad
  PIDFILE=/var/run/minidlna/minidlna.pid
 -CONF=/etc/minidlna.conf
-+CONF=/data/minidlna.conf
++CONF=/etc/data/minidlna.conf
  ARGS="-f $CONF -R"
  test -f $MINIDLNA || exit 0
 
