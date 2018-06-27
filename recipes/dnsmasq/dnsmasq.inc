@@ -14,7 +14,9 @@ SRC_URI = "http://www.codeaurora.org/mirrored_source/quic/le/dnsmasq-${PV}.tar.g
            file://dnsmasq_script.sh\
            file://dnsmasq.service"
 
-
+EXTRA_OEMAKE = "CC='${CC}' \
+                CFLAGS='${TARGET_CFLAGS}' \
+                LDFLAGS='${TARGET_LDFLAGS}'"
 
 do_install () {
         oe_runmake "PREFIX=${D}${prefix}" \
