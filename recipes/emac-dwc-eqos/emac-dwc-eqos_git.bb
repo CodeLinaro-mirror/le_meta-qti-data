@@ -7,6 +7,9 @@ startline=1;endline=71;md5=62b57cd65ebb8a65e225a5fbfbc26932"
 
 FILES_${PN}     += "${sysconfdir}/init.d/emac_dwc_eqos_start_stop_le"
 FILES_${PN}     += "${sysconfdir}/init.d/setup_avtp_routing_le"
+FILES_${PN}     += "${systemd_unitdir}/system/emac_dwc_eqos.service"
+FILES_${PN}     += "${systemd_unitdir}/system/multi-user.target.wants/emac_dwc_eqos.service"
+FILES_${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
 
 do_unpack[deptask] = "do_populate_sysroot"
 PR = "r0"
@@ -15,6 +18,7 @@ FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-kernel/drivers/emac-dwc-eqos/"
 SRC_URI += "file://emac_dwc_eqos_start_stop_le"
 SRC_URI += "file://setup_avtp_routing_le"
+SRC_URI += "file://emac_dwc_eqos.service"
 
 S = "${WORKDIR}/data-kernel/drivers/emac-dwc-eqos/"
 
@@ -29,6 +33,17 @@ do_install() {
     install -m 0755 ${WORKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/init.d
 }
 
+do_install_append_msm() {
+if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+   install -d ${D}${systemd_unitdir}/system/
+   install -m 0644 ${WORKDIR}/emac_dwc_eqos.service -D ${D}${systemd_unitdir}/system/emac_dwc_eqos.service
+   install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
+   # enable the service for multi-user.target
+   ln -sf ${systemd_unitdir}/system/emac_dwc_eqos.service \
+   ${D}${systemd_unitdir}/system/multi-user.target.wants/emac_dwc_eqos.service
+fi
+}
+
 pkg_postinst_${PN} () {
     [ -n "$D" ] && OPT="-r $D" || OPT="-s"
     update-rc.d $OPT -f emac_dwc_eqos_start_stop_le remove
@@ -38,7 +53,16 @@ pkg_postinst_${PN} () {
 }
 
 do_module_signing() {
-    if [ -f ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ]; then
+    if [ "${MACHINE}" == "qcs405-som1" ]; then
+    if [ -f  ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
+	    bbnote "Signing ${PN} module ${i}"
+        for i in $(find ${PKGDEST}/${PN}/${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/ -name "*.ko"); do
+          ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha512 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${i}
+        done
+    else
+        bbnote "${PN} module is not being signed"
+    fi
+    elif [ -f ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ]; then
         bbnote "Signing ${PN} module"
         ${STAGING_KERNEL_DIR}/scripts/sign-file sha512 ${STAGING_KERNEL_BUILDDIR}/signing_key.priv \
 		${STAGING_KERNEL_BUILDDIR}/signing_key.x509 \
@@ -49,3 +73,7 @@ do_module_signing() {
 }
 
 addtask module_signing after do_package before do_package_write_ipk
+
+RPROVIDES_${PN} += "${@'kernel-module-emac-dwc-eqos-${KERNEL_VERSION}'.replace('_', '-')}"
+# uncomment below line if you are compiling test module for vipertooth
+#RPROVIDES_${PN} += "${@'kernel-module-dwc-eth-qos-testmod-${KERNEL_VERSION}'.replace('_', '-')}"
