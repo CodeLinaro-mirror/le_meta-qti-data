@@ -16,6 +16,7 @@ RDEPENDS_${PN} += " \
                lighttpd-module-auth \
                lighttpd-module-redirect \
                lighttpd-module-evasive \
+               lighttpd-module-authn-file \
 "
 EXTRA_OECONF += " \
              --with-openssl \
