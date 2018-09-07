@@ -23,6 +23,8 @@ SRC_URI = "\
 SRC_URI[md5sum] = "f91dc5647b1d2c13a82082a481a53e3d"
 SRC_URI[sha256sum] = "7d8c9b1f7ed73e288b4e7e52e0af67de73ba07994a6984008a1a688568153409"
 
+do_configure[noexec] = "1"
+
 do_compile () {
     cd ${S} && make -f Makefile.linux LIBDIR=${STAGING_LIBDIR} INCDIR=${STAGING_INCDIR} STRIP=echo
 }
