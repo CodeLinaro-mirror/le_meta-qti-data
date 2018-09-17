@@ -15,6 +15,9 @@ SRC_URI = "git://codeaurora.org/quic/le/pimd.git;protocol=git;branch=github/mast
            file://0001-pimd-Resolve-wrong-missing-if-clause-gaurds-error-fo.patch \
 "
 
+SRC_URI_append_sdxprairie += "\
+           file://Resolve-Implicit-fallthrough-Werror.patch "
+
 SRC_URI_append_9615-cdp += " \
            file://defs_fix_multicast_subnetmask_on_rmnet.patch \
            file://vif_fix_multicast_subnetmask_on_rmnet.patch \
