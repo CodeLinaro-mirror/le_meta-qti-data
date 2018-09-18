@@ -32,9 +32,6 @@ do_install () {
          install -d ${D}/etc/systemd/system/
          install -m 0644 ${WORKDIR}/dnsmasq.service -D ${D}/etc/systemd/system/dnsmasq.service
          install -d ${D}/etc/systemd/system/multi-user.target.wants/
-         # enable the service for multi-user.target
-         ln -sf /etc/systemd/system/dnsmasq.service \
-               ${D}/etc/systemd/system/multi-user.target.wants/dnsmasq.service
         else
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
         fi
