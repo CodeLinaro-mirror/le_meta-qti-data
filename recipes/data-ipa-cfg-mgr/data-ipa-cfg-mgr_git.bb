@@ -22,7 +22,7 @@ SRC_URI = "file://data-ipa-cfg-mgr"
 S = "${WORKDIR}/data-ipa-cfg-mgr"
 
 INITSCRIPT_NAME   = "start_ipacm_le"
-INITSCRIPT_PARAMS = "start 38 S . stop 62 0 1 6 ."
+INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
 
 do_install_append() {
