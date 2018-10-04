@@ -24,6 +24,9 @@ do_install () {
         install -d ${D}${sysconfdir}/ ${D}${sysconfdir}/init.d ${D}${sysconfdir}/dnsmasq.d
         install -d ${D}${sysconfdir}/data/
         install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
+        # symlink dnsmasq.conf under /etc
+        ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
+
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}/etc/initscripts
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/initscripts/dnsmasq
