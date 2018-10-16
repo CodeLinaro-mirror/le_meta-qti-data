@@ -6,6 +6,9 @@ DAEMON=/usr/sbin/lighttpd
 #WEBSERVER_OWNER_PERM="chown -R www-data:www-data /WEBSERVER "
 WWW_FOLDER_PERM="chmod -R 770 /data/www "
 WWW_OWNER_PERM="chown -R www-data:www-data /data/www "
+WWW_SOCK_FOLDER_CREATE="mkdir -p /var/run/www "
+WWW_SOCK_FOLDER_PERM="chmod -R 770 /var/run/www "
+WWW_SOCK_OWNER_PERM="chown -R www-data:www-data /var/run/www "
 RM_RESOURCE_FILES="rm -rf /data/www/session_token.txt /data/www/login_attempt /data/www/qcmap_session /var/run/www/qcmap_cgi_webclient_file "
 PRIVATE_KEY_PATH="/data/mdm9625.com.key"
 NO_PSWD_PRIVATE_KEY_PATH="/data/nopwd.mdm9625.com.key"
@@ -22,6 +25,9 @@ case "$1" in
   start)
 	echo -n "Starting $DESC: "
 	$RM_RESOURCE_FILES
+        $WWW_SOCK_FOLDER_CREATE
+        $WWW_SOCK_FOLDER_PERM
+        $WWW_SOCK_OWNER_PERM
 	#SSL Certificate Generation starts
 	if [ -f $PRIVATE_KEY_PATH -a -f $NO_PASWD_SELF_SIGN_CA_PATH ]
 	then
@@ -66,6 +72,9 @@ case "$1" in
   restart|force-reload)
 	echo -n "Restarting $DESC: "
 	$RM_RESOURCE_FILES
+        $WWW_SOCK_FOLDER_CREATE
+        $WWW_SOCK_FOLDER_PERM
+        $WWW_SOCK_OWNER_PERM
 	#SSL Certificate Generation starts
 	if [ -f $PRIVATE_KEY_PATH -a -f $NO_PASWD_SELF_SIGN_CA_PATH ]
 	then
