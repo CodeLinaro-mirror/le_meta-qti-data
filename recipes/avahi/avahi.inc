@@ -89,7 +89,7 @@ FILES_avahi-utils = "${bindir}/avahi-*"
 
 RDEPENDS_avahi-systemd = "avahi-daemon"
 
-RDEPENDS_avahi-daemon = "sysvinit-pidof"
+RDEPENDS_avahi-daemon = "${@base_conditional('BASEMACHINE', 'sda845', '', 'sysvinit-pidof', d)}"
 
 # uclibc has no nss
 RRECOMMENDS_avahi-daemon_append_libc-glibc = " libnss-mdns"
