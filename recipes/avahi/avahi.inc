@@ -137,7 +137,7 @@ do_install_avahi-autoipd() {
 
 pkg_postinst_avahi-daemon () {
 	if [ "x$D" != "x" ]; then
-		exit 0
+		echo "do nothing during build"
 	fi
 
 	DBUSPID=`pidof dbus-daemon`
