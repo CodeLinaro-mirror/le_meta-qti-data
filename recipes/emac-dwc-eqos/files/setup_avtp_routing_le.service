@@ -1,0 +1,11 @@
+[Unit]
+Description= Setup avtp routing service
+SourcePath=/etc/initscripts/setup_avtp_routing_le
+
+[Service]
+Restart=no
+ExecStart=/etc/initscripts/setup_avtp_routing_le start
+ExecStop=/etc/initscripts/setup_avtp_routing_le stop
+
+[Install]
+WantedBy=multi-user.target

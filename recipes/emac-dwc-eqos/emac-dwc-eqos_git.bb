@@ -5,11 +5,10 @@ LICENSE = "MIT-style"
 LIC_FILES_CHKSUM = "file://DWC_ETH_QOS_dev.c;\
 startline=1;endline=71;md5=62b57cd65ebb8a65e225a5fbfbc26932"
 
-FILES_${PN}     += "${sysconfdir}/init.d/emac_dwc_eqos_start_stop_le"
-FILES_${PN}     += "${sysconfdir}/init.d/setup_avtp_routing_le"
-FILES_${PN}     += "${systemd_unitdir}/system/emac_dwc_eqos.service"
-FILES_${PN}     += "${systemd_unitdir}/system/multi-user.target.wants/emac_dwc_eqos.service"
+FILES_${PN}     += "${sysconfdir}/init.d/*"
+FILES_${PN}     += "${systemd_unitdir}/system/*"
 FILES_${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
+FILES_${PN}     += "${sysconfdir}/initscripts/*"
 
 do_unpack[deptask] = "do_populate_sysroot"
 PR = "r0"
@@ -19,6 +18,7 @@ SRC_URI = "file://data-kernel/drivers/emac-dwc-eqos/"
 SRC_URI += "file://emac_dwc_eqos_start_stop_le"
 SRC_URI += "file://setup_avtp_routing_le"
 SRC_URI += "file://emac_dwc_eqos.service"
+SRC_URI += "file://setup_avtp_routing_le.service"
 
 S = "${WORKDIR}/data-kernel/drivers/emac-dwc-eqos/"
 
@@ -28,28 +28,44 @@ EXTRA_OEMAKE += "${@bb.utils.contains('MACHINE_FEATURES', 'ipa-offload', 'CONFIG
 
 do_install() {
     module_do_install
-    install -d ${D}${sysconfdir}/init.d
-    install -m 0755 ${WORKDIR}/emac_dwc_eqos_start_stop_le ${D}${sysconfdir}/init.d
-    install -m 0755 ${WORKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/init.d
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        install -d ${D}${sysconfdir}/initscripts
+        install -m 0755 ${WORKDIR}/emac_dwc_eqos_start_stop_le ${D}${sysconfdir}/initscripts
+        install -m 0755 ${WORKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/initscripts
+    else
+        install -d ${D}${sysconfdir}/init.d
+        install -m 0755 ${WORKDIR}/emac_dwc_eqos_start_stop_le ${D}${sysconfdir}/init.d
+        install -m 0755 ${WORKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/init.d
+    fi
 }
 
-do_install_append_msm() {
+do_install_append() {
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
-   install -m 0644 ${WORKDIR}/emac_dwc_eqos.service -D ${D}${systemd_unitdir}/system/emac_dwc_eqos.service
    install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
+
+   #Emac Service
+   install -m 0644 ${WORKDIR}/emac_dwc_eqos.service -D ${D}${systemd_unitdir}/system/emac_dwc_eqos.service
    # enable the service for multi-user.target
    ln -sf ${systemd_unitdir}/system/emac_dwc_eqos.service \
    ${D}${systemd_unitdir}/system/multi-user.target.wants/emac_dwc_eqos.service
+
+   #setup_avtp_routing_le script
+   install -m 0644 ${WORKDIR}/setup_avtp_routing_le.service -D ${D}${systemd_unitdir}/system/setup_avtp_routing_le.service
+   # enable the service for multi-user.target
+   ln -sf ${systemd_unitdir}/system/setup_avtp_routing_le.service \
+   ${D}${systemd_unitdir}/system/multi-user.target.wants/setup_avtp_routing_le.service
 fi
 }
 
 pkg_postinst_${PN} () {
+   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'false', 'true', d)}; then
     [ -n "$D" ] && OPT="-r $D" || OPT="-s"
-    update-rc.d $OPT -f emac_dwc_eqos_start_stop_le remove
-    update-rc.d $OPT emac_dwc_eqos_start_stop_le start 37 S . stop 63 0 1 6 .
-    update-rc.d $OPT -f setup_avtp_routing_le remove
-    update-rc.d $OPT setup_avtp_routing_le start 91 S . stop 9 0 1 6 .
+        update-rc.d $OPT -f emac_dwc_eqos_start_stop_le remove
+        update-rc.d $OPT emac_dwc_eqos_start_stop_le start 37 S . stop 63 0 1 6 .
+        update-rc.d $OPT -f setup_avtp_routing_le remove
+        update-rc.d $OPT setup_avtp_routing_le start 91 S . stop 9 0 1 6 .
+    fi
 }
 
 do_module_signing() {
