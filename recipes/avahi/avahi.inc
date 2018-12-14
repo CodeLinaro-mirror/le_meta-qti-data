@@ -135,17 +135,22 @@ do_install_avahi-autoipd() {
 
 # At the time the postinst runs, dbus might not be setup so only restart if running 
 
-#pkg_postinst_avahi-daemon () {
-#	if [ "x$D" != "x" ]; then
-#		echo "do nothing during build"
-#	fi
-#
-#	DBUSPID=`pidof dbus-daemon`
-#
-#	if [ "x$DBUSPID" != "x" ]; then
-#		/etc/init.d/dbus-1 force-reload
-#	fi
-#}
+pkg_postinst_avahi-daemon () {
+	if [ "x$D" != "x" ]; then
+		echo "do nothing during build"
+	fi
+
+	if [ command -v systemctl >/dev/null ]
+	then
+		DBUSPID=`pidof dbus-daemon`
+
+		if [ "x$DBUSPID" != "x" ]; then
+			/etc/init.d/dbus-1 force-reload
+		fi
+	else
+		killall -q -HUP dbus-daemon || true
+	fi
+}
 
 # can't do this offline
 pkg_postinst_avahi-autoipd () {
