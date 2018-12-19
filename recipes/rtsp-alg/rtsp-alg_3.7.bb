@@ -26,4 +26,3 @@ do_install() {
         install -m 0644 ${S}/nf_nat_rtsp.ko ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
         install -m 0644 ${S}/nf_conntrack_rtsp.ko ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
 }
-do_configure[depends] += "virtual/kernel:do_shared_workdir"
