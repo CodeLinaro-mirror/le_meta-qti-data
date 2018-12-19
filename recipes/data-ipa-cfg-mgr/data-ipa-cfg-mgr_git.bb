@@ -43,4 +43,3 @@ do_install_append() {
 FILES_${PN} += "${userfsdatadir}/misc/ipa"
 FILES_${PN} += "${systemd_unitdir}/system"
 FILES_${PN} += "${systemd_unitdir}/system/multi-user.target.wants/"
-do_configure[depends] += "virtual/kernel:do_shared_workdir"

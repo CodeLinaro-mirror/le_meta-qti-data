@@ -6,4 +6,3 @@ SRC_URI_append_mdm = " \
 "
 #Leading space before cflag is compulsory. Otherwise it is getting added to existing flag.
 CFLAGS_append_mdm = " -I${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_ipv4"
-do_configure[depends] += "virtual/kernel:do_shared_workdir"

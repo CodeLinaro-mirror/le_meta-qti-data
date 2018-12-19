@@ -14,4 +14,3 @@ EXTRA_OECONF = "--with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-oss"
 S = "${WORKDIR}/data-oss"
-do_configure[depends] += "virtual/kernel:do_shared_workdir"
