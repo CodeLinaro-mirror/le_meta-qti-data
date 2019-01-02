@@ -24,7 +24,8 @@ SRC_URI = "https://github.com/lathiat/avahi/releases/download/v${PV}/avahi-${PV}
           file://99avahi_multi.service \
           file://99avahi-daemon.conf \
           file://99avahi-daemon \
-          file://initscript.patch"
+          file://initscript.patch \
+          file://avahi_daemon.service"
 
 USERADD_PACKAGES = "avahi-daemon"
 USERADD_PARAM_avahi-daemon = "--system --home /var/run/avahi-daemon \
@@ -111,7 +112,7 @@ INITSCRIPT_PARAMS_avahi-dnsconfd = "defaults 99 01"
 do_install() {
         bbnote install -d ${D}${bindir}
         install -d ${D}${bindir}
-	
+
 	autotools_do_install
 
 	# don't install /var/run when populating rootfs. Do it through volatile
@@ -124,6 +125,13 @@ do_install() {
 	rm -rf ${D}${sysconfdir}/avahi/avahi-daemon.conf 
 	install ${WORKDIR}/99avahi-daemon.conf ${D}${sysconfdir}/avahi/avahi-daemon.conf
         install ${WORKDIR}/99avahi-daemon ${D}${sysconfdir}/init.d/avahi-daemon
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        install -d ${D}${systemd_unitdir}/system/
+        install -d ${D}${sysconfdir}/initscripts
+        rm -rf ${D}${sysconfdir}/init.d/avahi-daemon
+        install ${WORKDIR}/99avahi-daemon ${D}${sysconfdir}/initscripts/avahi-daemon
+        install -m 0644 ${WORKDIR}/avahi_daemon.service -D ${D}${systemd_unitdir}/system/avahi_daemon.service
+    fi
 }
 
 do_install_avahi-autoipd() {

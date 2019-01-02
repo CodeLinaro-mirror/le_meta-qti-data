@@ -1,0 +1,9 @@
+[Unit]
+Description= DDClient service
+SourcePath=/usr/sbin/ddclient
+
+[Service]
+Type=forking
+Restart=no
+ExecStart=/usr/sbin/ddclient -file /etc/data/ddclient.conf
+ExecStop=/bin/kill -TERM $MAINPID

@@ -1,0 +1,10 @@
+[Unit]
+Description= DLNA - Digital Living Network Alliance service
+SourcePath=/usr/sbin/minidlnad
+
+[Service]
+Type=forking
+Restart=no
+PIDFile=/var/run/minidlna/minidlna.pid
+ExecStart=/usr/sbin/minidlnad -f /etc/data/minidlna.conf -R
+ExecStop=/bin/kill -15 $MAINPID
