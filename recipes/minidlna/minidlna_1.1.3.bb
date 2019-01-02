@@ -19,6 +19,7 @@ SRC_URI = "\
     file://0001-chunked-data.patch \
     file://0001-search-criteria.patch \
     file://init.patch \
+    file://minidlnad.service \
 "
 
 SRC_URI[md5sum] = "879027192c89e5376cdd2ae2d1aa33b4"
@@ -32,5 +33,10 @@ do_install_append () {
     install -m 644  ${WORKDIR}/${PN}-${PV}/${PN}.conf ${D}${sysconfdir}/data/
     install -d ${D}${sysconfdir}/init.d/
     install ${WORKDIR}/${PN}-${PV}/linux/${PN}.init.d.script ${D}${sysconfdir}/init.d/minidlna
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        install -d ${D}${systemd_unitdir}/system/
+        install -m 0644 ${WORKDIR}/minidlnad.service -D ${D}${systemd_unitdir}/system/minidlnad.service
+    fi
 }
 FILES_${PN} += "${sysconfdir}/data/minidlna.conf"
+FILES_${PN} += "${systemd_unitdir}/system/*"

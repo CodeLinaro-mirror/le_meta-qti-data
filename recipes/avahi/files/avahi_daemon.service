@@ -1,0 +1,8 @@
+[Unit]
+Description= Avahi daemon service
+SourcePath=/etc/initscripts/avahi-daemon
+
+[Service]
+Type=forking
+ExecStart=/etc/initscripts/avahi-daemon start
+ExecStop=/etc/initscripts/avahi-daemon stop
