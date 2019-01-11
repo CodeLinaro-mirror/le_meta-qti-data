@@ -1,2 +1,2 @@
 # Data OPEN SOURCE PACKAGES
-include ${BASEMACHINE}/${BASEMACHINE}-data-image.inc
+require ${@get_bblayer_img_inc('data', d)}
