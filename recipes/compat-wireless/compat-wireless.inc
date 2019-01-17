@@ -25,4 +25,3 @@ do_install() {
     oe_runmake DEPMOD=echo DESTDIR="${D}" INSTALL_MOD_PATH="${D}" \
                       LDFLAGS="" INSTALL_MOD_STRIP=1 install-modules
 }
-do_configure[depends] += "virtual/kernel:do_shared_workdir"

@@ -29,4 +29,3 @@ do_install_append() {
 	install -d ${D}${userfsdatadir}/misc/ipa
 }
 FILES_${PN} += "${userfsdatadir}/misc/ipa"
-do_configure[depends] += "virtual/kernel:do_shared_workdir"
