@@ -4,5 +4,7 @@ SourcePath=/usr/sbin/dhcpcd
 
 [Service]
 Type=forking
-ExecStart=/usr/sbin/dhcpcd %I -t 0 -o domain_name_servers --noipv4ll -b -G
+Restart=no
+ExecStart=/usr/sbin/dhcpcd %I -t 0 -o domain_name_servers --noipv4ll -h -b -G
 ExecStop=/bin/kill -15 $MAINPID
+ExecStopPost=rm -rf /var/run/dhcpcd-%I.info

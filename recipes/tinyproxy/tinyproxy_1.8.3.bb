@@ -27,11 +27,11 @@ SRC_URI[sha256sum] = "27c30690a23670f62a128fd1ec918274de5974e7166a5259f2eeecf9f3
 do_install_append() {
   install -d ${D}${sysconfdir}/data/
   install -m 644 ${WORKDIR}/image/etc/tinyproxy.conf ${D}${sysconfdir}/data/
-  rm -rf ${sysconfdir}/tinyproxy.conf
   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
       install -d ${D}${systemd_unitdir}/system/
       install -m 0644 ${WORKDIR}/tinyproxyd.service -D ${D}${systemd_unitdir}/system/tinyproxyd.service
   fi
+  chown -R root:1001 ${D}${sysconfdir}/data/tinyproxy.conf
 }
 FILES_${PN} += "${sysconfdir}/data/tinyproxy.conf"
 FILES_${PN} += "${systemd_unitdir}/system/*"

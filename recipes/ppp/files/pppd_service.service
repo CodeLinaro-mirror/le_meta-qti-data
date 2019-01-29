@@ -1,0 +1,14 @@
+[Unit]
+SourcePath=/usr/sbin/pppd
+Description= pppd service
+
+[Service]
+EnvironmentFile=/var/run/data/pppd_options.conf
+ExecStart=/usr/sbin/pppd crtscts lock \
+${local_ip_addr}:${remote_ip_addr} ${serial_device} \
+115200 ms-dns ${dns_ip_addr} \
+silent debug +ipv6 disconnect \
+"/usr/sbin/chat -V -f /etc/disconnect"
+Type=oneshot
+RemainAfterExit=yes
+ExecStop=killall -TERM pppd
