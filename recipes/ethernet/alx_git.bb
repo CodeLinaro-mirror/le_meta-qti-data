@@ -1,4 +1,4 @@
-inherit autotools-brokensep module update-rc.d qperf
+inherit autotools-brokensep module update-rc.d
 
 DESCRIPTION = "Qualcomm Atheros Gigabit Ethernet Driver"
 LICENSE = "ISC"
