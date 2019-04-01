@@ -19,6 +19,7 @@ EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-ipa-cfg-mgr"
 SRC_URI  += "file://ipacm.service"
+SRC_URI  += "file://ipacm.conf"
 
 S = "${WORKDIR}/data-ipa-cfg-mgr"
 
@@ -27,7 +28,7 @@ INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
 
 do_install_append() {
-	install -d ${D}${userfsdatadir}/misc/ipa
+	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 
 	  #IPACM Service
@@ -38,8 +39,14 @@ do_install_append() {
 	  ln -sf ${systemd_unitdir}/system/ipacm.service \
 	  ${D}${systemd_unitdir}/system/multi-user.target.wants/ipacm.service
 
+          chown -R 1001:1001 ${D}${sysconfdir}/data/ipa/
+
+          #temp-file for ipacm
+          install -d ${D}${sysconfdir}/tmpfiles.d
+          install -m 0644 ${WORKDIR}/ipacm.conf -D ${D}${sysconfdir}/tmpfiles.d/ipacm.conf
 	fi
 }
 FILES_${PN} += "${userfsdatadir}/misc/ipa"
 FILES_${PN} += "${systemd_unitdir}/system"
+FILES_${PN} += "${sysconfdir}/tmpfiles.d/ipacm.conf"
 FILES_${PN} += "${systemd_unitdir}/system/multi-user.target.wants/"

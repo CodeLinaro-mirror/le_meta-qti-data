@@ -5,6 +5,10 @@ Description= IPACM Service
 [Service]
 Restart=no
 ExecStart=/usr/bin/ipacm
+User=radio
+Group=radio
+SupplementaryGroups=diag inet
+AmbientCapabilities=CAP_NET_ADMIN
 
 [Install]
 WantedBy=multi-user.target
