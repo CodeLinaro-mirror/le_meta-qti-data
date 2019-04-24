@@ -1,0 +1,9 @@
+[Unit]
+Description= WLAN service
+SourcePath=/etc/initscripts/start_qcmap_wlan_le
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+ExecStart=/etc/initscripts/start_qcmap_wlan_le start
+ExecStop=/etc/initscripts/start_qcmap_wlan_le stop
