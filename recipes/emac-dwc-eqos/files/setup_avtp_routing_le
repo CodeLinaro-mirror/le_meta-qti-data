@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Copyright (c) 2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2017,2019, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -36,7 +36,7 @@ case "$1" in
   start)
         echo -n "Creating ebtables rule for 802.1Q packets: "
         if [ -e /sys/class/net/bridge0/bridge ]; then
-          ebtables -t broute -A BROUTING -i eth0 -p 802_1Q -j DROP
+          ebtables -t broute -A BROUTING -p 802_1q --vlan-encap 0x22F0 -i eth0 -j DROP
         fi
         echo "Done creating routing rule"
         echo "802.1Q packets will be received on eth0"
@@ -44,7 +44,7 @@ case "$1" in
   stop)
         echo -n "Removing ebtables rule for 802.1Q packets: "
         if [ -e /sys/class/net/bridge0/bridge ]; then
-          ebtables -t broute -D BROUTING -i eth0 -p 802_1Q -j DROP
+          ebtables -t broute -D BROUTING -p 802_1q --vlan-encap 0x22F0 -i eth0 -j DROP
         fi
         echo "Done removing routing rule"
         echo "802.1Q packets will be received on bridge0"
