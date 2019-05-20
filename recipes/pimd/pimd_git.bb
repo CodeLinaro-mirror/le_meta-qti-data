@@ -13,6 +13,7 @@ SRC_URI = "git://codeaurora.org/quic/le/pimd.git;protocol=git;branch=github/mast
            file://0001-pimb-multicast-support-on-network.patch \
            file://no-deprecated-declarations.patch \
            file://0001-pimd-Resolve-wrong-missing-if-clause-gaurds-error-fo.patch \
+           file://pimd.service \
 "
 
 SRC_URI_append_sdxprairie += "\
@@ -36,3 +37,11 @@ do_install() {
 do_install_append_9615-cdp() {
     install -m 0755 ${WORKDIR}/pimd.conf ${D}${sysconfdir}
 }
+
+do_install_append_mdm(){
+if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+   install -d ${D}${systemd_unitdir}/system/
+   install -m 0644 ${WORKDIR}/pimd.service -D ${D}${systemd_unitdir}/system/pimd.service
+fi
+}
+FILES_${PN} += "${systemd_unitdir}/system/*"

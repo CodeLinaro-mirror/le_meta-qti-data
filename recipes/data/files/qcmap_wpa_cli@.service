@@ -1,0 +1,9 @@
+[Unit]
+SourcePath=/usr/sbin/wpa_cli
+Description= WPA Client service
+
+[Service]
+Type=forking
+EnvironmentFile=/var/run/data/wpa_cli_options.conf
+ExecStart=/usr/sbin/wpa_cli -i ${sta_interface} -p ${wpa_ctrl_path} -B -a ${sta_interface_ctrl_path}
+ExecStop=/bin/kill -15 $MAINPID

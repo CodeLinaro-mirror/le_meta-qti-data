@@ -1,0 +1,11 @@
+[Unit]
+Description= Miniupnpd service
+SourcePath=/usr/sbin/miniupnpd
+
+[Service]
+Type=forking
+Restart=no
+PIDFile=/var/run/miniupnpd.pid
+#This is NOT a a bootup start daemon
+ExecStart=/usr/sbin/miniupnpd -f /etc/data/miniupnpd/miniupnpd.conf
+ExecStop=/bin/kill -15 $MAINPID

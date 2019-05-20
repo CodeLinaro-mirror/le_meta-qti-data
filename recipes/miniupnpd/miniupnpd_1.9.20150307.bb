@@ -18,6 +18,7 @@ SRC_URI = "\
     file://0001-presentation-page.patch \
     file://0001-port-desc.patch \
     file://0001-security-fix.patch \
+    file://miniupnpd.service \
 "
 
 SRC_URI[md5sum] = "f91dc5647b1d2c13a82082a481a53e3d"
@@ -32,3 +33,13 @@ do_compile () {
 do_install () {
     make -f Makefile.linux DESTDIR=${D} LIBDIR=${STAGING_LIBDIR} STRIP=echo install
 }
+
+do_install_append_mdm() {
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        install -d ${D}${systemd_unitdir}/system/
+        install -m 0644 ${WORKDIR}/miniupnpd.service -D ${D}${systemd_unitdir}/system/miniupnpd.service
+    fi
+}
+
+FILES_${PN} += "${sysconfdir}/initscripts/*"
+FILES_${PN} += "${systemd_unitdir}/system/*"
