@@ -36,7 +36,7 @@
 #  $1    $2                 $3             $4
 #
 #creating file to store dnsmasq info
-FILE="/tmp/dnsmasq_host.txt"
+FILE="/tmp/data/dnsmasq_host.txt"
 
 if [ ! -f  $FILE ] ; then
   #File  does not exists creating
