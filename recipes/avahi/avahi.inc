@@ -74,6 +74,7 @@ FILES_avahi-daemon = "${sbindir}/avahi-daemon \
                       ${sysconfdir}/avahi/services \
                       ${sysconfdir}/dbus-1 \
                       ${sysconfdir}/init.d/avahi-daemon \
+                      ${sysconfdir}/initscripts/avahi-daemon \
                       ${datadir}/avahi/introspection/*.introspect \
                       ${datadir}/avahi/avahi-service.dtd \
                       ${datadir}/avahi/service-types \
