@@ -41,9 +41,9 @@ elif [ ${type_inst} == "ipv6_nat" ]; then
     --except-interface=lo \
     -z \
     --dhcp-range=${dhcp_range} \
-    --dhcp-range=${dhcp_range1}
+    --dhcp-range=${dhcp_range1} \
     --dhcp-option=${dhcp_option} \
-    --dhcp-option-force=${dhcp_option_force}
+    --dhcp-option-force=${dhcp_option_force} \
     --dhcp-script=${dhcp_script}
 fi
 exit 0
