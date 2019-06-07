@@ -32,6 +32,22 @@ elif [ ${type_inst} == "relay" ]; then
     -z \
     --dhcp-relay=${dhcp_relay} \
     --dhcp-proxy
+elif [ ${type_inst} == "sta_br" ]; then
+    /usr/bin/dnsmasq \
+    --interface=${interface} \
+    --except-interface=lo \
+    -z \
+    --dhcp-relay=${dhcp_relay} \
+    --dhcp-proxy \
+    --dhcp-leasefile=${dhcp_leasefile}
+elif [ ${type_inst} == "cradle" ]; then
+    /usr/bin/dnsmasq \
+    --interface=${interface} \
+    --except-interface=lo \
+    -z \
+    --dhcp-relay=${dhcp_relay} \
+    --dhcp-proxy \
+    --dhcp-leasefile=${dhcp_leasefile}
 elif [ ${type_inst} == "ipv6_nat" ]; then
     /usr/bin/dnsmasq --conf-file=${conf_file} \
     --dhcp-leasefile=${dhcp_leasefile} \
