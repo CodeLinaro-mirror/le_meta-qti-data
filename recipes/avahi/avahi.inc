@@ -129,8 +129,8 @@ do_install() {
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         install -d ${D}${systemd_unitdir}/system/
         install -d ${D}${sysconfdir}/initscripts
-        rm -rf ${D}${sysconfdir}/init.d/avahi-daemon
-        install ${WORKDIR}/99avahi-daemon ${D}${sysconfdir}/initscripts/avahi-daemon
+        mv ${D}${sysconfdir}/init.d/avahi-dnsconfd ${D}${sysconfdir}/initscripts/avahi-dnsconfd
+        mv ${D}${sysconfdir}/init.d/avahi-daemon ${D}${sysconfdir}/initscripts/avahi-daemon
         install -m 0644 ${WORKDIR}/avahi_daemon.service -D ${D}${systemd_unitdir}/system/avahi_daemon.service
     fi
 }

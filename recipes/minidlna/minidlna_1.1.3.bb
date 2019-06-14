@@ -35,6 +35,7 @@ do_install_append () {
     install -d ${D}${sysconfdir}/init.d/
     install ${WORKDIR}/${PN}-${PV}/linux/${PN}.init.d.script ${D}${sysconfdir}/init.d/minidlna
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        rm -rf ${D}${sysconfdir}/init.d/minidlna
         install -d ${D}${systemd_unitdir}/system/
         install -m 0644 ${WORKDIR}/minidlnad.service -D ${D}${systemd_unitdir}/system/minidlnad.service
     fi
