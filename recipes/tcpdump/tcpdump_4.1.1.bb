@@ -4,7 +4,7 @@ LICENSE = "BSD"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=1d4b0366557951c84a94fabe3529f867"
 SECTION = "console/network"
 PRIORITY = "optional"
-DEPENDS = "libpcap"
+DEPENDS = "libpcap libtirpc"
 PR = "r2"
 export LIBS=" -lpcap"
 
@@ -24,6 +24,8 @@ PACKAGECONFIG ??= "ipv6"
 PACKAGECONFIG[openssl] = "--with-crypto=yes, --without-crypto, openssl"
 PACKAGECONFIG[ipv6] = "--enable-ipv6, --disable-ipv6,"
 
+CFLAGS_append = " -I/usr/include/tirpc "
+LDFLAGS_append = " -ltirpc "
 
 do_configure_prepend () {
         #Allow build paths with containing AU_
@@ -32,8 +34,9 @@ do_configure_prepend () {
 
 do_configure() {
 	sed -i 's:-L/lib:-L${STAGING_LIBDIR}:g' ./configure.in
+
 	gnu-configize
-	autoconf -v -f
+	autoconf  -v -f
 	oe_runconf
 	sed -i 's:/usr/lib:${STAGING_LIBDIR}:' ./Makefile
 	sed -i 's:/usr/include:${STAGING_INCDIR}:' ./Makefile
