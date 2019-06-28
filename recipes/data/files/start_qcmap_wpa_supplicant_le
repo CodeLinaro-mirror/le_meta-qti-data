@@ -32,13 +32,13 @@ set -e
 
 if [ ${option} == "router" ];then
     if [ ${debug_mode} == "1" ];then
-        /usr/sbin/wpa_supplicant -i ${sta_interface} -Dnl80211 -B -c ${supplicant_conf} ${debug}
+        /usr/sbin/wpa_supplicant -i ${sta_interface} -Dnl80211 -B -c ${supplicant_conf} -t -dd -f ${debug}
     else
         /usr/sbin/wpa_supplicant -i ${sta_interface} -Dnl80211 -B -c ${supplicant_conf}
     fi
 elif [ ${option} == "bridge" ];then
     if [ ${debug_mode} == "1" ];then
-        /usr/sbin/wpa_supplicant -b ${bridge_iface} -i ${sta_interface} -Dnl80211 -B -c ${supplicant_conf} ${debug}
+        /usr/sbin/wpa_supplicant -b ${bridge_iface} -i ${sta_interface} -Dnl80211 -B -c ${supplicant_conf} -t -dd -f ${debug}
     else
         /usr/sbin/wpa_supplicant -b ${bridge_iface} -i ${sta_interface} -Dnl80211 -B -c ${supplicant_conf}
     fi
