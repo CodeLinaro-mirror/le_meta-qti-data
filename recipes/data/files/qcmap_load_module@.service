@@ -1,0 +1,12 @@
+[Unit]
+Description= Load/Unload %I module service
+SourcePath=%I
+DefaultDependencies=no
+
+[Service]
+EnvironmentFile=/var/run/data/kernel_module.conf
+Restart=no
+Type=forking
+RemainAfterExit=yes
+ExecStart=insmod ${module}
+ExecStop=rmmod ${module}
