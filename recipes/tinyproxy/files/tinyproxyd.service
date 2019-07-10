@@ -8,4 +8,4 @@ Type=oneshot
 RemainAfterExit=yes
 Restart=no
 ExecStart=/usr/sbin/tinyproxy -c /etc/data/tinyproxy.conf
-ExecStop=/bin/kill -15 $MAINPID
+ExecStop=/usr/bin/killall -15 tinyproxy
