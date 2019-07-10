@@ -2,7 +2,10 @@
 Description= tinyproxy service
 SourcePath=/usr/sbin/tinyproxy
 
+
 [Service]
+Type=oneshot
+RemainAfterExit=yes
 Restart=no
 ExecStart=/usr/sbin/tinyproxy -c /etc/data/tinyproxy.conf
 ExecStop=/bin/kill -15 $MAINPID

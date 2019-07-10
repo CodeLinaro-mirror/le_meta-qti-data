@@ -3,9 +3,9 @@ Description=Lightning Fast Webserver With Light System Requirements
 After=network.target
 
 [Service]
-#ExecStartPre=@SYSCONFDIR@/init.d/lighttpd start
-ExecStart=@SYSCONFDIR@/init.d/lighttpd start
-ExecReload=@SYSCONFDIR@/init.d/lighttpd restart
+ExecStart=@SYSCONFDIR@/initscripts/lighttpd start
+ExecStop=@SYSCONFDIR@/initscripts/lighttpd stop
+ExecReload=@SYSCONFDIR@/initscripts/lighttpd restart
 
 [Install]
 WantedBy=multi-user.target

@@ -30,7 +30,14 @@ do_install_append() {
    rm -rf ${D}${sysconfdir}/lighttpd.conf
    install -m 0755 ${WORKDIR}/lighttpd.conf ${D}${userfsdatadir}
    rm -rf ${D}/www/logs ${D}/www/var
+   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+       rm -rf ${D}${sysconfdir}/init.d/lighttpd
+       install -d ${D}${sysconfdir}/initscripts/
+       install -m 0755 ${WORKDIR}/lighttpd -D ${D}${sysconfdir}/initscripts/lighttpd
+   fi
+
 }
 FILES_${PN} += "${userfsdatadir}/lighttpd.conf"
 FILES_${PN} += "${userfsdatadir}/openssl.cnf"
 FILES_${PN} += "${userfsdatadir}/www/*"
+FILES_${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '${sysconfdir}/initscripts/lighttpd', '', d)}"
