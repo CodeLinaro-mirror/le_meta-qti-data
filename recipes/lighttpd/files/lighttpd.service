@@ -3,6 +3,7 @@ Description=Lightning Fast Webserver With Light System Requirements
 After=network.target
 
 [Service]
+Type=forking
 ExecStart=@SYSCONFDIR@/initscripts/lighttpd start
 ExecStop=@SYSCONFDIR@/initscripts/lighttpd stop
 ExecReload=@SYSCONFDIR@/initscripts/lighttpd restart
