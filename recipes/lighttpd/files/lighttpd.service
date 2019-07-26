@@ -4,9 +4,11 @@ After=network.target
 
 [Service]
 Type=forking
-ExecStart=@SYSCONFDIR@/initscripts/lighttpd start
-ExecStop=@SYSCONFDIR@/initscripts/lighttpd stop
-ExecReload=@SYSCONFDIR@/initscripts/lighttpd restart
+ExecStartPre=@SYSCONFDIR@/initscripts/lighttpd start
+ExecStart=/usr/sbin/lighttpd -f /data/lighttpd.conf
+
+ExecStopPre=@SYSCONFDIR@/initscripts/lighttpd stop
+ExecStop=kill -15 $MAINPID
 
 [Install]
 WantedBy=multi-user.target
