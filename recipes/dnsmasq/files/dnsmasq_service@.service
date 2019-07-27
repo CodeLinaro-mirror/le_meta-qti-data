@@ -1,6 +1,7 @@
 [Unit]
 SourcePath=/usr/bin/dnsmasq
 Description= dnsmasq service
+DefaultDependencies=no
 
 [Service]
 EnvironmentFile=/var/run/data/dnsmasq_env.conf
@@ -8,3 +9,4 @@ ExecStart=/etc/initscripts/qcmap_start_dnsmasq.sh /var/run/data/dnsmasq_env.conf
 ExecReload=killall -HUP dnsmasq
 Type=oneshot
 RemainAfterExit=yes
+Nice=-20
