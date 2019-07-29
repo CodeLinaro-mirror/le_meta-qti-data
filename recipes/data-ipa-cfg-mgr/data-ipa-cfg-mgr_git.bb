@@ -34,10 +34,10 @@ do_install_append() {
 	  #IPACM Service
 	  rm -rf ${D}${sysconfdir}/init.d/start_ipacm_le
 	  install -m 0644 ${WORKDIR}/ipacm.service -D ${D}${systemd_unitdir}/system/ipacm.service
-	  install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
-	  # enable the service for multi-user.target
+	  install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
+	  # enable the service for local-fs.target
 	  ln -sf ${systemd_unitdir}/system/ipacm.service \
-	  ${D}${systemd_unitdir}/system/multi-user.target.wants/ipacm.service
+	  ${D}${systemd_unitdir}/system/local-fs.target.wants/ipacm.service
 
           chown -R 1001:1001 ${D}${sysconfdir}/data/ipa/
 
@@ -49,4 +49,4 @@ do_install_append() {
 FILES_${PN} += "${userfsdatadir}/misc/ipa"
 FILES_${PN} += "${systemd_unitdir}/system"
 FILES_${PN} += "${sysconfdir}/tmpfiles.d/ipacm.conf"
-FILES_${PN} += "${systemd_unitdir}/system/multi-user.target.wants/"
+FILES_${PN} += "${systemd_unitdir}/system/local-fs.target.wants/"
