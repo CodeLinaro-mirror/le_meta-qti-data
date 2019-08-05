@@ -1,0 +1,10 @@
+
+[Unit]
+Description=AQC IPA Offload
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe aqc_ipa_offload
+ExecStop=/sbin/rmmod aqc_ipa_offload
+
