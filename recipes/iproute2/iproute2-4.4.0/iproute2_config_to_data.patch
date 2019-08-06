@@ -1,3 +1,11 @@
+From c805074c3776381e6b3db7997949d14cb0340374 Mon Sep 17 00:00:00 2001
+From: Gustavo Solaira <gustavos@codeaurora.org>
+Date: Fri, 14 Sep 2018 15:22:44 -0700
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
 diff --git a/Makefile b/Makefile
 index 67176be..e7dcb7a 100644
 --- a/Makefile
