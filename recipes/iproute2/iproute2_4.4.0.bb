@@ -6,6 +6,7 @@ SRC_URI = "${KERNELORG_MIRROR}/linux/utils/net/${BPN}/${BP}.tar.xz \
            file://iproute2-4.3.0-musl.patch \
            file://iproute2-fix-building-with-musl.patch \
            file://iproute2_config_to_data.patch \
+           file://iproute2-fix-compilation.patch \
           "
 SRC_URI[md5sum] = "d762653ec3e1ab0d4a9689e169ca184f"
 SRC_URI[sha256sum] = "bc91c367288a19f78ef800cd6840363be1f22da8436fbae88e1a7250490d6514"
