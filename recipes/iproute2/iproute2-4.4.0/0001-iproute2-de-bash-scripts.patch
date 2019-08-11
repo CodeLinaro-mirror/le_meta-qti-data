@@ -1,3 +1,6 @@
+From 4d3e360528fab9e46fd165f483cb83695cc5f4b4 Mon Sep 17 00:00:00 2001
+From: Chen Qi <Qi.Chen@windriver.com>
+Date: Fri, 14 Sep 2018 15:22:44 -0700
 Subject: [PATCH] iproute2: de-bash scripts
 
 de-bash these two scripts to make iproute2 not depend on bash.
@@ -7,8 +10,8 @@ Upstream-Status: Pending
 Signed-off-by: Chen Qi <Qi.Chen@windriver.com>
 
 ---
- ip/ifcfg |   15 ++++++++-------
- ip/rtpr  |    2 +-
+ ip/ifcfg | 15 ++++++++-------
+ ip/rtpr  |  2 +-
  2 files changed, 9 insertions(+), 8 deletions(-)
 
 diff --git a/ip/ifcfg b/ip/ifcfg
@@ -59,6 +62,3 @@ index c3629fd..674198d 100644
  
  exec tr "[\\\\]" "[
  ]"
--- 
-1.7.9.5
-

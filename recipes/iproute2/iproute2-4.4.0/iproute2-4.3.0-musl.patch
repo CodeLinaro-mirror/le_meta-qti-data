@@ -1,4 +1,4 @@
-From 48596709d8ab59727b79a5c6db33ebb251c36543 Mon Sep 17 00:00:00 2001
+From 4915652c61135facfc27affefc11db6a838f174a Mon Sep 17 00:00:00 2001
 From: Thomas Petazzoni <thomas.petazzoni@free-electrons.com>
 Date: Thu, 19 Nov 2015 17:44:25 +0100
 Subject: [PATCH] Avoid in6_addr redefinition
@@ -29,9 +29,8 @@ Original patch taken from
 http://git.alpinelinux.org/cgit/aports/tree/main/iproute2/musl-fixes.patch.
 
 Signed-off-by: Thomas Petazzoni <thomas.petazzoni@free-electrons.com>
----
-Upstream-Status: Pending
 
+---
  include/libiptc/ipt_kernel_headers.h | 2 --
  include/linux/if_bridge.h            | 1 -
  include/linux/netfilter.h            | 2 --
@@ -92,6 +91,3 @@ index b8f5451..a9761a5 100644
  #include <linux/types.h>
  
  /* All of the structures in this file may not change size as they are
--- 
-2.6.3
-

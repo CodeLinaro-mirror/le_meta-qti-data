@@ -1,4 +1,4 @@
-From efb7bc74b6775097ef4096e34db52f2d092c00cf Mon Sep 17 00:00:00 2001
+From 186385d6043c5e119f4fcecf543d3ab4850156c8 Mon Sep 17 00:00:00 2001
 From: Gustavo Solaira <gustavos@codeaurora.org>
 Date: Tue, 6 Aug 2019 10:31:41 -0700
 Subject: [PATCH] Fix compilation in Yocto
@@ -19,6 +19,3 @@ index 46eaefb..5a749d3 100644
  #include <stdio.h>
  #include <stdlib.h>
  #include <unistd.h>
--- 
-2.7.4
-
