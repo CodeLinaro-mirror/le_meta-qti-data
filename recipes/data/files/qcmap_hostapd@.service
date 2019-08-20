@@ -1,6 +1,7 @@
 [Unit]
 SourcePath=/usr/sbin/hostapd
 Description= Hostapd service
+DefaultDependencies=no
 
 [Service]
 Type=forking
@@ -8,3 +9,4 @@ EnvironmentFile=/var/run/data/hostapd_options.conf
 ExecStart=/etc/initscripts/start_qcmap_hostapd_le /var/run/data/hostapd_options.conf
 ExecStartPost=chown -R radio.radio /var/run/hostapd
 ExecStop=/bin/kill -15 $MAINPID
+Nice=-20
