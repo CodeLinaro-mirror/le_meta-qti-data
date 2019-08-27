@@ -1,20 +1,34 @@
-diff -u a/dhcpcd-hooks/Makefile b/dhcpcd-hooks/Makefile
---- a/dhcpcd-hooks/Makefile	2015-09-18 14:47:00.345622850 -0700
-+++ b/dhcpcd-hooks/Makefile	2015-09-18 14:47:38.970840854 -0700
-@@ -4,7 +4,7 @@
+From 5f1a3c7f1d4bd94bbb72d7aada3173c1f25a7ced Mon Sep 17 00:00:00 2001
+From: Mohammed Javid <mjavid@codeaurora.org>
+Date: Thu, 3 Aug 2017 12:06:06 +0530
 
- SCRIPTSDIR=	${LIBEXECDIR}/dhcpcd-hooks
- SCRIPTS=	01-test 02-dump
--SCRIPTS+=	10-mtu 20-resolv.conf 29-lookup-hostname 30-hostname
-+SCRIPTS+=	10-mtu 20-resolv.conf 29-lookup-hostname 30-hostname 50-dhcpcd-compat
- SCRIPTS+=	${HOOKSCRIPTS}
+---
+ configure                     | 4 ++--
+ dhcpcd-hooks/50-dhcpcd-compat | 6 +++---
+ dhcpcd-hooks/Makefile         | 2 +-
+ 3 files changed, 6 insertions(+), 6 deletions(-)
 
- all:
-
+diff --git a/configure b/configure
+index 8843435..4018e7e 100755
+--- a/configure
++++ b/configure
+@@ -66,9 +66,9 @@ done
+ : ${SBINDIR:=$PREFIX/sbin}
+ : ${LIBDIR:=$PREFIX/lib}
+ : ${LIBEXECDIR:=$PREFIX/libexec}
+-: ${STATEDIR:=/var}
++: ${STATEDIR:=/var/run}
+ : ${DBDIR:=$STATEDIR/db}
+-: ${RUNDIR:=$STATEDIR/run}
++: ${RUNDIR:=/var/run}
+ : ${MANDIR:=${PREFIX:-/usr}/share/man}
  
---- a/dhcpcd-hooks/50-dhcpcd-compat	2011-01-03 16:24:58.000000000 +0530
-+++ b/dhcpcd-hooks/50-dhcpcd-compat	2017-02-08 21:06:13.618273581 +0530
-@@ -30,12 +30,12 @@
+ eval SYSCONFDIR="$SYSCONFDIR"
+diff --git a/dhcpcd-hooks/50-dhcpcd-compat b/dhcpcd-hooks/50-dhcpcd-compat
+index 651bc08..e1ae4da 100644
+--- a/dhcpcd-hooks/50-dhcpcd-compat
++++ b/dhcpcd-hooks/50-dhcpcd-compat
+@@ -30,12 +30,12 @@ BOUND|INFORM|REBIND|REBOOT|TEST|TIMEOUT|IPV4LL) x="new";;
  esac
  
  if [ "$reason" != "down" ]; then
@@ -30,16 +44,16 @@ diff -u a/dhcpcd-hooks/Makefile b/dhcpcd-hooks/Makefile
  
 -set -- /var/lib/dhcpcd-"$INTERFACE".info "$x"
 +set -- /var/run/dhcpcd-"$INTERFACE".info "$x"
-
---- a/configure	2017-03-10 15:28:27.491601787 +0530
-+++ b/configure	2017-03-10 15:30:09.629944443 +0530
-@@ -66,9 +66,9 @@
- : ${SBINDIR:=$PREFIX/sbin}
- : ${LIBDIR:=$PREFIX/lib}
- : ${LIBEXECDIR:=$PREFIX/libexec}
--: ${STATEDIR:=/var}
-+: ${STATEDIR:=/var/run}
- : ${DBDIR:=$STATEDIR/db}
--: ${RUNDIR:=$STATEDIR/run}
-+: ${RUNDIR:=/var/run}
- : ${MANDIR:=${PREFIX:-/usr}/share/man}
+diff --git a/dhcpcd-hooks/Makefile b/dhcpcd-hooks/Makefile
+index 7563d2d..685cb5a 100644
+--- a/dhcpcd-hooks/Makefile
++++ b/dhcpcd-hooks/Makefile
+@@ -4,7 +4,7 @@ include ${TOP}/config.mk
+ 
+ SCRIPTSDIR=	${LIBEXECDIR}/dhcpcd-hooks
+ SCRIPTS=	01-test 02-dump
+-SCRIPTS+=	10-mtu 20-resolv.conf 29-lookup-hostname 30-hostname
++SCRIPTS+=	10-mtu 20-resolv.conf 29-lookup-hostname 30-hostname 50-dhcpcd-compat
+ SCRIPTS+=	${HOOKSCRIPTS}
+ 
+ all:
