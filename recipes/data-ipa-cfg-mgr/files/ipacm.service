@@ -2,7 +2,7 @@
 SourcePath=/usr/bin/ipacm
 Description= IPACM Service
 Before= QCMAP_ConnectionManagerd.service
-After= start_stop_ipa_fws.service
+After= start_stop_ipa_fws.service local-fs.target
 DefaultDependencies=no
 
 [Service]
