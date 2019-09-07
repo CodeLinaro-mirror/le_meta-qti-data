@@ -1,5 +1,5 @@
 
-SRC := $(shell pwd)/aqc-ipa-offload
+SRC := $(shell pwd)
 
 all:
 	$(MAKE) -C $(KERNEL_SRC) M=$(SRC)

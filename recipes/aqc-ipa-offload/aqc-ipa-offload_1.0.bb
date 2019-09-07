@@ -1,35 +1,43 @@
 SUMMARY = "AQC IPA Offload"
 LICENSE = "GPLv2"
-LIC_FILES_CHKSUM = "file://aqc-ipa-offload/aqo_main.c;\
+LIC_FILES_CHKSUM = "file://aqo_main.c;\
 beginline=3;endline=10;md5=28fe1ff28187fe4efdc6414eeb8185e3"
 
 inherit module
+inherit qperf
+inherit systemd
 
 FILESPATH =+ "${WORKSPACE}:${WORKSPACE}/data-kernel/drivers/:"
 
-SRC_URI  = "file://aqc-ipa-offload"
-SRC_URI += "file://Makefile"
+AQO_DIR = "aqc-ipa-offload"
+
+# Files from data-kernel
+SRC_URI  = "file://${AQO_DIR}"
+
+# Files from meta-qti-data
+SRC_URI += "file://${AQO_DIR}/Makefile"
 SRC_URI += "file://aqc-ipa-offload.service"
 
-MODULES_MODULE_SYMVERS_LOCATION = "aqc-ipa-offload"
-
-S = "${WORKDIR}"
+S = "${WORKDIR}/${AQO_DIR}"
 
 # The inherit of module.bbclass will automatically name module packages with
 # "kernel-module-" prefix as required by the oe-core build environment.
 
-RPROVIDES_${PN} += "kernel-module-aqc-ipa-offload"
+RPROVIDES_${PN} += "kernel-module-aqc_ipa_offload"
 
-FILES_${PN} += "${systemd_system_unitdir}"
+SYSTEMD_SERVICE_${PN} = "aqc-ipa-offload.service"
 
 do_install_append() {
-	# Install systemd service for loading/unloading the driver and
-	# enable the service for multi-user target.
-	install -d ${D}${systemd_system_unitdir}/multi-user.target.wants
-	install -m 0600 ${WORKDIR}/aqc-ipa-offload.service \
+	# Install unit files to systemd system directory and they will be
+	# packaged and enabled by the systemd class if 'systemd' feature
+	# is enabled in the distro.
+	install -m 0644 ${WORKDIR}/aqc-ipa-offload.service \
 		-D ${D}${systemd_system_unitdir}/aqc-ipa-offload.service
-	ln -sfT ${systemd_system_unitdir}/aqc-ipa-offload.service \
-		${D}${systemd_system_unitdir}/multi-user.target.wants/aqc-ipa-offload.service
 }
+
+# qperf class adds do_copy_kernel_module() after do_module_signing().
+# Since we do not yet support module signing, explicitly add the task to
+# execute between compile and package stages.
+addtask copy_kernel_module after do_compile before do_package
 
 # vim: syntax=bitbake
