@@ -7,7 +7,7 @@ Type=forking
 ExecStartPre=@SYSCONFDIR@/initscripts/lighttpd start
 ExecStart=/usr/sbin/lighttpd -f /data/lighttpd.conf
 
-ExecStopPre=@SYSCONFDIR@/initscripts/lighttpd stop
+ExecStop=@SYSCONFDIR@/initscripts/lighttpd stop
 ExecStop=kill -15 $MAINPID
 
 [Install]
