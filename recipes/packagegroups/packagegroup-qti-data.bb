@@ -4,6 +4,8 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 inherit packagegroup
 
+LICENSE = "MIT"
+
 PROVIDES = "${PACKAGES}"
 
 PACKAGES = ' \
