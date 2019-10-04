@@ -16,8 +16,11 @@ do_install_append() {
             install -d ${D}${sysconfdir}/initscripts
 
             #WLAN service
+            #auto-wlan.service file will take care of the Auto usecases
+         if (test "x${BASEPRODUCT}" != "xauto"); then
             install -m 0755 ${WORKDIR}/start_qcmap_wlan_le ${D}${sysconfdir}/initscripts
             install -m 0644 ${WORKDIR}/qcmap_wlan.service -D ${D}${systemd_unitdir}/system/qcmap_wlan.service
+         fi
 
             #WPA_CLI Service
             install -m 0644 ${WORKDIR}/qcmap_wpa_cli@.service -D ${D}${systemd_unitdir}/system/qcmap_wpa_cli@.service
