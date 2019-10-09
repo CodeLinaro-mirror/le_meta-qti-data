@@ -4,7 +4,7 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 inherit packagegroup
 
-LICENSE = "MIT"
+LICENSE =  "GPLv2+ & GPLv2 &  BSD"
 
 PROVIDES = "${PACKAGES}"
 
