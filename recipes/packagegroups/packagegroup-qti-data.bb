@@ -18,6 +18,7 @@ RDEPENDS_packagegroup-qti-data = ' \
 RDEPENDS_packagegroup-qti-network-tools = " \
     iproute2 \
     iptables \
+    iperf \
     dnsmasq \
     ebtables \
     ethtool \
