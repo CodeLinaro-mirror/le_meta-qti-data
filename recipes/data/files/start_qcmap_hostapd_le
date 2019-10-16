@@ -31,7 +31,7 @@
 set -e
 
 if [ ${debug_mode} == "1" ];then
-    /usr/sbin/hostapd -B ${hostapd_conf} -P ${pid} -e ${entropy} ${debug}
+    /usr/sbin/hostapd -B ${hostapd_conf} -P ${pid} -e ${entropy} -t -dd -f ${debug}
 else
     /usr/sbin/hostapd -B ${hostapd_conf} -P ${pid} -e ${entropy}
 fi

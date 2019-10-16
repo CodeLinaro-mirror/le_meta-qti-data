@@ -8,6 +8,7 @@ SRC_URI  += "file://qcmap_hostapd@.service"
 SRC_URI  += "file://start_qcmap_wlan_le"
 SRC_URI  += "file://start_qcmap_wpa_supplicant_le"
 SRC_URI  += "file://start_qcmap_hostapd_le"
+SRC_URI  += "file://qcmap_load_module@.service"
 
 do_install_append() {
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
@@ -31,5 +32,8 @@ do_install_append() {
             #HOSTAPD Service
             install -m 0755 ${WORKDIR}/start_qcmap_hostapd_le ${D}${sysconfdir}/initscripts
             install -m 0644 ${WORKDIR}/qcmap_hostapd@.service -D ${D}${systemd_unitdir}/system/qcmap_hostapd@.service
+
+            #Load modules from qcmap
+            install -m 0644 ${WORKDIR}/qcmap_load_module@.service -D ${D}${systemd_unitdir}/system/qcmap_load_module@.service
         fi
 }
