@@ -44,6 +44,10 @@ do_install_append() {
           #temp-file for ipacm
           install -d ${D}${sysconfdir}/tmpfiles.d
           install -m 0644 ${WORKDIR}/ipacm.conf -D ${D}${sysconfdir}/tmpfiles.d/ipacm.conf
+
+          #IPACM_cfg file stored as factory settings
+          install -m 0755 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
+
 	fi
 }
 FILES_${PN} += "${userfsdatadir}/misc/ipa"
