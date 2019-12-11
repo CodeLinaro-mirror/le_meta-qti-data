@@ -8,21 +8,28 @@ PROVIDES = "${PACKAGES}"
 
 PACKAGES = ' \
     packagegroup-qti-data \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
+    ${@bb.utils.contains_any("COMBINED_FEATURES", "ethernet", "packagegroup-qti-ethernet-tools", "", d)} \
+    ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
 
 RDEPENDS_packagegroup-qti-data = ' \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
-    '
-
-RDEPENDS_packagegroup-qti-network-tools = " \
     iproute2 \
     iptables \
     iperf \
     dnsmasq \
     ebtables \
-    ethtool \
     dhcpcd \
     tcpdump \
     conntrack-tools \
+    ${@bb.utils.contains_any("COMBINED_FEATURES", "ethernet", "packagegroup-qti-ethernet-tools", "", d)} \
+    ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
+    '
+
+RDEPENDS_packagegroup-qti-ethernet-tools = " \
+    ethtool \
+    emac-dwc-eqos \
+    "
+
+RDEPENDS_packagegroup-qti-data-modem = " \
+    data-oss \
     "
