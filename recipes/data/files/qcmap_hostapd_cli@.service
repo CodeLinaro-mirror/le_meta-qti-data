@@ -6,4 +6,5 @@ Description= Hostapd Client service
 Type=forking
 EnvironmentFile=/var/run/data/hostapd_cli_options.conf
 ExecStart=/usr/sbin/hostapd_cli -i ${wlan_iface} -s /var/run -p /var/run/hostapd -B -a ${sta_interface_ctrl_path}
+SupplementaryGroups=radio
 ExecStop=/bin/kill -15 $MAINPID
