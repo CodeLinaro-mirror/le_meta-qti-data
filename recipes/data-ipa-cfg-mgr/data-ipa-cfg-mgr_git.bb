@@ -46,7 +46,7 @@ do_install_append() {
           install -m 0644 ${WORKDIR}/ipacm.conf -D ${D}${sysconfdir}/tmpfiles.d/ipacm.conf
 
           #IPACM_cfg file stored as factory settings
-          install -m 0755 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
+          install -m 0755 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
 
 	fi
 }
