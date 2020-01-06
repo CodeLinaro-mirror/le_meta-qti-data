@@ -21,6 +21,8 @@ SRC_URI[sha256sum] = "dc6f7b484f207dc712bfca81645f45120cb6aee3380e77a1771e9c34a9
 
 CACHED_CONFIGUREVARS = "ac_cv_linux_vers=${ac_cv_linux_vers=2}"
 
+do_configure[depends] += "virtual/kernel:do_shared_workdir"
+
 EXTRA_OEMAKE = "KERNEL_INCLUDES=${STAGING_KERNEL_BUILDDIR}/usr/include"
 
 EXTRA_OECONF = "--without-crypto \

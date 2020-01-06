@@ -9,6 +9,8 @@ PR = "r4"
 
 DEPENDS += "virtual/kernel glib-2.0"
 
+do_configure[depends] += "virtual/kernel:do_shared_workdir"
+
 EXTRA_OECONF = "--with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
 
 FILESPATH =+ "${WORKSPACE}:"
