@@ -43,12 +43,15 @@ do_install_append() {
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
+   install -d ${D}${systemd_unitdir}/system/sockets.target.wants/
 
    #Emac Service
    install -m 0644 ${WORKDIR}/emac_dwc_eqos.service -D ${D}${systemd_unitdir}/system/emac_dwc_eqos.service
    # enable the service for multi-user.target
    ln -sf ${systemd_unitdir}/system/emac_dwc_eqos.service \
    ${D}${systemd_unitdir}/system/multi-user.target.wants/emac_dwc_eqos.service
+   ln -sf ${systemd_unitdir}/system/emac_dwc_eqos.service \
+   ${D}${systemd_unitdir}/system/sockets.target.wants/emac_dwc_eqos.service
 
    #setup_avtp_routing_le script
    install -m 0644 ${WORKDIR}/setup_avtp_routing_le.service -D ${D}${systemd_unitdir}/system/setup_avtp_routing_le.service
