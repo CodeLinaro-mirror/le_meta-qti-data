@@ -38,6 +38,6 @@ DefaultDependencies=no
 Type=oneshot
 EnvironmentFile=/var/run/data/wpa_cli_setband_options.conf
 StandardOutput=file:/var/run/data/wpa_cli_setband
-ExecStart=/usr/sbin/wpa_cli -i ${sta_interface} SET setband {band}
+ExecStart=/usr/sbin/wpa_cli -i ${sta_interface} SET setband ${band}
 Nice=-20
 SuccessExitStatus=0 1
