@@ -30,6 +30,8 @@
 
 set -e
 
+echo "qcmap: hostapd: printing debug logs for hostapd on interface" $1
+
 if [ ${debug_mode} == "1" ];then
     /usr/sbin/hostapd -B ${hostapd_conf} -P ${pid} -e ${entropy} -t -dd -f ${debug}
 else
