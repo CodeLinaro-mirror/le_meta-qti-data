@@ -4,6 +4,7 @@ Description= WPA Supplicant service
 DefaultDependencies=no
 
 [Service]
+StandardOutput=file:/dev/kmsg
 Type=forking
 EnvironmentFile=/var/run/data/wpa_supplicant_options.conf
 ExecStart=/etc/initscripts/start_qcmap_wpa_supplicant_le /var/run/data/wpa_supplicant_options.conf
