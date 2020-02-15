@@ -1,4 +1,5 @@
 # Data open source Packages
+IMAGE_INSTALL += "bind-utils"
 IMAGE_INSTALL += "conntrack-tools"
 IMAGE_INSTALL += "data-ipa-cfg-mgr"
 IMAGE_INSTALL += "data-oss"
