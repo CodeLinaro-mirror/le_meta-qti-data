@@ -51,15 +51,19 @@ case "$1" in
       if [ $iface == "rndis0" ] || [ $iface == "ecm0" ]; then
           echo "USB Client Mac Address is $2 " > /dev/kmsg
           echo "QCMAP:USB Client IP Addr $3 " > /dev/kmsg
+          echo -n "M - USB Client IP $3 " >> /sys/kernel/debug/bootkpi/kpi_values
       elif [ $iface == "eth0" ]; then
           echo "ETHERNET Client Mac Address is $2 " > /dev/kmsg
           echo "QCMAP:Ethernet Client IP Addr $3 " > /dev/kmsg
+          echo -n "M - ETH Client IP $3 " >> /sys/kernel/debug/bootkpi/kpi_values
       elif [ $iface == "wlan0" ] || [ $iface == "wlan1" ] || [ $iface == "wlan2" ] || [ $iface == "wlan3" ]; then
           echo "WLAN Client Mac Address is $2 " > /dev/kmsg
           echo "QCMAP:Wlan Client IP Addr $3 " > /dev/kmsg
+          echo -n "M - WLAN Client IP $3 " >> /sys/kernel/debug/bootkpi/kpi_values
       elif [ $iface == "bt-pan" ]; then
           echo "BT Client Mac Address is $2 " > /dev/kmsg
           echo "QCMAP:BT Client IP Addr $3 " > /dev/kmsg
+          echo -n "M - BT Client IP $3 " >> /sys/kernel/debug/bootkpi/kpi_values
       fi
       #"add" event  means a lease has been created
       #Removing entry for that is already for  ip=$3
