@@ -1,6 +1,9 @@
 [Unit]
 Description= emac service
 SourcePath=/etc/initscripts/emac_dwc_eqos_start_stop_le
+After=QCMAP_ConnectionManagerd.service
+Before=init_sys_mss.service
+DefaultDependencies=no
 
 [Service]
 Restart=on-failure
@@ -10,3 +13,4 @@ ExecStop=/etc/initscripts/emac_dwc_eqos_start_stop_le stop
 
 [Install]
 WantedBy=multi-user.target
+WantedBy=sockets.target
