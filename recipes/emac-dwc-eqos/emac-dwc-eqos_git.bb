@@ -3,7 +3,7 @@ inherit module ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-
 DESCRIPTION = "EMAC Ethernet driver"
 LICENSE = "MIT-style"
 LIC_FILES_CHKSUM = "file://DWC_ETH_QOS_dev.c;\
-startline=1;endline=71;md5=62b57cd65ebb8a65e225a5fbfbc26932"
+beginline=2;endline=49;md5=ce3b05ea028503733636f6452cbebb22"
 
 FILES_${PN}     += "${sysconfdir}/init.d/*"
 FILES_${PN}     += "${systemd_unitdir}/system/*"
