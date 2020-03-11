@@ -2,6 +2,8 @@ FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 
 SRC_URI  += "file://qcmap_wlan.service"
 SRC_URI  += "file://qcmap_wpa_cli@.service"
+SRC_URI  += "file://qcmap_wpa_cli_status@.service"
+SRC_URI  += "file://qcmap_wpa_cli_setband@.service"
 SRC_URI  += "file://qcmap_wpa_supplicant@.service"
 SRC_URI  += "file://qcmap_hostapd_cli@.service"
 SRC_URI  += "file://qcmap_hostapd@.service"
@@ -21,6 +23,12 @@ do_install_append() {
 
             #WPA_CLI Service
             install -m 0644 ${WORKDIR}/qcmap_wpa_cli@.service -D ${D}${systemd_unitdir}/system/qcmap_wpa_cli@.service
+
+            #WPA_CLI_STATUS Service
+            install -m 0644 ${WORKDIR}/qcmap_wpa_cli_status@.service -D ${D}${systemd_unitdir}/system/qcmap_wpa_cli_status@.service
+
+            #WPA_CLI_SETBAND Service
+            install -m 0644 ${WORKDIR}/qcmap_wpa_cli_setband@.service -D ${D}${systemd_unitdir}/system/qcmap_wpa_cli_setband@.service
 
             #WPA_SUPPLICANT Service
             install -m 0755 ${WORKDIR}/start_qcmap_wpa_supplicant_le ${D}${sysconfdir}/initscripts
