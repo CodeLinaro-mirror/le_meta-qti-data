@@ -1,0 +1,148 @@
+#!/bin/sh
+
+# Copyright (c) 2020, The Linux Foundation. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above
+#       copyright notice, this list of conditions and the following
+#       disclaimer in the documentation and/or other materials provided
+#       with the distribution.
+#     * Neither the name of The Linux Foundation nor the names of its
+#       contributors may be used to endorse or promote products derived
+#       from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+IPA_DEBUGFS_ROOT=/sys/kernel/debug/ipa
+GSI_STATS_FILE=${IPA_DEBUGFS_ROOT}/aqc_gsi_stats
+
+RX_empty=0 RX_low=0 RX_high=0 RX_full=0 RX_count=0
+TX_empty=0 TX_low=0 TX_high=0 TX_full=0 TX_count=0
+
+TX_ringFull_old=0
+TX_ringFull=0
+TX_ringEmpty_old=0
+TX_ringEmpty=0
+TX_ringUsageHigh_old=0
+TX_ringUsageHigh=0
+TX_ringUsageLow_old=0
+TX_ringUsageLow=0
+TX_RingUtilCount_old=0
+TX_RingUtilCount=0
+
+RX_ringFull_old=0
+RX_ringFull=0
+RX_ringEmpty_old=0
+RX_ringEmpty=0
+RX_ringUsageHigh_old=0
+RX_ringUsageHigh=0
+RX_ringUsageLow_old=0
+RX_ringUsageLow=0
+RX_RingUtilCount_old=0
+RX_RingUtilCount=0
+
+export_stats() {
+	TX_ringFull_old=$TX_ringFull
+	TX_ringEmpty_old=$TX_ringEmpty
+	TX_ringUsageHigh_old=$TX_ringUsageHigh
+	TX_ringUsageLow_old=$TX_ringUsageLow
+	TX_RingUtilCount_old=$TX_RingUtilCount
+
+	RX_ringFull_old=$RX_ringFull
+	RX_ringEmpty_old=$RX_ringEmpty
+	RX_ringUsageHigh_old=$RX_ringUsageHigh
+	RX_ringUsageLow_old=$RX_ringUsageLow
+	RX_RingUtilCount_old=$RX_RingUtilCount
+
+	eval `cat ${GSI_STATS_FILE} | tr ' ' _`
+}
+
+diff_stats() {
+	# In Rx, the lower the channel occupancy the better since it shows IPA is
+	# pulling packets faster
+	RX_empty=$(($RX_ringEmpty-$RX_ringEmpty_old))
+	RX_low=$(($RX_ringUsageLow-$RX_ringUsageLow_old))
+	RX_high=$(($RX_ringUsageHigh-$RX_ringUsageHigh_old))
+	RX_full=$(($RX_ringFull-$RX_ringFull_old))
+	RX_count=$(($RX_RingUtilCount-$RX_RingUtilCount_old))
+
+	# In Tx, the higher the channel occupancy the better since it shows AQC is
+	# returning credits to IPA faster
+	TX_empty=$(($TX_ringEmpty-$TX_ringEmpty_old))
+	TX_low=$(($TX_ringUsageLow-$TX_ringUsageLow_old))
+	TX_high=$(($TX_ringUsageHigh-$TX_ringUsageHigh_old))
+	TX_full=$(($TX_ringFull-$TX_ringFull_old))
+	TX_count=$(($TX_RingUtilCount-$TX_RingUtilCount_old))
+}
+
+print_banner() {
+	echo -e "\t\t\t\t`date`"
+	echo -e "DIR\tREADINGS\tIPA STALL\tIPA SLOW\tAQC SLOW\tAQC STALL"
+}
+
+print_rx_stats() {
+	empty=$(($RX_empty*100/$RX_count))
+	low=$(($RX_low*100/$RX_count))
+	high=$(($RX_high*100/$RX_count))
+	full=$(($RX_full*100/$RX_count))
+
+	echo -e " RX\t$RX_count\t\t$full%\t\t$high%\t\t$low%\t\t$empty%"
+}
+
+print_tx_stats() {
+	empty=$(($TX_empty*100/$TX_count))
+	low=$(($TX_low*100/$TX_count))
+	high=$(($TX_high*100/$TX_count))
+	full=$(($TX_full*100/$TX_count))
+
+	echo -e " TX\t$TX_count\t\t$full%\t\t$high%\t\t$low%\t\t$empty%"
+}
+
+print_stats() {
+	export_stats
+	diff_stats
+	print_rx_stats
+	print_tx_stats
+}
+
+# Usage: aqc_gsi_stats [loop_delay [loop_count]]
+#
+#   loop_delay - Loop delay in seconds
+#   loop_count - Number of times to loop
+DELAY=1
+if [ "$#" -gt 0 ]; then
+	DELAY=$1
+fi
+
+LOOP=
+if [ "$#" -gt 1 ]; then
+	LOOP=$2
+fi
+
+while sleep $DELAY; do
+	if [ -n "$LOOP" ]; then
+		if [ "$LOOP" -eq 0 ]; then
+			break;
+		else
+			LOOP=$(($LOOP-1))
+		fi
+	fi
+
+	print_banner
+	print_stats
+	echo
+done
