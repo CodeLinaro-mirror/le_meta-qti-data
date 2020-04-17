@@ -6,7 +6,7 @@ After=sys-subsystem-net-devices-%i.device
 [Service]
 # Increase real interface MTU by 32B to accomodate MACSEC header+icv overhead
 ExecStartPre=/sbin/ip link set mtu 1532 dev %i
-ExecStart=/usr/sbin/wpa_supplicant -D macsec_linux -i %i -c /etc/data/wpa_supplicant-%i.conf
+ExecStart=/usr/sbin/wpa_supplicant-2.9 -D macsec_linux -i %i -c /etc/data/wpa_supplicant-%i.conf
 
 [Install]
 WantedBy=multi-user.target
