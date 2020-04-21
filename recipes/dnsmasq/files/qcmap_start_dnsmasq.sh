@@ -48,7 +48,7 @@ if [ ${type_inst} == "vlan" ]; then
 elif [ ${type_inst} == "ip_passthrough" ]; then
     echo "launching dnsmasq for type ippass inst" > $DUMP_TO_KMSG
     if [ ${#dhcp_option_force3} -ne 0 ];then
-      if [ ${nat_disabled} -eq 1 ];then
+      if [ ${nat_enabled} -eq 0 ];then
         /usr/bin/dnsmasq --conf-file=${conf_file} \
         --dhcp-leasefile=${dhcp_leasefile} \
         --addn-hosts=${addn_hosts} \
@@ -79,7 +79,7 @@ elif [ ${type_inst} == "ip_passthrough" ]; then
         --dhcp-script=${dhcp_script}
       fi
     elif [ ${#dhcp_option_force2} -ne 0 ];then
-      if [ ${nat_disabled} -eq 1 ];then
+      if [ ${nat_enabled} -eq 0 ];then
         /usr/bin/dnsmasq --conf-file=${conf_file} \
         --dhcp-leasefile=${dhcp_leasefile} \
         --addn-hosts=${addn_hosts} \
@@ -108,7 +108,7 @@ elif [ ${type_inst} == "ip_passthrough" ]; then
         --dhcp-script=${dhcp_script}
       fi
     else
-      if [ ${nat_disabled} -eq 1 ];then
+      if [ ${nat_enabled} -eq 0 ];then
         /usr/bin/dnsmasq --conf-file=${conf_file} \
         --dhcp-leasefile=${dhcp_leasefile} \
         --addn-hosts=${addn_hosts} \
