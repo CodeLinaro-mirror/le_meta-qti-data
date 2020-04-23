@@ -6,7 +6,7 @@ After=sys-subsystem-net-devices-%i.device
 [Service]
 # Increase real interface MTU by 32B to accomodate MACSEC header+icv overhead
 ExecStartPre=/sbin/ip link set mtu 1532 dev %i
-ExecStart=/usr/sbin/hostapd -i %i /etc/data/hostapd-%i.conf
+ExecStart=/usr/sbin/hostapd-2.9 -i %i /etc/data/hostapd-%i.conf
 
 [Install]
 WantedBy=multi-user.target
