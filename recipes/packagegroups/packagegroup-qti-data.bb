@@ -9,7 +9,7 @@ PROVIDES = "${PACKAGES}"
 
 PACKAGES = ' \
     packagegroup-qti-data \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "ethernet", "packagegroup-qti-ethernet-tools", "", d)} \
+    ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-emac-dwc-eqos", "packagegroup-qti-ethernet-tools", "", d)} \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
 
@@ -21,7 +21,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     dhcpcd \
     tcpdump \
     conntrack-tools \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "ethernet", "packagegroup-qti-ethernet-tools", "", d)} \
+    ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-emac-dwc-eqos", "packagegroup-qti-ethernet-tools", "", d)} \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
 
