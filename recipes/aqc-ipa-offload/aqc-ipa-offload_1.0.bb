@@ -15,6 +15,9 @@ inherit systemd
 SRC_URI += "file://kobj/Makefile"
 SRC_URI += "file://aqc-ipa-offload.service"
 
+# Script for monitoring AQC GSI debugfs stats provided by IPA driver
+SRC_URI += "file://aqc_gsi_stats"
+
 S = "${AQO_OBJDIR}"
 
 # The inherit of module.bbclass will automatically name module packages with
@@ -25,6 +28,9 @@ RPROVIDES_${PN} += "kernel-module-aqc_ipa_offload"
 SYSTEMD_SERVICE_${PN} = "aqc-ipa-offload.service"
 
 do_install_append() {
+	install -m 0755 \
+		${WORKDIR}/aqc_gsi_stats -D ${D}${bindir}/aqc_gsi_stats
+
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
