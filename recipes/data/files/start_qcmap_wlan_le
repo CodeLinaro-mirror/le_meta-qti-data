@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2019, The Linux Foundation. All rights reserved.
+# Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -28,7 +28,6 @@
 
 # WLAN module init.d script
 
-export MODULE_BASE=/usr/lib/modules/`uname -r`/
 set -e
 
 case "$1" in
@@ -36,7 +35,7 @@ case "$1" in
         echo -n "Starting/Loading WLAN module: " > /dev/kmsg
 
         echo "wlan:start/load" > /dev/kmsg
-        insmod $MODULE_BASE/extra/wlan.ko
+        modprobe wlan
 
         echo "done loading WLAN module" > /dev/kmsg
         ;;
