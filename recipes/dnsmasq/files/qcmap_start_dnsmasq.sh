@@ -224,6 +224,16 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ] ; then
       --dhcp-option=${dhcp_option} \
       --dhcp-script=${dhcp_script}
     fi
+elif [ ${type_inst} == "dnsv4" ]; then
+    echo "launching dnsmasq for type dnsv4 inst" > $DUMP_TO_KMSG
+    /usr/bin/dnsmasq --conf-file=${conf_file} \
+    --dhcp-leasefile=${dhcp_leasefile} \
+    --addn-hosts=${addn_hosts} \
+    --pid-file=${pid_file} \
+    --interface=${interface} \
+    --except-interface=lo \
+    -z \
+    --dhcp-script=${dhcp_script}
 elif [ ${type_inst} == "relay" ]; then
     /usr/bin/dnsmasq \
     --interface=${interface} \
