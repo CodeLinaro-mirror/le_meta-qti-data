@@ -38,6 +38,8 @@ do_install_append() {
 		-D ${D}${systemd_system_unitdir}/aqc-ipa-offload.service
 }
 
+FILES_${PN} += "${bindir}"
+
 # qperf class adds do_copy_kernel_module() after do_module_signing().
 # Since we do not yet support module signing, explicitly add the task to
 # execute between compile and package stages.
