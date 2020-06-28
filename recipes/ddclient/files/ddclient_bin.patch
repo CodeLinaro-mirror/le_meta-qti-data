@@ -1,11 +1,12 @@
---- a/ddclient	2019-10-16 20:07:54.636050900 +0530
-+++ b/ddclient	2019-10-25 18:23:34.139728937 +0530
+--- a/ddclient	2020-06-15 11:50:15.077794159 +0530
++++ b/ddclient	2020-06-15 11:44:14.872781033 +0530
 @@ -1027,7 +1027,7 @@
      # Check for only owner has any access to config file
      my ($dev, $ino, $mode, @statrest) = stat(FD);
-     if ($mode & 077) {
+     if ($mode & 077) {                          
 -	if (-f FD && (chmod 0600, $file)) {
 +	if (-f FD && (chmod 0664, $file)) {
-            warning("file $file must be accessible only by its owner (fixed).");
-        } else {
-            # fatal("file $file must be accessible only by its owner.");
+ 	    warning("file $file must be accessible only by its owner (fixed).");
+ 	} else {
+ 	    # fatal("file $file must be accessible only by its owner.");
+
