@@ -206,7 +206,19 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ]  && [ ${#dhcp_range3} -ne 0 ]; then
       fi
 elif [ ${type_inst} == "dhcpv6_proxy_dns" ] ; then
     echo "launching dnsmasq for type dhcpv6_proxy_dns inst" > $DUMP_TO_KMSG
-    if [ ${#dhcp_option_force4} -ne 0 ];then
+    if [ ${#dhcp_range2} -eq 0 ] ; then
+      echo "launching dnsmasq with only dnsv6 functionality" > $DUMP_TO_KMSG
+      /usr/bin/dnsmasq --conf-file=${conf_file} \
+      --dhcp-leasefile=${dhcp_leasefile} \
+      --addn-hosts=${addn_hosts} \
+      --pid-file=${pid_file} \
+      --interface=${interface} \
+      --except-interface=lo \
+      -z \
+      --dhcp-range=${dhcp_range1} \
+      --dhcp-option=${dhcp_option} \
+      --dhcp-script=${dhcp_script}
+    elif [ ${#dhcp_option_force4} -ne 0 ];then
       /usr/bin/dnsmasq --conf-file=${conf_file} \
       --dhcp-leasefile=${dhcp_leasefile} \
       --addn-hosts=${addn_hosts} \
