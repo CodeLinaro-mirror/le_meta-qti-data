@@ -6,18 +6,17 @@ HOMEPAGE = "http://miniupnp.free.fr/"
 BUGTRACKER = "http://miniupnp.tuxfamily.org/forum/viewforum.php?f=2"
 LICENSE = "BSD"
 PRIORITY = "optional"
-DEPENDS = "conntrack-tools"
+DEPENDS = "conntrack-tools iptables"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/BSD;md5=3775480a712fc46a69647678acb234cb"
 
 # Package Revision (update whenever recipe is changed)
-PR = "r7"
+PR = "r8"
 
 SRC_URI = "\
     https://www.codeaurora.org/mirrored_source/quic/le/${PN}-${PV}.tar.gz \
-    file://0001-certification-fixes.patch \
-    file://0001-presentation-page.patch \
-    file://0001-port-desc.patch \
+    file://0001-miniupnpd_conf_security.patch \
     file://0001-security-fix.patch \
+    file://0001-makefile_oss.patch \
     file://miniupnpd.service \
 "
 

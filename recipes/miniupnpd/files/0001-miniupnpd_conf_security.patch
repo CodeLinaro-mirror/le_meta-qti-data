@@ -1,0 +1,74 @@
+From 324860e7149095ab3d5a0a1dc9c2897ba01742a3 Mon Sep 17 00:00:00 2001
+From: Aman Gupta <amangupt@codeaurora.org>
+Date: Wed, 8 Jul 2020 14:42:38 +0530
+Subject: [PATCH] meta-qti-data : removing internal dependency
+
+-changes to compile code without internal dependency
+
+Change-Id: 324860e7149095ab3d5a0a1dc9c2897ba01742a3
+---
+ miniupnpd.conf |  19 ++--
+ 2 files changed, 10 insertions(+), 9 deletions(-)
+ mode change 100644 => 100755 mminiupnpd.conf
+
+diff --git a/miniupnpd.conf b/miniupnpd.conf
+old mode 100644
+new mode 100755
+index 90bd5ade8..39003be5b
+--- a/miniupnpd.conf
++++ b/miniupnpd.conf
+@@ -16,7 +16,8 @@
+ #  listening_ip=192.168.0.1/24 88.22.44.13
+ #listening_ip=192.168.0.1/24
+ #listening_ip=10.5.0.0/16
+-#listening_ip=eth0
++listening_ip=bridge0
++listening_ip=ppp0
+ # CAUTION: mixing up WAN and LAN interfaces may introduce security risks!
+ # be sure to assign the correct interfaces to LAN and WAN and consider
+ # implementing UPnP permission rules at the bottom of this configuration file
+@@ -55,7 +56,7 @@
+ # ENABLE_MANUFACTURER_INFO_CONFIGURATION (config.h)
+ 
+ # name of this service, default is "`uname -s` router"
+-#friendly_name=MiniUPnPd router
++friendly_name=9x45 MobileAP UPnP
+ 
+ # manufacturer name, default is "`uname -s`"
+ #manufacturer_name=Manufacturer corp
+@@ -86,7 +87,7 @@ secure_mode=no
+ # If set to an empty string, no presentationURL element will appear
+ # in the XML description of the device, which prevents MS Windows
+ # from displaying an icon in the "Network Connections" panel.
+-#presentation_url=http://www.mylan/index.php
++presentation_url=/192.168.225.1:8201
+ 
+ # report system uptime instead of daemon uptime
+ system_uptime=yes
+@@ -122,7 +123,7 @@ clean_ruleset_interval=600
+ #quickrules=no
+ 
+ # uuid : generate your own with "make genuuid"
+-uuid=00000000-0000-0000-0000-000000000000
++uuid=1a7872a9-92bc-4661-8a70-69370a908d12
+ 
+ # serial and model number the daemon will report to clients
+ # in its XML description
+@@ -141,9 +142,9 @@ uuid=00000000-0000-0000-0000-000000000000
+ # modify the IP ranges to match their own internal networks, and
+ # also consider implementing network-specific restrictions
+ # CAUTION: failure to enforce any rules may permit insecure requests to be made!
+-allow 1024-65535 192.168.0.0/24 1024-65535
+-allow 1024-65535 192.168.1.0/24 1024-65535
+-allow 1024-65535 192.168.0.0/23 22
+-allow 12345 192.168.7.113/32 54321
+-deny 0-65535 0.0.0.0/0 0-65535
++#allow 1024-65535 192.168.0.0/24 0-65535
++#allow 1024-65535 192.168.1.0/24 1024-65535
++#allow 1024-65535 192.168.0.0/23 22
++#allow 12345 192.168.7.113/32 54321
++allow 0-65535 0.0.0.0/0 0-65535
+
+-- 
+2.26.0
+
