@@ -2,10 +2,10 @@
 SUMMARY = "Data Services RC scripts and configs"
 
 LICENSE = "BSD-3-Clause"
-LIC_FILES_CHKSUM = "file://hostapd-eth0.conf;beginline=1;endline=26;md5=d433114c90f1b34fc4b93e3ebd6965c5"
+LIC_FILES_CHKSUM = "file://${WORKDIR}/hostapd-eth0.conf;beginline=1;endline=26;md5=d433114c90f1b34fc4b93e3ebd6965c5"
 
 # MACSEC support
-SRC_URI  += "file://mka-supplicant@.service"
+SRC_URI   = "file://mka-supplicant@.service"
 SRC_URI  += "file://mka-authenticator@.service"
 SRC_URI  += "file://wpa_supplicant-eth0.conf"
 SRC_URI  += "file://hostapd-eth0.conf"
