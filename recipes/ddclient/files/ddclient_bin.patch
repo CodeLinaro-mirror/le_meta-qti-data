@@ -1,0 +1,30 @@
+From 80cce5e8e36f4a44fc98948300fa6dfe5a4a0baa Mon Sep 17 00:00:00 2001
+From: Aman Gupta <amangupt@codeaurora.org>
+Date: Wed, 1 Jul 2020 11:32:57 +0530
+Subject: [PATCH] test
+
+---
+ recipes/ddclient/files/ddclient_bin.patch | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+ create mode 100644 recipes/ddclient/files/ddclient_bin.patch
+
+diff --git a/recipes/ddclient/files/ddclient_bin.patch b/recipes/ddclient/files/ddclient_bin.patch
+new file mode 100644
+index 0000000..959711d
+--- /dev/null
++++ b/recipes/ddclient/files/ddclient_bin.patch
+@@ -0,0 +1,12 @@
++--- a/ddclient  2020-06-15 11:50:15.077794159 +0530
+++++ b/ddclient  2020-06-15 11:44:14.872781033 +0530
++@@ -1027,7 +1027,7 @@
++     # Check for only owner has any access to config file
++     my ($dev, $ino, $mode, @statrest) = stat(FD);
++     if ($mode & 077) {
++-       if (-f FD && (chmod 0600, $file)) {
+++       if (-f FD && (chmod 0664, $file)) {
++            warning("file $file must be accessible only by its owner (fixed).");
++        } else {
++            # fatal("file $file must be accessible only by its owner.");
++
+-- 
+2.26.0
