@@ -1,0 +1,12 @@
+
+[Unit]
+Description=R8125
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe r8125
+ExecStop=/sbin/rmmod r8125
+
+[Install]
+WantedBy=multi-user.target
