@@ -1,0 +1,13 @@
+[Unit]
+Description= emac service
+DefaultDependencies=no
+After=network.target network-online.target QCMAP_ConnectionManagerd.service
+
+[Service]
+Restart=no
+# This service file has no binary and it is to execute the list of commands in <
+# Use Script file only when there is NO binary or commands to be executed/ modul
+ExecStart=/etc/initscripts/emac.sh /etc/initscripts/config.ini
+
+[Install]
+WantedBy=multi-user.target

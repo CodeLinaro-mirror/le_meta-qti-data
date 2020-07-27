@@ -1,0 +1,92 @@
+#!/bin/sh
+# Copyright (c) 2020, The Linux Foundation. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#   * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#   * Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the following
+#     disclaimer in the documentation and/or other materials provided
+#     with the distribution.
+#   * Neither the name of The Linux Foundation nor the names of its
+#     contributors may be used to endorse or promote products derived
+#     from this software without specific prior written permission.
+# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# Ethernet Adaptation module
+# init.d script to load Ethernet Adaptation module.
+
+export MODULE_BASE=/usr/lib/modules/`uname -r`/
+. $2
+set -e
+
+if [ -f /sys/devices/soc0/soc_id ]; then
+	soc_id=`cat /sys/devices/soc0/soc_id`
+else
+	soc_id=`cat /sys/devices/system/soc/soc0/id`
+fi
+
+case "$1" in
+  start)
+        echo -n "Starting/Loading Ethernet Adaptation Module: " > /dev/kmsg
+
+        echo "eth-adaption-layer:start/load" > /dev/kmsg
+		sleep 1
+		if [ -e  /sys/class/net/eth0.$qvlan_id ]; then
+		  linkup=`cat /sys/class/net/eth0.$qvlan_id/operstate`
+		  while [ "$linkup" != "up" ]
+		  do
+			linkup=`cat /sys/class/net/eth0.$qvlan_id/operstate`
+			sleep 1
+		  done
+		fi
+		case "$soc_id" in
+			"418")
+			if [[ "$qip_type" == "IPv4" ]]
+			then
+				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=0 iptype=0 vlan_intf=eth0.$qvlan_id
+			elif [[ "$qip_type" == "IPv6" ]]
+			then
+				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=0 iptype=1 vlan_intf=eth0.$qvlan_id
+			fi
+		;;
+			"352")
+			if [[ "$qip_type" == "IPv4" ]]
+			then
+				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=1 iptype=0 vlan_intf=eth0.$qvlan_id
+			elif [[ "$qip_type" == "IPv6" ]]
+			then
+				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=1 iptype=1 vlan_intf=eth0.$qvlan_id
+			fi
+		;;
+		esac
+        echo "done loading Ethernet Adaptation Module"
+        ;;
+  stop)
+        echo -n "Unloading Ethernet Adaptation Module "
+        rmmod eth-adaption-layer.ko
+
+        echo "done unloading Ethernet Adaptation Module"
+        ;;
+  restart)
+        $0 stop
+        $0 start
+        ;;
+  *)
+        echo "Usage { start | stop | restart}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
