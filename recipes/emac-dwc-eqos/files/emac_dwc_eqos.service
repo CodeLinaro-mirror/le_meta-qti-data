@@ -10,6 +10,7 @@ Restart=on-failure
 RemainAfterExit=yes
 ExecStart=/etc/initscripts/emac_dwc_eqos_start_stop_le start
 ExecStop=/etc/initscripts/emac_dwc_eqos_start_stop_le stop
+Nice=-20
 
 [Install]
 WantedBy=multi-user.target

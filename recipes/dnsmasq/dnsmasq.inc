@@ -5,7 +5,7 @@ LICENSE = "GPL"
 LICENSE_${PN} = "GPL"
 LIC_FILES_CHKSUM = "file://COPYING;md5=0636e73ff0215e8d672dc4c32c317bb3"
 
-PR = "r4"
+PR = "r5"
 
 #at least versions 2.15 and prior are moved to the archive folder on the server
 SRC_URI = "http://www.codeaurora.org/mirrored_source/quic/le/dnsmasq-${PV}.tar.gz;name=dnsmasq-${PV} \
@@ -25,7 +25,7 @@ do_install () {
                    install
         install -d ${D}${sysconfdir}/ ${D}${sysconfdir}/init.d ${D}${sysconfdir}/dnsmasq.d
         install -d ${D}${sysconfdir}/data/
-        install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
+        install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
         chown -R root:1001 ${D}${sysconfdir}/data/dnsmasq.conf
         # symlink dnsmasq.conf under /etc
         ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
