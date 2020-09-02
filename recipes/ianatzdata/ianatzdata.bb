@@ -2,6 +2,8 @@ require ianatimezone.inc
 
 DEPENDS = "ianatzdata-native"
 
+PR = "r1"
+
 S = "${WORKDIR}"
 
 TZONES= "africa antarctica asia australasia europe northamerica southamerica \
@@ -27,3 +29,7 @@ do_compile () {
   popd
 }
 
+do_install () {
+  install -d ${D}${base_bindir}
+  install -m 0666 ${WORKDIR}/iana_tzdb ${D}${base_bindir}
+}
