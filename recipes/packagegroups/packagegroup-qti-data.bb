@@ -43,4 +43,5 @@ RDEPENDS_packagegroup-qti-data = ' \
     jquery \
     jquery-ui \
     strace \
+    sfe \
     '
