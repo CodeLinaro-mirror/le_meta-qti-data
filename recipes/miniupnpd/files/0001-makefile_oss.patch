@@ -1,0 +1,47 @@
+From 324860e7149095ab3d5a0a1dc9c2897ba01742a3 Mon Sep 17 00:00:00 2001
+From: Aman Gupta <amangupt@codeaurora.org>
+Date: Wed, 8 Jul 2020 14:42:38 +0530
+Subject: [PATCH] meta-qti-data : removing internal dependency
+
+-changes to compile code without internal dependency
+
+Change-Id: 324860e7149095ab3d5a0a1dc9c2897ba01742a3
+---
+ Makefile.linux |   6 ++--
+ 1 files changed, 3 insertions(+), 3 deletions(-)
+ create mode 100644 Makefile.linux
+
+diff --git a/Makefile.linux b/Makefile.linux
+index 59ce36316..8c3a9d387 100644
+--- a/Makefile.linux
++++ b/Makefile.linux
+@@ -24,7 +24,7 @@
+ #CFLAGS = -O -g -DDEBUG
+ CFLAGS ?= -Os
+ CFLAGS += -fno-strict-aliasing
+-CFLAGS += -fno-common
++CFLAGS += -fno-common -DIPTABLES_143
+ CPPFLAGS += -D_GNU_SOURCE
+ CFLAGS += -Wall
+ CFLAGS += -Wextra -Wstrict-prototypes -Wdeclaration-after-statemen
+@@ -76,7 +76,7 @@ LDFLAGS += $(shell $(PKG_CONFIG) --libs-only-other libiptc)
+ else
+
+ ifeq "$(wildcard /etc/gentoo-release )" ""
+-LDLIBS ?= -liptc
++LDLIBS ?= -lip4tc
+ else # gentoo
+ # the following is better, at least on gentoo with iptables 1.4.6
+ # see http://miniupnp.tuxfamily.org/forum/viewtopic.php?p=1618
+@@ -125,7 +125,7 @@ else # ifdef IPTABLESPATH
+ TEST := $(shell test -f /usr/include/xtables.h && grep -q "XTABLES_VERSION_CODE" /usr/include/xtables.h && echo 1)
+ ifeq ($(TEST), 1)
+ CPPFLAGS := $(CPPFLAGS) -DIPTABLES_143
+-LDLIBS = -liptc
++LDLIBS = -lip4tc
+ TESTIP4TC := $(shell test -f /lib/libip4tc.so && echo 1)
+ ifeq ($(TESTIP4TC), 1)
+ LDLIBS := $(LDLIBS) -lip4tc
+-- 
+2.26.0
+
