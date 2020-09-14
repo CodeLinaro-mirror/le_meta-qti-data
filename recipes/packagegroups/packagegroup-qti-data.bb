@@ -34,6 +34,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     ppp \
     rtsp-alg \
     pimd \
+    miniupnpd \
     lighttpd \
     iputils \
     jquery \
