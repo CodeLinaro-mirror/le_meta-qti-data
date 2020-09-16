@@ -31,116 +31,168 @@ DUMP_TO_KMSG=/dev/kmsg
 file=$1
 . $1
 
-echo $qlocal_ip $qremote_ip $qlocal_port $qremote_port $qvlan_id $qlocal_macid $qremote_macid $qip_type $qinterface $qprotocol
-echo $cvlan_id $clocal_macid $cremote_macid $cip_type $cinterface $cprotocol
 echo "script loaded from eth-adaption-layer" > $DUMP_TO_KMSG
 netmask=`echo ${qlocal_ip:P:18}`
-echo $netmask
+
+platform_v1=10000
+platform_v2=20000
+platform_v3=30000
+sa515m=418
+QCS405=352
+sa2150p=452
 
 if [ -f /sys/devices/soc0/soc_id ]; then
-    soc_id=`cat /sys/devices/soc0/soc_id`
+  soc_id=`cat /sys/devices/soc0/soc_id`
 else
-    soc_id=`cat /sys/devices/system/soc/soc0/id`
+  soc_id=`cat /sys/devices/system/soc/soc0/id`
 fi
 
 if [ -f /sys/devices/soc0/hw_platform ]; then
-    hw_platform=`cat /sys/devices/soc0/hw_platform`
+  hw_platform=`cat /sys/devices/soc0/hw_platform`
 else
-    hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
+  hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
 fi
 
 if [ -f /sys/devices/soc0/platform_subtype_id ]; then
-    platform_subtype_id=`cat /sys/devices/soc0/platform_subtype_id`
+  platform_subtype_id=`cat /sys/devices/soc0/platform_subtype_id`
 fi
+
+if [ -f /sys/devices/soc0/platform_version ]; then
+  platform_version=`cat /sys/devices/soc0/platform_version`
+fi
+
+platform_version_hex=`printf '%x\n' $platform_version`
 
 case "$qlocal_ip" in
     *:*)
-        qip_type="IPv6"
-        echo $qip_type
+      qip_type="IPv6"
+      echo $qip_type
     ;;
     *.*)
-        qip_type="IPv4"
-        echo $qip_type
+    qip_type="IPv4"
+    echo $qip_type
     ;;
+esac
+
+
+eam_supported_targets () {
+
+#for external AP uncomment below line of code
+#current_target=EAP
+#echo $current_target
+#return 1
+
+case "$soc_id" in
+  "$sa515m")
+    case "$hw_platform" in
+      "ADP")
+      case "$platform_subtype_id" in
+        "5")
+        case "$platform_version_hex" in
+          "$platform_v1" | "$platform_v2" | "$platform_v3")
+          echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+          current_target=NAD
+          echo $current_target
+          return 1
+        ;;
+        esac
+      ;;
+      esac
+    ;;
+    esac
+;;
 esac
 
 case "$soc_id" in
-    "418" | "352")
-        case "$hw_platform" in
-            "ADP" | "TTP" | "MTP")
-
-            case "$platform_subtype_id" in
-                "0" | "1" | "2" | "3" | "4" | "5")
-                #QMI over ethernet configuration
-                    if [[ "$qip_type" == "IPv4" ]]
-                    then
-                        echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
-                        vconfig add eth0 $qvlan_id
-                        ifconfig eth0.$qvlan_id hw ether $qlocal_macid
-                        ifconfig eth0.$qvlan_id $qlocal_ip up
-                        if [ -e /sys/class/net/bridge0 ]; then
-                            ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i eth0 -j DROP
-                        fi
-                        echo qvlanid=$qvlan_id > /dev/emac
-                        echo qmac_id=$qlocal_macid > /dev/emac
-                        echo qoe=$qprotocol > /dev/emac
-                        echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
-                    elif [[ "$qip_type" == "IPv6" ]]
-                    then
-                        echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
-                        vconfig add eth0 $qvlan_id
-                        ifconfig eth0.$qvlan_id hw ether $qlocal_macid
-                        ifconfig eth0.$qvlan_id inet6 add $qlocal_ip
-                        ifconfig eth0.$qvlan_id up
-                        if [ -e /sys/class/net/bridge0 ]; then
-                            ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i eth0 -j DROP
-                        fi
-                        ip -6 r a $netmask/64 dev eth0.$qvlan_id
-                        echo qvlanid=$qvlan_id > /dev/emac
-                        echo qmac_id=$qlocal_macid > /dev/emac
-                        echo qoe=$qprotocol > /dev/emac
-                        echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
-                    else
-                        echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
-                        echo "\n specify ip type correctly in config" > $DUMP_TO_KMSG
-                        echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
-                    fi
-
-                #CV2X over ethernet configuration
-                    if [[ "$cprotocol" == "Cv2X" ]]
-                    then
-                        echo "\n CV2X add vlan to eth start" > $DUMP_TO_KMSG
-                        if [[ "$soc_id" == "352" ]]
-                        then
-                            vconfig add $cinterface $cvlan_id
-                            ifconfig $cinterface.$cvlan_id hw ether $clocal_macid
-                            ifconfig $cinterface.$cvlan_id up
-                            if [ -e /sys/class/net/bridge0 ]; then
-                                vconfig add bridge0 $cvlan_id
-                                ifconfig bridge0.$cvlan_id hw ether $clocal_macid
-                                ifconfig bridge0.$cvlan_id up
-                                ebtables -t broute -A BROUTING -p 802_1q --vlan-id $cvlan_id -i $cinterface -j DROP
-                            fi
-                        fi
-                        echo cvlanid=$cvlan_id > /dev/emac
-                        echo cmac_id=$clocal_macid > /dev/emac
-                        echo cv2x=$cprotocol > /dev/emac
-                        echo "\n CV2X add vlan to eth stop" > $DUMP_TO_KMSG
-                    else
-                        echo "\n CV2X add vlan to eth start" > $DUMP_TO_KMSG
-                        echo "\n No Cv2X specifyied in config" > $DUMP_TO_KMSG
-                        echo "\n CV2X add vlan to eth stop" > $DUMP_TO_KMSG
-                    fi
-                ;;
-        #Normal ethernet configuration
-                "0")
-                    echo $qlocal_macid > /dev/emac
-                    echo $clocal_macid > /dev/emac
-                ;;
-            esac
-            ;;
+  "$sa2150p" | "$QCS405")
+    case "$hw_platform" in
+      "ADP")
+      case "$platform_subtype_id" in
+        "0")
+        case "$platform_version_hex" in
+          "$platform_v2" | "$platform_v3")
+          echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+          current_target=EAP
+          echo $current_target
+          return 1
+        ;;
         esac
+      ;;
+      esac
     ;;
+    esac
+;;
 esac
 
+return 0
+}
+
+current_target=$(eam_supported_targets)
+is_target_supported=$?
+
+if [[ $is_target_supported -eq 1 ]]
+then
+  #QMI over ethernet configuration
+  if [[ "$qip_type" == "IPv4" ]]
+  then
+    echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
+	echo $target > /dev/kmsg
+    vconfig add $qinterface $qvlan_id
+    ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
+    ifconfig $qinterface.$qvlan_id $qlocal_ip up
+    if [ -e /sys/class/net/bridge0 ]; then
+     ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i $qinterface -j DROP
+    fi
+  echo qvlanid=$qvlan_id > /dev/emac
+  echo qmac_id=$qlocal_macid > /dev/emac
+  echo qoe=$qprotocol > /dev/emac
+  echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
+  elif [[ "$qip_type" == "IPv6" ]]
+  then
+    echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
+    vconfig add $qinterface $qvlan_id
+    ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
+    ifconfig $qinterface.$qvlan_id inet6 add $qlocal_ip
+    ifconfig $qinterface.$qvlan_id up
+    if [ -e /sys/class/net/bridge0 ]; then
+     ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i $qinterface -j DROP
+    fi
+    ip -6 r a $netmask/64 dev $qinterface.$qvlan_id
+    echo qvlanid=$qvlan_id > /dev/emac
+    echo qmac_id=$qlocal_macid > /dev/emac
+    echo qoe=$qprotocol > /dev/emac
+    echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
+  else
+    echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
+    echo "\n specify ip type correctly in config" > $DUMP_TO_KMSG
+    echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
+  fi
+  #CV2X over ethernet configuration
+  if [[ "$cprotocol" == "Cv2X" ]]
+  then
+    echo "\n CV2X add vlan to eth start" > $DUMP_TO_KMSG
+    if [[ "$current_target" == "EAP" ]]
+    then
+     vconfig add $cinterface $cvlan_id
+     ifconfig $cinterface.$cvlan_id hw ether $clocal_macid
+     ifconfig $cinterface.$cvlan_id up
+     if [ -e /sys/class/net/bridge0 ]; then
+       vconfig add bridge0 $cvlan_id
+       ifconfig bridge0.$cvlan_id hw ether $clocal_macid
+       ifconfig bridge0.$cvlan_id up
+         ebtables -t broute -A BROUTING -p 802_1q --vlan-id $cvlan_id -i $cinterface -j DROP
+       fi
+     fi
+    echo cvlanid=$cvlan_id > /dev/emac
+    echo cmac_id=$clocal_macid > /dev/emac
+    echo cv2x=$cprotocol > /dev/emac
+    echo "\n CV2X add vlan to eth stop" > $DUMP_TO_KMSG
+  else
+    echo "\n CV2X add vlan to eth start" > $DUMP_TO_KMSG
+    echo "\n No Cv2X specifyied in config" > $DUMP_TO_KMSG
+    echo "\n CV2X add vlan to eth stop" > $DUMP_TO_KMSG
+  fi
+else
+  echo -n "No support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+fi
 exit 0

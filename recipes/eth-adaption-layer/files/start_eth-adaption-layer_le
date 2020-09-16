@@ -29,64 +29,136 @@
 
 export MODULE_BASE=/usr/lib/modules/`uname -r`/
 . $2
-set -e
+
+platform_v1=10000
+platform_v2=20000
+platform_v3=30000
+sa515m=418
+QCS405=352
+sa2150p=452
 
 if [ -f /sys/devices/soc0/soc_id ]; then
-	soc_id=`cat /sys/devices/soc0/soc_id`
+  soc_id=`cat /sys/devices/soc0/soc_id`
 else
-	soc_id=`cat /sys/devices/system/soc/soc0/id`
+  soc_id=`cat /sys/devices/system/soc/soc0/id`
 fi
 
-case "$1" in
-  start)
-        echo -n "Starting/Loading Ethernet Adaptation Module: " > /dev/kmsg
+if [ -f /sys/devices/soc0/hw_platform ]; then
+  hw_platform=`cat /sys/devices/soc0/hw_platform`
+else
+  hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
+fi
 
-        echo "eth-adaption-layer:start/load" > /dev/kmsg
-		sleep 1
-		if [ -e  /sys/class/net/eth0.$qvlan_id ]; then
-		  linkup=`cat /sys/class/net/eth0.$qvlan_id/operstate`
-		  while [ "$linkup" != "up" ]
-		  do
-			linkup=`cat /sys/class/net/eth0.$qvlan_id/operstate`
-			sleep 1
-		  done
-		fi
-		case "$soc_id" in
-			"418")
-			if [[ "$qip_type" == "IPv4" ]]
-			then
-				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=0 iptype=0 vlan_intf=eth0.$qvlan_id
-			elif [[ "$qip_type" == "IPv6" ]]
-			then
-				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=0 iptype=1 vlan_intf=eth0.$qvlan_id
-			fi
-		;;
-			"352")
-			if [[ "$qip_type" == "IPv4" ]]
-			then
-				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=1 iptype=0 vlan_intf=eth0.$qvlan_id
-			elif [[ "$qip_type" == "IPv6" ]]
-			then
-				insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=1 iptype=1 vlan_intf=eth0.$qvlan_id
-			fi
-		;;
-		esac
-        echo "done loading Ethernet Adaptation Module"
-        ;;
-  stop)
-        echo -n "Unloading Ethernet Adaptation Module "
-        rmmod eth-adaption-layer.ko
+if [ -f /sys/devices/soc0/platform_subtype_id ]; then
+  platform_subtype_id=`cat /sys/devices/soc0/platform_subtype_id`
+fi
 
-        echo "done unloading Ethernet Adaptation Module"
+if [ -f /sys/devices/soc0/platform_version ]; then
+  platform_version=`cat /sys/devices/soc0/platform_version`
+fi
+
+platform_version_hex=`printf '%x\n' $platform_version`
+
+
+eam_supported_targets () {
+
+#for external AP uncomment below line of code
+#current_target=EAP
+#echo $current_target
+#return 1
+
+echo -n "Starting/Loading Ethernet Adaptation Module:entry " > /dev/kmsg
+case "$soc_id" in
+  "$sa515m")
+    case "$hw_platform" in
+      "ADP")
+      case "$platform_subtype_id" in
+        "5")
+        case "$platform_version_hex" in
+          "$platform_v1" | "$platform_v2" | "$platform_v3")
+          echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+          current_target=NAD
+          echo $current_target
+          return 1
         ;;
-  restart)
-        $0 stop
-        $0 start
-        ;;
-  *)
-        echo "Usage { start | stop | restart}" >&2
-        exit 1
-        ;;
+        esac
+      ;;
+      esac
+    ;;
+    esac
+;;
 esac
+
+case "$soc_id" in
+  "$sa2150p" | "$QCS405")
+    case "$hw_platform" in
+      "ADP")
+      case "$platform_subtype_id" in
+        "0")
+        case "$platform_version_hex" in
+          "$platform_v2" | "$platform_v3")
+          echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+          current_target=EAP
+          echo $current_target
+          return 1
+        ;;
+        esac
+      ;;
+      esac
+    ;;
+    esac
+;;
+esac
+return 0
+}
+
+current_target=$(eam_supported_targets)
+is_target_supported=$?
+
+if [[ $is_target_supported -eq 1 ]]
+then
+  case "$1" in
+    start)
+    echo -n "Starting/Loading Ethernet Adaptation Module: " > /dev/kmsg
+    echo "eth-adaption-layer:start/load" > /dev/kmsg
+    case "$current_target" in
+     "NAD")
+       if [[ "$qip_type" == "IPv4" ]]
+       then
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=0 iptype=0 vlan_intf=$qinterface.$qvlan_id
+       elif [[ "$qip_type" == "IPv6" ]]
+       then
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=0 iptype=1 vlan_intf=$qinterface.$qvlan_id
+       fi
+     ;;
+     "EAP")
+       if [[ "$qip_type" == "IPv4" ]]
+       then
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=1 iptype=0 vlan_intf=$qinterface.$qvlan_id
+       elif [[ "$qip_type" == "IPv6" ]]
+       then
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=1 iptype=1 vlan_intf=$qinterface.$qvlan_id
+       fi
+     ;;
+    esac
+     echo "done loading Ethernet Adaptation Module"
+  ;;
+  stop)
+    echo -n "Unloading Ethernet Adaptation Module "
+    rmmod eth-adaption-layer.ko
+    echo "done unloading Ethernet Adaptation Module"
+  ;;
+  restart)
+    $0 stop
+    $0 start
+    ;;
+  *)
+    echo "Usage { start | stop | restart}" >&2
+    exit 1
+  ;;
+esac
+else
+  echo -n "No support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+fi
 
 exit 0
