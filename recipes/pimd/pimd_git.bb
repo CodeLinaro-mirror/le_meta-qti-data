@@ -16,7 +16,7 @@ SRC_URI = "git://codeaurora.org/quic/le/pimd.git;protocol=git;branch=github/mast
            file://pimd.service \
 "
 
-SRC_URI_append_sdxprairie += "\
+SRC_URI_append += "\
            file://Resolve-Implicit-fallthrough-Werror.patch "
 
 SRC_URI_append_9615-cdp += " \
