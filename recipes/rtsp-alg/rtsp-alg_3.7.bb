@@ -12,6 +12,7 @@ DEPENDS = "alx virtual/kernel"
 
 SRC_URI = "http://github.com/maru-sama/rtsp-linux/archive/${PV}.tar.gz \
 		file://Makefile.patch \
+		${@oe.utils.conditional('PREFERRED_VERSION_linux-msm', '5.4','file://0001-netfilter_helpers.patch file://0001-nf_conntrack_rtsp.patch file://0001-nf_nat_rtsp2.patch', '',d)} \
 "
 SRC_URI[md5sum]    = "5cc2be642a0d6ff8817d72d459e76606"
 SRC_URI[sha256sum] = "bd14b5f8f0bc8db3db93735b2a7eca2790454c2dc200d95becd283b043b8b94d"
