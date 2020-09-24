@@ -19,6 +19,8 @@ SRC_URI = " \
 SRC_URI[md5sum] = "506742a3d44b9925955425a659c1a8d0"
 SRC_URI[sha256sum] = "dc6f7b484f207dc712bfca81645f45120cb6aee3380e77a1771e9c34a9a4455d"
 
+do_configure[depends] += "virtual/kernel:do_shared_workdir"
+
 CACHED_CONFIGUREVARS = "ac_cv_linux_vers=${ac_cv_linux_vers=2}"
 
 EXTRA_OEMAKE = "KERNEL_INCLUDES=${STAGING_KERNEL_BUILDDIR}/usr/include"
