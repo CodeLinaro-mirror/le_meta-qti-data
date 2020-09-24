@@ -91,7 +91,7 @@ diff_stats() {
 
 print_banner() {
 	echo -e "\t\t\t\t`date`"
-	echo -e "DIR\tREADINGS\tIPA STALL\tIPA SLOW\tAQC SLOW\tAQC STALL"
+	printf "%5s%15s%15s%15s%15s%15s\n" "DIR" "SAMPLE COUNT" "IPA STALL" "IPA SLOW" "AQC SLOW" "AQC STALL"
 }
 
 print_rx_stats() {
@@ -100,7 +100,7 @@ print_rx_stats() {
 	high=$(($RX_high*100/$RX_count))
 	full=$(($RX_full*100/$RX_count))
 
-	echo -e " RX\t$RX_count\t\t$full%\t\t$high%\t\t$low%\t\t$empty%"
+	printf "%5s%15s%10s%5s%10s%5s%10s%5s%10s%5s\n" "RX" "$RX_count" "$RX_full |" "$full%" "$RX_high |" "$high%" "$RX_low |" "$low%" "$RX_empty |" "$empty%"
 }
 
 print_tx_stats() {
@@ -109,7 +109,7 @@ print_tx_stats() {
 	high=$(($TX_high*100/$TX_count))
 	full=$(($TX_full*100/$TX_count))
 
-	echo -e " TX\t$TX_count\t\t$full%\t\t$high%\t\t$low%\t\t$empty%"
+	printf "%5s%15s%10s%5s%10s%5s%10s%5s%10s%5s\n" "TX" "$TX_count" "$TX_full |" "$full%" "$TX_high |" "$high%" "$TX_low |" "$low%" "$TX_empty |" "$empty%"
 }
 
 print_stats() {
