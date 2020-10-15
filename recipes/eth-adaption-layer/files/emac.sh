@@ -167,6 +167,13 @@ then
     echo "\n specify ip type correctly in config" > $DUMP_TO_KMSG
     echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
   fi
+  if [[ "$current_target" == "NAD" && "$platform_version_hex" == "$platform_v2" ]]
+  then
+    vconfig add SJA1105P_p0 $qvlan_id
+    vconfig add SJA1105P_p2 $qvlan_id
+    vconfig add SJA1105P_p0 $cvlan_id
+    vconfig add SJA1105P_p2 $cvlan_id
+  fi
   #CV2X over ethernet configuration
   if [[ "$cprotocol" == "Cv2X" ]]
   then

@@ -125,19 +125,19 @@ then
      "NAD")
        if [[ "$qip_type" == "IPv4" ]]
        then
-         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=0 iptype=0 vlan_intf=$qinterface.$qvlan_id
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=0 iptype=0 vlan_intf=$qinterface.$qvlan_id connect_retry_cnt=15
        elif [[ "$qip_type" == "IPv6" ]]
        then
-         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=0 iptype=1 vlan_intf=$qinterface.$qvlan_id
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=0 iptype=1 vlan_intf=$qinterface.$qvlan_id connect_retry_cnt=15
        fi
      ;;
      "EAP")
        if [[ "$qip_type" == "IPv4" ]]
        then
-         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=1 iptype=0 vlan_intf=$qinterface.$qvlan_id
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv4=$qremote_ip dest_port=$qremote_port server=1 iptype=0 vlan_intf=$qinterface.$qvlan_id connect_retry_cnt=15
        elif [[ "$qip_type" == "IPv6" ]]
        then
-         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=1 iptype=1 vlan_intf=$qinterface.$qvlan_id
+         insmod $MODULE_BASE/extra/eth-adaption-layer.ko destipv6=$qremote_ip dest_port=$qremote_port server=1 iptype=1 vlan_intf=$qinterface.$qvlan_id connect_retry_cnt=15
        fi
      ;;
     esac
