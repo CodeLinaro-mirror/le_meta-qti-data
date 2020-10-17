@@ -26,6 +26,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     tcpdump \
     conntrack-tools \
     data-oss \
+    datarmnet \
     libavahi-common \
     libavahi-core \
     libavahi-client \
