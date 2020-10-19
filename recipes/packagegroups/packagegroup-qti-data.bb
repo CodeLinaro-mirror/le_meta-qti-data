@@ -34,6 +34,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     ppp \
     rtsp-alg \
     pimd \
+    minidlna \
     miniupnpd \
     lighttpd \
     iputils \
