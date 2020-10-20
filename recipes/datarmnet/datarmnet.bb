@@ -25,6 +25,10 @@ INITSCRIPT_PARAMS = "start 35 5 . stop 15 0 1 6 ."
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 
+EXTRA_OECONF += "--with-kernel-src=${STAGING_KERNEL_DIR} \
+                 --with-kernel=${STAGING_KERNEL_BUILDDIR} \
+                 --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include"
+
 # Disable parallel make
 PARALLEL_MAKE = ""
 
