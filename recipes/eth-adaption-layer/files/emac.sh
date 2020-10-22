@@ -140,10 +140,13 @@ then
     vconfig add $qinterface $qvlan_id
     ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
     ifconfig $qinterface.$qvlan_id $qlocal_ip up
+    ip link set $qinterface.$qvlan_id type vlan egress 0:$qvlan_pcp
+    ip link set $qinterface.$qvlan_id type vlan ingress 0:$qvlan_pcp
     if [ -e /sys/class/net/bridge0 ]; then
      ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i $qinterface -j DROP
     fi
   echo qvlanid=$qvlan_id > /dev/emac
+  echo qvlan_pcp=$qvlan_pcp > /dev/emac
   echo qmac_id=$qlocal_macid > /dev/emac
   echo qoe=$qprotocol > /dev/emac
   echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
@@ -183,6 +186,8 @@ then
      vconfig add $cinterface $cvlan_id
      ifconfig $cinterface.$cvlan_id hw ether $clocal_macid
      ifconfig $cinterface.$cvlan_id up
+     ip link set $cinterface.$cvlan_id type vlan egress 0:$cvlan_pcp
+     ip link set $cinterface.$cvlan_id type vlan ingress 0:$cvlan_pcp
      if [ -e /sys/class/net/bridge0 ]; then
        vconfig add bridge0 $cvlan_id
        ifconfig bridge0.$cvlan_id hw ether $clocal_macid
@@ -191,6 +196,7 @@ then
        fi
      fi
     echo cvlanid=$cvlan_id > /dev/emac
+    echo cvlan_pcp=$cvlan_pcp > /dev/emac
     echo cmac_id=$clocal_macid > /dev/emac
     echo cv2x=$cprotocol > /dev/emac
     echo "\n CV2X add vlan to eth stop" > $DUMP_TO_KMSG
