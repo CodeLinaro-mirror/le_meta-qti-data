@@ -21,6 +21,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     ebtables \
     dhcpcd \
     ddclient \
+    dnsmasq \
     ethtool \
     tcpdump \
     conntrack-tools \
@@ -31,6 +32,9 @@ RDEPENDS_packagegroup-qti-data = ' \
     libavahi-glib \
     tinyproxy \
     ppp \
+    rtsp-alg \
+    pimd \
+    miniupnpd \
     lighttpd \
     iputils \
     jquery \
