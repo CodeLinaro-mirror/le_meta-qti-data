@@ -26,6 +26,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     tcpdump \
     conntrack-tools \
     data-oss \
+    datarmnet \
     libavahi-common \
     libavahi-core \
     libavahi-client \
@@ -34,6 +35,8 @@ RDEPENDS_packagegroup-qti-data = ' \
     ppp \
     rtsp-alg \
     pimd \
+    minidlna \
+    miniupnpd \
     lighttpd \
     iputils \
     jquery \
