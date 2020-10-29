@@ -94,7 +94,7 @@ case "$soc_id" in
     case "$hw_platform" in
       "ADP")
       case "$platform_subtype_id" in
-        "0")
+        "0" | "2")
         case "$platform_version_hex" in
           "$platform_v2" | "$platform_v3")
           echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
