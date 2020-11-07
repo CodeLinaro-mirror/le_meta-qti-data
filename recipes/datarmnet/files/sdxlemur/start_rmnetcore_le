@@ -27,23 +27,24 @@
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-export MODULE_BASE=/lib/modules/`uname -r`/
+export MODULE_BASE=/lib/modules/`uname -r`/extra
 set -e
+
 
 case "$1" in
   start)
         echo -n "Starting/Loading rmnet modules: "
-
         echo "rmnet:start/load" > /dev/kmsg
-        insmod $MODULE_BASE/rmnet_ctl.ko
-        insmod $MODULE_BASE/rmnet_core.ko
-
-        echo "done loading rmnet modules"
+        insmod $MODULE_BASE/rmnet_ctl.ko > /dev/kmsg
+        insmod $MODULE_BASE/rmnet_core.ko > /dev/kmsg
+        echo "done loading rmnet modules" > /dev/kmsg
         ;;
   stop)
+        echo "Stopping rmnet modules" > /dev/kmsg
         echo -n "Bypassing Unloading of rmnet modules "
         ;;
   restart)
+        echo "rmnet modules initiating restart" > /dev/kmsg
         $0 stop
         $0 start
         ;;
