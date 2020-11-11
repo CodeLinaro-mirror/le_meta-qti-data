@@ -5,7 +5,7 @@ export R8125_SRCDIR = "${WORKSPACE}/data-kernel/drivers/r8125/src"
 
 LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://${R8125_SRCDIR}/r8125_n.c;\
-beginline=9;endline=17;md5=9826a2c77338d02bc1877c9cee0242e9"
+beginline=10;endline=18;md5=9826a2c77338d02bc1877c9cee0242e9"
 
 inherit module
 inherit qperf
