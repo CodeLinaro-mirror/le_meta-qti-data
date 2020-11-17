@@ -31,10 +31,14 @@ export MODULE_BASE=/usr/lib/modules/`uname -r`/
 . $2
 
 platform_v1=10000
+platform_v1_1=10001
 platform_v2=20000
+platform_v2_1=20001
 platform_v3=30000
+platform_v3_1=30001
 sa515m=418
 QCS405=352
+sa2145p=451
 sa2150p=452
 
 if [ -f /sys/devices/soc0/soc_id ]; then
@@ -90,13 +94,13 @@ case "$soc_id" in
 esac
 
 case "$soc_id" in
-  "$sa2150p" | "$QCS405")
+  "$sa2150p" | "$sa2145p" | "$QCS405")
     case "$hw_platform" in
       "ADP")
       case "$platform_subtype_id" in
-        "0" | "2")
+        "0" | "2" | "3")
         case "$platform_version_hex" in
-          "$platform_v2" | "$platform_v3")
+          "$platform_v2" | "$platform_v2_1" | "$platform_v3" | "$platform_v3_1")
           echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
           current_target=EAP
           echo $current_target
