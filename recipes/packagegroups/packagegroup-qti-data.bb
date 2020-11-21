@@ -22,6 +22,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     dhcpcd \
     ddclient \
     dnsmasq \
+    data-ipa-cfg-mgr \
     ethtool \
     tcpdump \
     conntrack-tools \
