@@ -5,6 +5,7 @@ SourcePath=/etc/initscripts/start_rmnetcore_le
 [Service]
 Restart=on-failure
 RemainAfterExit=yes
+Type=oneshot
 ExecStart=/etc/initscripts/start_rmnetcore_le start
 
 [Install]
