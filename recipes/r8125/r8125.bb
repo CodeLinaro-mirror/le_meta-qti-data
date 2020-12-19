@@ -11,6 +11,8 @@ inherit module
 inherit qperf
 inherit systemd
 
+EXTRA_OEMAKE += "${@bb.utils.contains('BASEMACHINE', 'sdxprairie', 'CONFIG_R8125_IPA_OFFLOAD=y', '', d)}"
+
 # Files from meta-qti-data
 SRC_URI += "file://kobj/Makefile"
 SRC_URI += "file://r8125.service"
