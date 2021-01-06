@@ -18,14 +18,13 @@ index 39003be..077294c 100644
 -secure_mode=no
 +secure_mode=yes
  
- # default presentation url is http address on port 80
+ # Default presentation url is http address on port 80
  # If set to an empty string, no presentationURL element will appear
-@@ -146,5 +146,5 @@ uuid=1a7872a9-92bc-4661-8a70-69370a908d12
+@@ -180,4 +180,5 @@ uuid=1a7872a9-92bc-4661-8a70-69370a908d12
  #allow 1024-65535 192.168.1.0/24 1024-65535
  #allow 1024-65535 192.168.0.0/23 22
  #allow 12345 192.168.7.113/32 54321
 -allow 0-65535 0.0.0.0/0 0-65535
--
 +allow 1024-65535 0.0.0.0/0 1024-65535
 +deny 0-65535 0.0.0.0/0 0-65535
 -- 

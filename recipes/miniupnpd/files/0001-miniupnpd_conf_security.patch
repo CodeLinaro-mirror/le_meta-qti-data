@@ -30,7 +30,7 @@ index 90bd5ade8..39003be5b
 @@ -55,7 +56,7 @@
  # ENABLE_MANUFACTURER_INFO_CONFIGURATION (config.h)
  
- # name of this service, default is "`uname -s` router"
+ # Name of this service, default is "`uname -s` router"
 -#friendly_name=MiniUPnPd router
 +friendly_name=9x45 MobileAP UPnP
  
@@ -48,13 +48,13 @@ index 90bd5ade8..39003be5b
 @@ -122,7 +123,7 @@ clean_ruleset_interval=600
  #quickrules=no
  
- # uuid : generate your own with "make genuuid"
+ # UUID, generate your own UUID with "make genuuid"
 -uuid=00000000-0000-0000-0000-000000000000
 +uuid=1a7872a9-92bc-4661-8a70-69370a908d12
  
- # serial and model number the daemon will report to clients
- # in its XML description
-@@ -141,9 +142,9 @@ uuid=00000000-0000-0000-0000-000000000000
+ # Daemon's serial and model number when reporting to clients
+ # (in XML description)
+@@ -175,8 +176,8 @@
  # modify the IP ranges to match their own internal networks, and
  # also consider implementing network-specific restrictions
  # CAUTION: failure to enforce any rules may permit insecure requests to be made!
@@ -63,7 +63,7 @@ index 90bd5ade8..39003be5b
 -allow 1024-65535 192.168.0.0/23 22
 -allow 12345 192.168.7.113/32 54321
 -deny 0-65535 0.0.0.0/0 0-65535
-+#allow 1024-65535 192.168.0.0/24 0-65535
++#allow 1024-65535 192.168.0.0/24 1024-65535
 +#allow 1024-65535 192.168.1.0/24 1024-65535
 +#allow 1024-65535 192.168.0.0/23 22
 +#allow 12345 192.168.7.113/32 54321
