@@ -36,11 +36,13 @@ do_install() {
    chown -R root:1001 ${D}${sysconfdir}/data/ddclient.conf
 }
 
-do_install_append_mdm(){
-if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
-   install -d ${D}${systemd_unitdir}/system/
-   install -m 0664 ${WORKDIR}/ddclientd.service -D ${D}${systemd_unitdir}/system/ddclientd.service
-fi
+do_install_append(){
+   if [[ "${DISTRO_NAME}" =~ .*mdm.* ]] || [[ "${MACHINE_FEATURES}" =~ .*qti-sdx.* ]]; then
+      if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+         install -d ${D}${systemd_unitdir}/system/
+         install -m 0664 ${WORKDIR}/ddclientd.service -D ${D}${systemd_unitdir}/system/ddclientd.service
+      fi
+   fi
 }
 
 FILES_${PN} += "${sysconfdir}/data/ddclient.conf"
