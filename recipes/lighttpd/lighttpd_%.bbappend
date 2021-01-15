@@ -28,6 +28,7 @@ do_install_append() {
    install -d ${D}${userfsdatadir}/www
    install -m 0755 ${WORKDIR}/openssl.cnf ${D}${userfsdatadir}
    install -m 0770 ${WORKDIR}/lighttpd.user ${D}${userfsdatadir}/www/lighttpd.user
+   install -m 0644 ${WORKDIR}/lighttpd.service -D ${D}${systemd_unitdir}/system/lighttpd.service
    rm -rf ${D}${sysconfdir}/lighttpd.conf
    install -m 0755 ${WORKDIR}/lighttpd.conf ${D}${userfsdatadir}
    rm -rf ${D}/www/logs ${D}/www/var
