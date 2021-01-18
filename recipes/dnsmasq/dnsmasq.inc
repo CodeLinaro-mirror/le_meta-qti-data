@@ -18,6 +18,8 @@ EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
                 LDFLAGS='${TARGET_LDFLAGS}'"
 
+inherit useradd
+
 do_install () {
         oe_runmake "PREFIX=${D}${prefix}" \
                    "BINDIR=${D}${bindir}" \
@@ -26,7 +28,7 @@ do_install () {
         install -d ${D}${sysconfdir}/ ${D}${sysconfdir}/init.d ${D}${sysconfdir}/dnsmasq.d
         install -d ${D}${sysconfdir}/data/
         install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
-        chown -R root:1001 ${D}${sysconfdir}/data/dnsmasq.conf
+        chown -R root:radio ${D}${sysconfdir}/data/dnsmasq.conf
         # symlink dnsmasq.conf under /etc
         ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
 
@@ -41,7 +43,7 @@ do_install () {
         fi
         install -d ${D}${base_bindir}
         install -m 0755 ${WORKDIR}/dnsmasq_script.sh ${D}${base_bindir}
-        chown -h 65534:65534 ${D}${base_bindir}/dnsmasq_script.sh
+        chown -h nobody:nogroup ${D}${base_bindir}/dnsmasq_script.sh
 }
 
 CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
