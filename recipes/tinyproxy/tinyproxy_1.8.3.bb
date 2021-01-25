@@ -13,8 +13,7 @@ SRC_URI = " \
         file://001-tiny_config.patch \
         file://tinyproxyd.service \
         "
-
-inherit autotools pkgconfig
+inherit autotools pkgconfig useradd
 
 EXTRA_OECONF = " \
         --enable-regexcheck=no \
@@ -31,7 +30,7 @@ do_install_append() {
       install -d ${D}${systemd_unitdir}/system/
       install -m 0644 ${WORKDIR}/tinyproxyd.service -D ${D}${systemd_unitdir}/system/tinyproxyd.service
   fi
-  chown -R root:1001 ${D}${sysconfdir}/data/tinyproxy.conf
+  chown -R root:radio ${D}${sysconfdir}/data/tinyproxy.conf
 }
 FILES_${PN} += "${sysconfdir}/data/tinyproxy.conf"
 FILES_${PN} += "${systemd_unitdir}/system/*"

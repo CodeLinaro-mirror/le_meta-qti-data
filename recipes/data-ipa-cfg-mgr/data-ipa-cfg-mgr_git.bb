@@ -1,4 +1,4 @@
-inherit autotools-brokensep pkgconfig update-rc.d
+inherit autotools-brokensep pkgconfig update-rc.d useradd
 
 DESCRIPTION = "Qualcomm IPA"
 LICENSE = "BSD"
@@ -28,7 +28,7 @@ INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
 
 do_install_append() {
-	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa
+	install -d 0664 -o radio -g radio ${D}${userfsdatadir}/misc/ipa
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 
 	  #IPACM Service
@@ -39,14 +39,14 @@ do_install_append() {
 	  ln -sf ${systemd_unitdir}/system/ipacm.service \
 	  ${D}${systemd_unitdir}/system/local-fs.target.wants/ipacm.service
 
-          chown -R 1001:1001 ${D}${sysconfdir}/data/ipa/
+          chown -R radio:radio ${D}${sysconfdir}/data/ipa/
 
           #temp-file for ipacm
           install -d ${D}${sysconfdir}/tmpfiles.d
           install -m 0644 ${WORKDIR}/ipacm.conf -D ${D}${sysconfdir}/tmpfiles.d/ipacm.conf
 
           #IPACM_cfg file stored as factory settings
-          install -m 0755 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
+          install -m 0755 -o radio -g radio ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
 
 	fi
 }

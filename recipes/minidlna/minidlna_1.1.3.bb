@@ -1,4 +1,4 @@
-inherit autotools-brokensep gettext
+inherit autotools-brokensep gettext useradd
 SUMMARY = "MiniDLNA (aka ReadyDLNA) is server software with the aim of being fully \
 compliant with DLNA/UPnP-AV clients."
 HOMEPAGE = "http://sourceforge.net/projects/minidlna/"
@@ -31,7 +31,7 @@ do_install_append () {
     install -d ${D}${sysconfdir}
     install -d ${D}${sysconfdir}/data/
     install -m 664  ${WORKDIR}/${PN}-${PV}/${PN}.conf ${D}${sysconfdir}/data/
-    chown -R root:1001 ${D}${sysconfdir}/data/minidlna.conf
+    chown -R root:radio ${D}${sysconfdir}/data/minidlna.conf
     install -d ${D}${sysconfdir}/init.d/
     install ${WORKDIR}/${PN}-${PV}/linux/${PN}.init.d.script ${D}${sysconfdir}/init.d/minidlna
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
