@@ -2,6 +2,7 @@
 Description= eth-adaption-layer service
 DefaultDependencies=no
 After=network.target network-online.target QCMAP_ConnectionManagerd.service emac.service
+ConditionPathExists=/dev/emac
 
 [Service]
 Restart=no

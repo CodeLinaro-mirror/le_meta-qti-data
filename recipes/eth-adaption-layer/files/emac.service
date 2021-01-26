@@ -2,6 +2,7 @@
 Description= emac service
 DefaultDependencies=no
 After=network.target network-online.target QCMAP_ConnectionManagerd.service
+ConditionPathExists=/dev/emac
 
 [Service]
 Restart=no
