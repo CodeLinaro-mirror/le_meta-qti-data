@@ -4,8 +4,7 @@ Description= dnsmasq service
 DefaultDependencies=no
 
 [Service]
-EnvironmentFile=/var/run/data/dnsmasq_env.conf
-ExecStart=/etc/initscripts/qcmap_start_dnsmasq.sh /var/run/data/dnsmasq_env.conf
+ExecStart=/usr/bin/dnsmasq --conf-file=/var/run/data/dnsmasq.conf.bridge%i
 ExecReload=killall -HUP dnsmasq
 Type=forking
 RemainAfterExit=yes
