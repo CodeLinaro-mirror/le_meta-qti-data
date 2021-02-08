@@ -9,8 +9,7 @@ DEPENDS = "perl"
 SRC_URI[md5sum] = "7fa417bc65f8f0e6ce78418a4f631988"
 SRC_URI[sha256sum] = "77a82668a53fdbed1e05ad6febe6dbefb093e3922afb20b993d4ad9ee868258f"
 
-
-inherit autotools pkgconfig
+inherit autotools pkgconfig useradd
 
 S = "${WORKDIR}/ddclient-${PV}"
 
@@ -32,7 +31,7 @@ do_compile() {
 do_install() {
    install -m 0755 ${S}/ddclient -D ${D}${sbindir}/ddclient
    install -m 0664 ${S}/sample-etc_ddclient.conf -D ${D}${sysconfdir}/data/ddclient.conf
-   chown -R root:1001 ${D}${sysconfdir}/data/ddclient.conf
+   chown -R root:radio ${D}${sysconfdir}/data/ddclient.conf
 }
 
 do_install_append_mdm(){
