@@ -4,6 +4,8 @@ SRC_URI += " \
         file://Makefile.patch \
 "
 
+DEPENDS += "virtual/kernel"
+
 EXTRA_OEMAKE += "KERNEL_INCLUDES=${STAGING_KERNEL_BUILDDIR}/usr/include"
 
 EXTRA_OECONF = "--without-crypto \
