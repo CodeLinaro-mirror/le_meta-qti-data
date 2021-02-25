@@ -143,6 +143,7 @@ then
 	echo $target > /dev/kmsg
     vconfig add $qinterface $qvlan_id
     ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
+    ip link set $qinterface.$qvlan_id mtu 1500
     ifconfig $qinterface.$qvlan_id $qlocal_ip up
     ip link set $qinterface.$qvlan_id type vlan egress 0:$qvlan_pcp
     ip link set $qinterface.$qvlan_id type vlan ingress 0:$qvlan_pcp
