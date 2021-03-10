@@ -1,0 +1,53 @@
+From 2dd25bbbb3e60cb52f9349c2f546f521af017922 Wed Mar 10 07:41:36 2021
+From: Paras Singh Jain <parassin@codeaurora.org>
+Date:   Wed Mar 10 07:41:36 2021 +0530
+Subject: [PATCH] FR70292: Port Trigger Feature
+
+Changes in Iptables to support port trigger feature
+
+Change-Id: I491856f6e320b07966a69901337adfae0e3b58df
+Signed-off-by: Paras Singh Jain <parassin@codeaurora.org>
+
+recipes/iptables/files/xtables.patch               |  50 ++++
+1 file changed, 50 insertions(+)
+
+diff -urN iptables-1.3.3.old/libxtables/xtables.c iptables-1.3.3.dev/libxtables/xtables.c
+--- iptables-1.3.3.old/libxtables/xtables.c   2021-02-18 21:31:47.104756725 -0800
++++ iptables-1.3.3.old/libxtables/xtables.c   2021-02-18 21:36:44.788825368 -0800
+
+@@ -2017,6 +2017,35 @@
+	}
+ }
+
++/**
++ * Check for option-intrapositional negation.
++ * Do not use in new code.
++ */
++int xtables_check_inverse(const char option[], int *invert,
++			  int *my_optind, int argc, char **argv)
++{
++	if (option == NULL || strcmp(option, "!") != 0)
++		return false;
++
++	fprintf(stderr, "Using intrapositioned negation "
++	        "(`--option ! this`) is deprecated in favor of "
++	        "extrapositioned (`! --option this`).\n");
++
++	if (*invert)
++		xt_params->exit_err(PARAMETER_PROBLEM,
++			   "Multiple `!' flags not allowed");
++	*invert = true;
++	if (my_optind != NULL) {
++		optarg = argv[*my_optind];
++		++*my_optind;
++		if (argc && *my_optind > argc)
++			xt_params->exit_err(PARAMETER_PROBLEM,
++				   "no argument following `!'");
++	}
++
++	return true;
++}
++
+ const struct xtables_pprot xtables_chain_protos[] = {
+	{"tcp",       IPPROTO_TCP},
+	{"sctp",      IPPROTO_SCTP},
