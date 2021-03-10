@@ -11,7 +11,6 @@ ExecStartPre=udevadm trigger --settle --subsystem-match=wwan_ioctl --subsystem-m
 ExecStartPre=+chmod 660 /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipa_adpl /dev/ipa_odl_ctl
 ExecStartPre=+chown -h radio.radio /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipa_adpl /dev/ipa_odl_ctl
 ExecStart=/usr/bin/ipacm
-ExecStartPost=/bin/sh -c 'pgrep -x /usr/bin/ipacm > /var/run/data/monitor/ipacmd.pid'
 ExecStopPost=/bin/sh -c 'rm /var/run/data/monitor/ipacmd.pid'
 User=radio
 Group=radio
