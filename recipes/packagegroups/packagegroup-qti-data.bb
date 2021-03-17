@@ -45,7 +45,4 @@ RDEPENDS_packagegroup-qti-data = ' \
     strace \
     sfe \
     gsb \
-    locationdb \
-    zonedetect \
-    ianatzdata \
     '
