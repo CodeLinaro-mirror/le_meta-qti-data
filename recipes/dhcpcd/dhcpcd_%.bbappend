@@ -5,7 +5,7 @@ SRC_URI += "\
 
 do_configure() {
         ./configure --includedir=${STAGING_INCDIR} --bindir=${prefix}/sbin \
-        --sbindir=${exec_prefix}/sbin
+        --sbindir=${exec_prefix}/sbin --disable-ipv6=yes --libexecdir=${libexecdir}
 }
 
 do_install_append(){

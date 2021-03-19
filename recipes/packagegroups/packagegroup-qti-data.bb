@@ -43,4 +43,9 @@ RDEPENDS_packagegroup-qti-data = ' \
     jquery \
     jquery-ui \
     strace \
+    sfe \
+    gsb \
+    locationdb \
+    zonedetect \
+    ianatzdata \
     '
