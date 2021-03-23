@@ -8,14 +8,10 @@ PROVIDES = "${PACKAGES}"
 
 PACKAGES = ' \
     packagegroup-qti-data \
+    packagegroup-qti-data-1g \
     '
 
 RDEPENDS_packagegroup-qti-data = ' \
-    avahi-daemon \
-    avahi-dnsconfd \
-    avahi-autoipd \
-    avahi-utils \
-    avahi-systemd \
     iproute2 \
     iptables \
     ebtables \
@@ -28,17 +24,9 @@ RDEPENDS_packagegroup-qti-data = ' \
     conntrack-tools \
     data-oss \
     datarmnet \
-    libavahi-common \
-    libavahi-core \
-    libavahi-client \
-    libavahi-glib \
-    tinyproxy \
     ppp \
     rtsp-alg \
     pimd \
-    minidlna \
-    miniupnpd \
-    lighttpd \
     iputils \
     jquery \
     jquery-ui \
@@ -48,4 +36,20 @@ RDEPENDS_packagegroup-qti-data = ' \
     locationdb \
     zonedetect \
     ianatzdata \
+    '
+
+RDEPENDS_packagegroup-qti-data-1g = ' \
+    avahi-daemon \
+    avahi-dnsconfd \
+    avahi-autoipd \
+    avahi-utils \
+    avahi-systemd \
+    libavahi-common \
+    libavahi-core \
+    libavahi-client \
+    libavahi-glib \
+    tinyproxy \
+    minidlna \
+    miniupnpd \
+    lighttpd \
     '
