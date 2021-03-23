@@ -13,7 +13,7 @@ PR = "r4"
 
 inherit autotools-brokensep
 
-SRC_URI = "http://roy.aydogan.net/dhcpcd/dhcpcd-${PV}.tar.bz2"
+SRC_URI = "http://roy.marples.name/downloads/${BPN}/${BPN}-${PV}.tar.xz"
 SRC_URI += "file://dhcpcd@.service"
 
 do_configure() {
@@ -24,9 +24,11 @@ do_configure() {
 FILES_${PN} +="/usr/libexec/*"
 FILES_${PN} += "/usr/etc*"
 FILES_${PN} += "/data/*"
+FILES_${PN} += "/libexec/*"
+FILES_${PN} += "/libexec/dhcpcd-hooks/*"
 
-SRC_URI[md5sum] = "c65e8cef3281eaf2e12a84bd882f5c63"
-SRC_URI[sha256sum] = "d3325c697d6e2a2d09c80cedb358bb78561da33304183874d7c44f96fd5d9f5f"
+SRC_URI[md5sum] = "e1eea03388d12c9ad21ecd7c135fdf8b"
+SRC_URI[sha256sum] = "6c2934a3e1e67a5cfd5bb15b1efa71f65c00314ac1ccb5c50da8eae3a0b8147f"
 
 do_install_append(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
