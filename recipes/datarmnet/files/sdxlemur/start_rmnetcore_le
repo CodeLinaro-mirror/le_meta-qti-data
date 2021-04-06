@@ -36,8 +36,9 @@ case "$1" in
         echo -n "Starting/Loading rmnet modules: "
         echo "rmnet:start/load" > /dev/kmsg
         insmod $MODULE_BASE/rmnet_ctl.ko > /dev/kmsg
+        echo "done loading rmnet ctl modules" > /dev/kmsg
         insmod $MODULE_BASE/rmnet_core.ko > /dev/kmsg
-        echo "done loading rmnet modules" > /dev/kmsg
+        echo "done loading rmnet core modules" > /dev/kmsg
         ;;
   stop)
         echo "Stopping rmnet modules" > /dev/kmsg
