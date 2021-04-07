@@ -1,0 +1,12 @@
+
+[Unit]
+Description=R8168
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe r8168
+ExecStop=/sbin/rmmod r8168
+
+[Install]
+WantedBy=multi-user.target
