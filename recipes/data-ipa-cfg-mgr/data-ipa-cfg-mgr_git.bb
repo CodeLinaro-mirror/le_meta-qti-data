@@ -7,17 +7,15 @@ ${LICENSE};md5=3775480a712fc46a69647678acb234cb"
 
 PR = "r4"
 
-DEPENDS  = "glib-2.0"
-DEPENDS += "libxml2"
-DEPENDS += "libnetfilter-conntrack"
-DEPENDS += "virtual/kernel"
+DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat"
 
 BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
-EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
-                --enable-target=${BASEMACHINE} \
-                --enable-baseproduct=${BASEPRODUCT} \
-                --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
+EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
+		--with-sanitized-headers=${KERNEL_OUT_PATH}/msm-kernel/usr/include/  \
+                --with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc \
+                --with-glib"
+
 
 FILESEXTRAPATHS_prepend := "${WORKSPACE}/:"
 SRC_URI = "file://data-ipa-cfg-mgr"
