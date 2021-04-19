@@ -1,7 +1,6 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
-           file://dnsmasq.service \
            file://dnsmasq_service@.service \
            file://qcmap_start_dnsmasq.sh"
 
@@ -20,7 +19,6 @@ do_install_append () {
          install -d ${D}/etc/initscripts
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/initscripts/dnsmasq
          install -d ${D}/etc/systemd/system/
-         install -m 0644 ${WORKDIR}/dnsmasq.service -D ${D}/etc/systemd/system/dnsmasq.service
          install -d ${D}/etc/systemd/system/multi-user.target.wants/
          install -d ${D}${systemd_unitdir}/system/
          install -m 0644 ${WORKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
@@ -32,7 +30,6 @@ do_install_append () {
         install -m 0755 ${WORKDIR}/dnsmasq_script.sh ${D}${base_bindir}
         chown -h root:root ${D}${base_bindir}/dnsmasq_script.sh
 
-        rm -f ${D}${systemd_unitdir}/system/dnsmasq.service
         rm -f ${D}${sysconfdir}/systemd/resolved.conf.d/*
         rm -d ${D}${sysconfdir}/systemd/resolved.conf.d
 }
@@ -40,3 +37,5 @@ do_install_append () {
 CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
 FILES_${PN} += "${sysconfdir}/data/dnsmasq.conf"
 FILES_${PN} += "${systemd_unitdir}/system/*"
+
+SYSTEMD_SERVICE_${PN} = ""
