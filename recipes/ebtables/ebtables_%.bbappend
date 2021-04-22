@@ -20,3 +20,9 @@ do_configure_append() {
         install -m 555 ${S}/include/linux/netfilter_bridge/ebt_ulog.h ${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/ebt_ulog.h
     fi
 }
+
+do_install_append () {
+      rm -f ${D}${systemd_unitdir}/system/ebtables.service
+}
+
+SYSTEMD_SERVICE_${PN} = ""
