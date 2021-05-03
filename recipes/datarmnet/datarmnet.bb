@@ -42,7 +42,7 @@ PARALLEL_MAKE = "-j1"
 do_install_append() {
         install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
         install -m 0644 rmnet_core.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
-#        install -m 0644 rmnet_ctl.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_ctl.ko
+        install -m 0644 rmnet_ctl.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_ctl.ko
         install -d ${D}${sysconfdir}/initscripts/
         install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
         install -d ${D}${systemd_unitdir}/system/
