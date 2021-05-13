@@ -11,10 +11,12 @@ DEPENDS  = "glib-2.0"
 DEPENDS += "libxml2"
 DEPENDS += "libnetfilter-conntrack"
 DEPENDS += "virtual/kernel"
+DEPENDS += "data-ipanat"
 
-EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
-                --enable-target=${BASEMACHINE} \
-                --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
+EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
+                --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include \
+                --with-ipanat-headers=${WORKSPACE}/kernel/msm-${PREFERRED_VERSION_linux-msm}/techpack/dataipa/ipanat/inc \
+                --with-glib"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-ipa-cfg-mgr"
