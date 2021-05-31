@@ -7,6 +7,7 @@ DefaultDependencies=no
 Restart=on-failure
 RemainAfterExit=yes
 ExecStart=/etc/initscripts/start_rmnetcore_le start
+Nice=-20
 
 [Install]
 WantedBy=local-fs.target
