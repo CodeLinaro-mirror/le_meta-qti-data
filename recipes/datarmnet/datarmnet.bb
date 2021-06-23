@@ -21,7 +21,7 @@ S = "${WORKDIR}/datarmnet/core"
 FILES_${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/"
 FILES_${PN}+="/etc/initscripts/start_rmnetcore_le"
 FILES_${PN}+= "${systemd_unitdir}/system/rmnetcore.service"
-FILES_${PN}+= "${systemd_unitdir}/system/multi-user.target.wants/rmnetcore.service"
+FILES_${PN}+= "${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service"
 
 INITSCRIPT_NAME = "start_rmnetcore_le"
 INITSCRIPT_PARAMS = "start 35 5 . stop 15 0 1 6 ."
@@ -42,12 +42,11 @@ PARALLEL_MAKE = "-j1"
 do_install_append() {
         install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
         install -m 0644 rmnet_core.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
-        install -m 0644 rmnet_ctl.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_ctl.ko
         install -d ${D}${sysconfdir}/initscripts/
         install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
         install -d ${D}${systemd_unitdir}/system/
         install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
-        install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
+        install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
         ln -sf ${systemd_unitdir}/system/rmnetcore.service \
-                ${D}${systemd_unitdir}/system/multi-user.target.wants/rmnetcore.service
+                ${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
 }
