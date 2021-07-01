@@ -1,11 +1,13 @@
 [Unit]
 Description= tinyproxy service
-SourcePath=/usr/sbin/tinyproxy
+SourcePath=/usr/bin/tinyproxy
 
 
 [Service]
+User=nobody
+Group=inet
 Type=oneshot
 RemainAfterExit=yes
 Restart=no
-ExecStart=/usr/sbin/tinyproxy -c /etc/data/tinyproxy.conf
+ExecStart=/usr/bin/tinyproxy -c /etc/data/tinyproxy.conf
 ExecStop=/usr/bin/killall -15 tinyproxy

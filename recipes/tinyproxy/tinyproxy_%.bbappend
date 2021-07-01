@@ -5,16 +5,22 @@ SRC_URI += " \
         file://001-tiny_config.patch \
         file://tinyproxyd.service \
         "
-
+SYSTEMD_AUTO_ENABLE_${PN} = "disable"
 
 do_install_append() {
   install -d ${D}${sysconfdir}/data/
-  install -m 644 ${WORKDIR}/image/etc/tinyproxy.conf ${D}${sysconfdir}/data/
+  install -m 0664 ${WORKDIR}/image/etc/tinyproxy.conf ${D}${sysconfdir}/data/
   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
       install -d ${D}${systemd_unitdir}/system/
       install -m 0644 ${WORKDIR}/tinyproxyd.service -D ${D}${systemd_unitdir}/system/tinyproxyd.service
   fi
   chown -R root:1001 ${D}${sysconfdir}/data/tinyproxy.conf
 }
+
+do_install_append () {
+    rm -f ${D}${systemd_unitdir}/system/tinyproxy.service
+}
+
+SYSTEMD_SERVICE_${PN} = ""
 FILES_${PN} += "${sysconfdir}/data/tinyproxy.conf"
 FILES_${PN} += "${systemd_unitdir}/system/*"
