@@ -5,7 +5,8 @@ export R8168_SRCDIR = "${WORKSPACE}/data-kernel/drivers/r8168/src"
 
 LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://${R8168_SRCDIR}/r8168_n.c;\
-beginline=9;endline=17;md5=9826a2c77338d02bc1877c9cee0242e9"
+beginline=10;endline=18;md5=9826a2c77338d02bc1877c9cee0242e9"
+#Changed begin and endline
 
 inherit module
 inherit qperf
