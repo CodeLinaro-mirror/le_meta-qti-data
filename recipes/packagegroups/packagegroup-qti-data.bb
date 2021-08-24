@@ -36,6 +36,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     locationdb \
     zonedetect \
     ianatzdata \
+    qps615 \
     '
 
 RDEPENDS_packagegroup-qti-data-1g = ' \
