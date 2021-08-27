@@ -2,7 +2,7 @@
 ETH_OBJDIR ?= $(shell pwd)
 ETH_SRCDIR ?= $(ETH_OBJDIR)
 
-DRIVERS = drivers/ioss drivers/r8125/src drivers/aqc_ioss
+DRIVERS = drivers/qps615_ioss drivers/qps615/src drivers/ioss drivers/r8125/src drivers/aqc_ioss
 
 
 all: $(DRIVERS)
