@@ -12,7 +12,9 @@ SRC_URI = "http://www.codeaurora.org/mirrored_source/quic/le/dnsmasq-${PV}.tar.g
            file://init \
            file://dnsmasq.conf \
            file://dnsmasq_script.sh\
-           file://dnsmasq.service"
+           file://dnsmasq.service\
+	   file://qcmap_dhcp_release.service\
+	   file://0001-dhcp_release_fix_for_ippt.patch"
 
 EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
@@ -42,6 +44,7 @@ do_install () {
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/initscripts/dnsmasq
          install -d ${D}/etc/systemd/system/
          install -m 0644 ${WORKDIR}/dnsmasq.service -D ${D}/etc/systemd/system/dnsmasq.service
+	 install -m 0644 ${WORKDIR}/qcmap_dhcp_release.service -D ${D}${systemd_unitdir}/system/qcmap_dhcp_release.service
          install -d ${D}/etc/systemd/system/multi-user.target.wants/
         else
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
