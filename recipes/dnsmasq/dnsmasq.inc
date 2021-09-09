@@ -18,11 +18,18 @@ EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
                 LDFLAGS='${TARGET_LDFLAGS}'"
 
+do_compile_append() {
+      # build dhcp_release
+      cd ${S}/contrib/lease-tools
+      oe_runmake
+}
+
 do_install () {
         oe_runmake "PREFIX=${D}${prefix}" \
                    "BINDIR=${D}${bindir}" \
                    "MANDIR=${D}${mandir}" \
                    install
+        install -m 0755 ${S}/contrib/lease-tools/dhcp_release ${D}${bindir}
         install -d ${D}${sysconfdir}/ ${D}${sysconfdir}/init.d ${D}${sysconfdir}/dnsmasq.d
         install -d ${D}${sysconfdir}/data/
         install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
