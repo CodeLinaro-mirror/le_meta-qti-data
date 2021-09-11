@@ -54,4 +54,6 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     miniupnpd \
     lighttpd \
     embms-kernel \
+    libgpiod \
+    phytool \
     '
