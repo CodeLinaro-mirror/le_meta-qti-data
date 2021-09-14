@@ -19,7 +19,7 @@ EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
                 --enable-baseproduct=${BASEPRODUCT} \
                 --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
 
-FILESPATH =+ "${WORKSPACE}:"
+FILESEXTRAPATHS_prepend := "${WORKSPACE}/:"
 SRC_URI = "file://data-ipa-cfg-mgr"
 SRC_URI  += "file://ipacm.service"
 SRC_URI  += "file://ipacm.conf"

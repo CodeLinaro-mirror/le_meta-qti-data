@@ -5,10 +5,10 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 PR = "${@oe.utils.conditional('PRODUCT', 'psm', 'r0-psm', 'r0', d)}"
 
-FILESPATH =+ "${WORKSPACE}:"
-SRC_URI = "file://shortcut-fe/shortcut-fe/ "
+FILESEXTRAPATHS_prepend := "${WORKSPACE}/shortcut-fe/:"
+SRC_URI = "file://shortcut-fe/ "
 
-S = "${WORKDIR}/shortcut-fe/shortcut-fe"
+S = "${WORKDIR}/shortcut-fe"
 FILES_${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
 
 do_install() {

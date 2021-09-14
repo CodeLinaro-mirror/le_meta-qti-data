@@ -13,14 +13,15 @@ FILES_${PN}     += "${sysconfdir}/initscripts/*"
 do_unpack[deptask] = "do_populate_sysroot"
 PR = "r0"
 
-FILESPATH =+ "${WORKSPACE}:"
-SRC_URI = "file://data-kernel/drivers/emac-dwc-eqos/"
+FILESEXTRAPATHS_prepend := "${WORKSPACE}/data-kernel/drivers/:"
+
+SRC_URI = "file://emac-dwc-eqos/"
 SRC_URI += "file://emac_dwc_eqos_start_stop_le"
 SRC_URI += "file://setup_avtp_routing_le"
 SRC_URI += "file://emac_dwc_eqos.service"
 SRC_URI += "file://setup_avtp_routing_le.service"
 
-S = "${WORKDIR}/data-kernel/drivers/emac-dwc-eqos/"
+S = "${WORKDIR}/emac-dwc-eqos/"
 
 EXTRA_OEMAKE += "LBITS=32"
 EXTRA_OEMAKE += "DWC_ETH_QOS_ENABLE_ETHTOOL=1"

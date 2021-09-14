@@ -9,10 +9,10 @@ DEPENDS = "virtual/kernel"
 do_unpack[deptask] = "do_populate_sysroot"
 PR = "r4"
 
-FILESPATH =+ "${WORKSPACE}:"
-SRC_URI = "file://external/compat-wireless/drivers/net/ethernet/atheros/alx/ \
+FILESEXTRAPATHS_prepend := "${WORKSPACE}/external/compat-wireless/drivers/net/ethernet/atheros/:"
+SRC_URI = "file://alx/ \
            file://start_alx_le"
-S = "${WORKDIR}/external/compat-wireless/drivers/net/ethernet/atheros/alx/"
+S = "${WORKDIR}/alx/"
 
 FILES_${PN}="/etc/init.d/start_alx_le"
 
