@@ -53,4 +53,5 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     minidlna \
     miniupnpd \
     lighttpd \
+    embms-kernel \
     '
