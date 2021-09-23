@@ -36,6 +36,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     locationdb \
     zonedetect \
     ianatzdata \
+    qps615 \
     '
 
 RDEPENDS_packagegroup-qti-data-1g = ' \
@@ -52,4 +53,5 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     minidlna \
     miniupnpd \
     lighttpd \
+    embms-kernel \
     '

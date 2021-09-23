@@ -1,7 +1,9 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
-           file://dnsmasq_service@.service"
+           file://dnsmasq_service@.service \
+           file://qcmap_dhcp_release.service \
+           file://0001-dhcp_release_fix_for_ippt.patch"
 
 EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
@@ -21,6 +23,7 @@ do_install_append () {
          install -d ${D}/etc/systemd/system/multi-user.target.wants/
          install -d ${D}${systemd_unitdir}/system/
          install -m 0644 ${WORKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
+         install -m 0644 ${WORKDIR}/qcmap_dhcp_release.service -D ${D}${systemd_unitdir}/system/qcmap_dhcp_release.service
         else
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
         fi

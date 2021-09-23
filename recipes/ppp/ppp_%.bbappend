@@ -11,12 +11,10 @@ SRC_URI += "file://ipv6-up \
 do_install_append () {
     install -m 0755 ${WORKDIR}/ipv6-up ${D}${sysconfdir}/ppp/
     install -m 0755 ${WORKDIR}/disconnect ${D}${sysconfdir}/
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+       install -d ${D}${systemd_unitdir}/system/
+       install -m 0644 ${WORKDIR}/pppd_service.service -D ${D}${systemd_unitdir}/system/pppd_service.service
+    fi
 }
 
-do_install_append_mdm(){
-if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
-   install -d ${D}${systemd_unitdir}/system/
-   install -m 0644 ${WORKDIR}/pppd_service.service -D ${D}${systemd_unitdir}/system/pppd_service.service
-fi
-}
 FILES_${PN} += "${systemd_unitdir}/system/*"
