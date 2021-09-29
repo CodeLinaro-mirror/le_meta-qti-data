@@ -32,7 +32,7 @@ index 90bd5ade8..39003be5b
  
  # Name of this service, default is "`uname -s` router"
 -#friendly_name=MiniUPnPd router
-+friendly_name=9x45 MobileAP UPnP
++friendly_name=SDx65 MobileAP UPnP
  
  # manufacturer name, default is "`uname -s`"
  #manufacturer_name=Manufacturer corp
