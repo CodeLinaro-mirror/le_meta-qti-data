@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2017, 2021 The Linux Foundation. All rights reserved.
+# Copyright (c) 2017, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -47,11 +47,20 @@ fi
 case "$1" in
   add)
       #  Boot KPI marker for Local IP - PLEASE DON'T REMOVE/CHANGE
-      export iface=`bridge fdb show |awk '{print $1,$3,$5}' | grep $2 | grep $DNSMASQ_INTERFACE | awk '{print$2}' | tr -d '\n'`
-      echo -n "M - $iface Client Local IP assignment" >> /sys/kernel/boot_kpi/kpi_values
-      echo "QCMAP: $iface Client Mac Address $2" > /dev/kmsg
-      echo "QCMAP: $iface Client IP Address $3" > /dev/kmsg
-
+      export iface=`bridge fdb show |awk '{print $1,$3}' | grep $2 | awk '{print$2}' | tr -d '\n'`
+      if [ $iface == "rndis0" ] || [ $iface == "ecm0" ]; then
+          echo "USB Client Mac Address is $2 " > /dev/kmsg
+          echo "QCMAP:USB Client IP Addr $3 " > /dev/kmsg
+      elif [ $iface == "eth0" ]; then
+          echo "ETHERNET Client Mac Address is $2 " > /dev/kmsg
+          echo "QCMAP:Ethernet Client IP Addr $3 " > /dev/kmsg
+      elif [ $iface == "wlan0" ] || [ $iface == "wlan1" ] || [ $iface == "wlan2" ] || [ $iface == "wlan3" ]; then
+          echo "WLAN Client Mac Address is $2 " > /dev/kmsg
+          echo "QCMAP:Wlan Client IP Addr $3 " > /dev/kmsg
+      elif [ $iface == "bt-pan" ]; then
+          echo "BT Client Mac Address is $2 " > /dev/kmsg
+          echo "QCMAP:BT Client IP Addr $3 " > /dev/kmsg
+      fi
       #"add" event  means a lease has been created
       #Removing entry for that is already for  ip=$3
       sed -i "/$3/d" $FILE
