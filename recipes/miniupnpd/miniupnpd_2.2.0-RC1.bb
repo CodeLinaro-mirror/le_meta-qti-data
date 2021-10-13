@@ -33,8 +33,8 @@ do_configure[noexec] = "1"
 
 do_compile () {
     cd ${S}
-	./configure ${IPV6} --strict --vendorcfg --debug
-	make LIBDIR=${STAGING_LIBDIR} INCDIR=${STAGING_INCDIR} STRIP=echo
+        ./configure ${IPV6} --strict --vendorcfg --debug --igd2
+        make LIBDIR=${STAGING_LIBDIR} INCDIR=${STAGING_INCDIR} STRIP=echo
 }
 
 do_install () {
