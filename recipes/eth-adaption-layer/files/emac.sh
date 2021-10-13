@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2020, The Linux Foundation. All rights reserved.
+# Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -44,6 +44,7 @@ sa515m=418
 QCS405=352
 sa2145p=451
 sa2150p=452
+sa8195p=405
 
 if [ -f /sys/devices/soc0/soc_id ]; then
   soc_id=`cat /sys/devices/soc0/soc_id`
@@ -51,11 +52,12 @@ else
   soc_id=`cat /sys/devices/system/soc/soc0/id`
 fi
 
-if [ -f /sys/devices/soc0/hw_platform ]; then
-  hw_platform=`cat /sys/devices/soc0/hw_platform`
-else
-  hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
-fi
+if [ $soc_id != $sa8195p ]; then
+  if [ -f /sys/devices/soc0/hw_platform ]; then
+    hw_platform=`cat /sys/devices/soc0/hw_platform`
+  else
+    hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
+  fi
 
 if [ -f /sys/devices/soc0/platform_subtype_id ]; then
   platform_subtype_id=`cat /sys/devices/soc0/platform_subtype_id`
@@ -65,7 +67,8 @@ if [ -f /sys/devices/soc0/platform_version ]; then
   platform_version=`cat /sys/devices/soc0/platform_version`
 fi
 
-platform_version_hex=`printf '%x\n' $platform_version`
+  platform_version_hex=`printf '%x\n' $platform_version`
+fi
 
 case "$qlocal_ip" in
     *:*)
@@ -85,6 +88,14 @@ eam_supported_targets () {
 #current_target=EAP
 #echo $current_target
 #return 1
+if [ "$soc_id" != "$sa8195p" ]; then
+  if [ -f /dev/emac ]; then
+    chmod 0660 /dev/emac
+    chown -h radio.radio /dev/emac
+  else
+    return 0
+  fi
+fi
 
 case "$soc_id" in
   "$sa515m")
@@ -128,6 +139,13 @@ case "$soc_id" in
 ;;
 esac
 
+if [ "$soc_id" == "$sa8195p" ]; then
+  echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+  current_target=EAP
+  echo $current_target
+  return 1
+fi
+
 return 0
 }
 
@@ -150,10 +168,12 @@ then
     if [ -e /sys/class/net/bridge0 ]; then
      ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i $qinterface -j DROP
     fi
-  echo qvlanid=$qvlan_id > /dev/emac
-  echo qvlan_pcp=$qvlan_pcp > /dev/emac
-  echo qmac_id=$qlocal_macid > /dev/emac
-  echo qoe=$qprotocol > /dev/emac
+  if [ $soc_id != $sa8195p ]; then
+    echo qvlanid=$qvlan_id > /dev/emac
+    echo qvlan_pcp=$qvlan_pcp > /dev/emac
+    echo qmac_id=$qlocal_macid > /dev/emac
+    echo qoe=$qprotocol > /dev/emac
+  fi
   echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
   elif [[ "$qip_type" == "IPv6" ]]
   then
@@ -166,9 +186,11 @@ then
      ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i $qinterface -j DROP
     fi
     ip -6 r a $netmask/64 dev $qinterface.$qvlan_id
-    echo qvlanid=$qvlan_id > /dev/emac
-    echo qmac_id=$qlocal_macid > /dev/emac
-    echo qoe=$qprotocol > /dev/emac
+    if [ $soc_id != $sa8195p ]; then
+      echo qvlanid=$qvlan_id > /dev/emac
+      echo qmac_id=$qlocal_macid > /dev/emac
+      echo qoe=$qprotocol > /dev/emac
+    fi
     echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
   else
     echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
@@ -200,10 +222,12 @@ then
          ebtables -t broute -A BROUTING -p 802_1q --vlan-id $cvlan_id -i $cinterface -j DROP
        fi
      fi
-    echo cvlanid=$cvlan_id > /dev/emac
-    echo cvlan_pcp=$cvlan_pcp > /dev/emac
-    echo cmac_id=$clocal_macid > /dev/emac
-    echo cv2x=$cprotocol > /dev/emac
+    if [ $soc_id != $sa8195p ]; then
+      echo cvlanid=$cvlan_id > /dev/emac
+      echo cvlan_pcp=$cvlan_pcp > /dev/emac
+      echo cmac_id=$clocal_macid > /dev/emac
+      echo cv2x=$cprotocol > /dev/emac
+    fi
     echo "\n CV2X add vlan to eth stop" > $DUMP_TO_KMSG
   else
     echo "\n CV2X add vlan to eth start" > $DUMP_TO_KMSG

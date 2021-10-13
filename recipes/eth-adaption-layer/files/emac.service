@@ -2,14 +2,11 @@
 Description= emac service
 DefaultDependencies=no
 After=network.target network-online.target QCMAP_ConnectionManagerd.service
-ConditionPathExists=/dev/emac
 
 [Service]
 Restart=no
 # This service file has no binary and it is to execute the list of commands in <
 # Use Script file only when there is NO binary or commands to be executed/ modul
-ExecStartPre=+chmod 660 /dev/emac
-ExecStartPre=+chown -h radio.radio /dev/emac
 ExecStart=/etc/initscripts/emac.sh /etc/initscripts/config.ini
 User=radio
 Group=radio

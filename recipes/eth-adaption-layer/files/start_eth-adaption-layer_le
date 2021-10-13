@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2020, The Linux Foundation. All rights reserved.
+# Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -40,6 +40,7 @@ sa515m=418
 QCS405=352
 sa2145p=451
 sa2150p=452
+sa8195p=405
 
 if [ -f /sys/devices/soc0/soc_id ]; then
   soc_id=`cat /sys/devices/soc0/soc_id`
@@ -47,11 +48,12 @@ else
   soc_id=`cat /sys/devices/system/soc/soc0/id`
 fi
 
-if [ -f /sys/devices/soc0/hw_platform ]; then
-  hw_platform=`cat /sys/devices/soc0/hw_platform`
-else
-  hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
-fi
+if [ $soc_id != $sa8195p ]; then
+  if [ -f /sys/devices/soc0/hw_platform ]; then
+    hw_platform=`cat /sys/devices/soc0/hw_platform`
+  else
+    hw_platform=`cat /sys/devices/system/soc/soc0/hw_platform`
+  fi
 
 if [ -f /sys/devices/soc0/platform_subtype_id ]; then
   platform_subtype_id=`cat /sys/devices/soc0/platform_subtype_id`
@@ -61,8 +63,8 @@ if [ -f /sys/devices/soc0/platform_version ]; then
   platform_version=`cat /sys/devices/soc0/platform_version`
 fi
 
-platform_version_hex=`printf '%x\n' $platform_version`
-
+    platform_version_hex=`printf '%x\n' $platform_version`
+fi
 
 eam_supported_targets () {
 
@@ -70,6 +72,13 @@ eam_supported_targets () {
 #current_target=EAP
 #echo $current_target
 #return 1
+if [ "$soc_id" != "$sa8195p" ]; then
+  if [ -f /dev/emac ]; then
+    echo -n "/dev/emac node created" > /dev/kmsg
+  else
+    return 0
+  fi
+fi
 
 echo -n "Starting/Loading Ethernet Adaptation Module:entry " > /dev/kmsg
 case "$soc_id" in
@@ -113,6 +122,14 @@ case "$soc_id" in
     esac
 ;;
 esac
+
+if [ "$soc_id" == "$sa8195p" ]; then
+  echo -n "support for Ethernet Adaptation Module Enabled" > /dev/kmsg
+  current_target=EAP
+  echo $current_target
+  return 1
+fi
+
 return 0
 }
 
