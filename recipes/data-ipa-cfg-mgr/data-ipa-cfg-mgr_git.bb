@@ -1,4 +1,4 @@
-inherit autotools-brokensep pkgconfig update-rc.d
+inherit autotools-brokensep pkgconfig update-rc.d useradd
 
 DESCRIPTION = "Qualcomm IPA"
 LICENSE = "BSD"
@@ -12,11 +12,10 @@ DEPENDS += "libxml2"
 DEPENDS += "libnetfilter-conntrack"
 DEPENDS += "virtual/kernel"
 
-BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
 EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
                 --enable-target=${BASEMACHINE} \
-                --enable-baseproduct=${BASEPRODUCT} \
+                --enable-baseproduct=auto \
                 --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
 
 FILESPATH =+ "${WORKSPACE}:"
