@@ -27,6 +27,8 @@
 
 [Unit]
 Description= Loading of QPS615 kernel modules
+After=systemrw.mount systemd-tmpfiles-setup.service dbus.service
+DefaultDependencies=no
 
 [Service]
 Type=oneshot
