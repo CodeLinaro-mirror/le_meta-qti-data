@@ -15,7 +15,6 @@ RDEPENDS_packagegroup-qti-data = ' \
 	data-ipa-cfg-mgr \
 	data-oss \
 	dhcpcd \
-	ebtables \
 	ethtool \
 	iperf \
 	iproute2 \
@@ -25,6 +24,5 @@ RDEPENDS_packagegroup-qti-data = ' \
 	iputils \
 	gsb \
 	tcpdump \
-	tcp-splice \
 	strace \
     '
