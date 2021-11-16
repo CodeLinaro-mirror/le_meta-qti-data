@@ -14,6 +14,7 @@ RDEPENDS_packagegroup-qti-data = ' \
 	conntrack-tools \
 	data-ipa-cfg-mgr \
 	data-oss \
+	datarmnet \
 	dhcpcd \
 	ethtool \
 	iperf \
