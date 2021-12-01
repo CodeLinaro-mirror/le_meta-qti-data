@@ -1,3 +1,4 @@
+inherit useradd
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
@@ -12,7 +13,7 @@ EXTRA_OEMAKE = "CC='${CC}' \
 do_install_append () {
         install -d ${D}${sysconfdir}/data/
         install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
-        chown -R root:root ${D}${sysconfdir}/data/dnsmasq.conf
+        chown -R root:1001 ${D}${sysconfdir}/data/dnsmasq.conf
         # symlink dnsmasq.conf under /etc
         ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
 
@@ -30,7 +31,7 @@ do_install_append () {
         fi
         install -d ${D}${base_bindir}
         install -m 0755 ${WORKDIR}/dnsmasq_script.sh ${D}${base_bindir}
-        chown -h root:root ${D}${base_bindir}/dnsmasq_script.sh
+        chown -h 65534:65534 ${D}${base_bindir}/dnsmasq_script.sh
 
         rm -f ${D}${systemd_unitdir}/system/dnsmasq.service
         rm -f ${D}${sysconfdir}/systemd/resolved.conf.d/*
