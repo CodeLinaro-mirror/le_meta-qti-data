@@ -72,13 +72,6 @@ eam_supported_targets () {
 #current_target=EAP
 #echo $current_target
 #return 1
-if [ "$soc_id" != "$sa8195p" ]; then
-  if [ -f /dev/emac ]; then
-    echo -n "/dev/emac node created" > /dev/kmsg
-  else
-    return 0
-  fi
-fi
 
 echo -n "Starting/Loading Ethernet Adaptation Module:entry " > /dev/kmsg
 case "$soc_id" in

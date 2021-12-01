@@ -1,14 +1,16 @@
 [Unit]
-Description= eth-adaption-layer service
+Description= emac service
 DefaultDependencies=no
-After=network.target network-online.target QCMAP_ConnectionManagerd.service emac.service
-ConditionPathExists=/dev/emac
+After=network.target network-online.target QCMAP_ConnectionManagerd.service
 
 [Service]
 Restart=no
 # This service file has no binary and it is to execute the list of commands in <
 # Use Script file only when there is NO binary or commands to be executed/ modul
-ExecStart=/etc/initscripts/start_eth-adaption-layer_le start /etc/initscripts/config.ini
+ExecStart=/etc/initscripts/emac.sh /etc/initscripts/config.ini
+User=radio
+Group=radio
+AmbientCapabilities=CAP_NET_ADMIN
 
 [Install]
 WantedBy=multi-user.target

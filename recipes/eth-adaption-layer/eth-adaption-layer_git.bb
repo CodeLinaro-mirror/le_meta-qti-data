@@ -14,8 +14,8 @@ PR = "r0"
 FILESPATH =+ "${WORKSPACE}/data-kernel/drivers:"
 SRC_URI = "file://eth-adaption-layer"
 SRC_URI += "file://start_eth-adaption-layer_le"
-SRC_URI += "file://eth-adaption-layer.service"
-SRC_URI += "file://emac.service"
+SRC_URI += "${@bb.utils.contains_any('MACHINE', 'qtiquingvm-tele qtiquingvm-tele-lxc', 'file://eth-adaption-layer_lv.service', 'file://eth-adaption-layer.service',d)}"
+SRC_URI += "${@bb.utils.contains_any('MACHINE', 'qtiquingvm-tele qtiquingvm-tele-lxc', 'file://emac_lv.service', 'file://emac.service',d)}"
 SRC_URI += "file://config.ini"
 SRC_URI += "file://emac.sh"
 S = "${WORKDIR}/eth-adaption-layer/"
@@ -39,6 +39,18 @@ if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
 
+if ${@bb.utils.contains_any('MACHINE', 'qtiquingvm-tele qtiquingvm-tele-lxc', 'true', 'false', d)}; then
+   #Emac Service
+   install -m 0644 ${WORKDIR}/emac_lv.service -D ${D}${systemd_unitdir}/system/emac_lv.service
+   # enable the service for multi-user.target
+   ln -sf ${systemd_unitdir}/system/emac_lv.service \
+   ${D}${systemd_unitdir}/system/multi-user.target.wants/emac_lv.service
+
+   install -m 0644 ${WORKDIR}/eth-adaption-layer_lv.service -D ${D}${systemd_unitdir}/system/eth-adaption-layer_lv.service
+   # enable the service for multi-user.target
+   ln -sf ${systemd_unitdir}/system/eth-adaption-layer_lv.service \
+   ${D}${systemd_unitdir}/system/multi-user.target.wants/eth-adaption-layer_lv.service
+else
    #Emac Service
    install -m 0644 ${WORKDIR}/emac.service -D ${D}${systemd_unitdir}/system/emac.service
    # enable the service for multi-user.target
@@ -49,6 +61,6 @@ if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    # enable the service for multi-user.target
    ln -sf ${systemd_unitdir}/system/eth-adaption-layer.service \
    ${D}${systemd_unitdir}/system/multi-user.target.wants/eth-adaption-layer.service
-
+fi
 fi
 }
