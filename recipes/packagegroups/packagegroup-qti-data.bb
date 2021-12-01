@@ -20,8 +20,10 @@ RDEPENDS_packagegroup-qti-data = ' \
 	iperf \
 	iproute2 \
 	iptables \
+	dnsmasq \
+	rtsp-alg \
+	ebtables \
 	sfe \
-	ppp \
 	iputils \
 	gsb \
 	tcpdump \
