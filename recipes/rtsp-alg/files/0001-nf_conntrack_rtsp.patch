@@ -1,0 +1,34 @@
+From 564318e4e55b9f5bc420691a83f3c70fd1a106dc Mon Sep 17 00:00:00 2001
+From: Paras Singh Jain <parassin@codeaurora.org>
+Date: Wed, 2 Sep 2020 06:06:27 +0000
+Subject: [PATCH] nf_conntrack_rtsp
+
+Signed-off-by: Paras Singh Jain <parassin@codeaurora.com>
+---
+ nf_conntrack_rtsp.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/nf_conntrack_rtsp.c b/nf_conntrack_rtsp.c
+index f165ea0..680514f 100644
+--- a/nf_conntrack_rtsp.c
++++ b/nf_conntrack_rtsp.c
+@@ -35,7 +35,6 @@
+ #include <net/tcp.h>
+ 
+ #include <net/netfilter/nf_conntrack.h>
+-#include <net/netfilter/nf_conntrack_expect.h>
+ #include <net/netfilter/nf_conntrack_helper.h>
+ #include "nf_conntrack_rtsp.h"
+ 
+@@ -355,7 +354,7 @@ help_out(struct sk_buff *skb, unsigned char *rb_ptr, unsigned int datalen,
+ 		if (nf_nat_rtsp && ct->status & IPS_NAT_MASK)
+ 			/* pass the request off to the nat helper */
+ 			ret = nf_nat_rtsp(skb, ctinfo, protoff, hdrsoff, hdrslen, &expinfo, exp);
+-		else if (nf_ct_expect_related(exp) != 0) {
++		else if (rtsp_nf_ct_expect_related(exp) != 0) {
+ 			pr_info("nf_conntrack_expect_related failed\n");
+ 			ret  = NF_DROP;
+ 		}
+-- 
+2.26.0
+
