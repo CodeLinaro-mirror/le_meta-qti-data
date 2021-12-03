@@ -1,3 +1,4 @@
+inherit useradd
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 
 SRC_URI += " \
@@ -14,7 +15,7 @@ do_install_append() {
       install -d ${D}${systemd_unitdir}/system/
       install -m 0644 ${WORKDIR}/tinyproxyd.service -D ${D}${systemd_unitdir}/system/tinyproxyd.service
   fi
-  chown -R root:root ${D}${sysconfdir}/data/tinyproxy.conf
+  chown -R root:1001 ${D}${sysconfdir}/data/tinyproxy.conf
 }
 FILES_${PN} += "${sysconfdir}/data/tinyproxy.conf"
 FILES_${PN} += "${systemd_unitdir}/system/*"
