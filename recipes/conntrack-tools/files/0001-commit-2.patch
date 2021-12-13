@@ -1,0 +1,44 @@
+From 27c5f6f769fa3387dc0b1e6759a052960f4b7356 Mon Sep 17 00:00:00 2001
+From: Pablo Neira Ayuso <pablo@netfilter.org>
+Date: Tue, 14 Sep 2021 15:59:36 +0530
+Subject: icmp[v6]: --icmp[v6]-[type|code] are optional for updates and deletes
+
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ extensions/libct_proto_icmp.c   | 4 ++--
+ extensions/libct_proto_icmpv6.c | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/extensions/libct_proto_icmp.c b/extensions/libct_proto_icmp.c
+index 3a346ed..d04397f 100644
+--- a/extensions/libct_proto_icmp.c
++++ b/extensions/libct_proto_icmp.c
+@@ -43,8 +43,8 @@ static char icmp_commands_v_options[NUMBER_OF_CMD][ICMP_NUMBER_OF_OPT] =
+ 		/* 1 2 3 */
+ /*CT_LIST*/	  {2,2,2},
+ /*CT_CREATE*/	  {1,1,2},
+-/*CT_UPDATE*/	  {1,1,2},
+-/*CT_DELETE*/	  {1,1,2},
++/*CT_UPDATE*/	  {2,2,2},
++/*CT_DELETE*/	  {2,2,2},
+ /*CT_GET*/	  {1,1,2},
+ /*CT_FLUSH*/	  {0,0,0},
+ /*CT_EVENT*/	  {2,2,2},
+diff --git a/extensions/libct_proto_icmpv6.c b/extensions/libct_proto_icmpv6.c
+index 070eb7f..f8c2c68 100644
+--- a/extensions/libct_proto_icmpv6.c
++++ b/extensions/libct_proto_icmpv6.c
+@@ -46,8 +46,8 @@ static char icmpv6_commands_v_options[NUMBER_OF_CMD][ICMPV6_NUMBER_OF_OPT] =
+ 		/* 1 2 3 */
+ /*CT_LIST*/	  {2,2,2},
+ /*CT_CREATE*/	  {1,1,2},
+-/*CT_UPDATE*/	  {1,1,2},
+-/*CT_DELETE*/	  {1,1,2},
++/*CT_UPDATE*/	  {2,2,2},
++/*CT_DELETE*/	  {2,2,2},
+ /*CT_GET*/	  {1,1,2},
+ /*CT_FLUSH*/	  {0,0,0},
+ /*CT_EVENT*/	  {2,2,2},
+-- 
+2.29.0
+
