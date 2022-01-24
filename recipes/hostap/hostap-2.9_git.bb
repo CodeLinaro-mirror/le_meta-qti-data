@@ -7,11 +7,11 @@ LIC_FILES_CHKSUM = "file://README;beginline=28;endline=56;md5=55c476aa11882ce6de
 DEPENDS = "dbus libnl openssl"
 
 # HostAp tag=hostap_2_9
-SRC_URI  = "git://source.codeaurora.org/quic/le/platform/external/hostap.git;protocol=http;branch=upstream/master"
+SRC_URI  = "git://source.codeaurora.org/quic/le/platform/external/hostap.git;protocol=http;branch=upstream/main"
 SRCREV = "ca8c2bd28ad53f431d6ee60ef754e98cfdb4c17b"
 
 # Use upstream as fallback
-MIRRORS += "git://source.codeaurora.org/quic/le/platform/external/hostap.git;protocol=http;branch=upstream/master git://w1.fi/hostap.git;protocol=http \n "
+MIRRORS += "git://source.codeaurora.org/quic/le/platform/external/hostap.git;protocol=http;branch=upstream/main git://w1.fi/hostap.git;protocol=http;branch=main \n "
 
 # Instead of maintaining the entire config file, keep only the options that
 # need to be appended to the default defconfigs that come with the project.
