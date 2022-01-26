@@ -9,13 +9,17 @@ SRC_URI   = "file://mka-supplicant@.service"
 SRC_URI  += "file://mka-authenticator@.service"
 SRC_URI  += "file://wpa_supplicant-eth0.conf"
 SRC_URI  += "file://hostapd-eth0.conf"
+SRC_URI  += "file://wpa_supplicant-eth1.conf"
+SRC_URI  += "file://hostapd-eth1.conf"
 
 do_install_append() {
 	install -d ${D}${sysconfdir}
 
 	# MKA supplicant and authenticator configuration for eth0
 	install -m 0644 ${WORKDIR}/wpa_supplicant-eth0.conf -D ${D}${sysconfdir}/data/wpa_supplicant-eth0.conf
+	install -m 0644 ${WORKDIR}/wpa_supplicant-eth1.conf -D ${D}${sysconfdir}/data/wpa_supplicant-eth1.conf
 	install -m 0644 ${WORKDIR}/hostapd-eth0.conf -D ${D}${sysconfdir}/data/hostapd-eth0.conf
+	install -m 0644 ${WORKDIR}/hostapd-eth1.conf -D ${D}${sysconfdir}/data/hostapd-eth1.conf
 
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 		install -d ${D}${systemd_system_unitdir}

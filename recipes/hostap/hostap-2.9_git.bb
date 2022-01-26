@@ -7,16 +7,19 @@ LIC_FILES_CHKSUM = "file://README;beginline=28;endline=56;md5=55c476aa11882ce6de
 DEPENDS = "dbus libnl openssl"
 
 # HostAp tag=hostap_2_9
-SRC_URI  = "git://w1.fi/hostap.git;protocol=http"
+SRC_URI  = "git://source.codeaurora.org/quic/le/platform/external/hostap.git;protocol=http;branch=upstream/master"
 SRCREV = "ca8c2bd28ad53f431d6ee60ef754e98cfdb4c17b"
 
-# Use CAF mirror as fallback
-MIRRORS += "git://w1.fi/hostap.git;protocol=http git://source.codeaurora.org/quic/le/platform/external/hostap.git;protocol=http;branch=upstream/master"
+# Use upstream as fallback
+MIRRORS += "git://source.codeaurora.org/quic/le/platform/external/hostap.git;protocol=http;branch=upstream/master git://w1.fi/hostap.git;protocol=http \n "
 
 # Instead of maintaining the entire config file, keep only the options that
 # need to be appended to the default defconfigs that come with the project.
 SRC_URI += "file://defconfig-hostapd.append"
 SRC_URI += "file://defconfig-wpa_supplicant.append"
+SRC_URI += "file://0001-hostap-2.9-Driver-changes-to-set-PHY-offload.patch"
+
+
 
 # Git based uris are unpacked into git/ directory
 S = "${WORKDIR}/git"
@@ -26,6 +29,7 @@ inherit pkgconfig
 do_configure() {
 	cat ${S}/hostapd/defconfig ${WORKDIR}/defconfig-hostapd.append > ${S}/hostapd/.config
 	cat ${S}/wpa_supplicant/defconfig ${WORKDIR}/defconfig-wpa_supplicant.append > ${S}/wpa_supplicant/.config
+	cp ${WORKSPACE}/kernel/msm-5.4/include/uapi/linux/if_macsec.h ${WORKDIR}/recipe-sysroot/usr/include/linux/if_macsec.h
 }
 
 # hostapd and wpa_supplicant creates objects inside common src/ directory

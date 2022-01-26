@@ -56,4 +56,6 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     embms-kernel \
     libgpiod \
     phytool \
+    data-rc \
+    hostap-2.9 \
     '
