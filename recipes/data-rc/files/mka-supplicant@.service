@@ -1,4 +1,4 @@
-# Copyright (c) 2020, The Linux Foundation. All rights reserved.
+# Copyright (c) 2020, 2022 The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -32,9 +32,11 @@ BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
 
 [Service]
-# Increase real interface MTU by 32B to accomodate MACSEC header+icv overhead
-ExecStartPre=-/sbin/ip link set mtu 1532 dev %i
+# Increase real interface MTU by 36B to accomodate MACSEC header+icv
+# and VLAN header overhead
+ExecStartPre=/sbin/ip link set mtu 1536 dev %i
 ExecStart=/usr/sbin/wpa_supplicant-2.9 -D macsec_linux -i %i -c /etc/data/wpa_supplicant-%i.conf
+ExecStopPost=/sbin/ip link set mtu 1500 dev %i
 
 [Install]
 WantedBy=multi-user.target
