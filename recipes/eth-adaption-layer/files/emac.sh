@@ -1,5 +1,6 @@
 #!/bin/sh
 # Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -149,7 +150,7 @@ then
   #QMI over ethernet configuration
   if [[ "$qip_type" == "IPv4" ]]
   then
-    echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
+    echo "\n QMI add vlan to eth start with IPv4" > $DUMP_TO_KMSG
 	echo $target > /dev/kmsg
     vconfig add $qinterface $qvlan_id
     ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
@@ -169,17 +170,20 @@ then
   echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
   elif [[ "$qip_type" == "IPv6" ]]
   then
-    echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
+    echo "\n QMI add vlan to eth start with IPv6" > $DUMP_TO_KMSG
     vconfig add $qinterface $qvlan_id
     ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
     ifconfig $qinterface.$qvlan_id inet6 add $qlocal_ip
     ifconfig $qinterface.$qvlan_id up
+    ip link set $qinterface.$qvlan_id type vlan egress 0:$qvlan_pcp
+    ip link set $qinterface.$qvlan_id type vlan ingress 0:$qvlan_pcp
     if [ -e /sys/class/net/bridge0 ]; then
      ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i $qinterface -j DROP
     fi
     ip -6 r a $netmask/64 dev $qinterface.$qvlan_id
     if [ $soc_id != $sa8195p ]; then
       echo qvlanid=$qvlan_id > /dev/emac
+      echo qvlan_pcp=$qvlan_pcp > /dev/emac
       echo qmac_id=$qlocal_macid > /dev/emac
       echo qoe=$qprotocol > /dev/emac
     fi
