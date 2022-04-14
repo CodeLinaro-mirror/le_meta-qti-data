@@ -8,7 +8,7 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=0636e73ff0215e8d672dc4c32c317bb3"
 PR = "r4"
 
 #at least versions 2.15 and prior are moved to the archive folder on the server
-SRC_URI = "http://www.codeaurora.org/mirrored_source/quic/le/dnsmasq-${PV}.tar.gz;name=dnsmasq-${PV} \
+SRC_URI = "http://codelinaro.jfrog.io/artifactory/codelinaro-le/dnsmasq-${PV}.tar.gz;name=dnsmasq-${PV} \
            file://init \
            file://dnsmasq.conf \
            file://dnsmasq_script.sh\
