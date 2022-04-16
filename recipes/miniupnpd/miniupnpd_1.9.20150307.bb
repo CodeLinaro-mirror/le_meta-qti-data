@@ -13,7 +13,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/BSD;md5=377548
 PR = "r8"
 
 SRC_URI = "\
-    https://www.codeaurora.org/mirrored_source/quic/le/${PN}-${PV}.tar.gz \
+    https://www.codelinaro.jfrog.io/ui/native/codelinaro-le/${PN}-${PV}.tar.gz \
     file://0001-miniupnpd_conf_security.patch \
     file://0001-security-fix.patch \
     file://0001-makefile_oss.patch \
