@@ -25,7 +25,6 @@ RDEPENDS_packagegroup-qti-data = ' \
 	ebtables \
 	sfe \
 	iputils \
-	gsb \
 	tcpdump \
 	strace \
     '
