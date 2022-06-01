@@ -11,7 +11,10 @@ PACKAGES = ' \
     '
 
 RDEPENDS_packagegroup-qti-data = ' \
-    dhcpcd \
+    dhcp-client \
+    dhcp-server \
+    dhcp-relay \
+    radvd \
     dnsmasq \
     iperf \
     tcpdump \
