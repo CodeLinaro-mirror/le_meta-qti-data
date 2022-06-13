@@ -5,7 +5,7 @@ LIC_FILES_CHKSUM = "file://${WORKDIR}/git/LICENSE;md5=37b8770dd59d13a95289923c4f
 SECTION = "utils"
 PR = "r1"
 
-SRC_URI = "git://source.codeaurora.org/quic/le/ZoneDetect.git;protocol=http;branch=BertoldVdb/master \
+SRC_URI = "${CLO_LE_GIT}/ZoneDetect.git;protocol=https;branch=caf_migration/BertoldVdb/master \
            file://Makefile"
 SRCREV = "${AUTOREV}"
 
