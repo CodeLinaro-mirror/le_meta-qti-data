@@ -19,7 +19,6 @@ define KernelPackage/rmnet-core
   CATEGORY:=Kernel modules
   SUBMENU:=Network Support
   TITLE:=RMNET driver for handling data in multiplexing and aggregation protocol (MAP) format
-  DEPENDS:=+kmod-rmnet-ctl
   FILES:=$(PKG_BUILD_DIR)/rmnet_core.ko
   KCONFIG:=RMNET_CORE=y
   AUTOLOAD:=$(call AutoLoad,33,rmnet-core)
@@ -29,19 +28,6 @@ define KernelPackage/rmnet-core/Description
 RMNET driver handles data in multiplexing and aggregation protocol (MAP) format
 endef
 
-define KernelPackage/rmnet-ctl
-  SECTION:=kernel
-  CATEGORY:=Kernel modules
-  SUBMENU:=Network Support
-  TITLE:=RMNET CTL module for handling QMAP commands for flow control purposes
-  FILES:=$(PKG_BUILD_DIR)/rmnet_ctl.ko
-  KCONFIG:=RMNET_CTL=y
-  AUTOLOAD:=$(call AutoLoad,34,rmnet-ctl)
-endef
-
-define KernelPackage/rmnet-ctl/Description
-RMNET CTL module handles QMAP commands for flow control purposes
-endef
 define Build/Compile
 	$(MAKE) -C "$(LINUX_DIR)" \
 		$(KERNEL_MAKEOPTS) \
@@ -52,6 +38,5 @@ define Build/Compile
 		modules
 endef
 
-$(eval $(call KernelPackage,rmnet-ctl))
 $(eval $(call KernelPackage,rmnet-core))
 
