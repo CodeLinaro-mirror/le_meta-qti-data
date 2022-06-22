@@ -58,4 +58,6 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     phytool \
     data-rc \
     hostap-2.9 \
+    dhcp-server \
+    radvd \
     '

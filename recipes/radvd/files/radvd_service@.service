@@ -1,0 +1,10 @@
+[Unit]
+SourcePath=/usr/sbin/radvd
+Description=Router advertisement daemon for IPv6
+
+[Service]
+ExecStart=/usr/sbin/radvd -C /var/run/data/radvd.conf.bridge%i
+ExecReload=killall -HUP radvd
+Type=forking
+RemainAfterExit=yes
+Nice=-20

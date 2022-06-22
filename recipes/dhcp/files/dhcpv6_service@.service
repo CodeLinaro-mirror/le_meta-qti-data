@@ -1,0 +1,10 @@
+[Unit]
+SourcePath=/usr/sbin/dhcpd
+Description=DHCPv6 Server Service
+
+[Service]
+ExecStart=/usr/sbin/dhcpd -6 -cf /var/run/data/dhcpv6.conf.bridge%i
+ExecReload=killall -HUP dhcpd
+Type=forking
+RemainAfterExit=yes
+Nice=-20
