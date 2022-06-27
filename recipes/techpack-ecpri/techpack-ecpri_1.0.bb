@@ -78,7 +78,9 @@ do_install() {
 	install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/ecpri_core.ko -D ${D}${libdir}/modules/ecpri_core.ko
 	install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/ecpri_oxtor.ko -D ${D}${libdir}/modules/ecpri_oxtor.ko
 	install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/macsec/lassen_macsec.ko -D ${D}${libdir}/modules/lassen_macsec.ko
-	
+	cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/include/uapi/ecpri ${D}/usr/include/
+        cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/include/uapi/ecpri ${D}/usr/include/
+
 }
 
 do_deploy() {
