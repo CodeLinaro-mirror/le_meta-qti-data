@@ -13,6 +13,7 @@ PACKAGES = ' \
 
 RDEPENDS_packagegroup-qti-data = ' \
     iproute2 \
+    iproute2-tc \
     iptables \
     ebtables \
     dhcpcd \
