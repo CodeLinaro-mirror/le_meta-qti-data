@@ -35,16 +35,8 @@ do_compile() {
 	mkdir -p usr && \
 	cd usr && \
 	mkdir -p include && \
-
     cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
-
-    BUILD_CONFIG=msm-kernel/build.config.msm.cinder \
-    OUT_DIR=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/out/msm-*-*-${KERNEL_VARIANT}defconfig/ \
-    KERNEL_UAPI_HEADERS_DIR=${STAGING_KERNEL_BUILDDIR} \
-    INSTALL_MODULE_HEADERS=1 \
-    ./build/build_module.sh
-
-    BUILD_CONFIG=msm-kernel/build.config.msm.cinder \
+    BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
     EXT_MODULES=../../datacsm-kernel \
     ROOTDIR=${WORKSPACE}/ \
     MODULE_GSI=m \
@@ -54,7 +46,7 @@ do_compile() {
 	MODULE_ECPRI_OXTOR=m \
 	MODULE_LASSEN_MACSEC=m \
     MODULE_OUT=${WORKDIR}/datacsm-kernel \
-    OUT_DIR=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/out/msm-*-*-${KERNEL_VARIANT}defconfig/ \
+    OUT_DIR=${KERNEL_OUT_PATH}/ \
     KERNEL_UAPI_HEADERS_DIR=${STAGING_KERNEL_BUILDDIR} \
     INSTALL_MODULE_HEADERS=1 \
     ./build/build_module.sh
