@@ -12,7 +12,7 @@ KER_VER="$(uname -r )"
 
 start_service() {
 		procd_open_instance
-		procd_set_param command insmod /lib/modules/$KER_VER/kernel/techpack/data-eth/drivers/qps615/src/qps615.ko
+		procd_set_param command insmod /lib/modules/$KER_VER/kernel/techpack/data-eth/drivers/qps615_ioss/qps615-ioss.ko
 		procd_close_instance
 }
 
