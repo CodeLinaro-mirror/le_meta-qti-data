@@ -14,6 +14,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     radvd \
     dhcpcd \
     dhcp-libs \
+    hostap-2.9 \
     dhcp-client \
     dhcp-server \
     dhcp-relay \

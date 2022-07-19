@@ -1,0 +1,37 @@
+diff --git a/src/drivers/driver_macsec_linux.c b/src/drivers/driver_macsec_linux.c
+index e922503..6192d07 100644
+--- a/src/drivers/driver_macsec_linux.c
++++ b/src/drivers/driver_macsec_linux.c
+@@ -1080,6 +1080,24 @@ static struct rtnl_link * lookup_sc(struct nl_cache *cache, int parent, u64 sci)
+	return (struct rtnl_link *) match;
+ }
+
++static int set_iface_name(struct transmit_sc *sc,
++		struct macsec_drv_data *drv,
++		struct rtnl_link *link)
++{
++	char ifname[20] = {0};
++	char pifname[20] = {0};
++	int i,j;
++	os_strlcpy(ifname, ".s0", sizeof(pifname));
++	os_strlcpy(pifname, drv->common.ifname, sizeof(pifname));
++	for(i=0; pifname[i]!='\0'; ++i);
++	for(j=0; ifname[j]!='\0'; ++j, ++i)
++	{
++		pifname[i]=ifname[j];
++	}
++	pifname[i]='\0';
++	/*So if parent iface is eth0 then link set is eth0.s0*/
++	rtnl_link_set_name(link, pifname);
++}
+
+ /**
+  * macsec_drv_create_transmit_sc - Create secure connection for transmit
+@@ -1114,6 +1132,7 @@ static int macsec_drv_create_transmit_sc(
+		return -1;
+	}
+
++	set_iface_name(sc,drv,link);
+	rtnl_link_set_link(link, drv->parent_ifi);
+
+	sci = mka_sci_u64(&sc->sci);
