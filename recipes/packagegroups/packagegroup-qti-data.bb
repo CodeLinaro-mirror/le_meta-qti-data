@@ -25,6 +25,5 @@ RDEPENDS_packagegroup-qti-data = ' \
     ebtables \
     iproute2 \
     iptables \
-    techpack-ecpri \
     '
 
