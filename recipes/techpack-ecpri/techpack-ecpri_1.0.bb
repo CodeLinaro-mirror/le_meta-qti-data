@@ -10,8 +10,7 @@ PR = "r0"
 DEPENDS = "rsync-native"
 DEPENDS += "bc-native bison-native"
 
-do_configure[depends] += "virtual/kernel:do_shared_workdir"
-
+do_configure[depends] += "${@oe.utils.conditional('KERNEL_USE_PREBUILTS', 'True', 'virtual/kernel:do_prebuilt_shared_workdir', 'virtual/kernel:do_shared_workdir',d)}"
 FILESPATH   =+ "${WORKSPACE}:"
 SRC_URI     =  "file://datacsm-kernel/"
 
