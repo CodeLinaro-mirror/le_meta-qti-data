@@ -44,6 +44,7 @@ do_compile() {
     MODULE_ECPRI_CORE=m \
     MODULE_ECPRI_OXTOR=m \
     MODULE_LASSEN_MACSEC=m \
+	MODULE_LASSEN_QCOM_AW_PHY=m \
     MODULE_OUT=${WORKDIR}/datacsm-kernel \
     OUT_DIR=${KERNEL_OUT_PATH}/ \
     KERNEL_UAPI_HEADERS_DIR=${STAGING_KERNEL_BUILDDIR} \
@@ -64,6 +65,7 @@ do_install() {
     sign_strip_module ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/ecpri_core.ko
     sign_strip_module ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/ecpri_oxtor.ko
     sign_strip_module ${WORKDIR}/datacsm-kernel/drivers/macsec/lassen_macsec.ko
+	sign_strip_module ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/lassen_qcom_aw_phy.ko
 
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/ecpri_dmam.ko -D ${WORKDIR}/ecpri_dmam.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/gsim.ko -D ${WORKDIR}/gsim.ko
@@ -71,6 +73,7 @@ do_install() {
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/ecpri_core.ko -D ${WORKDIR}/ecpri_core.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/ecpri_oxtor.ko -D ${WORKDIR}/ecpri_oxtor.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/macsec/lassen_macsec.ko -D ${WORKDIR}/lassen_macsec.ko
+	install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/lassen_qcom_aw_phy.ko -D ${WORKDIR}/lassen_qcom_aw_phy.ko
 
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/ecpri_dmam.ko -D ${D}${libdir}/modules/ecpri_dmam.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/gsim.ko -D ${D}${libdir}/modules/gsim.ko
@@ -78,8 +81,11 @@ do_install() {
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/ecpri_core.ko -D ${D}${libdir}/modules/ecpri_core.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/ecpri_oxtor.ko -D ${D}${libdir}/modules/ecpri_oxtor.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/macsec/lassen_macsec.ko -D ${D}${libdir}/modules/lassen_macsec.ko
+	install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/lassen_qcom_aw_phy.ko -D ${D}${libdir}/modules/lassen_qcom_aw_phy.ko
+
     cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/include/uapi/ecpri ${D}/usr/include/
     cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/include/uapi/ecpri ${D}/usr/include/
+	cp -r ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/include/uapi/qcom_aw_phy ${D}/usr/include/
 }
 
 do_deploy() {
@@ -89,6 +95,7 @@ do_deploy() {
     cp -rp ${WORKDIR}/ecpri_core.ko ${DEPLOYDIR}/
     cp -rp ${WORKDIR}/ecpri_oxtor.ko ${DEPLOYDIR}/
     cp -rp ${WORKDIR}/lassen_macsec.ko ${DEPLOYDIR}/
+	cp -rp ${WORKDIR}/lassen_qcom_aw_phy.ko ${DEPLOYDIR}/
 }
 
 addtask do_deploy after do_install
