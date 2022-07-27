@@ -1,0 +1,69 @@
+From 30a659548f3ff9bd9419764663e7525d1e798ea8 Mon Sep 17 00:00:00 2001
+From: Gayathri S <quic_sgayathr@quicinc.com>
+Date: Fri, 15 Jul 2022 14:55:10 +0530
+Subject: [PATCH] OpenWRT : Add patch Source Makefile for data-ipa-cfg-mgr
+
+Added patch Source Makefile for data-ipa-cfg-mgr for OpenWRT
+
+Signed-off-by: Gayathri S <quic_sgayathr@quicinc.com>
+---
+ src/Makefile | 47 +++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 47 insertions(+)
+ create mode 100644 src/Makefile
+
+diff --git a/src/Makefile b/src/Makefile
+new file mode 100644
+index 0000000..a93e8b5
+--- /dev/null
++++ b/src/Makefile
+@@ -0,0 +1,47 @@
++# Makefile for OpenWRT system
++
++INCLUDE_DIR += ../inc
++CFLAGS += -I$(INCLUDE_DIR) \
++	-Wundef \
++	-Wstrict-prototypes \
++	-Wno-trigraphs
++
++CPPFLAGS += "-std=c++0x"
++
++RM := rm -rf
++
++IPACM := ipacm
++
++all: $(IPACM)
++
++IPACM_CPP_SRCS = IPACM_Main.cpp \
++	IPACM_Conntrack_NATApp.cpp\
++	IPACM_ConntrackClient.cpp \
++	IPACM_ConntrackListener.cpp \
++	IPACM_EvtDispatcher.cpp \
++	IPACM_Config.cpp \
++	IPACM_CmdQueue.cpp \
++	IPACM_Log.cpp \
++	IPACM_Filtering.cpp \
++	IPACM_Routing.cpp \
++	IPACM_Header.cpp \
++	IPACM_Lan.cpp \
++	IPACM_Iface.cpp \
++	IPACM_Wlan.cpp \
++	IPACM_Wan.cpp \
++	IPACM_IfaceManager.cpp \
++	IPACM_Neighbor.cpp \
++	IPACM_Netlink.cpp \
++	IPACM_Xml.cpp \
++	IPACM_LanToLan.cpp
++
++IPACM_OBJS := $(IPACM_CPP_SRCS:.cpp=.o)
++
++$(IPACM): $(IPACM_OBJS)
++	$(CC) $(IPACM_OBJS) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@
++	mkdir -p bin
++	mv ipacm bin/
++
++clean:
++	$(RM) bin/
++	$(RM) *.o
+--
+2.7.4
+

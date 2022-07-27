@@ -1,0 +1,56 @@
+From b313d94b1c2a2f2ed7c2e536f6d0986e8889a60a Mon Sep 17 00:00:00 2001
+From: Gayathri S <quic_sgayathr@quicinc.com>
+Date: Fri, 15 Jul 2022 16:25:09 +0530
+Subject: [PATCH] OpenWRT : Patch Source Makefile for data-ipanat
+
+Added patch Source Makefile for data-ipanat
+
+Signed-off-by: Gayathri S <quic_sgayathr@quicinc.com>
+---
+ src/Makefile | 34 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+ create mode 100644 src/Makefile
+
+diff --git a/src/Makefile b/src/Makefile
+new file mode 100644
+index 0000000..a5481ce
+--- /dev/null
++++ b/src/Makefile
+@@ -0,0 +1,34 @@
++# Makefile for OpenWRT system
++
++INCLUDE_DIR += ../inc
++CFLAGS += -I$(INCLUDE_DIR) \
++	-Wundef \
++	-Wno-trigraphs \
++	-Wstrict-prototypes
++
++RM := rm -rf
++
++LIBIPANAT := libipanat.so
++
++all: $(LIBIPANAT)
++
++LIBIPANAT_C_SRCS = ipa_nat_drv.c \
++	ipa_nat_drvi.c \
++	ipa_nat_utils.c \
++	ipa_table.c \
++	ipa_mem_descriptor.c \
++	ipa_ipv6ct.c \
++	ipa_nat_statemach.c
++
++LIBIPANAT_CPP_SRCS = ipa_nat_map.cpp
++
++LIBIPANAT_OBJS := $(LIBIPANAT_C_SRCS:.c=.o) $(LIBIPANAT_CPP_SRCS:.cpp=.o)
++
++$(LIBIPANAT): $(LIBIPANAT_OBJS)
++	$(CC) $(LIBIPANAT_OBJS) $(CFLAGS) $(LDFLAGS) -shared -o $@
++	mkdir -p lib
++	mv libipanat.so lib/
++
++clean:
++	$(RM) lib/
++	$(RM) *.o
+--
+2.7.4
+
