@@ -1,0 +1,14 @@
+[Unit]
+Description= Load datarmnet dlkm service
+DefaultDependencies=no
+AssertPathExists=/lib/modules/
+
+[Service]
+Restart=on-failure
+RemainAfterExit=yes
+Type=oneshot
+ExecStart=/bin/sh -c '/usr/lib/busybox/sbin/insmod /lib/modules/$(uname -r)/extra/rmnet_core.ko'
+Nice=-20
+
+[Install]
+WantedBy=local-fs.target
