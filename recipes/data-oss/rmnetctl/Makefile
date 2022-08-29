@@ -23,7 +23,7 @@ define Package/rmnetctl/Description
  Data Services Open Source Software
 endef
 
-TARGET_CFLAGS += -Werror -Wall
+TARGET_CFLAGS += -Werror -Wall -fpic
 
 define Build/Prepare
 #$(warning "********************Host prepare *********************")
