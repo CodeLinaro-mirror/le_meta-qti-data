@@ -25,6 +25,9 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# ​​​​​Changes from Qualcomm Innovation Center are provided under the following license:
+# Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
 
 
 export MODULE_BASE=/lib/modules/`uname -r`/extra
@@ -36,6 +39,7 @@ case "$1" in
         echo -n "Starting/Loading rmnet modules: "
         echo "rmnet:start/load" > /dev/kmsg
         insmod $MODULE_BASE/rmnet_core.ko > /dev/kmsg
+        insmod $MODULE_BASE/rmnet_eth.ko > /dev/kmsg
         echo "done loading rmnet core modules" > /dev/kmsg
         ;;
   stop)
