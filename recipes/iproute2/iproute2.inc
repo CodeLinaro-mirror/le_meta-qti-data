@@ -39,6 +39,9 @@ do_install () {
     oe_runmake DESTDIR=${D} install
     mv ${D}${base_sbindir}/ip ${D}${base_sbindir}/ip.iproute2
     install -d ${D}${datadir}
+    install -d ${STAGING_DIR}/usr
+    install -d ${STAGING_DIR}/usr/include
+    cp ${B}/include/libnetlink.h ${STAGING_DIR}/usr/include/
     mv ${D}/share/* ${D}${datadir}/ || true
     rm ${D}/share -rf || true
 }
