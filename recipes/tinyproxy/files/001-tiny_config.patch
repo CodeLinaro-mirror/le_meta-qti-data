@@ -1,36 +1,34 @@
-From 2667096f79b73d36b6a2741296fa869a48d50fc6 Mon Sep 17 00:00:00 2001
+From 6f8f522fe1ce901ba58fbcd70cac5689cc3cfad9 Mon Sep 17 00:00:00 2001
 From: Ravinder Konka <rkonka@codeaurora.org>
-Date: Fri, 17 Apr 2015 10:51:24 +0530
-Subject: [PATCH] new
+Date: Thu, 19 Nov 2020 23:57:25 +0530
+Subject: [PATCH] New
+signed-off: Paras Singh Jain<parassin@codeaurora.org>
 
-Change-Id: I94f237b441adf998fd26c560c1d7bcea02096b01
 ---
- meta-skeleton/tinyproxy.conf | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ etc/tinyproxy.conf.in | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
 
-diff --git a/etc/tinyproxy.conf.in a/etc/tinyproxy.conf.in
-index 18ddb74..f90dbd9 100755
+diff --git a/etc/tinyproxy.conf.in b/etc/tinyproxy.conf.in
+index 54024cb..e11f934 100644
 --- a/etc/tinyproxy.conf.in
-+++ a/etc/tinyproxy.conf.in
++++ b/etc/tinyproxy.conf.in
 @@ -13,7 +13,7 @@
  # number may be used.
  #
  User nobody
 -Group nobody
 +Group inet
-
+ 
  #
  # Port: Specify the port which tinyproxy will listen on.  Please note
-@@ -208,7 +208,7 @@ MaxRequestsPerChild 0
+@@ -222,6 +222,7 @@ MaxRequestsPerChild 0
  # tested against the controls based on order.
  #
  Allow 127.0.0.1
--
 +Allow 0.0.0.0/0
- #
- # AddHeader: Adds the specified headers to outgoing HTTP requests that
- # Tinyproxy makes. Note that this option will not work for HTTPS
---
-1.8.2.1
-
+ 
+ # BasicAuth: HTTP "Basic Authentication" for accessing the proxy.
+ # If there are any entries specified, access is only granted for authenticated
+-- 
+2.25.0
 
