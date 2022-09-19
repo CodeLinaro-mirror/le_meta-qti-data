@@ -1,30 +1,26 @@
 SUMMARY = "DATA open source package groups"
-
+LICENSE = "BSD-3-Clause-Clear"
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 inherit packagegroup
-
-LICENSE =  "GPLv2+ & GPLv2 &  BSD"
 
 PROVIDES = "${PACKAGES}"
 
 PACKAGES = ' \
     packagegroup-qti-data \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
     '
 
 RDEPENDS_packagegroup-qti-data = ' \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
-    '
-
-RDEPENDS_packagegroup-qti-network-tools = " \
+    conntrack-tools \
+    data-oss \
+    datarmnet \
+    dhcpcd \
+    ebtables \
     iproute2 \
     iptables \
     dnsmasq \
-    datarmnet \
-    ebtables \
-    ethtool \
-    dhcpcd \
+    iputils \
+    sfe \
     tcpdump \
-    conntrack-tools \
-    "
+    '
+
