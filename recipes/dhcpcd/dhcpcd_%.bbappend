@@ -18,7 +18,5 @@ fi
 FILES_${PN} += "/usr/libexec/*"
 FILES_${PN} += "/usr/etc*"
 FILES_${PN} += "/data/*"
-FILES_${PN} += "/lib/dhcpcd/dev/udev.so"
-FILES_${PN} += "/run/*"
 FILES_${PN} += "/libexec/*"
 FILES_${PN} += "${systemd_unitdir}/system/*"
