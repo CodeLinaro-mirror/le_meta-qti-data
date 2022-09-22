@@ -50,7 +50,6 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     libavahi-client \
     libavahi-glib \
     tinyproxy \
-    minidlna \
     miniupnpd \
     qps615 \
     lighttpd \
