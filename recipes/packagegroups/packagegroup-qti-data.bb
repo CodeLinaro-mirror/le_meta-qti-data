@@ -21,7 +21,6 @@ RDEPENDS_packagegroup-qti-data = ' \
 	iproute2 \
 	iptables \
 	dnsmasq \
-	rtsp-alg \
 	ebtables \
 	sfe \
 	iputils \
