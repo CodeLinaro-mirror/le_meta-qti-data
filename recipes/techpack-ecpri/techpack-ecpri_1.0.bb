@@ -3,7 +3,7 @@ LICENSE = "GPL-2.0"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
 ${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
 
-inherit linux-kernel-base deploy qdlkm
+inherit linux-kernel-base deploy qdlkm systemd
 
 PR = "r0"
 
@@ -13,6 +13,9 @@ DEPENDS += "bc-native bison-native"
 do_configure[depends] += "${@oe.utils.conditional('KERNEL_USE_PREBUILTS', 'True', 'virtual/kernel:do_prebuilt_shared_workdir', 'virtual/kernel:do_shared_workdir',d)}"
 FILESPATH   =+ "${WORKSPACE}:"
 SRC_URI     =  "file://datacsm-kernel/"
+SRC_URI += "file://techpack-ecpri.service"
+SRC_URI += "file://ecpri_install"
+SRC_URI += "file://ecpri_uninstall"
 
 S = "${WORKDIR}/datacsm-kernel"
 
@@ -89,6 +92,18 @@ do_install() {
     cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/include/uapi/ecpri ${D}/usr/include/
     cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/include/uapi/ecpri ${D}/usr/include/
     cp -r ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/include/uapi/qcom_aw_phy ${D}/usr/include/
+
+	install -m 0755 \
+		${WORKDIR}/ecpri_install -D ${D}${bindir}/ecpri_install
+
+	install -m 0755 \
+		${WORKDIR}/ecpri_uninstall -D ${D}${bindir}/ecpri_uninstall
+
+	# Install unit files to systemd system directory and they will be
+	# packaged and enabled by the systemd class if 'systemd' feature
+	# is enabled in the distro.
+	install -m 0644 ${WORKDIR}/techpack-ecpri.service \
+		-D ${D}${systemd_system_unitdir}/techpack-ecpri.service
 }
 
 do_deploy() {
@@ -103,5 +118,10 @@ do_deploy() {
 
 addtask do_deploy after do_install
 
+SYSTEMD_SERVICE_${PN}  += "techpack-ecpri.service"
+
 FILES_${PN} += "${sysconfdir}/*"
 FILES_${PN} += "${libdir}/modules/*"
+FILES_${PN} += "${systemd_unitdir}/system/multi-user.target.wants/*"
+FILES_${PN} += "${systemd_system_unitdir}/*"
+
