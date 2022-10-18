@@ -1,0 +1,14 @@
+[Unit]
+Description= Load dataipa dlkm
+SourcePath=/etc/initscripts/start_dataipa_le
+DefaultDependencies=no
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+Type=oneshot
+ExecStart=/etc/initscripts/start_dataipa_le start
+Nice=-20
+
+[Install]
+WantedBy=local-fs.target
