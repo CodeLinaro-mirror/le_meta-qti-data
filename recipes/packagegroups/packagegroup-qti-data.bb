@@ -16,6 +16,7 @@ ETHADAPT_sa410m = 'FALSE'
 
 RDEPENDS_packagegroup-qti-data = ' \
 	conntrack-tools \
+	dataipa \
 	data-ipa-cfg-mgr \
 	data-oss \
 	datarmnet \
