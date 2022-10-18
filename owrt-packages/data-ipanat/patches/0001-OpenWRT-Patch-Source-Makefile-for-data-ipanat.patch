@@ -23,7 +23,8 @@ index 0000000..a5481ce
 +CFLAGS += -I$(INCLUDE_DIR) \
 +	-Wundef \
 +	-Wno-trigraphs \
-+	-Wstrict-prototypes
++	-Wstrict-prototypes \
++	-fpic
 +
 +RM := rm -rf
 +

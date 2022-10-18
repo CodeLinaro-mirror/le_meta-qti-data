@@ -5,15 +5,23 @@ PKG_VERSION:=1
 PKG_RELEASE:=1
 PKG_LICENSE:=BSD-3-Clause
 
-LOCAL_SRC:=$(TOPDIR)/src/kernel/msm-5.4/techpack/dataipa/ipanat
-
 include $(INCLUDE_DIR)/package.mk
 
+ifeq ($(BOARD),sdx35)
+	LOCAL_SRC:=$(TOPDIR)/src/dataipa/ipanat
+
+else ifeq ($(TARGET_MACHINE),sdx65)
+	LOCAL_SRC:=$(TOPDIR)/src/kernel/msm-5.4/techpack/dataipa/ipanat
+
+else ifeq ($(BOARD),sdx75)
+	LOCAL_SRC:=$(TOPDIR)/src/dataipa/ipanat
+endif
+
 define Package/$(PKG_NAME)
-        SECTION:=ipa
-        CATEGORY:=Data Services Open Source Software
-        TITLE:=ipanat
-        DEPENDS:=+librt +libstdcpp
+	SECTION:=ipa
+	CATEGORY:=Data Services Open Source Software
+	TITLE:=ipanat
+	DEPENDS:=+librt +libstdcpp
 endef
 
 define Package/$(PKG_NAME)/Description
