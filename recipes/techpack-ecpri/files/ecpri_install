@@ -1,0 +1,13 @@
+#!/bin/sh
+
+#Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+/sbin/insmod /usr/lib/modules/gsim.ko
+/sbin/insmod /usr/lib/modules/ecpri_dmam.ko
+/sbin/insmod /usr/lib/modules/fpc_qsfp.ko
+/sbin/insmod /usr/lib/modules/lassen_qcom_aw_phy.ko
+/sbin/insmod /usr/lib/modules/lassen_mtip.ko
+/sbin/insmod /usr/lib/modules/lassen_macsec.ko
+/sbin/insmod /usr/lib/modules/ecpri_core.ko
+
