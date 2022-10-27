@@ -32,4 +32,6 @@ RDEPENDS_packagegroup-qti-data = ' \
 	tcpdump \
 	strace \
 	${@oe.utils.conditional('ETHADAPT', 'True', 'eth-adaption-layer', '', d)} \
+	${@oe.utils.conditional('BASEMACHINE', 'sdxprairie', 'data-rc', '', d)} \
+	${@oe.utils.conditional('BASEMACHINE', 'sdxprairie', 'hostap-2.9', '', d)} \
     '
