@@ -4,6 +4,7 @@ SECTION = "console/network"
 LICENSE = "GPL"
 LICENSE_${PN} = "GPL"
 LIC_FILES_CHKSUM = "file://COPYING;md5=0636e73ff0215e8d672dc4c32c317bb3"
+DEPENDS = "libnetfilter-conntrack"
 
 PR = "r4"
 
@@ -14,6 +15,9 @@ SRC_URI = "http://www.codeaurora.org/mirrored_source/quic/le/dnsmasq-${PV}.tar.g
            file://dnsmasq_script.sh\
            file://dnsmasq.service"
 
+SRC_URI += "file://0001-Enable-conntrack-for-dnsmasq.patch"
+SRC_URI += "file://0001-Include-libnetfilter_conntrack-lib-for-dnsmasq.patch"
+ 
 EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
                 LDFLAGS='${TARGET_LDFLAGS}'"
