@@ -1,0 +1,25 @@
+From 49ae91371531e55d44919746a0d9bcd54e391c5e Mon Sep 17 00:00:00 2001
+From: Dheeraj Kumar <quic_dhekum@quicinc.com>
+Date: Thu, 30 Mar 2023 16:35:20 +0530
+Subject: [PATCH] Include libnetfilter_conntrack lib for dnsmasq
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 7d2afd1..92784a3 100644
+--- a/Makefile
++++ b/Makefile
+@@ -28,7 +28,7 @@ CFLAGS        = -Wall -W -O2
+ LDFLAGS       = 
+ COPTS         = 
+ RPM_OPT_FLAGS = 
+-LIBS          = 
++LIBS          = -lnetfilter_conntrack
+ 
+ #################################################################
+ 
+-- 
+2.7.4
+
