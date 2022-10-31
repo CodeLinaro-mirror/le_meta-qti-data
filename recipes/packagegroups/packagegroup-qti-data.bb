@@ -27,5 +27,4 @@ RDEPENDS_packagegroup-qti-data = ' \
 	iputils \
 	tcpdump \
 	strace \
-	eth-adaption-layer \
     '
