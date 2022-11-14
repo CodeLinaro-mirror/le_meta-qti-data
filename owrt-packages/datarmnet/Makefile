@@ -1,0 +1,44 @@
+include $(TOPDIR)/rules.mk
+include $(INCLUDE_DIR)/kernel.mk
+
+PKG_NAME:=datarmnet
+PKG_RELEASE:=1.0
+LOCAL_SRC:=$(TOPDIR)/src/datarmnet/core
+
+include $(INCLUDE_DIR)/package.mk
+
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+endef
+
+define KernelPackage/$(PKG_NAME)
+  SECTION:=kernel
+  CATEGORY:=Kernel modules
+  SUBMENU:=Network Support
+  TITLE:=RMNET driver for handling data in multiplexing and aggregation protocol (MAP) format
+endef
+
+define KernelPackage/$(PKG_NAME)/Description
+RMNET driver handles data in multiplexing and aggregation protocol (MAP) format
+endef
+
+MAKE_OPTS:= \
+        M="$(PKG_BUILD_DIR)"
+
+define Build/Compile
+        $(MAKE) -C "$(LINUX_DIR)" \
+                $(MAKE_OPTS) \
+                modules
+endef
+
+define KernelPackage/$(PKG_NAME)/install
+	$(INSTALL_DIR) $(1)/lib/modules/
+	$(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/scripts/sign-file sha512 $(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/certs/signing_key.pem $(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/certs/signing_key.x509 $(PKG_BUILD_DIR)/rmnet_core.ko
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_core.ko $(1)/lib/modules/
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/$(PKG_NAME).init $(1)/etc/init.d
+endef
+
+$(eval $(call KernelPackage,$(PKG_NAME)))
+
