@@ -1,4 +1,4 @@
-inherit autotools-brokensep pkgconfig update-rc.d
+inherit autotools-brokensep pkgconfig update-rc.d useradd
 
 DESCRIPTION = "Qualcomm IPA"
 LICENSE = "BSD"
