@@ -9,5 +9,6 @@
 /sbin/insmod /usr/lib/modules/lassen_qcom_aw_phy.ko
 /sbin/insmod /usr/lib/modules/lassen_mtip.ko
 /sbin/insmod /usr/lib/modules/lassen_macsec.ko
+#/sbin/insmod /usr/lib/modules/lassen_secure_eip.ko
 /sbin/insmod /usr/lib/modules/ecpri_core.ko
 
