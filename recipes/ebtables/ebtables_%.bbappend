@@ -17,6 +17,9 @@ FILES_${PN}-doc += "${mandir}/*"
 
 do_configure_append() {
     if [ -d "${S}" ]; then
+        if [ ! -d "${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/" ]; then
+            mkdir -p ${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/
+        fi
         install -m 555 ${S}/include/linux/netfilter_bridge/ebt_ulog.h ${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/ebt_ulog.h
     fi
 }

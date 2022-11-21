@@ -11,12 +11,15 @@ DEPENDS  = "glib-2.0"
 DEPENDS += "libxml2"
 DEPENDS += "libnetfilter-conntrack"
 DEPENDS += "virtual/kernel"
+DEPENDS += "linux-msm-headers"
 
 
 EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
                 --enable-target=${BASEMACHINE} \
                 --enable-baseproduct=auto \
-                --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
+                --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include \
+		--with-sanitized-headers=${STAGING_INCDIR}/linux-msm/usr/include \
+		--with-glib"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-ipa-cfg-mgr"
@@ -28,6 +31,9 @@ S = "${WORKDIR}/data-ipa-cfg-mgr"
 INITSCRIPT_NAME   = "start_ipacm_le"
 INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
+
+# To get kernel headers for compilation
+do_configure[depends] += "virtual/kernel:do_shared_workdir"
 
 do_install_append() {
 	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa

@@ -3,7 +3,8 @@ FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
            file://dnsmasq_service@.service \
-           file://qcmap_start_dnsmasq.sh"
+           file://qcmap_start_dnsmasq.sh \
+           file://qcmap_stop_dnsmasq.sh"
 
 EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
@@ -24,6 +25,8 @@ do_install_append () {
          install -d ${D}${systemd_unitdir}/system/
          install -m 0644 ${WORKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
          install -m 0755 ${WORKDIR}/qcmap_start_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_start_dnsmasq.sh
+         install -m 0755 ${WORKDIR}/qcmap_stop_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
+         chown radio:radio ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
         else
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
         fi
