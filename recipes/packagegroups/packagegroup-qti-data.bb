@@ -10,6 +10,10 @@ PACKAGES = ' \
     packagegroup-qti-data \
     '
 
+# Install eth-adaption-layer for selected machines
+ETHADAPT ?= 'True'
+ETHADAPT_sa410m = 'FALSE'
+
 RDEPENDS_packagegroup-qti-data = ' \
 	conntrack-tools \
 	data-ipa-cfg-mgr \
@@ -26,5 +30,5 @@ RDEPENDS_packagegroup-qti-data = ' \
 	iputils \
 	tcpdump \
 	strace \
-	eth-adaption-layer \
+	${@oe.utils.conditional('ETHADAPT', 'True', 'eth-adaption-layer', '', d)} \
     '
