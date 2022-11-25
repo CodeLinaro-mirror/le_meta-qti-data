@@ -1,8 +1,8 @@
-#inherit module qperf
-inherit ${@bb.utils.contains_any('MACHINE', 'sa515m', 'module qperf', '', d)}
+inherit module qperf
+#inherit ${@bb.utils.contains_any('MACHINE', 'sa515m', 'module qperf', '', d)}
 
 # if is TARGET_KERNEL_ARCH is set inherit qtikernel-arch to compile for that arch.
-inherit ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', '', d)}
+#inherit ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', '', d)}
 
 DESCRIPTION = "Datarmnet drivers"
 LICENSE = "GPL-2.0"
@@ -49,13 +49,13 @@ do_compile_sa410m() {
     ./build/build_module.sh
 }
 
-do_install_append_sa410m() {
+do_install_sa410m() {
     install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
     #Signing and installing the datarmnet module
     LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
     ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
     ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
-    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}$/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
+    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
     install -d ${D}${sysconfdir}/initscripts/
     install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
     install -d ${D}${systemd_unitdir}/system/
