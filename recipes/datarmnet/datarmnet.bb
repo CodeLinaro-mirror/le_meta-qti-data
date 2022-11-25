@@ -37,7 +37,7 @@ do_install() {
     LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
     ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
     ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
-    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}$/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
+    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
 
     #Install startup scripts
     install -d ${D}${sysconfdir}/initscripts/
