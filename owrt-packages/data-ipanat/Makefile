@@ -30,7 +30,8 @@ endef
 
 TARGET_CFLAGS += -g \
 	-I../inc \
-	-I$(WORKSPACE)/common/inc
+	-I$(WORKSPACE)/common/inc \
+	-fpic
 
 TARGET_LDFLAGS += \
 	-lrt \
