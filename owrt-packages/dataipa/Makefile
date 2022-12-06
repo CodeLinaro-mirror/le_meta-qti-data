@@ -23,6 +23,7 @@ endef
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	$(Build/Patch)
 endef
 
 MAKE_OPTS:= \
