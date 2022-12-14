@@ -14,7 +14,7 @@ IPACM_PID_FILE=/var/run/data/ipa/ipacm.pid
 start_service() {
 	        mkdir -p /var/run/data/ipa
                 mkdir -p /dev/socket/data/ipa
-                mkdir -p /tmp/data
+                mkdir -p /tmp/data_ipa
                 mkdir -p /data/misc/ipa
 		procd_open_instance
 		procd_set_param command /usr/bin/ipacm
