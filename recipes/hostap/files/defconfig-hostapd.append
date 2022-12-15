@@ -1,0 +1,6 @@
+
+# Driver interface for Linux MACsec drivers
+CONFIG_DRIVER_MACSEC_LINUX=y
+
+# MACsec
+CONFIG_MACSEC=y

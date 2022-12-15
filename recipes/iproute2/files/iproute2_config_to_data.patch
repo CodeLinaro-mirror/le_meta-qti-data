@@ -21,6 +21,6 @@ index 0b79b1f..ec4cffa 100644
  NETNS_RUN_DIR?=/var/run/netns
  NETNS_ETC_DIR?=/etc/netns
  DATADIR?=$(PREFIX)/share
--- 
+--
 2.29.0
 
