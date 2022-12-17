@@ -94,6 +94,7 @@ do_install() {
     cp -r ${WORKSPACE}/datacsm-kernel/drivers/ecpri/ecpri_core/include/uapi/ecpri ${D}/usr/include/
     cp -r ${WORKSPACE}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/include/uapi/ecpri ${D}/usr/include/
     cp -r ${WORKSPACE}/datacsm-kernel/drivers/qcom_aw_phy/include/uapi/qcom_aw_phy ${D}/usr/include/
+    cp -r ${WORKSPACE}/datacsm-kernel/drivers/mtip/debug_eth/include/uapi/mtip_debug_eth ${D}/usr/include/
 
 	install -m 0755 \
 		${WORKDIR}/ecpri_install -D ${D}${bindir}/ecpri_install
