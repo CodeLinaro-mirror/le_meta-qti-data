@@ -29,5 +29,6 @@ RDEPENDS_packagegroup-qti-data = ' \
     iproute2 \
     iptables \
     techpack-ecpri \
+    strongswan \
     '
 
