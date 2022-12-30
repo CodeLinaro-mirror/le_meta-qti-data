@@ -3,11 +3,12 @@
 
 [Unit]
 Description= Load ecpri dlkm service
+After=si5518_image_dload_util.service
 
 [Service]
 Restart=on-failure
 RemainAfterExit=yes
-After=si5518_image_dload_util.service
+
 # This service file has no binary and it is to execute the list of commands in <script>.
 # Use Script file only when there is NO binary or commands to be executed/ modules to be installed cases.
 
