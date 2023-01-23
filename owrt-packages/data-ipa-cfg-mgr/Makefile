@@ -14,6 +14,7 @@ define Package/$(PKG_NAME)
 	CATEGORY:=Data Services Open Source Software
 	TITLE:=ipacm
 	DEPENDS:=+libxml2 +libnetfilter-conntrack +ipanat +libstdcpp +libexecinfo
+	USERID:=radio=1001:radio=1001 radio=1001:diag=2901 radio=1001:inet=3003
 endef
 
 define Package/$(PKG_NAME)/Description
@@ -67,6 +68,8 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/etc/data/ipa
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/IPACM_cfg.xml $(1)/etc/data/ipa
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/IPACM_cfg.xml $(1)/etc/data/ipa/factory_IPACM_cfg.xml
+	$(INSTALL_DIR) $(1)/etc/capabilities
+	$(INSTALL_DATA) ./files/ipacm.json $(1)/etc/capabilities
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/ipacm.init $(1)/etc/init.d
 endef
