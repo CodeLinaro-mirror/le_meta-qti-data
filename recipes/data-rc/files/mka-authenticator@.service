@@ -36,9 +36,11 @@ BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
 
 [Service]
-# Increase real interface MTU by 32B to accomodate MACSEC header+icv overhead
-ExecStartPre=-/sbin/ip link set mtu 1532 dev %i
+# Increase real interface MTU by 36B to accomodate MACSEC header+icv
+# and VLAN header overhead
+ExecStartPre=/sbin/ip link set mtu 1536 dev %i
 ExecStart=/usr/sbin/hostapd-2.9 -i %i /etc/data/hostapd-%i.conf
+ExecStopPost=/sbin/ip link set mtu 1500 dev %i
 
 [Install]
 WantedBy=multi-user.target
