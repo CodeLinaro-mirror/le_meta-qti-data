@@ -18,8 +18,7 @@ MIRRORS += "git://source.codeaurora.org/quic/le/platform/external/hostap.git;pro
 SRC_URI += "file://defconfig-hostapd.append"
 SRC_URI += "file://defconfig-wpa_supplicant.append"
 SRC_URI += "file://0001-hostap-2.9-Driver-changes-to-set-PHY-offload.patch"
-
-
+SRC_URI += "file://0001-hostap-2.9-Driver-changes-to-set-iface-name.patch"
 
 # Git based uris are unpacked into git/ directory
 S = "${WORKDIR}/git"
