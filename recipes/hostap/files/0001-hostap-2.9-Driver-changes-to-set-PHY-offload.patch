@@ -1,0 +1,91 @@
+From faa8e873492cfb2b2dc8872b975a22da7fc7787b Mon Sep 17 00:00:00 2001
+From: Abhishek Chauhan <quic_abchauha@quicinc.com>
+Date: Tue, 9 Nov 2021 15:32:36 -0800
+Subject: [PATCH] hostap-2.9: Driver changes to set PHY offload
+
+Driver changes to update phy offload once wpa supplicant command is
+executed.
+
+Change-Id: I5f5c3895300096474fd722090b2503038e49f684
+Signed-off-by: Abhishek Chauhan <quic_abchauha@quicinc.com>
+---
+ src/drivers/driver_macsec_linux.c | 35 +++++++++++++++++++++++++++++++++--
+ 1 file changed, 33 insertions(+), 2 deletions(-)
+
+diff --git a/src/drivers/driver_macsec_linux.c b/src/drivers/driver_macsec_linux.c
+index e922503..a79a414 100644
+--- a/src/drivers/driver_macsec_linux.c
++++ b/src/drivers/driver_macsec_linux.c
+@@ -84,6 +84,7 @@ struct macsec_drv_data {
+ 
+ static int dump_callback(struct nl_msg *msg, void *argp);
+ 
++static int set_phy_offload(const struct macsec_genl_ctx *ctx, int ifindex);
+ 
+ static struct nl_msg * msg_prepare(enum macsec_nl_commands cmd,
+ 				   const struct macsec_genl_ctx *ctx,
+@@ -1080,6 +1081,35 @@ static struct rtnl_link * lookup_sc(struct nl_cache *cache, int parent, u64 sci)
+ 	return (struct rtnl_link *) match;
+ }
+ 
++static int set_phy_offload(const struct macsec_genl_ctx *ctx, int ifindex)
++{
++	struct nl_msg *msg;
++	struct nlattr *nest;
++	int ret = -1;
++
++	msg = msg_prepare(MACSEC_CMD_UPD_OFFLOAD, ctx, ifindex);
++	if (!msg) {
++		return ret;
++	}
++
++	nest = nla_nest_start(msg, MACSEC_ATTR_OFFLOAD);
++	if (!nest)
++		goto nla_put_failure;
++
++	NLA_PUT_U8(msg, MACSEC_OFFLOAD_ATTR_TYPE, 1);
++
++	nla_nest_end(msg, nest);
++
++	ret = nl_send_recv(ctx->sk, msg);
++	if (ret < 0)
++		wpa_printf(MSG_ERROR,
++			   DRV_PREFIX "%s: failed to communicate: %d (%s)",
++			   __func__, ret, nl_geterror(-ret));
++
++nla_put_failure:
++	nlmsg_free(msg);
++	return ret;
++}
+ 
+ /**
+  * macsec_drv_create_transmit_sc - Create secure connection for transmit
+@@ -1093,6 +1123,7 @@ static int macsec_drv_create_transmit_sc(
+ 	unsigned int conf_offset)
+ {
+ 	struct macsec_drv_data *drv = priv;
++	struct macsec_genl_ctx *ctx = &drv->ctx;
+ 	struct rtnl_link *link;
+ 	char *ifname;
+ 	u64 sci;
+@@ -1132,7 +1163,6 @@ static int macsec_drv_create_transmit_sc(
+ 			   err);
+ 		return err;
+ 	}
+-
+ 	rtnl_link_put(link);
+ 
+ 	nl_cache_refill(drv->sk, drv->link_cache);
+@@ -1157,7 +1187,8 @@ static int macsec_drv_create_transmit_sc(
+ 	}
+ 
+ 	rtnl_link_set_name(drv->link, drv->ifname);
+-
++	/*Set phy offload*/
++	set_phy_offload(ctx, drv->ifi);
+ 	/* In case some settings have already been done but we couldn't apply
+ 	 * them. */
+ 	return try_commit(drv);
+-- 
+2.7.4
+
