@@ -6,7 +6,7 @@
 USE_PROCD=1
 PROCD_DEBUG=1
 
-START=2
+START=03
 STOP=97
 
 start_service() {

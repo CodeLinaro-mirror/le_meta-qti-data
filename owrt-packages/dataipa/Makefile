@@ -54,7 +54,7 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/
 	$(INSTALL_BIN) ./files/dataipa.init $(1)/etc/init.d
-	$(CP) ./files/start_dataipa_le  $(1)/etc/initscripts/
+	$(INSTALL_BIN) ./files/start_dataipa_le  $(1)/etc/initscripts/
 endef
 
 $(eval $(call KernelPackage,dataipa))
