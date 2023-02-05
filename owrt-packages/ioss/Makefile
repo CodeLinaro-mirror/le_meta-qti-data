@@ -55,6 +55,10 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(1)/$(EXTRA_ADDR)/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_DIR) $(1)/etc/initscripts/
+	$(INSTALL_BIN) ./files/ioss.init $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/start_ioss_modules  $(1)/etc/initscripts/
 endef
 
 $(eval $(call KernelPackage,$(PKG_NAME)))
