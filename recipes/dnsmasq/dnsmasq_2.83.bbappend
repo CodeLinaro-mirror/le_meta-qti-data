@@ -4,3 +4,6 @@
 
 LICENSE_dnsmasq = "GPLv2only"
 LIC_FILES_CHKSUM = "file://COPYING;beginline=1;endline=340;md5=0636e73ff0215e8d672dc4c32c317bb3"
+
+SRC_URI += "file://CVE-2022-0934.patch \
+"
