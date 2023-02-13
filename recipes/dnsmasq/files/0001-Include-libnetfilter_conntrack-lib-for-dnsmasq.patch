@@ -12,14 +12,14 @@ index 7d2afd1..23ed596 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -28,7 +28,7 @@ CFLAGS        = -Wall -W -O2
- LDFLAGS       =
- COPTS         =
- RPM_OPT_FLAGS =
--LIBS          =
+ LDFLAGS       = 
+ COPTS         = 
+ RPM_OPT_FLAGS = 
+-LIBS          = 
 +LIBS          = -lnetfilter_conntrack
-
+ 
  #################################################################
-
---
+ 
+-- 
 2.17.1
 
