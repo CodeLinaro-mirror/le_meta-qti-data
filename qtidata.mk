@@ -8,5 +8,5 @@ ifeq ($(BOARD),sdx35)
 else ifeq ($(BOARD),sdx65)
   	QTIDATA+= kmod-rmnet-core kmod-rmnet-ctl qps615 ioss qps615-ioss ipanat ipacm
 else ifeq ($(BOARD),sdx75)
-	QTIDATA+= ipanat ipacm kmod-dataipa kmod-datarmnet kmod-aquantia flashBurn aqr113-firmware kmod-ioss kmod-emac_ioss kmod-rtl8261
+	QTIDATA+= ipanat ipacm kmod-dataipa kmod-datarmnet kmod-aquantia flashBurn aqr113-firmware kmod-ioss kmod-emac_ioss kmod-rtl8261 datafactory
 endif
