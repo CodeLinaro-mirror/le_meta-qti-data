@@ -1,7 +1,7 @@
 [Unit]
 Description= emac service
-DefaultDependencies=no
-After=network.target network-online.target QCMAP_ConnectionManagerd.service
+Requires=vnw_eth_switch.service
+After=network.target network-online.target QCMAP_ConnectionManagerd.service vnw_eth_switch.service
 ConditionPathExists=/dev/emac
 
 [Service]

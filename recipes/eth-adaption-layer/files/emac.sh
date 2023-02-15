@@ -1,5 +1,6 @@
 #!/bin/sh
 # Copyright (c) 2020, The Linux Foundation. All rights reserved.
+# Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -25,6 +26,40 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+#
+#  Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted (subject to the limitations in the
+#  disclaimer below) provided that the following conditions are met:
+#
+#      * Redistributions of source code must retain the above copyright
+#        notice, this list of conditions and the following disclaimer.
+#
+#      * Redistributions in binary form must reproduce the above
+#        copyright notice, this list of conditions and the following
+#        disclaimer in the documentation and/or other materials provided
+#        with the distribution.
+#
+#      * Neither the name of Qualcomm Innovation Center, Inc. nor the names of its
+#        contributors may be used to endorse or promote products derived
+#        from this software without specific prior written permission.
+#
+#  NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE
+#  GRANTED BY THIS LICENSE. THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT
+#  HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+#  WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+#  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+#  IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+#  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+#  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
+#  GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+#  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+#  IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+#  OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+#  IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
 
 DUMP_TO_KMSG=/dev/kmsg
 
@@ -139,7 +174,7 @@ then
   #QMI over ethernet configuration
   if [[ "$qip_type" == "IPv4" ]]
   then
-    echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
+    echo "\n QMI add vlan to eth start with IPv4" > $DUMP_TO_KMSG
 	echo $target > /dev/kmsg
     vconfig add $qinterface $qvlan_id
     ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
@@ -157,16 +192,19 @@ then
   echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
   elif [[ "$qip_type" == "IPv6" ]]
   then
-    echo "\n QMI add vlan to eth start" > $DUMP_TO_KMSG
+    echo "\n QMI add vlan to eth start with IPv6" > $DUMP_TO_KMSG
     vconfig add $qinterface $qvlan_id
     ifconfig $qinterface.$qvlan_id hw ether $qlocal_macid
     ifconfig $qinterface.$qvlan_id inet6 add $qlocal_ip
     ifconfig $qinterface.$qvlan_id up
+    ip link set $qinterface.$qvlan_id type vlan egress 0:$qvlan_pcp
+    ip link set $qinterface.$qvlan_id type vlan ingress 0:$qvlan_pcp
     if [ -e /sys/class/net/bridge0 ]; then
      ebtables -t broute -A BROUTING -p 802_1q --vlan-id $qvlan_id -i $qinterface -j DROP
     fi
     ip -6 r a $netmask/64 dev $qinterface.$qvlan_id
     echo qvlanid=$qvlan_id > /dev/emac
+    echo qvlan_pcp=$qvlan_pcp > /dev/emac
     echo qmac_id=$qlocal_macid > /dev/emac
     echo qoe=$qprotocol > /dev/emac
     echo "\n QMI add vlan to eth stop" > $DUMP_TO_KMSG
@@ -177,10 +215,10 @@ then
   fi
   if [[ "$current_target" == "NAD" && "$platform_version_hex" == "$platform_v2" ]]
   then
-    vconfig add SJA1105P_p0 $qvlan_id
     vconfig add SJA1105P_p2 $qvlan_id
     vconfig add SJA1105P_p0 $cvlan_id
     vconfig add SJA1105P_p2 $cvlan_id
+    vconfig add SJA1105P_p0 $qvlan_id
   fi
   #CV2X over ethernet configuration
   if [[ "$cprotocol" == "Cv2X" ]]
