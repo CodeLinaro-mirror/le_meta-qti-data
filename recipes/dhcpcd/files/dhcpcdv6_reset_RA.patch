@@ -1,0 +1,26 @@
+From 5aac60c6f6fdb11083055ab02e2b81950596fcd5 Mon Sep 17 00:00:00 2001
+From: Shimeng Huang <quic_shimhuan@quicinc.com>
+Date: Wed, 22 Feb 2023 10:57:39 +0800
+Subject: [PATCH] dhcpcdv6_reset_RA
+
+---
+ src/if-linux.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/src/if-linux.c b/src/if-linux.c
+index aad2142..7541bd0 100644
+--- a/src/if-linux.c
++++ b/src/if-linux.c
+@@ -1881,9 +1881,6 @@ if_setup_inet6(const struct interface *ifp)
+ 		/* The sysctl probably doesn't exist, but this isn't an
+ 		 * error as such so just log it and continue */
+ 		logfunc("%s", path);
+-	} else if (ra != 0) {
+-		if (if_writepathuint(path, 0) == -1)
+-			logerr("%s: %s", __func__, path);
+ 	}
+ }
+ 
+-- 
+2.7.4
+
