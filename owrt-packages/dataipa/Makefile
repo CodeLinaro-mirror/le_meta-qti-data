@@ -41,9 +41,6 @@ define Build/InstallDev
 	mkdir -p  $(1)/usr/lib/
 endef
 
-SIGN_KEY:= \
-    $(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/scripts/sign-file sha512 $(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/certs/signing_key.pem $(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/certs/signing_key.x509
-
 define KernelPackage/$(PKG_NAME)/install
 	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko
 	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko
@@ -64,6 +61,15 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/etc/initscripts/
 	$(INSTALL_BIN) ./files/dataipa.init $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/start_dataipa_le  $(1)/etc/initscripts/
+
+#install dataipa ko's in /bin/targets/$(TARGET_VARIANT)/modules to be shown in owrt CRM APPS
+	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ecmipam.ko  $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 endef
 
 $(eval $(call KernelPackage,dataipa))

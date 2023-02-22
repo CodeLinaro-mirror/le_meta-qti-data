@@ -34,7 +34,7 @@ endef
 
 define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/lib/modules/
-	$(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/scripts/sign-file sha512 $(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/certs/signing_key.pem $(TOPDIR)/src/kernel-5.15/out/msm-kernel-sdxpinn-debug_defconfig/msm-kernel/certs/signing_key.x509 $(PKG_BUILD_DIR)/rmnet_core.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/rmnet_core.ko
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_core.ko $(1)/lib/modules/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/$(PKG_NAME).init $(1)/etc/init.d
