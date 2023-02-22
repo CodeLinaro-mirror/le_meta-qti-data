@@ -1,5 +1,6 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 SRC_URI += "\
+            file://dhcpcdv6_reset_RA.patch \
             file://dhcpcd_iface_info.patch \
             file://dhcpcd@.service"
 
