@@ -11,8 +11,6 @@ DEPENDS = "rsync-native"
 DEPENDS += "bc-native bison-native"
 
 do_configure[depends] += "${@oe.utils.conditional('KERNEL_USE_PREBUILTS', 'True', 'virtual/kernel:do_prebuilt_shared_workdir', 'virtual/kernel:do_shared_workdir',d)}"
-FILESPATH   =+ "${WORKSPACE}:"
-SRC_URI     =  "file://datacsm-kernel/"
 SRC_URI += "file://techpack-ecpri.service"
 SRC_URI += "file://ecpri_install"
 SRC_URI += "file://ecpri_uninstall"
@@ -93,9 +91,10 @@ do_install() {
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/lassen_qcom_aw_phy.ko -D ${D}${libdir}/modules/lassen_qcom_aw_phy.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/secure_eip/lassen_secure_eip.ko -D ${D}${libdir}/modules/lassen_secure_eip.ko
 
-    cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_core/include/uapi/ecpri ${D}/usr/include/
-    cp -r ${WORKDIR}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/include/uapi/ecpri ${D}/usr/include/
-    cp -r ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/include/uapi/qcom_aw_phy ${D}/usr/include/
+    cp -r ${WORKSPACE}/datacsm-kernel/drivers/ecpri/ecpri_core/include/uapi/ecpri ${D}/usr/include/
+    cp -r ${WORKSPACE}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/include/uapi/ecpri ${D}/usr/include/
+    cp -r ${WORKSPACE}/datacsm-kernel/drivers/qcom_aw_phy/include/uapi/qcom_aw_phy ${D}/usr/include/
+    cp -r ${WORKSPACE}/datacsm-kernel/drivers/mtip/debug_eth/include/uapi/mtip_debug_eth ${D}/usr/include/
 
 	install -m 0755 \
 		${WORKDIR}/ecpri_install -D ${D}${bindir}/ecpri_install
