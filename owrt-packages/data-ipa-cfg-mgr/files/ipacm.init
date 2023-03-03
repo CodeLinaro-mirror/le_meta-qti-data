@@ -29,8 +29,8 @@ start_service() {
 		chmod 660 /dev/wwan_ioctl
 		chmod 660 /dev/ipa
 		chmod 660 /dev/ipaNatTable
-		chmod 660 /dev/ipa_adpl
-		chmod 660 /dev/ipa_odl_ctl
+		chmod 666 /dev/ipa_adpl
+		chmod 666 /dev/ipa_odl_ctl
                 chmod 660 /dev/ipaIpv6CTTable
 
 		chown -h radio:radio /dev/wwan_ioctl
