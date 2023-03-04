@@ -12,7 +12,7 @@ else
 endif
 
 LOCAL_SRC := $(TOPDIR)/src/data-eth/drivers/$(PKG_NAME)
-EXTRA_ADDR :=lib/modules/$(LINUX_VERSION)-${COMPILE_MODE}/extra
+EMAC_ADDR :=lib/modules/emac/
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -44,16 +44,16 @@ endef
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR)
 	mkdir -p  $(1)/usr/modules-symbols/$(PKG_NAME)
-	mkdir -p $(1)/$(EXTRA_ADDR)/
+	mkdir -p $(1)/$(EMAC_ADDR)/
 	mkdir -p  $(1)/usr/lib/
 	$(CP) $(PKG_BUILD_DIR)/ioss.ko $(1)/usr/lib/
 	$(CP) $(PKG_BUILD_DIR)/Module.symvers $(1)/usr/modules-symbols/$(PKG_NAME)/
 endef
 
 define KernelPackage/$(PKG_NAME)/install
-	$(INSTALL_DIR) $(1)/$(EXTRA_ADDR)/
+	$(INSTALL_DIR) $(1)/$(EMAC_ADDR)/
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(1)/$(EXTRA_ADDR)/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(1)/$(EMAC_ADDR)/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/

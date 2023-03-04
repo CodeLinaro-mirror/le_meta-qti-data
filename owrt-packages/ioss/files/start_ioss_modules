@@ -30,15 +30,14 @@
 #Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #SPDX-License-Identifier: BSD-3-Clause-Clear
 
-export MODULE_BASE=/lib/modules/`uname -r`/
 set -e
 
 case "$1" in
   start)
         echo -n "Starting/Loading IOSS module: "
 		echo "IOSS:start/load" > /dev/kmsg
-        insmod /lib/modules/MODULE_BASE/extra/ioss.ko
-		insmod /lib/modules/MODULE_BASE/extra/iemac_ioss.ko
+        insmod /lib/modules/emac/ioss.ko
+	insmod /lib/modules/emac/iemac_ioss.ko
         echo "done loading IOSS modules"
         ;;
   stop)
