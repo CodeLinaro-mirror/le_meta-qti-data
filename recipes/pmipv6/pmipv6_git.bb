@@ -22,7 +22,7 @@ FILES_${PN} += "/lib/systemd/*"
 
 EXTRA_OECONF += "--host arm-linux-gnueabi"
 EXTRA_OECONF += "--with-builtin-crypto"
-
+EXTRA_OECONF += "--disable-dependency-tracking"
 do_configure_prepend() {
     cp ${S}/src/pmgr.c.in ${S}/src/pmgr.c
     cp ${S}/src/pmgr.h.in ${S}/src/pmgr.h
