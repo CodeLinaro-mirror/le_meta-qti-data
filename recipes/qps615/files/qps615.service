@@ -33,12 +33,6 @@ Description= Loading of QPS615 kernel modules
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/sbin/modprobe qps615-ioss
-ExecStartPost=chgrp radio /sys/kernel/debug/ioss/devices/eth0
-ExecStartPost=chgrp radio /sys/kernel/debug/ioss/devices/eth1
-ExecStartPost=chgrp radio /sys/kernel/debug/ioss/devices/eth0/vlan_filter
-ExecStartPost=chgrp radio /sys/kernel/debug/ioss/devices/eth1/vlan_filter
-ExecStartPost=chmod 664 /sys/kernel/debug/ioss/devices/eth0/vlan_filter
-ExecStartPost=chmod 664 /sys/kernel/debug/ioss/devices/eth1/vlan_filter
 ExecStop=/sbin/rmmod qps615-ioss
 ExecStop=/sbin/rmmod qps615
 
