@@ -3,11 +3,7 @@ SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
            file://dnsmasq_service@.service \
            file://qcmap_dhcp_release.service \
-           file://0001-dhcp_release_fix_for_ippt.patch \
-           file://0001-Include-libnetfilter_conntrack-lib-for-dnsmasq.patch \
-           file://0001-dnsmasq-changes-to-enable-conntrack-option.patch"
-
-DEPENDS = "libnetfilter-conntrack"
+           file://0001-dhcp_release_fix_for_ippt.patch"
 
 EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
