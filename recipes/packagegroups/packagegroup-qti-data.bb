@@ -31,4 +31,5 @@ RDEPENDS_packagegroup-qti-data = ' \
 	strace \
 	libgpiod \
 	phytool \
+	${@oe.utils.conditional('BASEMACHINE', 'sa525m', 'hostap-2.10', '', d)} \
     '
