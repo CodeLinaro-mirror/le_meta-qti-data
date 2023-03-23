@@ -29,6 +29,7 @@ INITSCRIPT_NAME   = "start_ipacm_le"
 INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg_ext.xml"
+FILES_${PN} += "${sysconfdir}/data/ipa/ipacm_tunnel_cfg.xml"
 
 do_install_append() {
 	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa
@@ -53,6 +54,9 @@ do_install_append() {
 
           #IPACM_cfg_ext file stored as factory settings
           install -m 0755 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg_ext.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg_ext.xml
+
+          #ipacm_tunnel_cfg file stored as factory settings
+          install -m 0755 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/ipacm_tunnel_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_ipacm_tunnel_cfg.xml
 
 	fi
 }

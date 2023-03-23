@@ -1,0 +1,23 @@
+#Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+# pmip6d init.d script to start the pmip daemon
+
+set -e
+
+echo "qcmap : starting pmip6d"
+
+if [ ${mode} == "6" ];then
+    if [ ${log} ];then
+        /usr/sbin/pmip6d -c ${conf_file} -m ${mode} -t ${tunnel} -l ${log}
+    else
+        /usr/sbin/pmip6d -c ${conf_file} -m ${mode} -t ${tunnel}
+    fi
+else
+    if [ ${log} ];then
+        /usr/sbin/pmip6d -c ${conf_file} -m ${mode} -t ${tunnel} -i ${identifier_type} -s ${start_ip} -e ${end_ip} -j ${subnet} -l ${log}
+    else
+        /usr/sbin/pmip6d -c ${conf_file} -m ${mode} -t ${tunnel} -i ${identifier_type} -s ${start_ip} -e ${end_ip} -j ${subnet}
+    fi
+fi
+
+exit 0
