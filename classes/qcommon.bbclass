@@ -1,17 +1,19 @@
+#
 # Constant bitbake recipe information for the meta-qcom layer
 # common values, statements and functions.
 #
 inherit autotools-brokensep gitsha pkgconfig
-HOMEPAGE         = "https://git.codelinaro.org/"
+HOMEPAGE         = "http://support.cdmatech.com"
 FILESPATH        =+ "${WORKSPACE}:"
 SRC_URI          = "file://${@d.getVar('SRC_DIR', True).replace('${WORKSPACE}/', '')}"
 REPO_SRC_URI     = "file://${@d.getVar('SRC_DIR', True).replace('${WORKSPACE}/', '')}"
 PV               = "git-${GITSHA}"
+LICENSE          = "Qualcomm-Technologies-Inc.-Proprietary"
 #LIC_FILES_CHKSUM = "file://${COREBASE}/meta-qcom/files/qcom-licenses/\
 #${LICENSE};md5=92b1d0ceea78229551577d4284669bb8"
 
-LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/BSD;md5=3775480a712fc46a69647678acb234cb"
-LICENSE          = "BSD-3-Clause-Clear"
+LIC_FILES_CHKSUM = "file://${COREBASE}/meta-qti-bsp-prop/files/qcom-licenses/\
+${LICENSE};md5=92b1d0ceea78229551577d4284669bb8"
 
 # Must set SRC_DIR to use qcommon
 #add prebuilt task if the recipe wants it enabled.
