@@ -12,6 +12,7 @@ PACKAGES = ' \
 
 RDEPENDS_packagegroup-qti-data = ' \
 	conntrack-tools \
+	data-eth \
 	dataipa \
 	data-ipa-cfg-mgr \
 	data-oss \
