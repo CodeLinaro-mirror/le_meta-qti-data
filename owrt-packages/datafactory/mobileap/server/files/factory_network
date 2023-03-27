@@ -1,0 +1,62 @@
+
+config interface 'loopback'
+	option device 'lo'
+	option proto 'static'
+	option ipaddr '127.0.0.1'
+	option netmask '255.0.0.0'
+
+config globals 'globals'
+	option ula_prefix 'auto'
+
+config device
+	option name 'br-lan'
+	option type 'bridge'
+	list ports 'eth0'
+	list ports 'eth1'
+	list ports 'rndis0'
+	list ports 'ecm0'
+
+config interface 'lan'
+	option device 'br-lan'
+	option proto 'static'
+	option ip6assign '60'
+	option ipaddr '192.168.2.1'
+	option netmask '255.255.254.0'
+
+config interface 'rndis'
+	option device 'rndis0'
+	option proto 'static'
+	option ipaddr '169.254.20.1'
+	option netmask '255.255.255.0'
+
+config interface 'ecm'
+	option device 'ecm0'
+	option proto 'static'
+	option ipaddr '169.254.21.1'
+	option netmask '255.255.255.0'
+
+config interface 'eth'
+	option device 'eth0'
+	option proto 'static'
+	option ipaddr '169.254.22.1'
+	option netmask '255.255.255.0'
+
+config interface 'eth_nic2'
+	option device 'eth1'
+	option proto 'static'
+	option ipaddr '169.254.23.1'
+	option netmask '255.255.255.0'
+
+config interface 'wan'
+	option proto 'rmnet'
+	option profile '1'
+	option downstream 'lan'
+	option type 'internet'
+	option bind '0'
+
+config interface 'waneth'
+	option proto 'dhcp'
+
+config interface 'waneth6'
+	option proto 'dhcpv6'
+
