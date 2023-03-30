@@ -27,7 +27,7 @@ start_service() {
 		chown radio:radio /etc/data/ipa
 
 		chmod 660 /dev/wwan_ioctl
-		chmod 660 /dev/ipa
+		chmod 666 /dev/ipa
 		chmod 660 /dev/ipaNatTable
 		chmod 666 /dev/ipa_adpl
 		chmod 666 /dev/ipa_odl_ctl
