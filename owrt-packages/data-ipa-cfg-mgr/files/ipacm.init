@@ -31,12 +31,14 @@ start_service() {
 		chmod 660 /dev/ipaNatTable
 		chmod 660 /dev/ipa_adpl
 		chmod 660 /dev/ipa_odl_ctl
+                chmod 660 /dev/ipaIpv6CTTable
 
 		chown -h radio:radio /dev/wwan_ioctl
 		chown -h radio:radio /dev/ipa
 		chown -h radio:radio /dev/ipaNatTable
 		chown -h radio:radio /dev/ipa_adpl
 		chown -h radio:radio /dev/ipa_odl_ctl
+                chown -h radio:radio /dev/ipaIpv6CTTable
 
 		procd_open_instance
 		procd_set_param command /usr/bin/ipacm

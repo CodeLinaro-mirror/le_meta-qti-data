@@ -52,7 +52,8 @@ index 0000000..a93e8b5
 +	IPACM_Neighbor.cpp \
 +	IPACM_Netlink.cpp \
 +	IPACM_Xml.cpp \
-+	IPACM_LanToLan.cpp
++	IPACM_LanToLan.cpp \
++	IPACM_Bridge.cpp
 +
 +IPACM_OBJS := $(IPACM_CPP_SRCS:.cpp=.o)
 +
