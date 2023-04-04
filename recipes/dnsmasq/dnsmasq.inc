@@ -9,7 +9,7 @@ DEPENDS = "libnetfilter-conntrack"
 PR = "r4"
 
 #at least versions 2.15 and prior are moved to the archive folder on the server
-SRC_URI = "http://www.codeaurora.org/mirrored_source/quic/le/dnsmasq-${PV}.tar.gz;name=dnsmasq-${PV} \
+SRC_URI = "${CLO_MIRROR}/dnsmasq-${PV}.tar.gz;name=dnsmasq-${PV} \
            file://init \
            file://dnsmasq.conf \
            file://dnsmasq_script.sh\
