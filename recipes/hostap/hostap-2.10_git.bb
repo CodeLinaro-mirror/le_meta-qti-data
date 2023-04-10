@@ -4,7 +4,7 @@ SUMMARY = "Host AP and WPA Supplicant Services"
 LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = "file://README;beginline=28;endline=56;md5=55c476aa11882ce6de69df40e3a36000"
 
-DEPENDS = "dbus libnl openssl virtual/kernel"
+DEPENDS = "dbus libnl openssl virtual/kernel linux-msm-headers"
 
 # HostAp tag=hostap_2_10
 SRC_URI  = "git://git.codelinaro.org/clo/le/hostap.git;protocol=http;branch=hostap/main"
@@ -31,7 +31,7 @@ do_configure() {
 }
 
 do_compile[depends] += "virtual/kernel:do_shared_workdir"
-EXTRA_OEMAKE = " EXTRA_CFLAGS=-I${STAGING_KERNEL_BUILDDIR}/usr/include"
+EXTRA_OEMAKE = " EXTRA_CFLAGS='-I${STAGING_KERNEL_BUILDDIR}/usr/include -I${STAGING_INCDIR}/linux-msm/usr/include'"
 
 # hostapd and wpa_supplicant creates objects inside common src/ directory
 # that are ABI incompatible. We need to build the software one after another
