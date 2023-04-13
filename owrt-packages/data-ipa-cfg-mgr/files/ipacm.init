@@ -24,7 +24,8 @@ start_service() {
 		mkdir -p 755 /data/misc/ipa
 		chown radio:radio /data/misc/ipa
 
-		chown radio:radio /etc/data/ipa
+		chown -R radio:root /etc/data/ipa
+		chmod -R 777 /etc/data/ipa
 
 		chmod 666 /dev/wwan_ioctl
 		chmod 666 /dev/ipa
