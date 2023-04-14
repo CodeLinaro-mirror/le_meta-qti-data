@@ -14,4 +14,5 @@ RDEPENDS_packagegroup-qti-data-vm += "\
     dhcpcd \
     iproute2 \
     tcpdump \
+    ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-tele', 'data-eth', '', d)} \
     "
