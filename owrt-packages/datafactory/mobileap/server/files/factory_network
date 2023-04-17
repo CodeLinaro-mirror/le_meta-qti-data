@@ -57,6 +57,6 @@ config interface 'wan'
 config interface 'waneth'
 	option proto 'dhcp'
 
-config interface 'waneth6'
+config interface 'waneth_v6'
 	option proto 'dhcpv6'
 
