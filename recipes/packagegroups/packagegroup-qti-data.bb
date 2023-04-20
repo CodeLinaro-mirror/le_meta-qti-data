@@ -29,4 +29,6 @@ RDEPENDS_packagegroup-qti-data = ' \
 	gsb \
 	tcpdump \
 	strace \
+	libgpiod \
+	phytool \
     '
