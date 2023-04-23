@@ -4,7 +4,7 @@ SUMMARY = "Host AP and WPA Supplicant Services"
 LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = "file://README;beginline=28;endline=56;md5=55c476aa11882ce6de69df40e3a36000"
 
-DEPENDS = "dbus libnl openssl virtual/kernel"
+DEPENDS = "dbus libnl openssl virtual/kernel linux-msm-headers"
 
 # HostAp tag=hostap_2_10
 SRC_URI  = "git://git.codelinaro.org/clo/le/hostap.git;protocol=http;branch=hostap/main"
@@ -20,6 +20,14 @@ SRC_URI += "file://defconfig-wpa_supplicant.append"
 SRC_URI += "file://0001-hostap-2.10-Driver-changes-to-set-PHY-offload.patch"
 SRC_URI += "file://0001-hostap-2.10-Driver-changes-to-set-iface-name.patch"
 
+# MACSEC support
+SRC_URI  += "file://mka-supplicant@.service"
+SRC_URI  += "file://mka-authenticator@.service"
+SRC_URI  += "file://wpa_supplicant-eth0.conf"
+SRC_URI  += "file://hostapd-eth0.conf"
+SRC_URI  += "file://wpa_supplicant-eth1.conf"
+SRC_URI  += "file://hostapd-eth1.conf"
+
 # Git based uris are unpacked into git/ directory
 S = "${WORKDIR}/git"
 
@@ -31,7 +39,7 @@ do_configure() {
 }
 
 do_compile[depends] += "virtual/kernel:do_shared_workdir"
-EXTRA_OEMAKE = " EXTRA_CFLAGS=-I${STAGING_KERNEL_BUILDDIR}/usr/include"
+EXTRA_OEMAKE = " EXTRA_CFLAGS='-I${STAGING_KERNEL_BUILDDIR}/usr/include -I${STAGING_INCDIR}/linux-msm/usr/include'"
 
 # hostapd and wpa_supplicant creates objects inside common src/ directory
 # that are ABI incompatible. We need to build the software one after another
@@ -50,5 +58,26 @@ do_install() {
 	install -m 0755 \
 		${S}/wpa_supplicant/wpa_supplicant -D ${D}${sbindir}/wpa_supplicant-2.10
 }
+
+do_install_append() {
+	install -d ${D}${sysconfdir}
+
+	# MKA supplicant and authenticator configuration for eth0
+	install -m 0644 ${WORKDIR}/wpa_supplicant-eth0.conf -D ${D}${sysconfdir}/data/wpa_supplicant-eth0.conf
+	install -m 0644 ${WORKDIR}/wpa_supplicant-eth1.conf -D ${D}${sysconfdir}/data/wpa_supplicant-eth1.conf
+	install -m 0644 ${WORKDIR}/hostapd-eth0.conf -D ${D}${sysconfdir}/data/hostapd-eth0.conf
+	install -m 0644 ${WORKDIR}/hostapd-eth1.conf -D ${D}${sysconfdir}/data/hostapd-eth1.conf
+
+	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+		install -d ${D}${systemd_system_unitdir}
+
+		# MKA (MACSEC) Supplicant and Authenticator services
+		install -m 0644 ${WORKDIR}/mka-supplicant@.service -D ${D}${systemd_system_unitdir}/mka-supplicant@.service
+		install -m 0644 ${WORKDIR}/mka-authenticator@.service -D ${D}${systemd_system_unitdir}/mka-authenticator@.service
+	fi
+}
+
+FILES_${PN} += "${sysconfdir}"
+FILES_${PN} += "${systemd_system_unitdir}"
 
 # vim: filetype=bitbake
