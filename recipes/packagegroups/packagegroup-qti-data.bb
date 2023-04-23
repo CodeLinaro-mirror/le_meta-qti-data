@@ -60,4 +60,5 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     hostap-2.9 \
     dhcp-server \
     radvd \
+    pmipv6 \
     '
