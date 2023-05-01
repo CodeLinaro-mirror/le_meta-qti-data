@@ -1,9 +1,13 @@
 inherit useradd
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+DEPENDS = "libnetfilter-conntrack"
+
 SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
            file://dnsmasq_service@.service \
-           file://qcmap_start_dnsmasq.sh"
+           file://qcmap_start_dnsmasq.sh \
+           file://0001-Enable-conntrack-for-dnsmasq.patch \
+           file://0001-Include-libnetfilter_conntrack-lib-for-dnsmasq.patch"
 
 EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \

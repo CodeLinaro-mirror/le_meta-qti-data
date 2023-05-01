@@ -14,6 +14,7 @@ if [ ${type_inst} == "vlan" ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -30,6 +31,7 @@ if [ ${type_inst} == "vlan" ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -45,6 +47,7 @@ if [ ${type_inst} == "vlan" ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -61,6 +64,7 @@ elif [ ${type_inst} == "ip_passthrough" ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -77,6 +81,7 @@ elif [ ${type_inst} == "ip_passthrough" ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -92,6 +97,7 @@ elif [ ${type_inst} == "ip_passthrough" ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -109,6 +115,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ]  && [ ${#dhcp_range3} -ne 0 ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -128,6 +135,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ]  && [ ${#dhcp_range3} -ne 0 ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -146,6 +154,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ]  && [ ${#dhcp_range3} -ne 0 ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -163,6 +172,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ]  && [ ${#dhcp_range3} -ne 0 ]; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -182,6 +192,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ] ; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -200,6 +211,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ] ; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -217,6 +229,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ] ; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -233,6 +246,7 @@ elif [ ${type_inst} == "dhcpv6_proxy_dns" ] ; then
       --interface=${interface} \
       --except-interface=lo \
       -z \
+      --conntrack \
       --dhcp-range=${dhcp_range1} \
       --dhcp-hostsfile=${dhcp_hostsfile} \
       --dhcp-option-force=${dhcp_option_force1} \
@@ -246,6 +260,7 @@ elif [ ${type_inst} == "relay" ]; then
     --interface=${interface} \
     --except-interface=lo \
     -z \
+    --conntrack \
     --dhcp-relay=${dhcp_relay} \
     --dhcp-proxy \
     --user=radio --group=radio
@@ -254,6 +269,7 @@ elif [ ${type_inst} == "sta_br" ]; then
     --interface=${interface} \
     --except-interface=lo \
     -z \
+    --conntrack \
     --dhcp-relay=${dhcp_relay} \
     --dhcp-proxy \
     --dhcp-leasefile=${dhcp_leasefile} \
@@ -263,6 +279,7 @@ elif [ ${type_inst} == "cradle" ]; then
     --interface=${interface} \
     --except-interface=lo \
     -z \
+    --conntrack \
     --dhcp-relay=${dhcp_relay} \
     --dhcp-proxy \
     --dhcp-leasefile=${dhcp_leasefile} \
@@ -275,6 +292,7 @@ elif [ ${type_inst} == "ipv6_nat" ]; then
     --interface=${interface} \
     --except-interface=lo \
     -z \
+    --conntrack \
     --dhcp-range=${dhcp_range} \
     --dhcp-range=${dhcp_range1} \
     --dhcp-option=${dhcp_option} \
