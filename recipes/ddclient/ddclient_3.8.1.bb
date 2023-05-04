@@ -10,7 +10,7 @@ SRC_URI[md5sum] = "7fa417bc65f8f0e6ce78418a4f631988"
 SRC_URI[sha256sum] = "77a82668a53fdbed1e05ad6febe6dbefb093e3922afb20b993d4ad9ee868258f"
 
 
-inherit autotools pkgconfig
+inherit autotools pkgconfig useradd
 
 S = "${WORKDIR}/ddclient-${PV}"
 
