@@ -18,6 +18,8 @@ SRC_URI += "file://ecpri_uninstall"
 S = "${WORKDIR}/datacsm-kernel"
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
+#ECPRI_PERF = 1 when DEBUG_BUILD == 0
+ECPRI_PERF = "${@oe.utils.conditional('DEBUG_BUILD', '1', '0', '1',d)}"
 
 # Disable parallel make
 PARALLEL_MAKE = ""
@@ -48,6 +50,7 @@ do_compile() {
     MODULE_LASSEN_QCOM_AW_PHY=m \
     MODULE_LASSEN_SECURE_EIP=m \
     MODULE_OUT=${WORKDIR}/datacsm-kernel \
+    ECPRI_PERF=${ECPRI_PERF} \
     OUT_DIR=${KERNEL_OUT_PATH}/ \
     KERNEL_UAPI_HEADERS_DIR=${STAGING_KERNEL_BUILDDIR} \
     INSTALL_MODULE_HEADERS=1 \
