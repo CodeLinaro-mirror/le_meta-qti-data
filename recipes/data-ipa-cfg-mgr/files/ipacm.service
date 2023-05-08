@@ -2,7 +2,7 @@
 SourcePath=/usr/bin/ipacm
 Description= IPACM Service
 Before= QCMAP_ConnectionManagerd.service
-After= start_stop_ipa_fws.service local-fs.target systemd-tmpfiles-setup.service
+After= dataipa.service local-fs.target systemd-tmpfiles-setup.service
 DefaultDependencies=no
 
 [Service]
@@ -11,6 +11,7 @@ ExecStartPre=udevadm trigger --settle --subsystem-match=wwan_ioctl --subsystem-m
 ExecStartPre=+chmod 660 /dev/ipaNatTable /dev/ipaIpv6CTTable
 ExecStartPre=+chmod 666 /dev/wwan_ioctl /dev/ipa
 ExecStartPre=+chown -h radio.radio /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipaIpv6CTTable
+ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/ /etc/data/ipa/
 ExecStart=/usr/bin/ipacm
 ExecStopPost=/bin/sh -c 'rm /var/run/data/monitor/ipacmd.pid'
 User=radio
