@@ -21,6 +21,7 @@ RDEPENDS_packagegroup-qti-network-tools = " \
     iproute2 \
     iptables \
     dnsmasq \
+    datarmnet \
     ebtables \
     ethtool \
     dhcpcd \
