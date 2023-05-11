@@ -1,8 +1,8 @@
 include $(INCLUDE_DIR)/target.mk
 
-QTIDATA:=rmnetctl libpugixml
+QTIDATA:=rmnetctl libpugixml newstrongswan newstrongswan-full
 
-###Add target specific packages
+###Add target specific packages 
 ifeq ($(BOARD),sdx35)
   	QTIDATA+=
 else ifeq ($(BOARD),sdx65)
