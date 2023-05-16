@@ -13,7 +13,7 @@ DEPENDS += "virtual/kernel"
 EXTRA_OECONF = "--with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include \
                 --with-glib"
 
-FILESPATH = "${WORKSPACE}/kernel/msm-5.4/techpack/dataipa:"
+FILESPATH =+ "${WORKSPACE}/dataipa:"
 SRC_URI = "file://ipanat"
 
 S = "${WORKDIR}/ipanat/src"
