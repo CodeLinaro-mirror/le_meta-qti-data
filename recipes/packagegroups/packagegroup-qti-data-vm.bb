@@ -11,4 +11,7 @@ PACKAGES = "\
 RDEPENDS_packagegroup-qti-data-vm += "\
     iperf \
     ethtool \
+    dhcpcd \
+    iproute2 \
+    tcpdump \
     "
