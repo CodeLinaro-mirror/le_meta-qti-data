@@ -21,17 +21,17 @@ SRCREV = "274eaed5b17f664e4ac6c79f1ba854b55f15a3a3"
 
 S = "${WORKDIR}/git"
 
-RPROVIDES_${PN} += "iperf3"
+RPROVIDES:${PN} += "iperf3"
 
-do_compile_prepend () {
+do_compile:prepend () {
  cd ${S}
 }
 
-do_install_prepend () {
+do_install:prepend () {
  cd ${S}
 }
 
-do_configure_prepend () {
+do_configure:prepend () {
 #       damn picky automake...
         cd ${S}
         touch NEWS README AUTHORS COPYING ChangeLog

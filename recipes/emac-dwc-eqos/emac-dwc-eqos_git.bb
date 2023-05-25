@@ -1,14 +1,14 @@
 inherit module ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', '', d)}
 
 DESCRIPTION = "EMAC Ethernet driver"
-LICENSE = "MIT-style"
+LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://DWC_ETH_QOS_dev.c;\
 startline=1;endline=71;md5=62b57cd65ebb8a65e225a5fbfbc26932"
 
-FILES_${PN}     += "${sysconfdir}/init.d/*"
-FILES_${PN}     += "${systemd_unitdir}/system/*"
-FILES_${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
-FILES_${PN}     += "${sysconfdir}/initscripts/*"
+FILES:${PN}     += "${sysconfdir}/init.d/*"
+FILES:${PN}     += "${systemd_unitdir}/system/*"
+FILES:${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
+FILES:${PN}     += "${sysconfdir}/initscripts/*"
 
 do_unpack[deptask] = "do_populate_sysroot"
 PR = "r0"
@@ -39,7 +39,7 @@ do_install() {
     fi
 }
 
-do_install_append() {
+do_install:append() {
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
@@ -61,7 +61,7 @@ if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 fi
 }
 
-pkg_postinst_${PN} () {
+pkg_postinst:${PN} () {
    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'false', 'true', d)}; then
     [ -n "$D" ] && OPT="-r $D" || OPT="-s"
         update-rc.d $OPT -f emac_dwc_eqos_start_stop_le remove
@@ -93,6 +93,6 @@ do_module_signing() {
 
 addtask module_signing after do_package before do_package_write_ipk
 
-RPROVIDES_${PN} += "${@'kernel-module-emac-dwc-eqos-${KERNEL_VERSION}'.replace('_', '-')}"
+RPROVIDES:${PN} += "${@'kernel-module-emac-dwc-eqos-${KERNEL_VERSION}'.replace('_', '-')}"
 # uncomment below line if you are compiling test module for vipertooth
-#RPROVIDES_${PN} += "${@'kernel-module-dwc-eth-qos-testmod-${KERNEL_VERSION}'.replace('_', '-')}"
+#RPROVIDES:${PN} += "${@'kernel-module-dwc-eth-qos-testmod-${KERNEL_VERSION}'.replace('_', '-')}"

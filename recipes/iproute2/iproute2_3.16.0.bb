@@ -12,7 +12,7 @@ SRC_URI[sha256sum] = "1f0a8a6c0e872166f75433f5cbf9766f3002b5c2f13501b3bb8c51846a
 
 inherit useradd
 
-do_install_append(){
+do_install:append(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
   chown -Rh radio:radio ${D}${sysconfdir}/data/iproute2
 fi
@@ -20,4 +20,4 @@ fi
 
 # CFLAGS are computed in Makefile and reference CCOPTS
 #
-EXTRA_OEMAKE_append = " CCOPTS='${CFLAGS}'"
+EXTRA_OEMAKE:append = " CCOPTS='${CFLAGS}'"

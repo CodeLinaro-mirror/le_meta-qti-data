@@ -13,7 +13,7 @@ PACKAGES = ' \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
 
-RDEPENDS_packagegroup-qti-data = ' \
+RDEPENDS:packagegroup-qti-data = ' \
     iproute2 \
     iptables \
     dnsmasq \
@@ -25,11 +25,11 @@ RDEPENDS_packagegroup-qti-data = ' \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
 
-RDEPENDS_packagegroup-qti-ethernet-tools = " \
+RDEPENDS:packagegroup-qti-ethernet-tools = " \
     ethtool \
     emac-dwc-eqos \
     "
 
-RDEPENDS_packagegroup-qti-data-modem = " \
+RDEPENDS:packagegroup-qti-data-modem = " \
     data-oss \
     "

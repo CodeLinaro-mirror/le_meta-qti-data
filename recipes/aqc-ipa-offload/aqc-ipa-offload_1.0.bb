@@ -3,7 +3,7 @@ SUMMARY = "AQC IPA Offload"
 export AQO_OBJDIR = "${WORKDIR}/kobj"
 export AQO_SRCDIR = "${WORKSPACE}/data-kernel/drivers/aqc-ipa-offload"
 
-LICENSE = "GPLv2"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${AQO_SRCDIR}/aqo_main.c;\
 beginline=3;endline=10;md5=28fe1ff28187fe4efdc6414eeb8185e3"
 
@@ -20,11 +20,11 @@ S = "${AQO_OBJDIR}"
 # The inherit of module.bbclass will automatically name module packages with
 # "kernel-module-" prefix as required by the oe-core build environment.
 
-RPROVIDES_${PN} += "kernel-module-aqc_ipa_offload"
+RPROVIDES:${PN} += "kernel-module-aqc_ipa_offload"
 
-SYSTEMD_SERVICE_${PN} = "aqc-ipa-offload.service"
+SYSTEMD_SERVICE:${PN} = "aqc-ipa-offload.service"
 
-do_install_append() {
+do_install:append() {
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
