@@ -29,8 +29,13 @@ do_install_append() {
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
+	install -d ${D}${systemd_unitdir}/system/
+	install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
+
 	install -m 0644 ${WORKDIR}/emac_ioss.service \
-		 -D ${D}${systemd_system_unitdir}/emac_ioss.service
+		-D ${D}${systemd_unitdir}/system/emac_ioss.service
+	ln -sf -r ${D}${systemd_unitdir}/system/emac_ioss.service \
+		${D}${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service
 }
 
 # qperf class adds do_copy_kernel_module() after do_module_signing().
@@ -38,6 +43,8 @@ do_install_append() {
 # execute between compile and package stages.
 addtask copy_kernel_module after do_compile before do_package
 
+
 FILES_${PN}+="${systemd_unitdir}/system/emac_ioss.service"
+FILES_${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
 
 # vim: syntax=bitbake
