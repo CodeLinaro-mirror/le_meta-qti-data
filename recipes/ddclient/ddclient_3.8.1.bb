@@ -31,13 +31,14 @@ do_compile() {
 
 do_install() {
    install -m 0755 ${S}/ddclient -D ${D}${sbindir}/ddclient
-   install -m 0644 ${S}/sample-etc_ddclient.conf -D ${D}${sysconfdir}/data/ddclient.conf
+   install -m 0664 ${S}/sample-etc_ddclient.conf -D ${D}${sysconfdir}/data/ddclient.conf
+   chown -R root:1001 ${D}${sysconfdir}/data/ddclient.conf
 }
 
 do_install_append_mdm(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
-   install -m 0644 ${WORKDIR}/ddclientd.service -D ${D}${systemd_unitdir}/system/ddclientd.service
+   install -m 0664 ${WORKDIR}/ddclientd.service -D ${D}${systemd_unitdir}/system/ddclientd.service
 fi
 }
 
