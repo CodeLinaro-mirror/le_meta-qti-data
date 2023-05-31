@@ -1,0 +1,9 @@
+[Unit]
+Description= Multicast daemon service
+SourcePath=/usr/sbin/pimd
+
+[Service]
+Type=forking
+Restart=no
+ExecStart=/usr/sbin/pimd
+ExecStop=/bin/killall -15 pimd

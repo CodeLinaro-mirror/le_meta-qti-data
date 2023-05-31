@@ -1,0 +1,8 @@
+[Unit]
+Description= tinyproxy service
+SourcePath=/usr/sbin/tinyproxy
+
+[Service]
+Restart=no
+ExecStart=/usr/sbin/tinyproxy -c /etc/data/tinyproxy.conf
+ExecStop=/bin/kill -15 $MAINPID
