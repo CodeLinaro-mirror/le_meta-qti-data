@@ -20,6 +20,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     iptables \
     dnsmasq \
     iputils \
+    rmnetbam \
     sfe \
     tcpdump \
     '
