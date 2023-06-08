@@ -1,13 +1,11 @@
 [Unit]
 Description= Load dataipa dlkm
-SourcePath=/etc/initscripts/start_dataipa_le
 DefaultDependencies=no
 
 [Service]
 Restart=no
 RemainAfterExit=yes
 Type=oneshot
-ExecStartPre=/sbin/mount-copybind /systemrw/data/ipa_config.txt /etc/data/ipa_config.txt
 ExecStart=/etc/initscripts/start_dataipa_le start
 Nice=-20
 
