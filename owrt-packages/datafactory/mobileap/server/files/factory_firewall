@@ -1,151 +1,147 @@
-
 config defaults
-	option syn_flood '1'
-	option input 'ACCEPT'
-	option output 'ACCEPT'
-	option forward 'REJECT'
+	option syn_flood	1
+	option input		ACCEPT
+	option output		ACCEPT
+	option forward		REJECT
+# Uncomment this line to disable ipv6 rules
+#	option disable_ipv6	1
+
+config zone
+	option name		lan
+	list   network		'lan'
+	option input		ACCEPT
+	option output		ACCEPT
+	option forward		ACCEPT
+
+config zone
+	option name		wan
+	list   network		'wan'
+	list   network		'wan6'
+	option input		REJECT
+	option output		ACCEPT
+	option forward		REJECT
+	option masq		1
+	option mtu_fix		1
 
 config forwarding
-	option dest 'wan'
-	option src 'lan_wan'
+	option src		lan
+	option dest		wan
 
+# We need to accept udp packets on port 68,
+# see https://dev.openwrt.org/ticket/4108
+config rule
+	option name		Allow-DHCP-Renew
+	option src		wan
+	option proto		udp
+	option dest_port	68
+	option target		ACCEPT
+	option family		ipv4
+
+# Allow IPv4 ping
+config rule
+	option name		Allow-Ping
+	option src		wan
+	option proto		icmp
+	option icmp_type	echo-request
+	option family		ipv4
+	option target		ACCEPT
+
+config rule
+	option name		Allow-IGMP
+	option src		wan
+	option proto		igmp
+	option family		ipv4
+	option target		ACCEPT
+
+# Allow DHCPv6 replies
+# see https://dev.openwrt.org/ticket/10381
+config rule
+	option name		Allow-DHCPv6
+	option src		wan
+	option proto		udp
+	option src_ip		fc00::/6
+	option dest_ip		fc00::/6
+	option dest_port	546
+	option family		ipv6
+	option target		ACCEPT
+
+config rule
+	option name		Allow-MLD
+	option src		wan
+	option proto		icmp
+	option src_ip		fe80::/10
+	list icmp_type		'130/0'
+	list icmp_type		'131/0'
+	list icmp_type		'132/0'
+	list icmp_type		'143/0'
+	option family		ipv6
+	option target		ACCEPT
+
+# Allow essential incoming IPv6 ICMP traffic
+config rule
+	option name		Allow-ICMPv6-Input
+	option src		wan
+	option proto	icmp
+	list icmp_type		echo-request
+	list icmp_type		echo-reply
+	list icmp_type		destination-unreachable
+	list icmp_type		packet-too-big
+	list icmp_type		time-exceeded
+	list icmp_type		bad-header
+	list icmp_type		unknown-header-type
+	list icmp_type		router-solicitation
+	list icmp_type		neighbour-solicitation
+	list icmp_type		router-advertisement
+	list icmp_type		neighbour-advertisement
+	option limit		1000/sec
+	option family		ipv6
+	option target		ACCEPT
+
+# Allow essential forwarded IPv6 ICMP traffic
+config rule
+	option name		Allow-ICMPv6-Forward
+	option src		wan
+	option dest		*
+	option proto		icmp
+	list icmp_type		echo-request
+	list icmp_type		echo-reply
+	list icmp_type		destination-unreachable
+	list icmp_type		packet-too-big
+	list icmp_type		time-exceeded
+	list icmp_type		bad-header
+	list icmp_type		unknown-header-type
+	option limit		1000/sec
+	option family		ipv6
+	option target		ACCEPT
+
+config rule
+	option name		Allow-IPSec-ESP
+	option src		wan
+	option dest		lan
+	option proto		esp
+	option target		ACCEPT
+
+config rule
+	option name		Allow-ISAKMP
+	option src		wan
+	option dest		lan
+	option dest_port	500
+	option proto		udp
+	option target		ACCEPT
+
+# allow interoperability with traceroute classic
+# note that traceroute uses a fixed port range, and depends on getting
+# back ICMP Unreachables.  if we're operating in DROP mode, it won't
+# work so we explicitly REJECT packets on these ports.
+config rule
+	option name		Support-UDP-Traceroute
+	option src		wan
+	option dest_port	33434:33689
+	option proto		udp
+	option family		ipv4
+	option target		REJECT
+	option enabled		false
+
+# include a file with users custom iptables rules
 config include
-	option path '/etc/firewall.user'
-
-config zone
-	option name 'lan_wan'
-	list network 'lan'
-	option input 'ACCEPT'
-	option output 'ACCEPT'
-	option forward 'ACCEPT'
-
-config zone
-	option name 'lan'
-	list network 'lan'
-	list network 'waneth'
-	list network 'waneth6'
-	option input 'ACCEPT'
-	option output 'ACCEPT'
-	option forward 'ACCEPT'
-
-config zone
-	option name 'wan_all'
-	option input 'REJECT'
-	option output 'ACCEPT'
-	option forward 'REJECT'
-	option masq '0'
-	option mtu_fix '1'
-
-config zone
-	option name 'wan'
-	list network 'wan'
-	list network 'wan6'
-	list network 'waneth'
-	list network 'waneth6'
-	option input 'REJECT'
-	option output 'ACCEPT'
-	option forward 'REJECT'
-	option masq '1'
-	option mtu_fix '1'
-
-config rule
-	option name 'Allow-ICMP-Input'
-	option src 'wan_all'
-	option proto 'icmp'
-	option family 'ipv4'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-ICMP-Forward'
-	option src 'wan_all'
-	option dest '*'
-	option proto 'icmp'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-ICMPV6-Input'
-	option src 'wan_all'
-	option proto 'icmp'
-	option family 'ipv6'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-ICMPV6-Forward'
-	option src 'wan_all'
-	option dest '*'
-	option proto 'icmp'
-	option family 'ipv6'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-TCP-Input'
-	option src 'wan_all'
-	option proto 'tcp'
-	option family 'ipv4'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-TCP-Forward'
-	option src 'wan_all'
-	option dest '*'
-	option proto 'tcp'
-	option family 'ipv4'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-TCP-v6-Input'
-	option src 'wan_all'
-	option proto 'tcp'
-	option family 'ipv6'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-TCP-v6-Forward'
-	option src 'wan_all'
-	option dest '*'
-	option proto 'tcp'
-	option family 'ipv6'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-UDP-Input'
-	option src 'wan_all'
-	option proto 'udp'
-	option family 'ipv4'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-UDP-Forward'
-	option src 'wan_all'
-	option dest '*'
-	option proto 'udp'
-	option family 'ipv4'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-UDP-V6-Input'
-	option src 'wan_all'
-	option proto 'udp'
-	option family 'ipv6'
-	option target 'ACCEPT'
-	option enabled '1'
-
-config rule
-	option name 'Allow-UDP-V6-Forward'
-	option src 'wan_all'
-	option dest '*'
-	option proto 'udp'
-	option family 'ipv6'
-	option target 'ACCEPT'
-	option enabled '1'
-
+	option path /etc/firewall.user

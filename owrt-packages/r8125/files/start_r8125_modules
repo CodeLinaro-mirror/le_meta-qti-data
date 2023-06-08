@@ -1,3 +1,4 @@
+
 #! /bin/sh
 # Copyright (c) 2019, The Linux Foundation. All rights reserved.
 #
@@ -34,14 +35,13 @@ set -e
 
 case "$1" in
   start)
-	echo -n "Starting/Loading IOSS module: "
-	echo "IOSS:start/load" > /dev/kmsg
-        insmod /lib/modules/emac/ioss.ko disable_tcm=1
-        insmod /lib/modules/emac/iemac_ioss.ko
-        echo "done loading IOSS modules"
+        echo -n "Starting/Loading r8125 module: "
+	echo "r8125:start/load" > /dev/kmsg
+        insmod /lib/modules/emac/r8125.ko
+        echo "done loading r8125 modules"
         ;;
   stop)
-        echo -n "Bypassing Unloading of IOSS modules "
+        echo -n "Bypassing Unloading of r8125 modules "
         ;;
   restart)
         $0 stop
