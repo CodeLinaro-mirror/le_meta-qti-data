@@ -55,8 +55,10 @@ do_compile() {
 }
 
 do_install() {
-	install -m 0755 \
-		${S}/hostapd/hostapd -D ${D}${sbindir}/mka_authenticator
+	if ${@bb.utils.contains('BASEMACHINE', 'sa525m', 'false', 'true', d)}; then
+		install -m 0755 \
+			${S}/hostapd/hostapd -D ${D}${sbindir}/mka_authenticator
+	fi
 	install -m 0755 \
 		${S}/wpa_supplicant/wpa_supplicant -D ${D}${sbindir}/mka_supplicant
 }
@@ -66,16 +68,20 @@ do_install_append() {
 
 	# MKA supplicant and authenticator configuration for eth0
 	install -m 0644 ${WORKDIR}/mka_supplicant-eth0.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth0.conf
-	install -m 0644 ${WORKDIR}/mka_supplicant-eth1.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth1.conf
-	install -m 0644 ${WORKDIR}/mka_authenticator-eth0.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth0.conf
-	install -m 0644 ${WORKDIR}/mka_authenticator-eth1.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth1.conf
+	if ${@bb.utils.contains('BASEMACHINE', 'sa525m', 'false', 'true', d)}; then
+		install -m 0644 ${WORKDIR}/mka_supplicant-eth1.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth1.conf
+		install -m 0644 ${WORKDIR}/mka_authenticator-eth0.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth0.conf
+		install -m 0644 ${WORKDIR}/mka_authenticator-eth1.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth1.conf
+	fi
 
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 		install -d ${D}${systemd_system_unitdir}
 
 		# MKA (MACSEC) Supplicant and Authenticator services
 		install -m 0644 ${WORKDIR}/mka-supplicant@.service -D ${D}${systemd_system_unitdir}/mka-supplicant@.service
-		install -m 0644 ${WORKDIR}/mka-authenticator@.service -D ${D}${systemd_system_unitdir}/mka-authenticator@.service
+		if ${@bb.utils.contains('BASEMACHINE', 'sa525m', 'false', 'true', d)}; then
+			install -m 0644 ${WORKDIR}/mka-authenticator@.service -D ${D}${systemd_system_unitdir}/mka-authenticator@.service
+		fi
 	fi
 }
 
