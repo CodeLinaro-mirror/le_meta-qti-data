@@ -1,6 +1,5 @@
 [Unit]
-Description= Load datarmnet dlkm service
-After= rmnetbam.service
+Description= Load rmnetbam dlkm service
 DefaultDependencies=no
 AssertPathExists=/lib/modules/
 
@@ -8,7 +7,7 @@ AssertPathExists=/lib/modules/
 Restart=on-failure
 RemainAfterExit=yes
 Type=oneshot
-ExecStart=/bin/sh -c '/usr/lib/busybox/sbin/insmod /lib/modules/$(uname -r)/extra/rmnet_core.ko'
+ExecStart=/bin/sh -c '/usr/lib/busybox/sbin/insmod /lib/modules/$(uname -r)/extra/rmnet_bam.ko'
 Nice=-20
 
 [Install]
