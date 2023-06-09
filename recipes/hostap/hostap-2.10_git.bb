@@ -13,10 +13,8 @@ SRCREV = "cff80b4f7d3c0a47c052e8187d671710f48939e4"
 # Use upstream as fallback
 MIRRORS += "git://git.codelinaro.org/clo/le/hostap.git;protocol=http;branch=hostap/main git://w1.fi/hostap.git;protocol=http;branch=main \n "
 
-# Instead of maintaining the entire config file, keep only the options that
-# need to be appended to the default defconfigs that come with the project.
-SRC_URI += "file://defconfig-hostapd.append"
-SRC_URI += "file://defconfig-wpa_supplicant.append"
+SRC_URI += "file://hostapd.buildconfig"
+SRC_URI += "file://wpa_supplicant.buildconfig"
 SRC_URI += "file://0001-hostap-2.10-Driver-changes-to-set-PHY-offload.patch"
 SRC_URI += "file://0001-hostap-2.10-Driver-changes-to-set-iface-name.patch"
 
@@ -36,8 +34,8 @@ S = "${WORKDIR}/git"
 inherit pkgconfig
 
 do_configure() {
-	cp -f ${WORKDIR}/defconfig-hostapd.append ${S}/hostapd/.config
-	cp -f ${WORKDIR}/defconfig-wpa_supplicant.append ${S}/wpa_supplicant/.config
+	cp -f ${WORKDIR}/hostapd.buildconfig ${S}/hostapd/.config
+	cp -f ${WORKDIR}/wpa_supplicant.buildconfig ${S}/wpa_supplicant/.config
 }
 
 do_compile[depends] += "virtual/kernel:do_shared_workdir"
