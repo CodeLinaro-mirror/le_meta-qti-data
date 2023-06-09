@@ -36,8 +36,8 @@ S = "${WORKDIR}/git"
 inherit pkgconfig
 
 do_configure() {
-	cat ${S}/hostapd/defconfig ${WORKDIR}/defconfig-hostapd.append > ${S}/hostapd/.config
-	cat ${S}/wpa_supplicant/defconfig ${WORKDIR}/defconfig-wpa_supplicant.append > ${S}/wpa_supplicant/.config
+	cp -f ${WORKDIR}/defconfig-hostapd.append ${S}/hostapd/.config
+	cp -f ${WORKDIR}/defconfig-wpa_supplicant.append ${S}/wpa_supplicant/.config
 }
 
 do_compile[depends] += "virtual/kernel:do_shared_workdir"
