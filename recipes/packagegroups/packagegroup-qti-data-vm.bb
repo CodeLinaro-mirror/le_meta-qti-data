@@ -9,6 +9,7 @@ PACKAGES = "\
     "
 
 RDEPENDS_packagegroup-qti-data-vm += "\
+    ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-host qti-vm-tele', 'dataipa', '', d)} \
     iperf \
     ethtool \
     dhcpcd \
