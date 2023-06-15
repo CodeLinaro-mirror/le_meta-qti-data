@@ -8,6 +8,14 @@ STOP=50
 
 start() {
 	/etc/initscripts/start_r8125_modules start
+
+	if [[ $(cat /sys/class/net/eth0/device/device) == "0x8125" ]]; then
+		echo "eth0 brought up by r8125"
+		ethtool -s eth0 wol pg
+		ethtool -K eth0 rxvlan off
+	else
+		echo "eth0 is not up by r8125"
+	fi
 }
 
 stop() {
