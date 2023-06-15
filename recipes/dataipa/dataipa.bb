@@ -24,7 +24,7 @@ do_compile() {
     EXT_MODULES=../../dataipa \
     ROOTDIR=${WORKSPACE}/ \
     MODULE_OUT=${WORKDIR}/src/dataipa-modules-out \
-    OUT_DIR=${KERNEL_OUT_PATH}/ \
+    OUT_DIR=${KERNEL_PREBUILT_PATH}/ \
     ./build/build_module.sh
 }
 

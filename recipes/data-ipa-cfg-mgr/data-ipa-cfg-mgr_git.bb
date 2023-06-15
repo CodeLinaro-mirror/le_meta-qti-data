@@ -14,7 +14,7 @@ DEPENDS += "virtual/kernel"
 DEPENDS += "data-ipanat"
 
 EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
-                --with-sanitized-headers=${KERNEL_OUT_PATH}/msm-kernel/usr/include/  \
+                --with-sanitized-headers=${KERNEL_PREBUILT_PATH}/msm-kernel/usr/include/  \
                 --with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc \
                 --with-glib"
 
