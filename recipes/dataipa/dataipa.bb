@@ -31,6 +31,18 @@ do_compile() {
 
 do_install() {
    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
+   ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/gsi/gsim.ko
+   ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipam.ko
+   ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipanetm.ko
+   ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko
+   ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/ecmipam.ko
+   ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko
    install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/gsi/gsim.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/gsim.ko
    install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipam.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/ipam.ko
    install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipanetm.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/ipanetm.ko
