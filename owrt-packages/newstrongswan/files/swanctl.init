@@ -214,6 +214,7 @@ config_conn() {
 	local startaction
 	local if_id
 	local rekeytime
+	local hw_offload
 
 	config_get startaction "$1" startaction "route"
 	config_get local_subnet "$1" local_subnet ""
@@ -227,6 +228,7 @@ config_conn() {
 	config_get closeaction "$1" closeaction "none"
 	config_get if_id "$1" if_id ""
 	config_get rekeytime "$1" rekeytime ""
+	config_get hw_offload "$1" hw_offload ""
 
 	local esp_proposal="$(parse_esp_proposal "$1")"
 
@@ -301,6 +303,7 @@ config_conn() {
 		swanctl_xappend4 "life_time = $(seconds2time $(((110 * $(time2seconds $rekeytime)) / 100)))"
 	fi
 	[ -n "$rekeytime" ] && swanctl_xappend4 "rekey_time = $rekeytime"
+	[ -n "$hw_offload" ] && swanctl_xappend4 "hw_offload = $hw_offload"
 
 	[ -n "$updown" ] && swanctl_xappend4 "updown = $updown"
 	[ -n "$dpdaction" ] && swanctl_xappend4 "dpd_action = $dpdaction"
@@ -474,14 +477,16 @@ config_remote() {
 		swanctl_xappend0 ""
 
 		swanctl_xappend0 "secrets {"
-		swanctl_xappend1 "ike {"
+		swanctl_xappend1 "ike-$config_name {"
 		swanctl_xappend2 "secret = $pre_shared_key"
-		if [ -z "$local_id" ]; then
-			swanctl_xappend2 "id1 = $local_id"
-			if [ -z "$remote_id" ]; then
-				swanctl_xappend2 "id2 = $remote_id"
+		if [ -n "$local_identifier" ]; then
+			swanctl_xappend2 "id1 = $local_identifier"
+			if [ -n "$remote_identifier" ]; then
+				swanctl_xappend2 "id2 = $remote_identifier"
 			fi
 		fi
+		swanctl_xappend1 "}"
+		swanctl_xappend0 "}"
 	else
 		warning "AuthenticationMode $auth_mode not supported"
 	fi
