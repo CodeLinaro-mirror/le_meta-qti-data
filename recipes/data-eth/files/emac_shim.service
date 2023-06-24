@@ -1,0 +1,14 @@
+Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+[Unit]
+Description=EMAC_SHIM
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe stmmac
+ExecStop=/sbin/rmmod stmmac
+
+[Install]
+WantedBy=multi-user.target
