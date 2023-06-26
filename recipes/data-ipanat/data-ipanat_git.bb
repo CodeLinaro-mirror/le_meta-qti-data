@@ -10,7 +10,7 @@ PR = "r1"
 DEPENDS  = "glib-2.0"
 DEPENDS += "virtual/kernel"
 
-EXTRA_OECONF = "--with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include \
+EXTRA_OECONF = "--with-sanitized-headers=${KERNEL_PREBUILT_PATH}/msm-kernel/usr/include/ \
                 --with-glib"
 
 FILESPATH =+ "${WORKSPACE}/dataipa:"
