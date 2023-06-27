@@ -2,9 +2,9 @@ inherit autotools-brokensep
 
 DESCRIPTION = "Ethernet bridge tables - Linux Ethernet filter for the Linux bridge"
 HOMEPAGE = "http://ebtables.sourceforge.net/"
-LICENSE = "GPLv2"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://COPYING;md5=53b4a999993871a28ab1488fdbd2e73e"
-RDEPENDS_${PN}  += "perl"
+RDEPENDS:${PN}  += "perl"
 SECTION  = "console/network"
 PRIORITY = "optional"
 DEPENDS        = "virtual/kernel"
@@ -28,16 +28,16 @@ EXTRA_OECONF = "--without-crypto \
 
 PACKAGES = "${PN} ${PN}-doc"
 INHIBIT_PACKAGE_DEBUG_SPLIT = "1"
-INSANE_SKIP_${PN} += "file-rdeps"
+INSANE_SKIP:${PN} += "file-rdeps"
 
-FILES_${PN}     += "${libdir}/lib*.so"
-FILES_${PN}     += "${sbindir}/*"
-FILES_${PN}-doc += "${mandir}/*"
+FILES:${PN}     += "${libdir}/lib*.so"
+FILES:${PN}     += "${sbindir}/*"
+FILES:${PN}-doc += "${mandir}/*"
 
 do_configure() {
         :
 }
-do_configure_append() {
+do_configure:append() {
     if [ -d "${S}" ]; then
         install -m 555 ${S}/include/linux/netfilter_bridge/ebt_ulog.h ${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/ebt_ulog.h
     fi

@@ -15,10 +15,10 @@ SRC_URI = "git://codeaurora.org/quic/le/pimd.git;protocol=git;branch=github/mast
            file://0001-pimd-Resolve-wrong-missing-if-clause-gaurds-error-fo.patch \
 "
 
-SRC_URI_append_sdxprairie += "\
+SRC_URI:append_sdxprairie += "\
            file://Resolve-Implicit-fallthrough-Werror.patch "
 
-SRC_URI_append_9615-cdp += " \
+SRC_URI:append_9615-cdp += " \
            file://defs_fix_multicast_subnetmask_on_rmnet.patch \
            file://vif_fix_multicast_subnetmask_on_rmnet.patch \
            file://pimd.conf \
@@ -33,6 +33,6 @@ do_compile() {
 do_install() {
         make install DESTDIR=${D}
 }
-do_install_append_9615-cdp() {
+do_install:append_9615-cdp() {
     install -m 0755 ${WORKDIR}/pimd.conf ${D}${sysconfdir}
 }

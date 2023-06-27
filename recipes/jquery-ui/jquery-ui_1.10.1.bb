@@ -24,9 +24,9 @@ SRC_URI = "http://jqueryui.com/resources/download/jquery-ui-${PV}.custom.zip"
 
 S = "${WORKDIR}/jquery-ui-${PV}.custom"
 
-FILES_${PN} += "/WEBSERVER/www/js/jquery-ui.js"
-FILES_${PN} += "/WEBSERVER/www/js/jquery-ui.css"
-FILES_${PN} += "/WEBSERVER/www/js/images/ui-icons_888888_256x240.png"
+FILES:${PN} += "/WEBSERVER/www/js/jquery-ui.js"
+FILES:${PN} += "/WEBSERVER/www/js/jquery-ui.css"
+FILES:${PN} += "/WEBSERVER/www/js/images/ui-icons_888888_256x240.png"
 
 SRC_URI[md5sum] = "a3aa1236c1a3a8a9e14f31716a3ec8f7"
 SRC_URI[sha256sum] = "069839601aad81e7f0f67e95847980e02aca8158d4135eec3f936a0920574b80"

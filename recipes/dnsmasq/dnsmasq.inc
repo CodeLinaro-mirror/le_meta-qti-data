@@ -2,7 +2,7 @@ DESCRIPTION = "Dnsmasq is a lightweight, easy to configure DNS forwarder and DHC
 HOMEPAGE = "http://www.thekelleys.org.uk/dnsmasq/doc.html"
 SECTION = "console/network"
 LICENSE = "GPL"
-LICENSE_${PN} = "GPL"
+LICENSE:${PN} = "GPL"
 LIC_FILES_CHKSUM = "file://COPYING;md5=0636e73ff0215e8d672dc4c32c317bb3"
 
 PR = "r4"
@@ -42,5 +42,5 @@ do_install () {
         install -m 0755 ${WORKDIR}/dnsmasq_script.sh ${D}${base_bindir}
 }
 
-CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
-FILES_${PN} += "${sysconfdir}/data/dnsmasq.conf"
+CONFFILES:${PN} = "${sysconfdir}/data/dnsmasq.conf"
+FILES:${PN} += "${sysconfdir}/data/dnsmasq.conf"

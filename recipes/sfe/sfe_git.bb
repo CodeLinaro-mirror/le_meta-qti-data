@@ -9,7 +9,7 @@ FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://shortcut-fe/shortcut-fe/ "
 
 S = "${WORKDIR}/shortcut-fe/shortcut-fe"
-FILES_${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
+FILES:${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
 
 do_install() {
     module_do_install
@@ -30,6 +30,6 @@ do_module_signing() {
 
 addtask module_signing after do_package before do_package_write_ipk
 
-RPROVIDES_${PN} += "${@'kernel-module-shortcut-fe-cm-${KERNEL_VERSION}'.replace('_', '-')}"
-RPROVIDES_${PN} += "${@'kernel-module-shortcut-fe-ipv6-${KERNEL_VERSION}'.replace('_', '-')}"
-RPROVIDES_${PN} += "${@'kernel-module-shortcut-fe-${KERNEL_VERSION}'.replace('_', '-')}"
+RPROVIDES:${PN} += "${@'kernel-module-shortcut-fe-cm-${KERNEL_VERSION}'.replace('_', '-')}"
+RPROVIDES:${PN} += "${@'kernel-module-shortcut-fe-ipv6-${KERNEL_VERSION}'.replace('_', '-')}"
+RPROVIDES:${PN} += "${@'kernel-module-shortcut-fe-${KERNEL_VERSION}'.replace('_', '-')}"

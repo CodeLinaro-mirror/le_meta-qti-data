@@ -1,7 +1,7 @@
 DESCRIPTION = "libnfnetlink is the low-level library for netfilter \
 related kernel/userspace communication"
 SECTION = "devel/libs"
-LICENSE = "GPLv2+"
+LICENSE = "GPL-2.0-or-later"
 LIC_FILES_CHKSUM = "file://README;md5=287b7901363dda6ef7176fadee6972ed"
 
 PR = "r0"

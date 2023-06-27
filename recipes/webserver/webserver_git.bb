@@ -10,7 +10,7 @@ SRC_URI = "file://webserver"
 
 S = "${WORKDIR}/webserver"
 
-EXTRA_OEMAKE_append = " CROSS=${HOST_PREFIX}"
+EXTRA_OEMAKE:append = " CROSS=${HOST_PREFIX}"
 
 INITSCRIPT_NAME = "webserver"
 INITSCRIPT_PARAMS = "start 98 5 . stop 15 0 1 6 ."

@@ -4,7 +4,7 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 
 inherit packagegroup
 
-LICENSE =  "GPLv2+ & GPLv2 &  BSD"
+LICENSE =  "GPL-2.0-or-later & GPL-2.0-only &  BSD"
 
 PROVIDES = "${PACKAGES}"
 
@@ -13,11 +13,11 @@ PACKAGES = ' \
     ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
     '
 
-RDEPENDS_packagegroup-qti-data = ' \
+RDEPENDS:packagegroup-qti-data = ' \
     ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
     '
 
-RDEPENDS_packagegroup-qti-network-tools = " \
+RDEPENDS:packagegroup-qti-network-tools = " \
     iproute2 \
     iptables \
     dnsmasq \

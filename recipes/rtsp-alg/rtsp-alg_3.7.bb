@@ -1,6 +1,6 @@
 inherit autotools-brokensep module qperf
 DESCRIPTION = "RSTP ALG"
-LICENSE = "GPLv2"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://nf_nat_rtsp.c;beginline=2;endline=30;md5=1d494e4d4253d1fcdcbfe334f8a4cd0a"
 
 do_unpack[deptask] = "do_populate_sysroot"
