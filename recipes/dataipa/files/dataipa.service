@@ -1,5 +1,6 @@
 [Unit]
 Description= Load dataipa dlkm
+Requires= systemrw.mount
 DefaultDependencies=no
 
 [Service]
