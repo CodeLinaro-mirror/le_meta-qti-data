@@ -6,9 +6,9 @@ LIC_FILES_CHKSUM = "file://README;beginline=28;endline=56;md5=55c476aa11882ce6de
 
 DEPENDS = "dbus libnl openssl virtual/kernel"
 
-# HostAp tag=hostap_2_9
+# HostAp tag=hostap_2_10
 SRC_URI  = "git://git.codelinaro.org/clo/le/hostap.git;protocol=http;branch=hostap/main"
-SRCREV = "ca8c2bd28ad53f431d6ee60ef754e98cfdb4c17b"
+SRCREV = "cff80b4f7d3c0a47c052e8187d671710f48939e4"
 
 # Use upstream as fallback
 MIRRORS += "git://git.codelinaro.org/clo/le/hostap.git;protocol=http;branch=hostap/main git://w1.fi/hostap.git;protocol=http;branch=main \n "
@@ -46,9 +46,9 @@ do_compile() {
 
 do_install() {
 	install -m 0755 \
-		${S}/hostapd/hostapd -D ${D}${sbindir}/hostapd-2.9
+		${S}/hostapd/hostapd -D ${D}${sbindir}/hostapd-2.10
 	install -m 0755 \
-		${S}/wpa_supplicant/wpa_supplicant -D ${D}${sbindir}/wpa_supplicant-2.9
+		${S}/wpa_supplicant/wpa_supplicant -D ${D}${sbindir}/wpa_supplicant-2.10
 }
 
 # vim: filetype=bitbake

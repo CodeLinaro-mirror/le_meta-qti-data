@@ -33,5 +33,5 @@ RDEPENDS_packagegroup-qti-data = ' \
 	strace \
 	${@oe.utils.conditional('ETHADAPT', 'True', 'eth-adaption-layer', '', d)} \
 	${@oe.utils.conditional('BASEMACHINE', 'sdxprairie', 'data-rc', '', d)} \
-	${@oe.utils.conditional('BASEMACHINE', 'sdxprairie', 'hostap-2.9', '', d)} \
+	${@oe.utils.conditional('BASEMACHINE', 'sdxprairie', 'hostap-2.10', '', d)} \
     '

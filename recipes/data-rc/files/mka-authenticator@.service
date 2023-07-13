@@ -30,7 +30,7 @@
 # SPDX-License-Identifier: BSD-3-Clause-Clear
 
 [Unit]
-SourcePath=/usr/sbin/hostapd-2.9
+SourcePath=/usr/sbin/hostapd-2.10
 Description=MACSEC Key Agreement Protocol (IEEE 802.1X) Authenticator
 BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
@@ -39,7 +39,7 @@ After=sys-subsystem-net-devices-%i.device
 # Increase real interface MTU by 36B to accomodate MACSEC header+icv
 # and VLAN header overhead
 ExecStartPre=/sbin/ip link set mtu 1536 dev %i
-ExecStart=/usr/sbin/hostapd-2.9 -i %i /etc/data/hostapd-%i.conf
+ExecStart=/usr/sbin/hostapd-2.10 -i %i /etc/data/hostapd-%i.conf
 ExecStopPost=/sbin/ip link set mtu 1500 dev %i
 
 [Install]
