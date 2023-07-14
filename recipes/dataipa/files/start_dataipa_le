@@ -28,7 +28,7 @@
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-export MODULE_BASE=/lib/modules/`uname -r`/extra
+export MODULE_BASE=/usr/lib/modules/`uname -r`/extra
 set -e
 
 
