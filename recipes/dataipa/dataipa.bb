@@ -20,7 +20,7 @@ S = "${WORKDIR}/src/dataipa"
 
 do_compile() {
     cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
-    BUILD_CONFIG=${KERNEL_CONFIG} \
+    BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
     EXT_MODULES=../../dataipa \
     ROOTDIR=${WORKSPACE}/ \
     MODULE_OUT=${WORKDIR}/src/dataipa-modules-out \
