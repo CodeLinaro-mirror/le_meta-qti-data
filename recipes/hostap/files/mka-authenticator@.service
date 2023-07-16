@@ -8,11 +8,14 @@ BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
 
 [Service]
+User=macsec
+Group=macsec
 # Increase real interface MTU by 36B to accomodate MACSEC header+icv
 # and VLAN header overhead
-ExecStartPre=/sbin/ip link set mtu 1536 dev %i
+#ExecStartPre=/sbin/ip link set mtu 1536 dev %i
 ExecStart=/usr/sbin/mka_authenticator -i %i /etc/data/mka_authenticator-%i.conf
-ExecStopPost=/sbin/ip link set mtu 1500 dev %i
+#ExecStopPost=/sbin/ip link set mtu 1500 dev %i
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
 
 [Install]
 WantedBy=multi-user.target

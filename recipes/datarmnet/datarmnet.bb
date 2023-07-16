@@ -32,6 +32,10 @@ do_compile() {
 
 do_install() {
     install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
+    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
+
+    # Copy the modules that contain debug symbols to the deploy directory
+    cp ${WORKDIR}/datarmnet/core-out/rmnet_core.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
     #Signing and installing the datarmnet module
     LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \

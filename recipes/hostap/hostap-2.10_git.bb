@@ -27,11 +27,15 @@ SRC_URI  += "file://mka_authenticator-eth0.conf"
 
 SRC_URI  += "file://mka_supplicant-eth1.conf"
 SRC_URI  += "file://mka_authenticator-eth1.conf"
+SRC_URI  += "file://macsec_systemd_tmpfiles.conf"
 
 # Git based uris are unpacked into git/ directory
 S = "${WORKDIR}/git"
 
-inherit pkgconfig
+inherit pkgconfig useradd
+
+USERADD_PACKAGES = "${PN}"
+USERADD_PARAM_${PN} = "--home /usr/sbin --no-create-home --shell /bin/false --user-group macsec"
 
 do_configure() {
 	cp -f ${WORKDIR}/hostapd.buildconfig ${S}/hostapd/.config
@@ -74,6 +78,8 @@ do_install_append() {
 
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 		install -d ${D}${systemd_system_unitdir}
+		install -d ${D}${sysconfdir}/tmpfiles.d
+		install -m 0644 ${WORKDIR}/macsec_systemd_tmpfiles.conf -D ${D}${sysconfdir}/tmpfiles.d/macsec_systemd_tmpfiles.conf
 
 		# MKA (MACSEC) Supplicant and Authenticator services
 		install -m 0644 ${WORKDIR}/mka-supplicant@.service -D ${D}${systemd_system_unitdir}/mka-supplicant@.service
