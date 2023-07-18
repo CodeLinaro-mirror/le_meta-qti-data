@@ -1,0 +1,64 @@
+include $(TOPDIR)/rules.mk
+include $(INCLUDE_DIR)/kernel.mk
+
+PKG_NAME:=aqc_ioss
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+
+ifeq ($(VARIANT),perf)
+  COMPILE_MODE :=perf
+else
+  COMPILE_MODE :=debug
+endif
+
+LOCAL_SRC := $(TOPDIR)/src/data-eth/drivers/$(PKG_NAME)
+EMAC_ADDR :=lib/modules/emac/
+
+include $(INCLUDE_DIR)/package.mk
+
+define KernelPackage/$(PKG_NAME)
+ SECTION:=aqc_ioss
+ CATEGORY:=Kernel modules
+ SUBMENU:=Network Devices
+ TITLE:= AQC IOSS Driver
+ DEPENDS:= +kmod-ioss
+endef
+
+define KernelPackage/$(PKG_NAME)/Description
+	AQC IOSS Driver
+endef
+
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+endef
+
+define Build/Compile
+	$(MAKE) -C "$(LINUX_DIR)" \
+	M="$(PKG_BUILD_DIR)" \
+	CONFIG_AQFWD_IOSS=m \
+	KBUILD_EXTRA_SYMBOLS=$(STAGING_DIR_TARGET)/usr/modules-symbols/ioss/Module.symvers \
+	modules
+endef
+
+define Build/InstallDev
+	$(INSTALL_DIR) $(STAGING_DIR)
+	mkdir -p  $(1)/usr/modules-symbols/$(PKG_NAME)
+	mkdir -p $(1)/$(EMAC_ADDR)/
+	mkdir -p  $(1)/usr/lib/
+	$(CP) $(PKG_BUILD_DIR)/aqc_ioss.ko $(1)/usr/lib/
+	$(CP) $(PKG_BUILD_DIR)/Module.symvers $(1)/usr/modules-symbols/$(PKG_NAME)/
+endef
+
+define KernelPackage/$(PKG_NAME)/install
+	$(INSTALL_DIR) $(1)/$(EMAC_ADDR)/
+	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/aqc_ioss.ko $(1)/$(EMAC_ADDR)/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/aqc_ioss.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_DIR) $(1)/etc/initscripts/
+	$(INSTALL_BIN) ./files/aqc_ioss.init $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/start_aqc_ioss_modules  $(1)/etc/initscripts/
+endef
+
+$(eval $(call KernelPackage,$(PKG_NAME)))

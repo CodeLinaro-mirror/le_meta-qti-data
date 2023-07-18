@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+
+#Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+START=91
+STOP=97
+
+start() {
+	/etc/initscripts/start_aqc_ioss_modules start
+}
+
+stop() {
+	echo "Stopping aqc_ioss Instance"
+}
