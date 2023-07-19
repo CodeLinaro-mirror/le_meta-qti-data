@@ -12,30 +12,13 @@ PACKAGES = ' \
     '
 
 RDEPENDS_packagegroup-qti-data = ' \
-    iproute2 \
-    iptables \
-    ebtables \
-    dhcpcd \
-    ddclient \
-    dnsmasq \
     data-ipa-cfg-mgr \
+    dataipa \
+    data-eth \
     ethtool \
     tcpdump \
     conntrack-tools \
-    data-oss \
-    datarmnet \
-    ppp \
-    rtsp-alg \
-    pimd \
-    iputils \
-    jquery \
-    jquery-ui \
-    strace \
-    sfe \
     gsb \
-    locationdb \
-    zonedetect \
-    ianatzdata \
     '
 
 RDEPENDS_packagegroup-qti-data-1g = ' \
@@ -49,13 +32,8 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     libavahi-client \
     libavahi-glib \
     tinyproxy \
-    minidlna \
-    miniupnpd \
-    qps615 \
     lighttpd \
-    embms-kernel \
     libgpiod \
     phytool \
     data-rc \
-    hostap-2.9 \
     '

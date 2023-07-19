@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
-PKG_NAME:=ioss
+PKG_NAME:=r8125_ioss
 PKG_VERSION:=1.0
 PKG_RELEASE:=1
 
@@ -17,18 +17,16 @@ EMAC_ADDR :=lib/modules/emac/
 include $(INCLUDE_DIR)/package.mk
 
 define KernelPackage/$(PKG_NAME)
- SECTION:=ioss
+ SECTION:=r8125_ioss
  CATEGORY:=Kernel modules
  SUBMENU:=Network Devices
- TITLE:= IOSS Driver
- DEPENDS:= +kmod-r8125
+ TITLE:= r8125 IOSS Driver
+ DEPENDS:= +kmod-r8125 +kmod-ioss
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
-	IOSS Driver
+	r8125 IOSS Driver
 endef
-
-TARGET_CFLAGS += -I$(TOOLCHAIN_DIR)/include/linux/ethtool.h
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
@@ -38,7 +36,9 @@ endef
 define Build/Compile
 	$(MAKE) -C "$(LINUX_DIR)" \
 	M="$(PKG_BUILD_DIR)" \
-	CONFIG_IOSS=m \
+	CONFIG_R8125_IOSS=m \
+	KBUILD_EXTRA_SYMBOLS=$(STAGING_DIR_TARGET)/usr/modules-symbols/ioss/Module.symvers \
+	KBUILD_EXTRA_SYMBOLS+=$(STAGING_DIR_TARGET)/usr/modules-symbols/r8125/Module.symvers \
 	modules
 endef
 
@@ -47,19 +47,19 @@ define Build/InstallDev
 	mkdir -p  $(1)/usr/modules-symbols/$(PKG_NAME)
 	mkdir -p $(1)/$(EMAC_ADDR)/
 	mkdir -p  $(1)/usr/lib/
-	$(CP) $(PKG_BUILD_DIR)/ioss.ko $(1)/usr/lib/
+	$(CP) $(PKG_BUILD_DIR)/r8125_ioss.ko $(1)/usr/lib/
 	$(CP) $(PKG_BUILD_DIR)/Module.symvers $(1)/usr/modules-symbols/$(PKG_NAME)/
 endef
 
 define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/$(EMAC_ADDR)/
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(1)/$(EMAC_ADDR)/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/r8125_ioss.ko $(1)/$(EMAC_ADDR)/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/r8125_ioss.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/
-	$(INSTALL_BIN) ./files/ioss.init $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/start_ioss_modules  $(1)/etc/initscripts/
+	$(INSTALL_BIN) ./files/r8125_ioss.init $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/start_r8125_ioss_modules  $(1)/etc/initscripts/
 endef
 
 $(eval $(call KernelPackage,$(PKG_NAME)))
