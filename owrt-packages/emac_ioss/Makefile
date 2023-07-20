@@ -27,6 +27,8 @@ define KernelPackage/$(PKG_NAME)/Description
 	EMAC IOSS Driver
 endef
 
+ifneq ($(KERNEL_PLATFORM_TARGET), sdxbaagha-128m)
+
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
@@ -53,5 +55,25 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/iemac_ioss.ko $(1)/$(EMAC_ADDR)/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/iemac_ioss.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 endef
+
+else
+
+define Build/Prepare
+	@true
+endef
+
+define Build/Compile
+	@true
+endef
+
+define Build/InstallDev
+	@true
+endef
+
+define KernelPackage/$(PKG_NAME)/install
+	@true
+endef
+
+endif
 
 $(eval $(call KernelPackage,$(PKG_NAME)))
