@@ -38,6 +38,9 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_core.ko $(1)/lib/modules/
 	$(SIGN_KEY) $(PKG_BUILD_DIR)/rmnet_eth.ko
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_eth.ko $(1)/lib/modules/
+	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_core.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_eth.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/$(PKG_NAME).init $(1)/etc/init.d
 endef
