@@ -37,8 +37,8 @@ case "$1" in
  start)
 	echo -n "Starting/Loading IOSS module: "
 	echo "IOSS:start/load" > /dev/kmsg
-	insmod /lib/modules/emac/ioss.ko
-	insmod /lib/modules/emac/iemac_ioss.ko
+	#insmod /lib/modules/emac/ioss.ko
+	#insmod /lib/modules/emac/iemac_ioss.ko
 	echo "done loading IOSS modules"
 	;;
  stop)
