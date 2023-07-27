@@ -21,8 +21,6 @@ SRCREV = "274eaed5b17f664e4ac6c79f1ba854b55f15a3a3"
 
 S = "${WORKDIR}/git"
 
-RPROVIDES_${PN} += "iperf3"
-
 do_compile_prepend () {
  cd ${S}
 }
