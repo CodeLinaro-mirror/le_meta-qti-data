@@ -1,0 +1,26 @@
+From bbe1b76880bc9839acf674d1942fdfc1c7e33592 Mon Sep 17 00:00:00 2001
+From: Utkrisht Sikka <quic_usikka@quicinc.com>
+Date: Mon, 7 Aug 2023 11:37:07 +0530
+Subject: [PATCH] resolved linking error in iproute2
+
+Signed-off-by: Utkrisht Sikka <quic_usikka@quicinc.com>
+---
+ ip/ipmroute.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ip/ipmroute.c b/ip/ipmroute.c
+index be93a98..82b1659 100644
+--- a/ip/ipmroute.c
++++ b/ip/ipmroute.c
+@@ -44,7 +44,7 @@ static void usage(void)
+ 	exit(-1);
+ }
+ 
+-struct rtfilter
++static struct rtfilter
+ {
+ 	int tb;
+ 	int af;
+-- 
+2.17.1
+
