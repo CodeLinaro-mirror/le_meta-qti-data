@@ -37,6 +37,10 @@ do_install() {
     # Copy the modules that contain debug symbols to the deploy directory
     cp ${WORKDIR}/datarmnet/core-out/rmnet_core.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
+    # Strip debug symbols
+    ${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/9.3.0/strip --strip-debug \
+    ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
+
     #Signing and installing the datarmnet module
     LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
     ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \

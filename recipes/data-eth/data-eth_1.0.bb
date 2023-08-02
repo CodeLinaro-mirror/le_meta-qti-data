@@ -55,6 +55,32 @@ do_install_append() {
 # execute between compile and package stages.
 addtask copy_kernel_module after do_compile before do_package
 
+do_strip_module() {
+    # Strip debug symbols
+    strip_tool="${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/9.3.0/strip"
+
+    if [ -f ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko ]; then
+        ${strip_tool} --strip-debug \
+        ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
+    fi
+
+    if [ -f ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko ]; then
+        ${strip_tool} --strip-debug \
+        ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
+    fi
+
+    if [ -f ${PKGDEST}/kernel-module-r8125-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/r8125/src/r8125.ko ]; then
+        ${strip_tool} --strip-debug \
+        ${PKGDEST}/kernel-module-r8125-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/r8125/src/r8125.ko
+    fi
+
+    if [ -f ${PKGDEST}/kernel-module-r8125-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/r8125_ioss/r8125_ioss.ko ]; then
+        ${strip_tool} --strip-debug \
+        ${PKGDEST}/kernel-module-r8125-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/r8125_ioss/r8125_ioss.ko
+    fi
+}
+
+addtask strip_module after do_package before do_package_write_ipk
 
 FILES_${PN}+="${systemd_unitdir}/system/emac_ioss.service"
 FILES_${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
