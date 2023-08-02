@@ -12,7 +12,8 @@ SRC_URI = "http://www.codeaurora.org/mirrored_source/quic/le/dnsmasq-${PV}.tar.g
            file://init \
            file://dnsmasq.conf \
            file://dnsmasq_script.sh\
-           file://dnsmasq.service"
+           file://dnsmasq.service \
+           file://dnsmasq_header.patch "
 
 EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \

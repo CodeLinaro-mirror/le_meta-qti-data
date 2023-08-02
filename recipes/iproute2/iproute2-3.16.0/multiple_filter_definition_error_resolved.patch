@@ -1,0 +1,27 @@
+From cc56a40c015eb3c359f98ad3b0fea001cef5eae8 Mon Sep 17 00:00:00 2001
+From: Amitava Das <quic_amitdas@quicinc.com>
+Date: Tue, 8 Aug 2023 14:24:57 +0530
+Subject: [PATCH]   Mutiple filter definition error   solved for iproute2
+
+Change-Id: Ie14c9a592edd933335d553bd5f27ea945bc4d20a
+Signed-off-by: Amitava Das <quic_amitdas@quicinc.com>
+---
+ ip/ipmroute.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ip/ipmroute.c b/ip/ipmroute.c
+index be93a98..82b1659 100644
+--- a/ip/ipmroute.c
++++ b/ip/ipmroute.c
+@@ -44,7 +44,7 @@ static void usage(void)
+ 	exit(-1);
+ }
+ 
+-struct rtfilter
++static struct rtfilter
+ {
+ 	int tb;
+ 	int af;
+-- 
+2.17.1
+

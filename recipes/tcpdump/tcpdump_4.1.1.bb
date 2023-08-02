@@ -14,9 +14,9 @@ SRC_URI = " \
 	file://0001-minimal-IEEE802.15.4-allowed.patch \
 	file://ipv6-cross.patch \
 	file://configure.patch \
-        https://raw.githubusercontent.com/openembedded/meta-oe/master/meta-networking/recipes-support/tcpdump/tcpdump/unnecessary-to-check-libpcap.patch;name=patch \
+        https://raw.githubusercontent.com/openembedded/meta-openembedded/53d55216c8c721d3b66ec8f968737bf081def870/meta-networking/recipes-support/tcpdump/tcpdump/unnecessary-to-check-libpcap.patch \
 "
-
+SRC_URI[sha256sum] = "c8273bdf22860e2c00fd04e168f8cd44385d83591a6529f6e888a845b804e6a9"
 inherit autotools-brokensep
 CACHED_CONFIGUREVARS = "ac_cv_linux_vers=${ac_cv_linux_vers=2} td_cv_buggygetaddrinfo=cross"
 

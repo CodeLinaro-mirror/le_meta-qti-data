@@ -10,20 +10,14 @@ PROVIDES = "${PACKAGES}"
 
 PACKAGES = ' \
     packagegroup-qti-data \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
     '
 
 RDEPENDS:packagegroup-qti-data = ' \
-    ${@bb.utils.contains_any("COMBINED_FEATURES", "qti-wifi ethernet", "packagegroup-qti-network-tools", "", d)} \
-    '
-
-RDEPENDS:packagegroup-qti-network-tools = " \
     iproute2 \
     iptables \
     dnsmasq \
-    ebtables \
     ethtool \
     dhcpcd \
     tcpdump \
     conntrack-tools \
-    "
+    '
