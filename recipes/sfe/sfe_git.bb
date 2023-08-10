@@ -30,6 +30,6 @@ do_module_signing() {
 
 addtask module_signing after do_package before do_package_write_ipk
 
-RPROVIDES_${PN} += "${@'kernel-module-shortcut-fe-cm-${KERNEL_VERSION}'.replace('_', '-')}"
-RPROVIDES_${PN} += "${@'kernel-module-shortcut-fe-ipv6-${KERNEL_VERSION}'.replace('_', '-')}"
-RPROVIDES_${PN} += "${@'kernel-module-shortcut-fe-${KERNEL_VERSION}'.replace('_', '-')}"
+RPROVIDES_${PN} += "kernel-module-shortcut-fe-cm-${KERNEL_VERSION}"
+RPROVIDES_${PN} += "kernel-module-shortcut-fe-ipv6-${KERNEL_VERSION}"
+RPROVIDES_${PN} += "kernel-module-shortcut-fe-${KERNEL_VERSION}"
