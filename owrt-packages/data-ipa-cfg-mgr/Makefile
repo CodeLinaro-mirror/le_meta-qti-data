@@ -21,7 +21,7 @@ define Package/$(PKG_NAME)/Description
  IPACM
 endef
 
-TARGET_CFLAGS += -g \
+TARGET_CFLAGS += -Og \
 	-DDEBUG \
 	-DFEATURE_ETH_BRIDGE_LE \
 	-DFEATURE_IPA_V3 \
