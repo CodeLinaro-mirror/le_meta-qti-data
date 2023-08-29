@@ -1,0 +1,13 @@
+#!/bin/sh /etc/rc.common
+#Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+# mka-authenticator start
+
+USE_PROCD=1
+PROCD_DEBUG=1
+
+start_service() {
+		procd_open_instance $1
+		procd_set_param command /usr/sbin/mka_authenticator -i $1 /etc/mka_authenticator-$1.conf
+		procd_close_instance
+}
