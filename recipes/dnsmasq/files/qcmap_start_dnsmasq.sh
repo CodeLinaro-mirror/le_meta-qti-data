@@ -27,6 +27,7 @@ if [ ${type_inst} == "vlan" ]; then
       --dhcp-leasefile=${dhcp_leasefile} \
       --addn-hosts=${addn_hosts} \
       --pid-file=${pid_file} \
+      --resolv-file=${resolv_file} \
       --interface=${interface} \
       --except-interface=lo \
       -z \
@@ -42,6 +43,7 @@ if [ ${type_inst} == "vlan" ]; then
       --dhcp-leasefile=${dhcp_leasefile} \
       --addn-hosts=${addn_hosts} \
       --pid-file=${pid_file} \
+      --resolv-file=${resolv_file} \
       --interface=${interface} \
       --except-interface=lo \
       -z \
