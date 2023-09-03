@@ -3,18 +3,14 @@
 #Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
 #SPDX-License-Identifier: BSD-3-Clause-Clear
 
-USE_PROCD=1
-PROCD_DEBUG=1
 
 START=03
-STOP=97
+STOP=96
 
-start_service() {
-	procd_open_instance
-	procd_set_param command /etc/initscripts/start_dataipa_le start
-	procd_close_instance
+start() {
+	/etc/initscripts/start_dataipa_le start
 }
 
-stop_service() {
+stop() {
 	echo "Stopping dataipa Instance"
 }
