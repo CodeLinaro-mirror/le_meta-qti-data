@@ -21,9 +21,10 @@ index 0000000..a93e8b5
 +
 +INCLUDE_DIR += ../inc
 +CFLAGS += -I$(INCLUDE_DIR) \
-+	-Wundef \
++	-Wundef             \
 +	-Wstrict-prototypes \
-+	-Wno-trigraphs
++	-Wno-trigraphs      \
++	-fpie
 +
 +CPPFLAGS += "-std=c++0x"
 +
