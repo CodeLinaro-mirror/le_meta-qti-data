@@ -10,7 +10,7 @@ include $(INCLUDE_DIR)/package.mk
 ifeq ($(BOARD),sdx35)
 	LOCAL_SRC:=$(TOPDIR)/src/dataipa/ipanat
 
-else ifeq ($(TARGET_MACHINE),sdx65)
+else ifeq ($(BOARD),sdx65)
 	LOCAL_SRC:=$(TOPDIR)/src/kernel/msm-5.4/techpack/dataipa/ipanat
 
 else ifeq ($(BOARD),sdx75)
