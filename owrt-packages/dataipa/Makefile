@@ -41,8 +41,14 @@ define Build/InstallDev
 	mkdir -p  $(1)/usr/lib/
 endef
 
-
 define KernelPackage/$(PKG_NAME)/install
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ecmipam.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko
 	$(INSTALL_DIR) $(1)/lib/modules/ipa/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko $(1)/lib/modules/ipa/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(1)/lib/modules/ipa/
