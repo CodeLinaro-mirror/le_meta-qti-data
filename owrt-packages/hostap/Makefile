@@ -23,7 +23,7 @@ define Package/$(PKG_NAME)
 	SECTION:=Data
 	CATEGORY:=QTI-PACKAGES
 	TITLE:=hostap
-	USERID:=macsec=1003:macsec=1003
+	USERID:=macsec:macsec
 	URL:=https://w1.fi/hostap.git
 	DEPENDS:=+libnl +libopenssl +libstdcpp
 endef
@@ -99,6 +99,8 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) files/mka-authenticator.init $(1)/etc/init.d/
 
+	$(INSTALL_DIR) $(1)/etc/capabilities
+	$(INSTALL_DATA) files/macsec.json $(1)/etc/capabilities
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
