@@ -1,0 +1,12 @@
+
+[Unit]
+Description=Load R8152 Kernel Module
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe r8152_rtl
+ExecStop=/sbin/rmmod r8152_rtl
+
+[Install]
+WantedBy=multi-user.target
