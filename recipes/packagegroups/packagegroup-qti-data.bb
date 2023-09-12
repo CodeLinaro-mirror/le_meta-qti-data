@@ -38,6 +38,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     zonedetect \
     ianatzdata \
     pmipv6 \
+    r8152 \
     '
 
 RDEPENDS_packagegroup-qti-data-1g = ' \
