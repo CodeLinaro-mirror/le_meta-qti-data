@@ -1,8 +1,8 @@
 [Unit]
 SourcePath=/usr/bin/ipacm
 Description= IPACM Service
-Before= QCMAP_ConnectionManagerd.service
-After= dataipa.service local-fs.target systemd-tmpfiles-setup.service
+Before= QCMAP_ConnectionManagerd.service local-fs.target
+After= dataipa.service systemd-tmpfiles-setup.service
 Requires= systemrw.mount
 DefaultDependencies=no
 
