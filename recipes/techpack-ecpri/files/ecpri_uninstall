@@ -3,6 +3,7 @@
 #Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
 #SPDX-License-Identifier: BSD-3-Clause-Clear
 
+/sbin/rmmod /usr/lib/modules/ldmm.ko
 /sbin/rmmod /usr/lib/modules/ecpri_core.ko
 #/sbin/rmmod /usr/lib/modules/lassen_macsec.ko
 /sbin/rmmod /usr/lib/modules/lassen_secure_eip.ko

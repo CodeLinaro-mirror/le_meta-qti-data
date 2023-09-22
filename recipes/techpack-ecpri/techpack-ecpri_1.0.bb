@@ -49,6 +49,7 @@ do_compile() {
     MODULE_LASSEN_MACSEC=m \
     MODULE_LASSEN_QCOM_AW_PHY=m \
     MODULE_LASSEN_SECURE_EIP=m \
+    MODULE_LASSEN_DATA_MODULES_MGR=m \
     MODULE_OUT=${WORKDIR}/datacsm-kernel \
     ECPRI_PERF=${ECPRI_PERF} \
     OUT_DIR=${KERNEL_OUT_PATH}/ \
@@ -75,6 +76,7 @@ do_install() {
     do_strip_and_sign_dlkm ${WORKDIR}/datacsm-kernel/drivers/macsec/lassen_macsec.ko ${DEBUG_SYMBOLS}
     do_strip_and_sign_dlkm ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/lassen_qcom_aw_phy.ko ${DEBUG_SYMBOLS}
     do_strip_and_sign_dlkm ${WORKDIR}/datacsm-kernel/drivers/secure_eip/lassen_secure_eip.ko ${DEBUG_SYMBOLS}
+    do_strip_and_sign_dlkm ${WORKDIR}/datacsm-kernel/drivers/common/lassen_data_modules_mgr/ldmm.ko ${DEBUG_SYMBOLS}
 
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/ecpri_dmam.ko -D ${WORKDIR}/ecpri_dmam.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/gsim.ko -D ${WORKDIR}/gsim.ko
@@ -84,6 +86,7 @@ do_install() {
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/macsec/lassen_macsec.ko -D ${WORKDIR}/lassen_macsec.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/lassen_qcom_aw_phy.ko -D ${WORKDIR}/lassen_qcom_aw_phy.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/secure_eip/lassen_secure_eip.ko -D ${WORKDIR}/lassen_secure_eip.ko
+    install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/common/lassen_data_modules_mgr/ldmm.ko -D ${WORKDIR}/ldmm.ko
 
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/ecpri_dmam.ko -D ${D}${libdir}/modules/ecpri_dmam.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/gsim.ko -D ${D}${libdir}/modules/gsim.ko
@@ -93,11 +96,13 @@ do_install() {
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/macsec/lassen_macsec.ko -D ${D}${libdir}/modules/lassen_macsec.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/qcom_aw_phy/lassen_qcom_aw_phy.ko -D ${D}${libdir}/modules/lassen_qcom_aw_phy.ko
     install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/secure_eip/lassen_secure_eip.ko -D ${D}${libdir}/modules/lassen_secure_eip.ko
+    install -m 0755 ${WORKDIR}/datacsm-kernel/drivers/common/lassen_data_modules_mgr/ldmm.ko -D ${D}${libdir}/modules/ldmm.ko
 
     cp -r ${WORKSPACE}/datacsm-kernel/drivers/ecpri/ecpri_core/include/uapi/ecpri ${D}/usr/include/
     cp -r ${WORKSPACE}/datacsm-kernel/drivers/ecpri/ecpri_oxtor/include/uapi/ecpri ${D}/usr/include/
     cp -r ${WORKSPACE}/datacsm-kernel/drivers/qcom_aw_phy/include/uapi/qcom_aw_phy ${D}/usr/include/
     cp -r ${WORKSPACE}/datacsm-kernel/drivers/mtip/debug_eth/include/uapi/mtip_debug_eth ${D}/usr/include/
+    cp -r ${WORKSPACE}/datacsm-kernel/drivers/common/lassen_data_modules_mgr/include/uapi/ldmm ${D}/usr/include/
 
 	install -m 0755 \
 		${WORKDIR}/ecpri_install -D ${D}${bindir}/ecpri_install
@@ -121,6 +126,7 @@ do_deploy() {
     cp -rp ${WORKDIR}/lassen_macsec.ko ${DEPLOYDIR}/
     cp -rp ${WORKDIR}/lassen_qcom_aw_phy.ko ${DEPLOYDIR}/
     cp -rp ${WORKDIR}/lassen_secure_eip.ko ${DEPLOYDIR}/
+    cp -rp ${WORKDIR}/ldmm.ko ${DEPLOYDIR}/
 }
 
 addtask do_deploy after do_install
