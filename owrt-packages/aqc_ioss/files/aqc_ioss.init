@@ -1,0 +1,26 @@
+#!/bin/sh /etc/rc.common
+
+#Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+START=91
+STOP=97
+
+start() {
+	/etc/initscripts/start_aqc_ioss_modules start
+
+	if [[ $(cat /sys/class/net/eth0/device/device) == "0x04c0" ]]; then
+		echo "eth0 brought up by  atlantic-fwd"
+		ethtool -s eth0 wol pg
+		ethtool -N eth0 flow-type ip6 l4proto 58 action 0 loc 32
+		ethtool -N eth0 flow-type ether proto 0x0806 action 0 loc 16
+		ethtool -N eth0 flow-type ip4 l4proto 1  action 0 loc 33
+		ethtool -N eth0 flow-type ether proto 0x888E action 0 loc 17
+	else
+		echo "eth0 is not up by  atlantic-fwd"
+	fi
+}
+
+stop() {
+	echo "Stopping aqc_ioss Instance"
+}
