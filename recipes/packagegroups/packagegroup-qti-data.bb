@@ -23,5 +23,6 @@ RDEPENDS_packagegroup-qti-data = ' \
     rmnetbam \
     sfe \
     tcpdump \
+    iperf \
     '
 
