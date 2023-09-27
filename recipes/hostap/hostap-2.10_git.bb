@@ -43,7 +43,7 @@ do_configure() {
 }
 
 do_compile[depends] += "virtual/kernel:do_shared_workdir"
-EXTRA_OEMAKE = " EXTRA_CFLAGS='-I${STAGING_KERNEL_BUILDDIR}/usr/include -I${STAGING_INCDIR}/linux-msm/usr/include'"
+EXTRA_OEMAKE = " EXTRA_CFLAGS='-I${STAGING_INCDIR}/linux-msm/usr/include'"
 
 # hostapd and wpa_supplicant creates objects inside common src/ directory
 # that are ABI incompatible. We need to build the software one after another
