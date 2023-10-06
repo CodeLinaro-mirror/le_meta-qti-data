@@ -67,7 +67,7 @@ do_install() {
 }
 
 pkg_postinst_${PN}(){
-    chown -Rh radio:radio $D${sysconfdir}/data/ipa_config.txt
+    chown -Rh 1001:1001 $D${sysconfdir}/data/ipa_config.txt
 }
 
 FILES_${PN}+="${libdir}/modules/*"
