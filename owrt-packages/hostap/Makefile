@@ -83,15 +83,15 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/hostapd/hostapd $(1)/usr/sbin/mka_authenticator
 
-	$(INSTALL_DIR) $(1)/etc/
-	$(INSTALL_DATA) files/mka_authenticator-eth0.conf  $(1)/etc/
-	$(INSTALL_DATA) files/mka_authenticator-eth1.conf  $(1)/etc/
+	$(INSTALL_DIR) $(1)/etc/data
+	$(INSTALL_DATA) files/mka_authenticator-eth0.conf  $(1)/etc/data/
+	$(INSTALL_DATA) files/mka_authenticator-eth1.conf  $(1)/etc/data/
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/wpa_supplicant/wpa_supplicant $(1)/usr/sbin/mka_supplicant
 
-	$(INSTALL_DIR) $(1)/etc/
-	$(INSTALL_DATA) files/mka_supplicant-eth0.conf  $(1)/etc/
-	$(INSTALL_DATA) files/mka_supplicant-eth1.conf  $(1)/etc/
+	$(INSTALL_DIR) $(1)/etc/data
+	$(INSTALL_DATA) files/mka_supplicant-eth0.conf  $(1)/etc/data/
+	$(INSTALL_DATA) files/mka_supplicant-eth1.conf  $(1)/etc/data/
 
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) files/mka-supplicant.init $(1)/etc/init.d/
