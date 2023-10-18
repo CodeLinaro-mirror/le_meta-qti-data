@@ -31,7 +31,7 @@ do_configure:prepend () {
         #Allow build paths with containing AU_
         sed 's|AC_CANONICAL_HOST|m4_pattern_allow([^AU_])\nAC_CANONICAL_HOST|' -i ${S}/configure.in
 }
-
+INSANE_SKIP += " configure-unsafe "
 do_configure() {
 	sed -i 's:-L/lib:-L${STAGING_LIBDIR}:g' ./configure.in
 
