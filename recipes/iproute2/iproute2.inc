@@ -23,8 +23,18 @@ do_install () {
     rm ${D}/share -rf || true
 }
 
+# The .so files in iproute2-tc are modules, not traditional libraries
+INSANE_SKIP:${PN}-tc = "dev-so"
+
 # There are only .so files in iproute2
 INSANE_SKIP:${PN} = "dev-so"
+
+PACKAGES =+ "\
+${PN}-tc \
+"
+
+FILES:${PN}-tc = "${base_sbindir}/tc* \
+                   ${libdir}/tc/*.so"
 
 FILES:${PN} += "${libdir}/tc"
 FILES:${PN}-dbg += "${libdir}/tc/.debug"
@@ -33,5 +43,9 @@ ALTERNATIVE:${PN} = "ip"
 ALTERNATIVE_TARGET[ip] = "${base_sbindir}/ip.${BPN}"
 ALTERNATIVE_LINK_NAME[ip] = "${base_sbindir}/ip"
 ALTERNATIVE_PRIORITY = "100"
+
+ALTERNATIVE:${PN}-tc = "tc"
+ALTERNATIVE_LINK_NAME[tc] = "${base_sbindir}/tc"
+ALTERNATIVE_PRIORITY:${PN}-tc = "100"
 
 PARALLEL_MAKE = ""
