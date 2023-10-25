@@ -2,11 +2,12 @@ include $(INCLUDE_DIR)/target.mk
 
 QTIDATA:=rmnetctl libpugixml newstrongswan newstrongswan-full
 
-###Add target specific packages 
+###Add target specific packages
 ifeq ($(BOARD),sdx35)
   	QTIDATA+=
 else ifeq ($(BOARD),sdx65)
   	QTIDATA+= kmod-rmnet-core kmod-rmnet-ctl qps615 ioss qps615-ioss ipanat ipacm
 else ifeq ($(BOARD),sdx75)
-	QTIDATA+= ipanat ipacm kmod-dataipa kmod-datarmnet kmod-ioss kmod-emac_ioss kmod-gsb kmod-rtsp_alg datafactory kmod-r8125 avahi-nodbus-daemon kmod-r8125_ioss kmod-sfe kmod-aqc_ioss hostap
+	QTIDATA+= ipanat ipacm kmod-dataipa kmod-datarmnet kmod-ioss kmod-emac_ioss kmod-gsb kmod-rtsp_alg datafactory kmod-r8125 kmod-r8168 avahi-nodbus-daemon kmod-r8125_ioss kmod-sfe thermal-eth-netlink kmod-aqc_ioss hostap phytool kmod-r8152
+	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet
 endif

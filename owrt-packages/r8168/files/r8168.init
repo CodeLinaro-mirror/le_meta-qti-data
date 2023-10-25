@@ -1,0 +1,23 @@
+#!/bin/sh /etc/rc.common
+
+#Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+START=40
+STOP=50
+
+start() {
+	/etc/initscripts/start_r8168_modules start
+
+	if [[ $(cat /sys/class/net/eth0/device/device) == "0x8168" ]]; then
+		echo "eth0 brought up by r8168"
+		ethtool -s eth0 wol d
+		ethtool -K eth0 rxvlan off
+	else
+		echo "eth0 is not up by r8168"
+	fi
+}
+
+stop() {
+	echo "Stopping r8168 Instance"
+}

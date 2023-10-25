@@ -1,0 +1,15 @@
+config wifi-device pdev0
+        option type       qcacld32
+        option hwmode     11axa
+        option channel    auto
+        # REMOVE THIS LINE TO ENABLE WIFI:
+        option disabled   1
+
+config wifi-iface
+        option device     pdev0
+        option network    lan
+        option mode       ap
+        option ssid       QsoftAP_5G
+        option encryption psk2+ccmp
+        option key        1234567890
+        option disabled   1
