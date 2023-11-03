@@ -37,6 +37,7 @@ PARALLEL_MAKE = "-j1"
 do_install_append() {
         install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
         install -m 0644 rmnet_bam.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_bam.ko
+	${STAGING_DIR_NATIVE}/usr/libexec/arm-oe-linux-gnueabi/gcc/arm-oe-linux-gnueabi/9.3.0/strip --strip-debug ${D}/lib/modules/${KERNEL_VERSION}/extra/rmnet_bam.ko
         install -d ${D}${systemd_unitdir}/system/
         install -m 0644 ${WORKDIR}/rmnetbam.service -D ${D}${systemd_unitdir}/system/rmnetbam.service
         install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
