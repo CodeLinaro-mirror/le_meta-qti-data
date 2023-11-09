@@ -4,9 +4,10 @@ SRC_URI += " \
         file://Makefile.patch \
 "
 
-DEPENDS += "virtual/kernel"
+DEPENDS += "virtual/kernel linux-msm-headers"
 
-EXTRA_OEMAKE += "KERNEL_INCLUDES=${STAGING_KERNEL_BUILDDIR}/usr/include"
+EXTRA_OEMAKE += "KERNEL_INCLUDES=${STAGING_INCDIR}/linux-msm/usr/include"
+EXTRA_OEMAKE += "CFLAGS+="-I${S}/include""
 
 EXTRA_OECONF = "--without-crypto \
         ${@bb.utils.contains('DISTRO_FEATURES', 'ipv6', '--enable-ipv6', '--disable-ipv6', d)}"

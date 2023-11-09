@@ -91,6 +91,6 @@ do_module_signing() {
 
 addtask module_signing after do_package before do_package_write_ipk
 
-RPROVIDES_${PN} += "${@'kernel-module-emac-dwc-eqos-${KERNEL_VERSION}'.replace('_', '-')}"
+RPROVIDES_${PN} += "kernel-module-emac-dwc-eqos-${KERNEL_VERSION}"
 # uncomment below line if you are compiling test module for vipertooth
 #RPROVIDES_${PN} += "${@'kernel-module-dwc-eth-qos-testmod-${KERNEL_VERSION}'.replace('_', '-')}"

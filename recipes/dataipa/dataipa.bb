@@ -1,4 +1,4 @@
-inherit module useradd
+inherit module
 
 SUMMARY = "IPA driver"
 
@@ -60,10 +60,14 @@ do_install() {
    install -d ${D}${sysconfdir}/udev/scripts/
    install -m 0755 ${WORKDIR}/dataipa_udev.sh ${D}${sysconfdir}/udev/scripts/dataipa_udev.sh
    install -d ${D}${sysconfdir}/data/
-   install -m 0755 -o 1001 -g 1001 ${WORKDIR}/ipa_config.txt -D ${D}${sysconfdir}/data/ipa_config.txt
+   install -m 0755 ${WORKDIR}/ipa_config.txt -D ${D}${sysconfdir}/data/ipa_config.txt
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
+}
+
+pkg_postinst_${PN}(){
+    chown -Rh 1001:1001 $D${sysconfdir}/data/ipa_config.txt
 }
 
 FILES_${PN}+="${libdir}/modules/*"

@@ -5,6 +5,7 @@ Before= QCMAP_ConnectionManagerd.service
 After= dataipa.service local-fs.target systemd-tmpfiles-setup.service
 Requires= systemrw.mount
 DefaultDependencies=no
+Conflicts=shutdown.target
 
 [Service]
 Restart=on-failure
