@@ -48,8 +48,9 @@ case "$1" in
   add)
       #  Boot KPI marker for Local IP - PLEASE DON'T REMOVE/CHANGE
       export iface=`bridge fdb show |awk '{print $1,$3,$5}' | grep $2 | grep $DNSMASQ_INTERFACE | awk '{print$2}' | tr -d '\n'`
-      echo -n "M - $iface Client IP $3" >> /sys/kernel/debug/bootkpi/kpi_values
-      echo "QCMAP: $iface Client Mac Address is $2 and IP Addr is $3" > /dev/kmsg
+      echo -n "M - $iface Client Local IP assignment" >> /sys/kernel/boot_kpi/kpi_values
+      echo "QCMAP: $iface Client Mac Address $2" > /dev/kmsg
+      echo "QCMAP: $iface Client IP Address $3" > /dev/kmsg
 
       #"add" event  means a lease has been created
       #Removing entry for that is already for  ip=$3
