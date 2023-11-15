@@ -14,6 +14,7 @@ PACKAGES = ' \
     '
 
 RDEPENDS_packagegroup-qti-data = ' \
+    qps615 \
     iproute2 \
     iptables \
     dnsmasq \
