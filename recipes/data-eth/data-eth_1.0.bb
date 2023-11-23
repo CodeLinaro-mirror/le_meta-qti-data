@@ -14,10 +14,9 @@ inherit qperf
 inherit systemd
 
 # Files from meta-qti-data
-SRC_URI += "file://emac_ioss.service"
-
 FILESPATH =+ "${WORKSPACE}:"
-SRC_URI += "file://data-eth"
+SRC_URI = "file://data-eth"
+SRC_URI += "file://emac_ioss.service"
 S = "${WORKDIR}/data-eth"
 
 # The inherit of module.bbclass will automatically name module packages with
