@@ -41,7 +41,8 @@ FILE="/tmp/data/dnsmasq_host.txt"
 if [ ! -f  $FILE ] ; then
   #File  does not exists creating
   touch $FILE
-  chmod a+rw $FILE
+  chmod u=rwx,g=rx,o= $FILE
+  chgrp 1001 $FILE
 fi
 
 case "$1" in
