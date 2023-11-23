@@ -1,0 +1,105 @@
+From f313f07644cd82a1606507b9adadee107b475703 Mon Sep 17 00:00:00 2001
+From: Utkrisht Sikka<quic_usikka@quicinc.com>
+Date: Thu, 23 Nov 2023 16:36:54 +0530
+Subject: [PATCH] addedEncaplimitNone1
+Signed-off-by: Utkrisht Sikka<quic_usikka@quicinc.com>
+
+---
+ include/linux/if_tunnel.h | 11 +++++++++++
+ ip/link_gre6.c            | 26 +++++++++++++++++++++++++-
+ 2 files changed, 36 insertions(+), 1 deletion(-)
+
+diff --git a/include/linux/if_tunnel.h b/include/linux/if_tunnel.h
+index 3e425f9..e3aac4a 100644
+--- a/include/linux/if_tunnel.h
++++ b/include/linux/if_tunnel.h
+@@ -53,10 +53,19 @@ enum {
+ 	IFLA_IPTUN_6RD_RELAY_PREFIX,
+ 	IFLA_IPTUN_6RD_PREFIXLEN,
+ 	IFLA_IPTUN_6RD_RELAY_PREFIXLEN,
++	IFLA_IPTUN_ENCAP_TYPE,
++	IFLA_IPTUN_ENCAP_FLAGS,
+ 	__IFLA_IPTUN_MAX,
+ };
+ #define IFLA_IPTUN_MAX	(__IFLA_IPTUN_MAX - 1)
+ 
++enum tunnel_encap_types {
++	TUNNEL_ENCAP_NONE,
++	TUNNEL_ENCAP_FOU,
++	TUNNEL_ENCAP_GUE,
++};
++#define TUNNEL_ENCAP_FLAG_CSUM6     (1<<1)
++
+ /* SIT-mode i_flags */
+ #define	SIT_ISATAP	0x0001
+ 
+@@ -94,6 +103,8 @@ enum {
+ 	IFLA_GRE_ENCAP_LIMIT,
+ 	IFLA_GRE_FLOWINFO,
+ 	IFLA_GRE_FLAGS,
++	IFLA_GRE_ENCAP_TYPE,
++	IFLA_GRE_ENCAP_FLAGS,
+ 	__IFLA_GRE_MAX,
+ };
+ 
+diff --git a/ip/link_gre6.c b/ip/link_gre6.c
+index c7183e2..c531b64 100644
+--- a/ip/link_gre6.c
++++ b/ip/link_gre6.c
+@@ -75,6 +75,9 @@ static int gre_parse_opt(struct link_util *lu, int argc, char **argv,
+ 	unsigned flags = 0;
+ 	__u8 hop_limit = DEFAULT_TNL_HOP_LIMIT;
+ 	__u8 encap_limit = IPV6_DEFAULT_TNL_ENCAP_LIMIT;
++	__u16 encaptype = 0;
++	__u16 encapflags = TUNNEL_ENCAP_FLAG_CSUM6;
++
+ 	int len;
+ 
+ 	if (!(n->nlmsg_flags & NLM_F_CREATE)) {
+@@ -143,6 +146,12 @@ get_failed:
+ 
+ 		if (greinfo[IFLA_GRE_FLAGS])
+ 			flags = rta_getattr_u32(greinfo[IFLA_GRE_FLAGS]);
++
++		if (greinfo[IFLA_GRE_ENCAP_TYPE])
++			encaptype = rta_getattr_u16(greinfo[IFLA_GRE_ENCAP_TYPE]);
++
++		if (greinfo[IFLA_GRE_ENCAP_FLAGS])
++			encapflags = rta_getattr_u16(greinfo[IFLA_GRE_ENCAP_FLAGS]);
+ 	}
+ 
+ 	while (argc > 0) {
+@@ -269,7 +278,19 @@ get_failed:
+ 			if (strcmp(*argv, "inherit") != 0)
+ 				invarg("not inherit", *argv);
+ 			flags |= IP6_TNL_F_RCV_DSCP_COPY;
+-		} else
++		}else if (strcmp(*argv, "encaplimit") == 0) {
++			NEXT_ARG();
++			if (strcmp(*argv, "none") == 0) {
++				flags |= IP6_TNL_F_IGN_ENCAP_LIMIT;
++				encaptype = TUNNEL_ENCAP_NONE;
++			} else {
++				__u8 uval;
++				if (get_u8(&uval, *argv, 0))
++					invarg("invalid ELIM", *argv);
++				encap_limit = uval;
++				flags &= ~IP6_TNL_F_IGN_ENCAP_LIMIT;
++			}
++		}else
+ 			usage();
+ 		argc--; argv++;
+ 	}
+@@ -286,6 +307,9 @@ get_failed:
+ 	addattr_l(n, 1024, IFLA_GRE_ENCAP_LIMIT, &encap_limit, 1);
+ 	addattr_l(n, 1024, IFLA_GRE_FLOWINFO, &flowinfo, 4);
+ 	addattr_l(n, 1024, IFLA_GRE_FLAGS, &flowinfo, 4);
++	addattr32(n, 1024, IFLA_GRE_FLAGS, flags);
++	addattr16(n, 1024, IFLA_GRE_ENCAP_TYPE, encaptype);
++	addattr16(n, 1024, IFLA_GRE_ENCAP_FLAGS, encapflags);
+ 
+ 	return 0;
+ }
+-- 
+2.17.1
+
