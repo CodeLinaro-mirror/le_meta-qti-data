@@ -31,6 +31,8 @@ define Package/datafactory/install
 	$(INSTALL_BIN) ./mobileap/server/files/factory_dhcp $(1)/etc/data/factory/
 	$(INSTALL_BIN) ./mobileap/server/files/factory_firewall $(1)/etc/data/factory/
 	$(INSTALL_BIN) ./mobileap/server/files/factory_network $(1)/etc/data/factory/
+	$(INSTALL_BIN) ./mobileap/server/files/factory_wireless_wkk $(1)/etc/data/factory/
+	$(INSTALL_BIN) ./mobileap/server/files/factory_wireless_hmt $(1)/etc/data/factory/
 #	$(INSTALL_BIN) ./mobileap/server/files/factory_test $(1)/etc/data/factory/
 endef
 
