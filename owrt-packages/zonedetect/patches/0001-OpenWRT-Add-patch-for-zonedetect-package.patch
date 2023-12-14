@@ -1,0 +1,33 @@
+From d121f62df1fb146aabf8cc040b35d067c91d0253 Mon Sep 17 00:00:00 2001
+From: Ruixuan Gu <quic_ruixgu@quicinc.com>
+Date: Fri, 17 Nov 2023 12:50:35 +0800
+Subject: [PATCH] OpenWRT : Add patch for zonedetect package
+
+Signed-off-by: Ruixuan Gu <quic_ruixgu@quicinc.com>
+---
+ Makefile             | 2 +-
+ library/zonedetect.h | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 4b91604..cf457fc 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,2 +1,2 @@
+ demo: Makefile demo.c library/zonedetect.c
+-	gcc -o demo demo.c -Wall -Ilibrary library/zonedetect.c -lm
++	$(CC) -o tzdetect $(CFLAGS) demo.c -Ilibrary library/zonedetect.c library/zonedetect.h -lm
+diff --git a/library/zonedetect.h b/library/zonedetect.h
+index 3d00e9f..22b3268 100644
+--- a/library/zonedetect.h
++++ b/library/zonedetect.h
+@@ -1,4 +1,5 @@
+-/*
++#include<math.h>
++ /*
+  * Copyright (c) 2018, Bertold Van den Bergh (vandenbergh@bertold.org)
+  * All rights reserved.
+  *
+-- 
+2.37.3.windows.1
+
