@@ -30,5 +30,6 @@ RDEPENDS_packagegroup-qti-data = ' \
     iptables \
     techpack-ecpri \
     strongswan \
+    bind-utils \
     '
 
