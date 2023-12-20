@@ -14,13 +14,15 @@ PACKAGES = ' \
     '
 
 RDEPENDS:packagegroup-qti-data = ' \
+    conntrack-tools \
+    data-oss \
+    dhcpcd \
+    ebtables \
     iproute2 \
     iptables \
     dnsmasq \
-    dhcpcd \
+    iputils \
     tcpdump \
-    conntrack-tools \
-    dataipa \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-emac-dwc-eqos", "packagegroup-qti-ethernet-tools", "", d)} \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
