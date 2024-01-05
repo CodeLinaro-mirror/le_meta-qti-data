@@ -11,15 +11,12 @@ PR = "r0"
 TARGET_CC_ARCH += "${LDFLAGS}"
 
 SRC_URI = "  https://github.com/zeux/pugixml/archive/v${PV}.zip \
-    file://001_Makefile.patch \
+    file://0001-pugixml-Modified-include-dir-and-lib-dir.patch \
 "
 
-SRC_URI[md5sum] = "5229b9f38f938ee935f32ac63328fa18"
-SRC_URI[sha256sum] = "2ee334c7e09c5d1f0db8ef0db71a8fad73a3ab838795bc9189b6194b5e194ffd"
+SRC_URI[md5sum] = "b3a18768b3a53e62052e03c8815eaff8"
+SRC_URI[sha256sum] = "86a2b2f16d3e107b9ea5043ef9c458306b94d38f6203d58a196dc9b9dc6351a6"
 
-inherit autotools pkgconfig
+inherit lib_package cmake
 
-do_compile () {
-    oe_runmake
-    rm -f *.o
-}
+EXTRA_OECMAKE = "-DBUILD_SHARED_LIBS=ON"
