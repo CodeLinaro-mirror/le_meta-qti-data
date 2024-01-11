@@ -12,7 +12,7 @@ DEPENDS = "alx virtual/kernel"
 
 SRC_URI = "http://github.com/maru-sama/rtsp-linux/archive/${PV}.tar.gz \
 		file://Makefile.patch \
-		${@oe.utils.conditional('PREFERRED_VERSION_linux-msm', '5.4','file://0001-netfilter_helpers.patch file://0001-nf_conntrack_rtsp.patch file://0001-nf_nat_rtsp2.patch', '',d)} \
+                ${@oe.utils.conditional('PREFERRED_VERSION_linux-msm', '5.15','file://0001-netfilter_helpers.patch file://0001-nf_conntrack_rtsp.patch file://0001-nf_nat_rtsp2.patch file://00002-rtsp-build-issue-fix.patch', '',d)} \
 "
 SRC_URI[md5sum]    = "5cc2be642a0d6ff8817d72d459e76606"
 SRC_URI[sha256sum] = "bd14b5f8f0bc8db3db93735b2a7eca2790454c2dc200d95becd283b043b8b94d"
@@ -23,7 +23,13 @@ S = "${WORKDIR}/rtsp-linux-${PV}"
 EXTRA_OEMAKE = "KSOURCE=${STAGING_KERNEL_DIR}"
 
 do_install() {
-        install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
-        install -m 0644 ${S}/nf_nat_rtsp.ko ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
-        install -m 0644 ${S}/nf_conntrack_rtsp.ko ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
+        install -d ${D}${base_libdir}/modules/rtsp-alg
+        kmod_signer="${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+                  ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509"
+        for i in $(find ${WORKDIR} -name "*.ko"); do
+                 ${kmod_signer} ${i}
+                 install -m 0644 ${i} ${D}${base_libdir}/modules/rtsp-alg
+        done
+        install -m 0644 ${S}/nf_nat_rtsp.ko ${D}${base_libdir}/modules/rtsp-alg
+        install -m 0644 ${S}/nf_conntrack_rtsp.ko ${D}${base_libdir}/modules/rtsp-alg
 }
