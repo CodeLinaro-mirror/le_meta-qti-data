@@ -1,0 +1,29 @@
+#This patch file is from Qualcomm Innovation Center, Inc. and is provided under the following license:
+#
+#Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+From 4c7bc1e29ef5936c755e2fdeff24ec8ce8af56f9 Mon Sep 17 00:00:00 2001
+From: Evangelin Ruby N <quic_evangeli@quicinc.com>
+Date: Thu, 11 Jan 2024 11:51:09 +0000
+Subject: [PATCH 2/2] rtsp-build-issue-fix
+
+Signed-off-by: Evangelin Ruby N <quic_evangeli@quicinc.com>
+---
+ nf_conntrack_rtsp.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/nf_conntrack_rtsp.c b/nf_conntrack_rtsp.c
+index 680514f..620b40f 100644
+--- a/nf_conntrack_rtsp.c
++++ b/nf_conntrack_rtsp.c
+@@ -427,6 +427,8 @@ static int help(struct sk_buff *skb, unsigned int protoff,
+ 		/* inbound packet: server->client */
+ 		ret = NF_ACCEPT;
+ 		break;
++        case IP_CT_DIR_MAX:
++                break;
+ 	}
+
+ 	spin_unlock_bh(&rtsp_buffer_lock);
+--
+2.17.1
