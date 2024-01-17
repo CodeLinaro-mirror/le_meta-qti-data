@@ -10,8 +10,6 @@ SRC_URI  += "file://start_qcmap_wpa_supplicant_le"
 SRC_URI  += "file://start_qcmap_hostapd_le"
 SRC_URI  += "file://qcmap_load_module@.service"
 
-PACKAGECONFIG_remove_qcs6490 = 'MOBILEAP_SERVER'
-
 do_install_append() {
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
             install -d ${D}${systemd_unitdir}/system/
