@@ -7,7 +7,7 @@ ${LICENSE};md5=3775480a712fc46a69647678acb234cb"
 
 PR = "r4"
 
-DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat"
+DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat libnl"
 
 BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
