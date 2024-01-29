@@ -25,6 +25,20 @@ S = "${WORKDIR}/data-eth"
 RPROVIDES_${PN} += "kernel-module-data_eth"
 
 do_install_append() {
+	# Sign the modules
+	if [ -f  ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
+		bbnote "Signing ${PN} modules"
+		${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+		${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 \
+		${WORKDIR}/image/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
+
+		${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+		${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 \
+		${WORKDIR}/image/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
+	else
+		bbnote "${PN} modules are not being signed"
+	fi
+
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
