@@ -12,22 +12,23 @@ DEPENDS = "virtual/kernel"
 PR = "r0"
 
 FILESPATH =+ "${WORKSPACE}:"
-SRC_URI = "file://src/dataipa/"
+SRC_URI = "file://dataipa/"
 SRC_URI += "file://start_dataipa_le"
 SRC_URI += "file://dataipa.service"
 SRC_URI += "file://dataipa.rules"
 SRC_URI += "file://dataipa_udev.sh"
 SRC_URI += "file://ipa_config.txt"
+SRC_URI += "file://kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform"
 
-S = "${WORKDIR}/src/dataipa"
+S = "${WORKDIR}/dataipa"
 GCCVER_AVAILABLE := "${@''.join(filter(lambda x: x != '%', '${GCCVERSION}'))}.0"
 
 do_compile() {
-    cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
+    cd ${WORKDIR}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
     BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
     EXT_MODULES=../../dataipa \
-    ROOTDIR=${WORKSPACE}/ \
-    MODULE_OUT=${WORKDIR}/src/dataipa-modules-out \
+    ROOTDIR=${WORKDIR}/ \
+    MODULE_OUT=${WORKDIR}/dataipa-modules-out \
     OUT_DIR=${KERNEL_PREBUILT_PATH}/ \
     ./build/build_module.sh
 }
@@ -37,7 +38,7 @@ do_install() {
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
 
    strip_tool="${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/${GCCVER_AVAILABLE}/strip"
-   module_path="${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm"
+   module_path="${WORKDIR}/dataipa-modules-out/drivers/platform/msm"
    module_signer="${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
                   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509"
 
