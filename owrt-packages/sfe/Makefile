@@ -40,6 +40,9 @@ define Build/InstallDev
 endef
 
 define KernelPackage/$(PKG_NAME)/install
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/shortcut-fe.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/shortcut-fe-ipv6.ko
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/shortcut-fe-cm.ko
 	$(INSTALL_DIR) $(1)/lib/modules/shortcut_fe
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/shortcut-fe.ko $(1)/lib/modules/shortcut_fe
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/shortcut-fe-ipv6.ko $(1)/lib/modules/shortcut_fe
