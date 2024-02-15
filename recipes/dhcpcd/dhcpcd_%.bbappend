@@ -3,9 +3,10 @@ SRC_URI += "\
 file://dhcpcd_iface_info.patch"
 SRC_URI += "file://dhcpcd@.service"
 
+# disabling ipv6 for DHCPCD as SLAAC will take care of v6 functionality
 do_configure() {
         ./configure --includedir=${STAGING_INCDIR} --bindir=${prefix}/sbin \
-        --sbindir=${exec_prefix}/sbin
+        --sbindir=${exec_prefix}/sbin --disable-ipv6
 }
 
 do_install_append(){
