@@ -1,0 +1,40 @@
+From b26f691832e0ef8f6b207d0cc0b37cb8857c7e9d Mon Sep 17 00:00:00 2001
+From: Surendra Prasad Reddy <surendra@qti.qualcomm.com>
+Date: Wed, 3 Jan 2024 12:28:58 -0800
+Subject: [PATCH] pugixml: Modified include dir and lib dir
+
+---
+ CMakeLists.txt        | 2 +-
+ scripts/pugixml.pc.in | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d3f810e..49e93f9 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -237,7 +237,7 @@ install(
+     "${PROJECT_SOURCE_DIR}/src/pugiconfig.hpp"
+     "${PROJECT_SOURCE_DIR}/src/pugixml.hpp"
+   DESTINATION
+-    ${CMAKE_INSTALL_INCLUDEDIR}${versioned-dir} COMPONENT ${PUGIXML_DEVELOPMENT_COMPONENT})
++    ${CMAKE_INSTALL_INCLUDEDIR}/pugixml COMPONENT ${PUGIXML_DEVELOPMENT_COMPONENT})
+ 
+ if (PUGIXML_BUILD_TESTS)
+   set(fuzz-pattern "tests/fuzz_*.cpp")
+diff --git a/scripts/pugixml.pc.in b/scripts/pugixml.pc.in
+index 7958774..e9554cb 100644
+--- a/scripts/pugixml.pc.in
++++ b/scripts/pugixml.pc.in
+@@ -1,7 +1,7 @@
+ prefix=@CMAKE_INSTALL_PREFIX@
+ exec_prefix=${prefix}
+-includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@@INSTALL_SUFFIX@
+-libdir=@CMAKE_INSTALL_FULL_LIBDIR@@INSTALL_SUFFIX@
++includedir=/usr/include/pugixml
++libdir=/usr/lib
+ 
+ Name: pugixml
+ Description: Light-weight, simple and fast XML parser for C++ with XPath support.
+-- 
+2.17.1
+
