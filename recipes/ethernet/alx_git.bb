@@ -15,6 +15,7 @@ SRC_URI = "file://external/compat-wireless/drivers/net/ethernet/atheros/alx/ \
 S = "${WORKDIR}/external/compat-wireless/drivers/net/ethernet/atheros/alx/"
 
 FILES:${PN}="/etc/init.d/start_alx_le"
+FILES:${PN} += "${base_libdir}/modules/"
 
 EXTRA_OEMAKE += "CONFIG_MDM_ALX=y"
 
@@ -44,3 +45,4 @@ do_module_signing() {
 }
 
 addtask do_module_signing after do_package before do_package_write_ipk
+

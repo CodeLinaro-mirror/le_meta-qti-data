@@ -1,0 +1,70 @@
+From e962b90a9efd637fc5c0afc91c0523850fdbc793 Mon Sep 17 00:00:00 2001
+From: Paras Singh Jain <parassin@codeaurora.org>
+Date: Wed, 2 Sep 2020 06:12:05 +0000
+Subject: [PATCH] nf_nat_rtsp2
+
+Signed-off-by: Paras Singh Jain <parassin@codeaurora.com>
+---
+ nf_nat_rtsp.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/nf_nat_rtsp.c b/nf_nat_rtsp.c
+index bb06b45..1836bb3 100644
+--- a/nf_nat_rtsp.c
++++ b/nf_nat_rtsp.c
+@@ -35,7 +35,6 @@
+ #include <net/netfilter/nf_nat.h>
+ #include <net/netfilter/nf_nat_helper.h>
+ #include "nf_conntrack_rtsp.h"
+-#include <net/netfilter/nf_conntrack_expect.h>
+ 
+ #include <linux/inet.h>
+ #include <linux/ctype.h>
+@@ -150,7 +149,7 @@ rtsp_mangle_tran(enum ip_conntrack_info ctinfo, unsigned int protoff,
+         for (loport = prtspexp->loport; loport != 0; loport++) /* XXX: improper wrap? */
+         {
+             t->dst.u.udp.port = htons(loport);
+-            if (nf_ct_expect_related(exp) == 0)
++            if (rtsp_nf_ct_expect_related(exp) == 0)
+             {
+                 pr_debug("using port %hu\n", loport);
+                 break;
+@@ -166,7 +165,7 @@ rtsp_mangle_tran(enum ip_conntrack_info ctinfo, unsigned int protoff,
+         for (loport = prtspexp->loport; loport != 0; loport += 2) /* XXX: improper wrap? */
+         {
+             t->dst.u.udp.port = htons(loport);
+-            if (nf_ct_expect_related(exp) == 0)
++            if (rtsp_nf_ct_expect_related(exp) == 0)
+             {
+                 hiport = loport + 1; //~exp->mask.dst.u.udp.port;
+                 pr_debug("using ports %hu-%hu\n", loport, hiport);
+@@ -183,7 +182,7 @@ rtsp_mangle_tran(enum ip_conntrack_info ctinfo, unsigned int protoff,
+         for (loport = prtspexp->loport; loport != 0; loport++) /* XXX: improper wrap? */
+         {
+             t->dst.u.udp.port = htons(loport);
+-            if (nf_ct_expect_related(exp) == 0)
++            if (rtsp_nf_ct_expect_related(exp) == 0)
+             {
+                 pr_debug("using port %hu (1 of 2)\n", loport);
+                 break;
+@@ -192,7 +191,7 @@ rtsp_mangle_tran(enum ip_conntrack_info ctinfo, unsigned int protoff,
+         for (hiport = prtspexp->hiport; hiport != 0; hiport++) /* XXX: improper wrap? */
+         {
+             t->dst.u.udp.port = htons(hiport);
+-            if (nf_ct_expect_related(exp) == 0)
++            if (rtsp_nf_ct_expect_related(exp) == 0)
+             {
+                 pr_debug("using port %hu (2 of 2)\n", hiport);
+                 break;
+@@ -430,7 +429,7 @@ help(struct sk_buff *skb, enum ip_conntrack_info ctinfo, unsigned int protoff,
+ 
+ static void expected(struct nf_conn* ct, struct nf_conntrack_expect *exp)
+ {
+-    struct nf_nat_range range;
++    struct nf_nat_range2 range;
+     union nf_inet_addr newdstip, newsrcip, newip;
+ 
+     struct nf_conn *master = ct->master;
+-- 
+2.26.0
+
