@@ -11,7 +11,7 @@ DEPENDS += "linux-msm-headers virtual/kernel glib-2.0"
 
 do_configure[depends] += "virtual/kernel:do_shared_workdir"
 
-EXTRA_OECONF = "--with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib"
+EXTRA_OECONF = "--with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include --with-glib --with-sanitized-headers=${STAGING_INCDIR}/linux-msm/usr/include"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-oss"
