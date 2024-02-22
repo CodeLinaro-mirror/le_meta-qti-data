@@ -5,30 +5,31 @@ Date: Thu, 3 Aug 2017 12:06:06 +0530
 ---
  configure              | 4 ++--
  hooks/50-dhcpcd-compat | 6 +++---
- hooks/Makefile         | 2 +-
- 3 files changed, 6 insertions(+), 6 deletions(-)
+ hooks/Makefile         | 1 +
+ 3 files changed, 6 insertions(+), 5 deletions(-)
+ mode change 100755 => 100644 configure
 
 diff --git a/configure b/configure
 index 8843435..4018e7e 100755
 --- a/configure
 +++ b/configure
-@@ -249,9 +249,9 @@
+@@ -260,9 +260,9 @@ echo "/* $OS */" >$CONFIG_H
  : ${SBINDIR:=$PREFIX/sbin}
  : ${LIBDIR:=$PREFIX/lib}
  : ${LIBEXECDIR:=$PREFIX/libexec}
 -: ${STATEDIR:=/var}
 +: ${STATEDIR:=/var/run}
  : ${DBDIR:=$STATEDIR/db/dhcpcd}
--: ${RUNDIR:=$STATEDIR/run}
-+: ${RUNDIR:=/var/run}
+-: ${RUNSTATEDIR:=$STATEDIR/run}
++: ${RUNSTATEDIR:=/var/run}
+ : ${RUNDIR:=$RUNSTATEDIR/dhcpcd}
  : ${MANDIR:=${PREFIX:-/usr}/share/man}
  : ${DATADIR:=${PREFIX:-/usr}/share}
-
 diff --git a/hooks/50-dhcpcd-compat b/hooks/50-dhcpcd-compat
-index 651bc08..e1ae4da 100644
+index 0d6256e6..e15c8feb 100644
 --- a/hooks/50-dhcpcd-compat
 +++ b/hooks/50-dhcpcd-compat
-@@ -30,12 +30,12 @@
+@@ -30,12 +30,12 @@ BOUND|INFORM|REBIND|REBOOT|TEST|TIMEOUT|IPV4LL) r="new";;
  esac
  
  if [ "$r" != "down" ]; then
@@ -45,14 +46,14 @@ index 651bc08..e1ae4da 100644
 -set -- /var/lib/dhcpcd-"$INTERFACE".info "$r"
 +set -- /var/run/dhcpcd-"$INTERFACE".info "$r"
 diff --git a/hooks/Makefile b/hooks/Makefile
-index 7563d2d..685cb5a 100644
+index 7a0c3b1d..d081f0fd 100644
 --- a/hooks/Makefile
 +++ b/hooks/Makefile
-@@ -11,6 +11,7 @@
- SCRIPTS=	01-test 02-dump
+@@ -11,6 +11,7 @@ SCRIPTSDIR=	${HOOKDIR}
+ SCRIPTS=	01-test
  SCRIPTS+=	20-resolv.conf
  SCRIPTS+=	30-hostname
 +SCRIPTS+=	50-dhcpcd-compat
  SCRIPTS+=	${HOOKSCRIPTS}
+ CLEANFILES+=	30-hostname
  
- # Some hooks should not be installed by default
