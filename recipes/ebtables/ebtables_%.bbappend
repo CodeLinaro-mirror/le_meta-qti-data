@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += " \
         file://Makefile.patch \
@@ -12,11 +12,11 @@ EXTRA_OEMAKE += "CFLAGS+="-I${S}/include""
 EXTRA_OECONF = "--without-crypto \
         ${@bb.utils.contains('DISTRO_FEATURES', 'ipv6', '--enable-ipv6', '--disable-ipv6', d)}"
 
-FILES_${PN}     += "${libdir}/lib*.so"
-FILES_${PN}     += "${sbindir}/*"
-FILES_${PN}-doc += "${mandir}/*"
+FILES:${PN}     += "${libdir}/lib*.so"
+FILES:${PN}     += "${sbindir}/*"
+FILES:${PN}-doc += "${mandir}/*"
 
-do_configure_append() {
+do_configure:append() {
     if [ -d "${S}" ]; then
         if [ ! -d "${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/" ]; then
             mkdir -p ${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/
@@ -25,8 +25,8 @@ do_configure_append() {
     fi
 }
 
-do_install_append () {
+do_install:append () {
       rm -f ${D}${systemd_unitdir}/system/ebtables.service
 }
 
-SYSTEMD_SERVICE_${PN} = ""
+SYSTEMD_SERVICE:${PN} = ""

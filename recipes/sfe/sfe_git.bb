@@ -5,11 +5,11 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 PR = "${@oe.utils.conditional('PRODUCT', 'psm', 'r0-psm', 'r0', d)}"
 
-FILESEXTRAPATHS_prepend := "${WORKSPACE}/shortcut-fe/:"
+FILESEXTRAPATHS:prepend := "${WORKSPACE}/shortcut-fe/:"
 SRC_URI = "file://shortcut-fe/ "
 
 S = "${WORKDIR}/shortcut-fe"
-FILES_${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
+FILES:${PN}     += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
 
 do_install() {
     module_do_install
@@ -30,6 +30,6 @@ do_module_signing() {
 
 addtask module_signing after do_package before do_package_write_ipk
 
-RPROVIDES_${PN} += "kernel-module-shortcut-fe-cm-${KERNEL_VERSION}"
-RPROVIDES_${PN} += "kernel-module-shortcut-fe-ipv6-${KERNEL_VERSION}"
-RPROVIDES_${PN} += "kernel-module-shortcut-fe-${KERNEL_VERSION}"
+RPROVIDES:${PN} += "kernel-module-shortcut-fe-cm-${KERNEL_VERSION}"
+RPROVIDES:${PN} += "kernel-module-shortcut-fe-ipv6-${KERNEL_VERSION}"
+RPROVIDES:${PN} += "kernel-module-shortcut-fe-${KERNEL_VERSION}"

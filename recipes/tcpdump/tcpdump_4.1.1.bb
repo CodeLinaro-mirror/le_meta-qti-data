@@ -24,10 +24,10 @@ PACKAGECONFIG ??= "ipv6"
 PACKAGECONFIG[openssl] = "--with-crypto=yes, --without-crypto, openssl"
 PACKAGECONFIG[ipv6] = "--enable-ipv6, --disable-ipv6,"
 
-CFLAGS_append = " -I/usr/include/tirpc "
-LDFLAGS_append = " -ltirpc "
+CFLAGS:append = " -I/usr/include/tirpc "
+LDFLAGS:append = " -ltirpc "
 
-do_configure_prepend () {
+do_configure:prepend () {
         #Allow build paths with containing AU_
         sed 's|AC_CANONICAL_HOST|m4_pattern_allow([^AU_])\nAC_CANONICAL_HOST|' -i ${S}/configure.in
 }
@@ -42,7 +42,7 @@ do_configure() {
 	sed -i 's:/usr/include:${STAGING_INCDIR}:' ./Makefile
 }
 
-do_install_append() {
+do_install:append() {
 	# tcpdump 4.0.0 installs a copy to /usr/sbin/tcpdump.4.0.0
 	rm -f ${D}${sbindir}/tcpdump.${PV}
 }

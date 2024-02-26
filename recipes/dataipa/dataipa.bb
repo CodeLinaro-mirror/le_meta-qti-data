@@ -4,7 +4,7 @@ SUMMARY = "IPA driver"
 
 DESCRIPTION = "Contains IPA driver"
 
-LICENSE = "GPL-2.0"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
 
 DEPENDS = "virtual/kernel"
@@ -66,16 +66,16 @@ do_install() {
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
 }
 
-pkg_postinst_${PN}(){
+pkg_postinst:${PN}(){
     chown -Rh 1001:1001 $D${sysconfdir}/data/ipa_config.txt
 }
 
-FILES_${PN}+="${libdir}/modules/*"
-FILES_${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/*"
-FILES_${PN}+="${sysconfdir}/initscripts/start_dataipa_le"
-FILES_${PN}+="${systemd_unitdir}/system/dataipa.service"
-FILES_${PN}+="${sysconfdir}/udev/rules.d/dataipa.rules"
-FILES_${PN}+="${sysconfdir}/udev/scripts/dataipa_udev.sh"
-FILES_${PN}+="${sysconfdir}/data/ipa_config.txt"
-FILES_${PN}+="${systemd_unitdir}/system/local-fs.target.wants/dataipa.service"
+FILES:${PN}+="${libdir}/modules/*"
+FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/*"
+FILES:${PN}+="${sysconfdir}/initscripts/start_dataipa_le"
+FILES:${PN}+="${systemd_unitdir}/system/dataipa.service"
+FILES:${PN}+="${sysconfdir}/udev/rules.d/dataipa.rules"
+FILES:${PN}+="${sysconfdir}/udev/scripts/dataipa_udev.sh"
+FILES:${PN}+="${sysconfdir}/data/ipa_config.txt"
+FILES:${PN}+="${systemd_unitdir}/system/local-fs.target.wants/dataipa.service"
 

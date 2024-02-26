@@ -1,6 +1,6 @@
 DEPENDS = "libnetfilter-conntrack"
 
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
            file://dnsmasq.service \
@@ -13,7 +13,7 @@ EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
                 LDFLAGS='${TARGET_LDFLAGS}'"
 
-do_install_append () {
+do_install:append () {
         install -d ${D}${sysconfdir}/data/
         install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
         chown -R root:root ${D}${sysconfdir}/data/dnsmasq.conf
@@ -46,7 +46,7 @@ do_install_append () {
         echo "dhcp-script=/bin/dnsmasq_script.sh" >> ${D}${sysconfdir}/data/dnsmasq.conf
 }
 
-CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
-FILES_${PN} += "${sysconfdir}/data/dnsmasq.conf"
-FILES_${PN} += "${systemd_unitdir}/system/*"
-SYSTEMD_SERVICE_${PN} = ""
+CONFFILES:${PN} = "${sysconfdir}/data/dnsmasq.conf"
+FILES:${PN} += "${sysconfdir}/data/dnsmasq.conf"
+FILES:${PN} += "${systemd_unitdir}/system/*"
+SYSTEMD_SERVICE:${PN} = ""

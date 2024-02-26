@@ -4,7 +4,7 @@ GNU/Linux that allow system administrators interact, from user-space, \
 with the in-kernel Connection Tracking System."
 HOMEPAGE = "http://www.netfilter.org/"
 BUGTRACKER = "http://bugzilla.netfilter.org/"
-LICENSE = "GPLv2+"
+LICENSE = "GPL-2.0-or-later"
 LIC_FILES_CHKSUM = "file://COPYING;md5=8ca43cbc842c2336e835926c2166c28b"
 DEPENDS = "bison-native libnfnetlink libnetfilter-conntrack"
 

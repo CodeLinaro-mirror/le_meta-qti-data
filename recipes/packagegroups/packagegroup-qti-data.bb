@@ -10,7 +10,7 @@ PACKAGES = ' \
     packagegroup-qti-data \
     '
 
-RDEPENDS_packagegroup-qti-data = ' \
+RDEPENDS:packagegroup-qti-data = ' \
 	conntrack-tools \
 	data-eth \
 	dataipa \

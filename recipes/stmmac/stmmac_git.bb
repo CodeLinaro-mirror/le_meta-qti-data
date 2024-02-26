@@ -4,9 +4,9 @@ DESCRIPTION = "Stmmac"
 LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5=550794465ba0ec5312d6919e203a55f9"
 
-FILES_${PN}     += "${sysconfdir}/init.d/*"
-FILES_${PN}     += "${systemd_unitdir}/system/*"
-FILES_${PN}     += "${sysconfdir}/initscripts/*"
+FILES:${PN}     += "${sysconfdir}/init.d/*"
+FILES:${PN}     += "${systemd_unitdir}/system/*"
+FILES:${PN}     += "${sysconfdir}/initscripts/*"
 
 do_unpack[deptask] = "do_populate_sysroot"
 PR = "r0"
@@ -27,7 +27,7 @@ do_install() {
     fi
 }
 
-do_install_append() {
+do_install:append() {
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
@@ -40,7 +40,7 @@ if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 fi
 }
 
-pkg_postinst_${PN} () {
+pkg_postinst:${PN} () {
    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'false', 'true', d)}; then
     [ -n "$D" ] && OPT="-r $D" || OPT="-s"
         update-rc.d $OPT -f setup_avtp_routing_le remove

@@ -16,27 +16,27 @@ S = "${WORKDIR}/avahi-${PV}"
 
 PACKAGES = "${PN} ${PN}-utils ${PN}-dbg ${PN}-dev ${PN}-staticdev ${PN}-doc python-avahi avahi-discover avahi-discover-standalone"
 
-FILES_${PN} = "${libdir}/libavahi-ui*.so.*"
-FILES_${PN}-dbg += "${libdir}/.debug/libavah-ui*"
-FILES_${PN}-dev += "${libdir}/libavahi-ui${SOLIBSDEV}"
-FILES_${PN}-staticdev += "${libdir}/libavahi-ui.a"
+FILES:${PN} = "${libdir}/libavahi-ui*.so.*"
+FILES:${PN}-dbg += "${libdir}/.debug/libavah-ui*"
+FILES:${PN}-dev += "${libdir}/libavahi-ui${SOLIBSDEV}"
+FILES:${PN}-staticdev += "${libdir}/libavahi-ui.a"
 
-FILES_${PN}-utils = "${bindir}/b* ${datadir}/applications/b*"
+FILES:${PN}-utils = "${bindir}/b* ${datadir}/applications/b*"
 
-FILES_python-avahi = "${PYTHON_SITEPACKAGES_DIR}/avahi/*"
-FILES_avahi-discover = "${bindir}/avahi-discover \
+FILES:python-avahi = "${PYTHON_SITEPACKAGES_DIR}/avahi/*"
+FILES:avahi-discover = "${bindir}/avahi-discover \
                         ${datadir}/applications/avahi-discover.desktop \
                         ${datadir}/avahi/interfaces/avahi-discover*"
-FILES_avahi-discover-standalone = "${bindir}/avahi-discover-standalone \
+FILES:avahi-discover-standalone = "${bindir}/avahi-discover-standalone \
                                    ${datadir}/avahi/interfaces/avahi-discover.glade"
 
-RDEPENDS_avahi-discover = "python-avahi python-pygtk"
-RDEPENDS_python-avahi = "python-dbus"
+RDEPENDS:avahi-discover = "python-avahi python-pygtk"
+RDEPENDS:python-avahi = "python-dbus"
 
 SRC_URI[md5sum] = "d76c59d0882ac6c256d70a2a585362a6"
 SRC_URI[sha256sum] = "57a99b5dfe7fdae794e3d1ee7a62973a368e91e414bd0dfa5d84434de5b14804"
 
-do_install_append () {
+do_install:append () {
 	rm ${D}${sysconfdir} -rf
 	rm ${D}${base_libdir} -rf
 	rm ${D}${base_libdir} -rf

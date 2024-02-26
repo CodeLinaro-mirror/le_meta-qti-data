@@ -9,12 +9,12 @@ DEPENDS = "virtual/kernel"
 do_unpack[deptask] = "do_populate_sysroot"
 PR = "r4"
 
-FILESEXTRAPATHS_prepend := "${WORKSPACE}/external/compat-wireless/drivers/net/ethernet/atheros/:"
+FILESEXTRAPATHS:prepend := "${WORKSPACE}/external/compat-wireless/drivers/net/ethernet/atheros/:"
 SRC_URI = "file://alx/ \
            file://start_alx_le"
 S = "${WORKDIR}/alx/"
 
-FILES_${PN}="/etc/init.d/start_alx_le"
+FILES:${PN}="/etc/init.d/start_alx_le"
 
 EXTRA_OEMAKE += "CONFIG_MDM_ALX=y"
 
@@ -27,7 +27,7 @@ do_install() {
 INITSCRIPT_NAME = "start_alx_le"
 INITSCRIPT_PARAMS = "start 91 5 . stop 15 0 1 6 ."
 
-#pkg_postinst_${PN} () {
+#pkg_postinst:${PN} () {
 #[ -n "$D" ] && OPT="-r $D" || OPT="-s"
 #update-rc.d $OPT -f start_alx_le remove
 #update-rc.d $OPT start_alx_le start 91 5 . stop 15 0 1 6 .

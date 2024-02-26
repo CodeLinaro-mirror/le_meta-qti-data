@@ -1,13 +1,13 @@
 inherit module ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', '', d)}
 
 DESCRIPTION = "Ethernet Adaptation Module"
-LICENSE = "GPL-2.0"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
 
 
-FILES_${PN}     += "${sysconfdir}/init.d/*"
-FILES_${PN}     += "${systemd_unitdir}/system/*"
-FILES_${PN}     += "${sysconfdir}/initscripts/*"
+FILES:${PN}     += "${sysconfdir}/init.d/*"
+FILES:${PN}     += "${systemd_unitdir}/system/*"
+FILES:${PN}     += "${sysconfdir}/initscripts/*"
 
 PR = "r0"
 
@@ -34,7 +34,7 @@ do_install() {
 		install -m 0755 ${WORKDIR}/config.ini ${D}${sysconfdir}/init.d
     fi
 }
-do_install_append() {
+do_install:append() {
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/

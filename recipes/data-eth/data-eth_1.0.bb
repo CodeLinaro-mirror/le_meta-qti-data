@@ -3,7 +3,7 @@ DESCRIPTION = "Helper recipe to build Data Ethernet drivers out-of-tree or in de
 
 export ETH_SRCDIR = "${WORKSPACE}/data-eth"
 
-LICENSE = "GPLv2"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${ETH_SRCDIR}/data-eth.c;\
 beginline=1;endline=4;md5=35144d93ffd061a7458db62d36405265"
 
@@ -26,9 +26,9 @@ EXTRA_OECONF += "${@bb.utils.contains('MACHINE_FEATURES', 'qti-vm-tele',  '--wit
 # The inherit of module.bbclass will automatically name module packages with
 # "kernel-module-" prefix as required by the oe-core build environment.
 
-RPROVIDES_${PN} += "kernel-module-data_eth"
+RPROVIDES:${PN} += "kernel-module-data_eth"
 
-do_install_append() {
+do_install:append() {
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
@@ -82,9 +82,9 @@ do_strip_module() {
 
 addtask strip_module after do_package before do_package_write_ipk
 
-FILES_${PN}+="${systemd_unitdir}/system/emac_ioss.service"
-FILES_${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
-FILES_${PN}+="${systemd_unitdir}/system/emac_shim.service"
-FILES_${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_shim.service"
+FILES:${PN}+="${systemd_unitdir}/system/emac_ioss.service"
+FILES:${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
+FILES:${PN}+="${systemd_unitdir}/system/emac_shim.service"
+FILES:${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_shim.service"
 
 # vim: syntax=bitbake
