@@ -35,7 +35,7 @@ S = "${WORKDIR}/git"
 inherit pkgconfig useradd
 
 USERADD_PACKAGES = "${PN}"
-USERADD_PARAM_${PN} = "--home /usr/sbin --no-create-home --shell /bin/false --user-group macsec"
+USERADD_PARAM:${PN} = "--home /usr/sbin --no-create-home --shell /bin/false --user-group macsec"
 
 do_configure() {
 	cp -f ${WORKDIR}/hostapd.buildconfig ${S}/hostapd/.config
@@ -65,7 +65,7 @@ do_install() {
 		${S}/wpa_supplicant/wpa_supplicant -D ${D}${sbindir}/mka_supplicant
 }
 
-do_install_append() {
+do_install:append() {
 	install -d ${D}${sysconfdir}
 
 	# MKA supplicant and authenticator configuration for eth0
@@ -89,7 +89,7 @@ do_install_append() {
 	fi
 }
 
-FILES_${PN} += "${sysconfdir}"
-FILES_${PN} += "${systemd_system_unitdir}"
+FILES:${PN} += "${sysconfdir}"
+FILES:${PN} += "${systemd_system_unitdir}"
 
 # vim: filetype=bitbake

@@ -17,7 +17,7 @@ EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
                 --with-glib"
 
 
-FILESEXTRAPATHS_prepend := "${WORKSPACE}/:"
+FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
 SRC_URI = "file://data-ipa-cfg-mgr"
 SRC_URI  += "file://ipacm.service"
 SRC_URI  += "file://ipacm.conf"
@@ -26,9 +26,9 @@ S = "${WORKDIR}/data-ipa-cfg-mgr"
 
 INITSCRIPT_NAME   = "start_ipacm_le"
 INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
-FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml ${sysconfdir}/data/ipa/IPACM_vlan_cfg.xml"
+FILES:${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml ${sysconfdir}/data/ipa/IPACM_vlan_cfg.xml"
 
-do_install_append() {
+do_install:append() {
 	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 
@@ -54,7 +54,7 @@ do_install_append() {
 
 	fi
 }
-FILES_${PN} += "${userfsdatadir}/misc/ipa"
-FILES_${PN} += "${systemd_unitdir}/system"
-FILES_${PN} += "${sysconfdir}/tmpfiles.d/ipacm.conf"
-FILES_${PN} += "${systemd_unitdir}/system/local-fs.target.wants/"
+FILES:${PN} += "${userfsdatadir}/misc/ipa"
+FILES:${PN} += "${systemd_unitdir}/system"
+FILES:${PN} += "${sysconfdir}/tmpfiles.d/ipacm.conf"
+FILES:${PN} += "${systemd_unitdir}/system/local-fs.target.wants/"

@@ -1,8 +1,8 @@
 DESCRIPTION = "DDClient is a perl based dynamic DNS Utility"
 HOMEPAGE = "http://sourceforge.net/projects/ddclient/"
 SECTION = "console/network"
-LICENSE = "GPLv2"
-LICENSE_${PN} = "GPLv2"
+LICENSE = "GPL-2.0-only"
+LICENSE:${PN} = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://COPYING;md5=0636e73ff0215e8d672dc4c32c317bb3"
 DEPENDS = "perl"
 
@@ -25,7 +25,7 @@ SRC_URI = "\
     file://ddclient_bin.patch \
     file://ddclientd.service"
 
-RDEPENDS_${PN} = "perl perl-module-strict perl-module-dynaloader perl-module-getopt-long perl-module-vars perl-module-warnings-register perl-module-warnings perl-module-carp perl-module-exporter perl-module-constant perl-module-exporter-heavy perl-module-sys-hostname perl-module-xsloader perl-module-autoloader perl-module-io-select perl-module-io-socket perl-module-io-handle perl-module-symbol perl-module-selectsaver perl-module-io perl-module-socket perl-module-errno perl-module-config perl-module-io-socket-inet perl-module-io-socket-unix perl-module-integer perl-module-overload"
+RDEPENDS:${PN} = "perl perl-module-strict perl-module-dynaloader perl-module-getopt-long perl-module-vars perl-module-warnings-register perl-module-warnings perl-module-carp perl-module-exporter perl-module-constant perl-module-exporter-heavy perl-module-sys-hostname perl-module-xsloader perl-module-autoloader perl-module-io-select perl-module-io-socket perl-module-io-handle perl-module-symbol perl-module-selectsaver perl-module-io perl-module-socket perl-module-errno perl-module-config perl-module-io-socket-inet perl-module-io-socket-unix perl-module-integer perl-module-overload"
 
 do_compile() {
 }
@@ -36,12 +36,12 @@ do_install() {
    chown -R root:1001 ${D}${sysconfdir}/data/ddclient.conf
 }
 
-do_install_append_mdm(){
+do_install:append:mdm(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -m 0664 ${WORKDIR}/ddclientd.service -D ${D}${systemd_unitdir}/system/ddclientd.service
 fi
 }
 
-FILES_${PN} += "${sysconfdir}/data/ddclient.conf"
-FILES_${PN} += "${systemd_unitdir}/system/*"
+FILES:${PN} += "${sysconfdir}/data/ddclient.conf"
+FILES:${PN} += "${systemd_unitdir}/system/*"
