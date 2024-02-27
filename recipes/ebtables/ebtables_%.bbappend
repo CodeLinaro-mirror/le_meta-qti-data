@@ -1,7 +1,7 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += " \
-        file://Makefile.patch \
+        file://configure.patch \
 "
 
 DEPENDS += "virtual/kernel linux-msm-headers"
