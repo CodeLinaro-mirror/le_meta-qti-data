@@ -1,0 +1,19 @@
+[Unit]
+Description= thermal netlink service
+SourcePath=/usr/bin/thermal-eth-netlink
+After=misc_daemon.service evdev_load.service init-can.service powermanager-daemon.service
+
+[Service]
+Type=simple
+User=powermgr
+Group=powermgr
+Restart=always
+SupplementaryGroups=diag plugdev wakelock input system
+RemainAfterExit=yes
+ExecStartPre=+chown powermgr:powermgr /sys/class/net/eth0/thermal_netlink
+ExecStartPre=+chmod 0664 /sys/class/net/eth0/thermal_netlink
+ExecStart=/usr/bin/thermal-eth-netlink
+
+[Install]
+WantedBy=multi-user.target
+
