@@ -38,7 +38,7 @@ do_install() {
     cp ${WORKDIR}/datarmnet/core-out/rmnet_core.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
     # Strip debug symbols
-    ${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/9.3.0/strip --strip-debug \
+    ${STRIP} --strip-debug \
     ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
 
     #Signing and installing the datarmnet module

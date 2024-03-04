@@ -35,7 +35,7 @@ do_install() {
    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
 
-   strip_tool="${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/9.3.0/strip"
+   strip_tool="${STRIP}"
    module_path="${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm"
    module_signer="${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
                   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509"

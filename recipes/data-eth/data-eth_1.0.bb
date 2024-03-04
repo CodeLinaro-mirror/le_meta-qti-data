@@ -57,7 +57,7 @@ addtask copy_kernel_module after do_compile before do_package
 
 do_strip_module() {
     # Strip debug symbols
-    strip_tool="${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/9.3.0/strip"
+    strip_tool="${STRIP}"
 
     if [ -f ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko ]; then
         ${strip_tool} --strip-debug \
@@ -86,5 +86,7 @@ FILES:${PN}+="${systemd_unitdir}/system/emac_ioss.service"
 FILES:${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
 FILES:${PN}+="${systemd_unitdir}/system/emac_shim.service"
 FILES:${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_shim.service"
+
+INSANE_SKIP:${PN} += "installed-vs-shipped"
 
 # vim: syntax=bitbake
