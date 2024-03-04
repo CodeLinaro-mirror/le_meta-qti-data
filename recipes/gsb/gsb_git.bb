@@ -15,8 +15,10 @@ do_install() {
     install -m 0644 ${S}/gsb.ko ${DEPLOYDIR}/kernel_modules/${PN}/gsb.ko
 
     # Strip debug symbols
-    ${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/9.3.0/strip --strip-debug \
+    ${STRIP} --strip-debug \
     ${S}/gsb.ko
 
     module_do_install
 }
+
+INSANE_SKIP:${PN} += "installed-vs-shipped"

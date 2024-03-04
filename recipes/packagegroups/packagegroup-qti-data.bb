@@ -14,7 +14,6 @@ RDEPENDS:packagegroup-qti-data = ' \
 	conntrack-tools \
 	data-eth \
 	dataipa \
-	thermal-eth-netlink \
 	data-ipa-cfg-mgr \
 	data-oss \
 	datarmnet \
