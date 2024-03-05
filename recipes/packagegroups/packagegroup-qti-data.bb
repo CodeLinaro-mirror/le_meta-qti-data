@@ -23,11 +23,8 @@ RDEPENDS_packagegroup-qti-data = ' \
     tcpdump \
     ethtool \
     iputils \
-    conntrack-tools \
     strace \
-    ebtables \
     iproute2 \
-    iptables \
     techpack-ecpri \
     strongswan \
     bind-utils \
