@@ -18,7 +18,6 @@ RDEPENDS_packagegroup-qti-data = ' \
     ethtool \
     tcpdump \
     conntrack-tools \
-    gsb \
     rtsp-alg \
     '
 
