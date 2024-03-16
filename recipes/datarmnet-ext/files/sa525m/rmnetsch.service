@@ -1,0 +1,14 @@
+[Unit]
+Description= Load rmnet_sch dlkm
+SourcePath=/etc/initscripts/start_rmnetsch_le
+DefaultDependencies=no
+
+[Service]
+Restart=on-failure
+RemainAfterExit=yes
+Type=oneshot
+ExecStart=/etc/initscripts/start_rmnetsch_le start
+Nice=-20
+
+[Install]
+WantedBy=local-fs.target
