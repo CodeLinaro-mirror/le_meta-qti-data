@@ -1,56 +1,47 @@
-From 68eef1713c73a8a2266c98e7ac36e822ad06cd7b Mon Sep 17 00:00:00 2001
-From: Abhishek Chauhan <quic_abchauha@quicinc.com>
-Date: Tue, 9 Nov 2021 15:42:41 -0800
-Subject: [PATCH] hostap-2.9: Driver changes to set iface name
+From 40db061600f4b550e313ef72325a1711fae9ad1d Mon Sep 17 00:00:00 2001
+From: Jinesh K. Jayakumar <quic_jineshk@quicinc.com>
+Date: Mon, 18 Sep 2023 13:57:37 -0400
+Subject: [PATCH] macsec_linux: Set predictable macsec interface name
 
-Driver changes to update macsec iface name  once wpa supplicant command is
-executed.
+Generate predictable interface name for macsec using physical
+interface name and macsec port number.
 
-Change-Id: Id59d03252995c9cc15df400a0770f0f350d7a3fe
-Signed-off-by: Abhishek Chauhan <quic_abchauha@quicinc.com>
+Signed-off-by: Jinesh K. Jayakumar <quic_jineshk@quicinc.com>
 ---
- src/drivers/driver_macsec_linux.c | 21 +++++++++++++++++++++
- 1 file changed, 21 insertions(+)
+ src/drivers/driver_macsec_linux.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
 
 diff --git a/src/drivers/driver_macsec_linux.c b/src/drivers/driver_macsec_linux.c
-index a79a414..0ef69d8 100644
+index 3dba13ce7..22e266ccc 100644
 --- a/src/drivers/driver_macsec_linux.c
 +++ b/src/drivers/driver_macsec_linux.c
-@@ -1111,6 +1111,26 @@ nla_put_failure:
-	return ret;
+@@ -1082,6 +1082,19 @@ static struct rtnl_link * lookup_sc(struct nl_cache *cache, int parent, u64 sci)
  }
-
+ 
+ 
++/* Set macsec interface name to <phys_intf>s<sci_port> */
 +static int set_iface_name(struct transmit_sc *sc,
 +		struct macsec_drv_data *drv,
 +		struct rtnl_link *link)
 +{
-+	char ifname[20] = {0};
-+	char pifname[20] = {0};
-+	int i,j;
-+	os_strlcpy(ifname, ".s0", sizeof(pifname));
-+	os_strlcpy(pifname, drv->common.ifname, sizeof(pifname));
-+	for(i=0; pifname[i]!='\0'; ++i);
-+	for(j=0; ifname[j]!='\0'; ++j, ++i)
-+	{
-+		pifname[i]=ifname[j];
-+	}
-+	pifname[i]='\0';
-+	/*So if parent iface is eth0 then link set is eth0.s0*/
-+	rtnl_link_set_name(link, pifname);
++	char ifname[IFNAMSIZ + 1];
++
++	os_snprintf(ifname, sizeof(ifname), "%ss%u", drv->common.ifname, be_to_host16(sc->sci.port));
++
++	rtnl_link_set_name(link, ifname);
 +}
 +
 +
  /**
   * macsec_drv_create_transmit_sc - Create secure connection for transmit
   * @priv: private driver interface data from init()
-@@ -1145,6 +1165,7 @@ static int macsec_drv_create_transmit_sc(
-		return -1;
-	}
-
-+	set_iface_name(sc,drv,link);
-	rtnl_link_set_link(link, drv->parent_ifi);
-
-	sci = mka_sci_u64(&sc->sci);
---
-2.7.4
-
+@@ -1115,6 +1128,7 @@ static int macsec_drv_create_transmit_sc(
+ 		return -1;
+ 	}
+ 
++	set_iface_name(sc, drv, link);
+ 	rtnl_link_set_link(link, drv->parent_ifi);
+ 
+ 	sci = mka_sci_u64(&sc->sci);
+-- 
+2.34.1
