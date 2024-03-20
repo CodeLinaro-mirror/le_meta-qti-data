@@ -1,5 +1,5 @@
 From f8e846e2e6538ad7c75d4968538cc4790441bc64 Mon Sep 17 00:00:00 2001
-From: From: Ganesh Babu Kamma <gkamma@quicinc.com>
+From: From: Ganesh Babu Kamma <quic_gkamma@quicinc.com>
 Date: Wed, 21 Feb 2024 14:46:05 +0530
 Subject: [PATCH] Include libnetfilter_conntrack lib for dnsmasq
 
