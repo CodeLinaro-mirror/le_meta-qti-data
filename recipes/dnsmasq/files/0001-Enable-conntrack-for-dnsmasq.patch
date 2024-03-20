@@ -1,5 +1,5 @@
 From 2de063de6b9471f579a9a77de9fe311cf2072529 Mon Sep 17 00:00:00 2001
-From: Ganesh Babu Kamma <gkamma@quicinc.com>
+From: Ganesh Babu Kamma <quic_gkamma@quicinc.com>
 Date: Wed, 21 Feb 2024 14:40:07 +0530
 Subject: [PATCH] Enable conntrack for dnsmasq
 
