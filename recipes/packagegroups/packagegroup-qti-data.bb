@@ -17,6 +17,7 @@ RDEPENDS:packagegroup-qti-data = ' \
     conntrack-tools \
     data-oss \
     dhcpcd \
+    sfe \
     ebtables \
     iproute2 \
     iptables \
