@@ -52,6 +52,7 @@ define Build/InstallDev
 endef
 
 define KernelPackage/$(PKG_NAME)/install
+	$(SIGN_KEY) $(PKG_BUILD_DIR)/r8168_ioss.ko
 	$(INSTALL_DIR) $(1)/$(EMAC_ADDR)/
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/r8168_ioss.ko $(1)/$(EMAC_ADDR)/
