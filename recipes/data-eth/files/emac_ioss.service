@@ -5,10 +5,11 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
 Description=EMAC_IOSS
 
 [Service]
+Type=oneshot
 Restart=no
 RemainAfterExit=yes
-ExecStart=/sbin/modprobe iemac_ioss
-ExecStop=/sbin/rmmod iemac_ioss
+ExecStart=/bin/sh -c '/sbin/modprobe ioss qos_id=$(/usr/bin/id -g ethqos)' ; /sbin/modprobe iemac_ioss
+ExecStop=/sbin/rmmod iemac_ioss ; /sbin/rmmod ioss
 
 [Install]
 WantedBy=multi-user.target
