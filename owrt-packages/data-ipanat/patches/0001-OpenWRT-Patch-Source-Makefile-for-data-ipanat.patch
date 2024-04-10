@@ -38,7 +38,8 @@ index 0000000..a5481ce
 +	ipa_table.c \
 +	ipa_mem_descriptor.c \
 +	ipa_ipv6ct.c \
-+	ipa_nat_statemach.c
++	ipa_nat_statemach.c \
++	ipa_ct_statemach.c
 +
 +LIBIPANAT_CPP_SRCS = ipa_nat_map.cpp
 +
