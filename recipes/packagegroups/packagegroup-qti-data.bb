@@ -14,6 +14,8 @@ PACKAGES = ' \
     '
 
 RDEPENDS:packagegroup-qti-data = ' \
+    datarmnet \
+    rmnetbam \
     conntrack-tools \
     data-oss \
     dhcpcd \
