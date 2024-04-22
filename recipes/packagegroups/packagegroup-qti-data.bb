@@ -35,5 +35,4 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     lighttpd \
     libgpiod \
     phytool \
-    data-rc \
     '
