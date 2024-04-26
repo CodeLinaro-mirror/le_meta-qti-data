@@ -6,6 +6,7 @@ Description= Load ecpri dlkm service
 After=si5518_image_dload_util.service
 
 [Service]
+Type=oneshot
 Restart=on-failure
 RemainAfterExit=yes
 
@@ -13,6 +14,7 @@ RemainAfterExit=yes
 # Use Script file only when there is NO binary or commands to be executed/ modules to be installed cases.
 
 ExecStart=/bin/sh /usr/bin/ecpri_install
+ExecStart=/bin/sh /etc/data/mtipcfm.sh
 ExecStop=/bin/sh /usr/bin/ecpri_uninstall
 
 [Install]
