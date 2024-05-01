@@ -1,0 +1,27 @@
+#Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+[Unit]
+Description=Load Shortcut_FE Driver
+DefaultDependencies=no
+AssertPathExists=/lib/modules/
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'echo "Starting/Loading Shortcut_FE Driver: "; \
+                       echo "Shortcut_FE_IPV4:start/load" > /dev/kmsg; \
+                       insmod /lib/modules/$(uname -r)/extra/shortcut-fe.ko; \
+                       echo "Shortcut_FE_IPV6:start/load" > /dev/kmsg; \
+                       insmod /lib/modules/$(uname -r)/extra/shortcut-fe-ipv6.ko; \
+                       echo "Shortcut_FE_CM:start/load" > /dev/kmsg; \
+                       insmod /lib/modules/$(uname -r)/extra//shortcut-fe-cm.ko; \
+                       echo "done loading Shortcut FE driver"'
+
+ExecStop=/bin/sh -c 'echo "Unloading Shortcut FE Driver "; \
+                      rmmod shortcut_fe; \
+                      rmmod shortcut_fe_cm; \
+                      rmmod shortcut_fe_ipv6; \
+                      echo "Shortcut_FE_modules unload" > /dev/kmsg; \
+                      echo "done unloading Shortcut FE driver"'
+
+Nice=-20
