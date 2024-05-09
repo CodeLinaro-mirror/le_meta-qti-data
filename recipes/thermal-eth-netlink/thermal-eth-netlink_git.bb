@@ -16,17 +16,14 @@ SRC_URI   = "file://thermal-eth-netlink/"
 SRC_URI += "file://thermal-eth-netlink.service"
 S = "${WORKDIR}/thermal-eth-netlink"
 
-DEPENDS = "qmi-framework common-headers libcutils libnl linux-msm-headers"
+DEPENDS = "qmi-framework glib-2.0 common-headers libcutils libnl linux-msm-headers"
 
-USERADD_PACKAGES = "${PN}"
-USERADD_PARAM_${PN} = "--home /usr/bin --no-create-home --shell /bin/false --user-group powermgr"
-
-EXTRA_OECONF  = "--with-qmi-framework  --with-glib"
+EXTRA_OECONF  = "--with-qmi-framework --with-glib"
 EXTRA_OECONF += "--with-netlink-framework"
 EXTRA_OECONF += "--with-sanitized-headers=${STAGING_INCDIR}/linux-msm/usr/include"
 EXTRA_OECONF += "--enable-target-${BASEMACHINE}=yes"
 
-SYSTEMD_SERVICE_${PN} = "thermal-eth-netlink.service"
+SYSTEMD_SERVICE:${PN} = "thermal-eth-netlink.service"
 
 do_install() {
 	install -d ${D}${bindir}
@@ -37,6 +34,6 @@ do_install() {
 		${D}${systemd_system_unitdir}/thermal-eth-netlink.service
 }
 
-RPROVIDES_${PN} += "kernel-module-thermal-eth-netlink"
-FILES_${PN}     += "${bindir}/thermal-eth-netlink"
-FILES_${PN} += "${systemd_system_unitdir}"
+RPROVIDES:${PN} += "kernel-module-thermal-eth-netlink"
+FILES:${PN}     += "${bindir}/thermal-eth-netlink"
+FILES:${PN} += "${systemd_system_unitdir}"
