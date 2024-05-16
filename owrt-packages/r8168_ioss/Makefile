@@ -3,6 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=r8168_ioss
 PKG_VERSION:=1.0
+PKG_LICENSE:=BSD-3-Clause
 PKG_RELEASE:=1
 
 ifeq ($(VARIANT),perf)

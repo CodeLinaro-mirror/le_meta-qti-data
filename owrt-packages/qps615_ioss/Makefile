@@ -3,6 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=qps615-ioss
 PKG_VERSION:=1.0
+PKG_LICENSE:=BSD-3-Clause
 PKG_RELEASE:=1
 
 LOCAL_SRC ?= $(TOPDIR)/src/kernel/msm-5.4/techpack/data-eth/drivers/qps615_ioss

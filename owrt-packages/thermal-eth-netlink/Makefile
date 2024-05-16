@@ -3,6 +3,7 @@ include $(INCLUDE_DIR)/target.mk
 
 PKG_NAME:=thermal-eth-netlink
 PKG_VERSION:=1
+PKG_LICENSE:=BSD-3-Clause
 PKG_RELEASE:=1
 
 LOCAL_SRC:=$(TOPDIR)/src/data-eth/drivers/thermal-eth-netlink
