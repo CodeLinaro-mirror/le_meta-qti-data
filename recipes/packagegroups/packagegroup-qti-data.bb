@@ -20,6 +20,8 @@ RDEPENDS:packagegroup-qti-data = ' \
     data-oss \
     dhcpcd \
     sfe \
+    qcom-emac \
+    ethtool \
     ebtables \
     iproute2 \
     iptables \
