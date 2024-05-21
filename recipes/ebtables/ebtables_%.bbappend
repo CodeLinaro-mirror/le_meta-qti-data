@@ -9,8 +9,8 @@ DEPENDS += "virtual/kernel linux-msm-headers"
 EXTRA_OEMAKE += "KERNEL_INCLUDES=${STAGING_INCDIR}/linux-msm/usr/include"
 EXTRA_OEMAKE += "CFLAGS+="-I${S}/include""
 
-EXTRA_OECONF = "--without-crypto \
-        ${@bb.utils.contains('DISTRO_FEATURES', 'ipv6', '--enable-ipv6', '--disable-ipv6', d)}"
+#EXTRA_OECONF = "--without-crypto \
+#        ${@bb.utils.contains('DISTRO_FEATURES', 'ipv6', '--enable-ipv6', '--disable-ipv6', d)}"
 
 FILES:${PN}     += "${libdir}/lib*.so"
 FILES:${PN}     += "${sbindir}/*"
@@ -30,3 +30,5 @@ do_install:append () {
 }
 
 SYSTEMD_SERVICE:${PN} = ""
+
+INSANE_SKIP:${PN} += "installed-vs-shipped"
