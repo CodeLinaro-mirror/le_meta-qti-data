@@ -1,0 +1,55 @@
+From 41046bd7ba36b736d4c6e1c5405fdcb12cda1f28 Mon Sep 17 00:00:00 2001
+From: Ganesh Babu Kamma <quic_gkamma@quicinc.com>
+Date: Mon, 26 Feb 2024 15:36:52 +0530
+Subject: [PATCH] configure changes
+
+---
+ configure | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/configure b/configure
+index 14e9f98..7a8638b 100644
+--- a/configure
++++ b/configure
+@@ -804,12 +804,14 @@ x_libraries=NONE
+ # by default will actually change.
+ # Use braces instead of parens because sh, perl, etc. also accept them.
+ # (The list follows the same order as the GNU Coding Standards.)
+-bindir='${exec_prefix}/bin'
++bindir='${sbindir}'
+ sbindir='${exec_prefix}/sbin'
+ libexecdir='${exec_prefix}/libexec'
+ datarootdir='${prefix}/share'
+ datadir='${datarootdir}'
+-sysconfdir='${prefix}/etc'
++etcdir='${sysconfdir}'
++initdir='${etcdir}/rc.d/init.d'
++sysconfdir='${etcdir}/ebtables'
+ sharedstatedir='${prefix}/com'
+ localstatedir='${prefix}/var'
+ runstatedir='${localstatedir}/run'
+@@ -821,9 +823,9 @@ htmldir='${docdir}'
+ dvidir='${docdir}'
+ pdfdir='${docdir}'
+ psdir='${docdir}'
+-libdir='${exec_prefix}/lib'
++libdir='${libdir}'
+ localedir='${datarootdir}/locale'
+-mandir='${datarootdir}/man'
++mandir='${mandir}'
+ 
+ ac_prev=
+ ac_dashdash=
+@@ -12128,7 +12130,7 @@ CC=$lt_save_CC
+ 
+ 
+ if test "x$LOCKFILE" = x; then :
+-  LOCKFILE="/var/lib/ebtables/lock"
++  LOCKFILE=${localstatedir}lib/ebtables/lock
+ fi
+ 
+ regular_CFLAGS="-Wall -Wunused"
+-- 
+2.25.1
+
+
