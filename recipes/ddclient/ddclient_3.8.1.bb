@@ -33,7 +33,7 @@ do_compile() {
 do_install() {
    install -m 0755 ${S}/ddclient -D ${D}${sbindir}/ddclient
    install -m 0664 ${S}/sample-etc_ddclient.conf -D ${D}${sysconfdir}/data/ddclient.conf
-   chown -R root:1001 ${D}${sysconfdir}/data/ddclient.conf
+#   chown -R root:1001 ${D}${sysconfdir}/data/ddclient.conf
 }
 
 do_install:append:mdm(){
