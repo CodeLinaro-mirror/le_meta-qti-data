@@ -18,8 +18,8 @@ RDEPENDS_packagegroup-qti-data = ' \
     ethtool \
     tcpdump \
     conntrack-tools \
-    gsb \
     rtsp-alg \
+    hostap-2.10 \
     '
 
 RDEPENDS_packagegroup-qti-data-1g = ' \
@@ -36,5 +36,4 @@ RDEPENDS_packagegroup-qti-data-1g = ' \
     lighttpd \
     libgpiod \
     phytool \
-    data-rc \
     '

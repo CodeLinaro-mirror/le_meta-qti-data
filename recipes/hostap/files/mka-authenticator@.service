@@ -24,10 +24,14 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
+#Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
 
 [Unit]
-SourcePath=/usr/sbin/wpa_supplicant-2.9
-Description=MACSEC Key Agreement Protocol (IEEE 802.1X) Supplicant
+SourcePath=/usr/sbin/mka_authenticator
+Description=MACSEC Key Agreement Protocol (IEEE 802.1X) Authenticator
 BindsTo=sys-subsystem-net-devices-%i.device
 After=sys-subsystem-net-devices-%i.device
 
@@ -35,7 +39,7 @@ After=sys-subsystem-net-devices-%i.device
 # Increase real interface MTU by 36B to accomodate MACSEC header+icv
 # and VLAN header overhead
 ExecStartPre=/sbin/ip link set mtu 1536 dev %i
-ExecStart=/usr/sbin/wpa_supplicant-2.9 -D macsec_linux -i %i -c /etc/data/wpa_supplicant-%i.conf
+ExecStart=/usr/sbin/mka_authenticator -i %i /etc/data/mka_authenticator-%i.conf
 ExecStopPost=/sbin/ip link set mtu 1500 dev %i
 
 [Install]
