@@ -14,8 +14,11 @@ do_configure[depends] += "${@oe.utils.conditional('KERNEL_USE_PREBUILTS', 'True'
 SRC_URI += "file://techpack-ecpri.service"
 SRC_URI += "file://ecpri_install"
 SRC_URI += "file://ecpri_uninstall"
+SRC_URI += "file://mtipcfm.sh"
 
 S = "${WORKDIR}/datacsm-kernel"
+
+do_deploy[cleandirs] = "${DEPLOYDIR}/x100"
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 #ECPRI_PERF = 1 when DEBUG_BUILD == 0
@@ -65,7 +68,7 @@ do_install() {
     install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
     install -d ${D}/usr/include/
     install -d ${D}/usr/lib/modules/
-
+    install -d ${D}/etc/data/
 
     # strip debug symbols and sign the module
     do_strip_and_sign_dlkm ${WORKDIR}/datacsm-kernel/drivers/ecpri/dma/ecpri_dmam.ko ${DEBUG_SYMBOLS}
@@ -110,6 +113,9 @@ do_install() {
 	install -m 0755 \
 		${WORKDIR}/ecpri_uninstall -D ${D}${bindir}/ecpri_uninstall
 
+	install -m 0755 \
+		${WORKDIR}/mtipcfm.sh -D ${D}${sysconfdir}/data/mtipcfm.sh
+
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
@@ -127,6 +133,7 @@ do_deploy() {
     cp -rp ${WORKDIR}/lassen_qcom_aw_phy.ko ${DEPLOYDIR}/
     cp -rp ${WORKDIR}/lassen_secure_eip.ko ${DEPLOYDIR}/
     cp -rp ${WORKDIR}/ldmm.ko ${DEPLOYDIR}/
+    cp -rp ${WORKDIR}/mtipcfm.sh ${DEPLOYDIR}/x100/
 }
 
 addtask do_deploy after do_install
