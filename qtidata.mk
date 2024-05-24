@@ -4,7 +4,7 @@ QTIDATA:=rmnetctl libpugixml newstrongswan newstrongswan-full
 
 ###Add target specific packages
 ifeq ($(BOARD),sdx35)
-  	QTIDATA+= ipanat ipacm kmod-dataipa
+  	QTIDATA+= ipanat ipacm kmod-dataipa datafactory
 else ifeq ($(BOARD),sdx65)
   	QTIDATA+= kmod-rmnet-core kmod-rmnet-ctl qps615 ioss qps615-ioss ipanat ipacm
 else ifeq ($(BOARD),sdx75)
