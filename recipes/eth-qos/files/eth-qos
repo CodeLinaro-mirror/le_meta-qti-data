@@ -5,38 +5,21 @@
 set -e
 
 # Use this as error code for incomplete commands
-EINVAL=22
+EINVAL=1
 
-add_tc () {
-	if [[ $# -lt 5 ]];
-	then
-		print_usage
-		return $EINVAL
-	fi
-
-	local dev="$1"
-	shift
-	local dir="$1"
-	shift
-	local tc="$1"
+add_flow() {
+	local handle="$1"
 	shift
 
-	local action=""
 	local smac=""
 	local dmac=""
 	local vlan=""
 	local pcp=""
 	local src=""
 	local dst=""
-	local bw=""
 
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
-			"--action")
-				shift
-				action="$1"
-				shift
-				;;
 			"--smac")
 				shift
 				while [[ $# -gt 0 && "$1" != "--"* ]]; do
@@ -79,11 +62,6 @@ add_tc () {
 					shift
 				done
 				;;
-			"--bw")
-				shift
-				bw="$1"
-				shift
-				;;
 			"--"*|*)
 				echo "Unknown option $1"
 				print_usage
@@ -100,43 +78,105 @@ add_tc () {
 	src="${src:1}"
 	dst="${dst:1}"
 
-	if [[ "$dir" == "rx" ]] && [ -z "$smac" ] && [ -z "$dmac" ] && \
-		[ -z "$vlan" ] && [ -z "$pcp" ] && [ -z "$src" ] && [ -z "$dst" ];
+	if [ -z "$smac" ] && [ -z "$dmac" ] && [ -z "$vlan" ] && \
+		[ -z "$pcp" ] && [ -z "$src" ] && [ -z "$dst" ];
 	then
 		print_usage
 		return $EINVAL
 	fi
 
+	echo "$handle" > /sys/class/net/"$dev"/qos/add_handle
+	if [ -n "$smac" ]; then
+		echo "$smac" > /sys/class/net/"$dev"/qos/add_tc_params/smac
+	fi
+	if [ -n "$dmac" ]; then
+		echo "$dmac" > /sys/class/net/"$dev"/qos/add_tc_params/dmac
+	fi
+	if [ -n "$vlan" ]; then
+		echo "$vlan" > /sys/class/net/"$dev"/qos/add_tc_params/vlan_id
+	fi
+	if [ -n "$pcp" ]; then
+		echo "$pcp" > /sys/class/net/"$dev"/qos/add_tc_params/pcp
+	fi
+	if [ -n "$src" ]; then
+		echo "$src" > /sys/class/net/"$dev"/qos/add_tc_params/src
+	fi
+	if [ -n "$dst" ]; then
+		echo "$dst" > /sys/class/net/"$dev"/qos/add_tc_params/dst
+	fi
+	echo "done" > /sys/class/net/"$dev"/qos/add_handle
+
+}
+
+add_tc () {
+	if [[ $# -lt 5 ]];
+	then
+		print_usage
+		return $EINVAL
+	fi
+
+	dev="$1"
+	shift
+	dir="$1"
+	shift
+	tc="$1"
+	shift
+
+	action=""
+
+	local bw=""
+
+	if [[ "$1" == "--action" ]]; then
+		shift
+		action="$1"
+		shift
+	else
+		print_usage
+		return $EINVAL
+	fi
 
 	echo "$dir" "$tc" > /sys/class/net/"$dev"/qos/add_tc
+
 	if [ -n "$action" ]; then
 		echo "$dir" "$action" > /sys/class/net/"$dev"/qos/add_tc_params/action
 	fi
+
 	if [[ "$dir" == "rx" ]]; then
-		if [ -n "$smac" ]; then
-			echo "$smac" > /sys/class/net/"$dev"/qos/add_tc_params/smac
-		fi
-		if [ -n "$dmac" ]; then
-			echo "$dmac" > /sys/class/net/"$dev"/qos/add_tc_params/dmac
-		fi
-		if [ -n "$vlan" ]; then
-			echo "$vlan" > /sys/class/net/"$dev"/qos/add_tc_params/vlan_id
-		fi
-		if [ -n "$pcp" ]; then
-			echo "$pcp" > /sys/class/net/"$dev"/qos/add_tc_params/pcp
-		fi
-		if [ -n "$src" ]; then
-			echo "$src" > /sys/class/net/"$dev"/qos/add_tc_params/src
-		fi
-		if [ -n "$dst" ]; then
-			echo "$dst" > /sys/class/net/"$dev"/qos/add_tc_params/dst
-		fi
+		new_args=$(echo "$@" | sed 's/-h/#/g')
+		default_IFS="$IFS"
+		IFS='#'
+		flows=($new_args)
+		IFS="$default_IFS"
+
+		for element in "${flows[@]}"
+		do
+			if [ -z "$element" ]; then
+				continue
+			fi
+			# echo "$element"
+			add_flow $element
+		done
 	fi
+
 	if [[ "$dir" == "tx" ]]; then
+		while [[ $# -gt 0 ]]; do
+			case "$1" in
+				"--bw")
+					shift
+					bw="$1"
+					shift
+					;;
+				"--"*|*)
+					echo "Ignoring argument $1"
+					shift
+					;;
+			esac
+		done
 		if [ -n "$bw" ]; then
 			echo "$bw" > /sys/class/net/"$dev"/qos/add_tc_params/bw
 		fi
 	fi
+
 	echo "$dir" "done" > /sys/class/net/"$dev"/qos/add_tc
 }
 
