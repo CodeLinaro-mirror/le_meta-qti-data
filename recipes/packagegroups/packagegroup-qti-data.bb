@@ -25,7 +25,6 @@ RDEPENDS:packagegroup-qti-data = ' \
         dnsmasq \
 	sfe \
 	iputils \
-	gsb \
 	tcpdump \
 	strace \
 	libgpiod \
