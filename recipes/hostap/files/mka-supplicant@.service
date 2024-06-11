@@ -1,4 +1,4 @@
-# Copyright (c) 2020, The Linux Foundation. All rights reserved.
+# Copyright (c) 2020, 2022 The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -24,28 +24,25 @@
 # WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
 # OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
+#Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
 
-ctrl_interface=/var/run/wpa_supplicant
+[Unit]
+SourcePath=/usr/sbin/mka_supplicant
+Description=MACSEC Key Agreement Protocol (IEEE 802.1X) Supplicant
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device
 
-eapol_version=3
-ap_scan=0
-fast_reauth=1
+[Service]
+# Increase real interface MTU by 36B to accomodate MACSEC header+icv
+# and VLAN header overhead
+ExecStartPre=/sbin/ip link set mtu 1536 dev %i
+ExecStart=/usr/sbin/mka_supplicant -D macsec_linux -i %i -c /etc/data/mka_supplicant-%i.conf
+ExecStopPost=/sbin/ip link set mtu 1500 dev %i
 
-network={
-	key_mgmt=NONE
-	eapol_flags=0
+[Install]
+WantedBy=multi-user.target
 
-	macsec_policy=1
-#	macsec_integ_only=1
-
-#	Following PSK are used only for testing purposes
-	mka_cak=f1367df92a453a6d575cbd114849c514
-	mka_ckn=61b1e91243798e7bb9d1ba25a0eea38eee7ad33ec924beb5d2932daf80668058
-
-#	AQC HW has a bug that prevents us from disabling replay protection. As a
-#	workaround, enable replay protection with the largest possible window size.
-	macsec_replay_protect=1
-	macsec_replay_window=4294967295
-}
-
-# vim: syntax=dosini
+# vim: syntax=systemd

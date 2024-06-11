@@ -1,0 +1,20 @@
+# hostapd build time configuration.
+# See https://w1.fi/cgit/hostap/tree/hostapd/defconfig?h=hostap_2_10
+# for all the available options and their documentation.
+
+CFLAGS += -Ofast -flto
+LDFLAGS += -flto
+
+CONFIG_LIBNL32=y
+CONFIG_EAP=y
+CONFIG_RSN_PREAUTH=y
+CONFIG_ERP=y
+CONFIG_EAP_PSK=y
+
+CONFIG_IPV6=y
+
+# Driver interface for Linux MACsec drivers
+CONFIG_DRIVER_MACSEC_LINUX=y
+
+# MACsec
+CONFIG_MACSEC=y
