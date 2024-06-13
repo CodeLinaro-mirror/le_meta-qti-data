@@ -22,13 +22,13 @@ do_install:append () {
 
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}/etc/initscripts
-         install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/initscripts/dnsmasq
+         install -m 555 ${WORKDIR}/init ${D}${sysconfdir}/initscripts/dnsmasq
          install -d ${D}/etc/systemd/system/
          install -m 0644 ${WORKDIR}/dnsmasq.service -D ${D}/etc/systemd/system/dnsmasq.service
          install -d ${D}/etc/systemd/system/multi-user.target.wants/
          install -d ${D}${systemd_unitdir}/system/
          install -m 0644 ${WORKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
-         install -m 0755 ${WORKDIR}/qcmap_stop_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
+         install -m 0555 ${WORKDIR}/qcmap_stop_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
         else
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
         fi
