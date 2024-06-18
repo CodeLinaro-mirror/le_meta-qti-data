@@ -15,7 +15,7 @@ EXTRA_OEMAKE = "CC='${CC}' \
 
 do_install:append () {
         install -d ${D}${sysconfdir}/data/
-        install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
+        install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
         chown -R root:root ${D}${sysconfdir}/data/dnsmasq.conf
         # symlink dnsmasq.conf under /etc
         ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
