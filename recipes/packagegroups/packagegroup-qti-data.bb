@@ -13,8 +13,6 @@ PACKAGES = ' \
 RDEPENDS:packagegroup-qti-data = ' \
 	conntrack-tools \
 	data-eth \
-	dataipa \
-	data-ipa-cfg-mgr \
 	data-oss \
 	datarmnet \
         dhcpcd \
@@ -31,4 +29,5 @@ RDEPENDS:packagegroup-qti-data = ' \
 	phytool \
 	tcp-splice \
 	${@oe.utils.conditional('BASEMACHINE', 'sa525m', 'hostap-2.10', '', d)} \
+        ${@bb.utils.contains('MACHINE_FEATURES', 'qti-eap','', 'dataipa data-ipa-cfg-mgr',  d)} \
     '

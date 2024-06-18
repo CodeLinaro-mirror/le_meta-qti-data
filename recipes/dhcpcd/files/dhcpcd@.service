@@ -4,8 +4,10 @@ SourcePath=/usr/sbin/dhcpcd
 
 [Service]
 Type=forking
-Restart=no
+Restart=on-failure
 ExecStart=/usr/sbin/dhcpcd %i -t 0 -o domain_name_servers --noipv4ll -h -b -G -C resolv.conf
+ExecStartPost=/bin/sh -c 'echo $MAINPID > /var/run/data/monitor/dhcpcd-%i.pid'
 ExecStop=/bin/kill -15 $MAINPID
 TimeoutSec=infinity
 ExecStopPost=rm -rf /var/run/dhcpcd-%i.info
+ExecStopPost=/bin/sh -c 'rm -rf /var/run/data/monitor/dhcpcd-%i.pid'
