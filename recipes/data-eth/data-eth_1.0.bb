@@ -78,9 +78,14 @@ do_strip_module() {
         ${strip_tool} --strip-debug \
         ${PKGDEST}/kernel-module-r8125-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/r8125_ioss/r8125_ioss.ko
     fi
+
+    if [ -f ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko ]; then
+        ${strip_tool} --strip-debug \
+        ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko
+    fi
 }
 
-addtask strip_module after do_package before do_package_write_ipk
+addtask strip_module after do_package before do_packagedata
 
 FILES:${PN}+="${systemd_unitdir}/system/emac_ioss.service"
 FILES:${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
