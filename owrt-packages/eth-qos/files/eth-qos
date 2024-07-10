@@ -144,6 +144,7 @@ add_tc () {
 	action=""
 
 	local bw=""
+	local tx_handle=""
 
 	if [[ "$1" == "--action" ]]; then
 		shift
@@ -186,6 +187,23 @@ add_tc () {
 					bw="$1"
 					shift
 					;;
+				"-h")
+					if [[ -z "$tx_handle" ]]; then
+						shift
+						tx_handle="$1"
+						shift
+					else
+						shift
+						shift
+					fi
+					;;
+				"--pcp")
+					shift
+					while [[ $# -gt 0 && "$1" != "--"* && "$1" != "-"* ]]; do
+						pcp+=" $1"
+						shift
+					done
+					;;
 				"--"*|*)
 					echo "Ignoring argument $1"
 					shift
@@ -194,6 +212,12 @@ add_tc () {
 		done
 		if [ -n "$bw" ]; then
 			echo "$bw" > /sys/class/net/"$dev"/qos/add_tc_params/bw
+		fi
+		if [ -n "$pcp" ]; then
+			echo "$pcp" > /sys/class/net/"$dev"/qos/add_tc_params/tx_pcp
+		fi
+		if [ -n "$tx_handle" ]; then
+			echo "$tx_handle" > /sys/class/net/"$dev"/qos/tx_handle
 		fi
 	fi
 
