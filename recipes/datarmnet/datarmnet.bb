@@ -49,7 +49,7 @@ do_install() {
 
     #Install startup scripts
     install -d ${D}${sysconfdir}/initscripts/
-    install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
+    install -m 0555 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
     install -d ${D}${systemd_unitdir}/system/
     install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
     install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
