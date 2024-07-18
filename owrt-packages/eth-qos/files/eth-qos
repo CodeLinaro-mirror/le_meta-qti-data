@@ -13,8 +13,6 @@ add_flow() {
 		shift
 		handle="$1"
 		shift
-	else
-		handle="0"
 	fi
 
 	local smac=""
@@ -95,7 +93,15 @@ add_flow() {
 		return $EINVAL
 	fi
 
-	echo "$handle" > /sys/class/net/"$dev"/qos/add_handle
+	if [ -z "$handle" ]; then
+		if [ -d /sys/class/net/"$dev"/qos/add_handle ]; then
+			handle="0"
+			echo "$handle" > /sys/class/net/"$dev"/qos/add_handle
+		fi
+	else
+		echo "$handle" > /sys/class/net/"$dev"/qos/add_handle
+	fi
+
 	if [ -n "$smac" ]; then
 		echo "$smac" > /sys/class/net/"$dev"/qos/add_tc_params/smac
 	fi
@@ -114,7 +120,10 @@ add_flow() {
 	if [ -n "$dst" ]; then
 		echo "$dst" > /sys/class/net/"$dev"/qos/add_tc_params/dst
 	fi
-	echo "done" > /sys/class/net/"$dev"/qos/add_handle
+
+	if [ -n "$handle" ]; then
+		echo "done" > /sys/class/net/"$dev"/qos/add_handle
+	fi
 
 }
 
