@@ -6,6 +6,8 @@ PKG_RELEASE:=1
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
 
+LOCAL_SRC := $(TOPDIR)/src/data-eth/cli
+
 include $(INCLUDE_DIR)/package.mk
 
 define Build/Compile
@@ -25,7 +27,7 @@ endef
 
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) files/eth-qos $(1)/usr/sbin/eth-qos
+	$(INSTALL_BIN) $(LOCAL_SRC)/eth-qos $(1)/usr/sbin/eth-qos
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
