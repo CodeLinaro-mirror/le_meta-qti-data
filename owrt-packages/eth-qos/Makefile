@@ -28,6 +28,8 @@ endef
 define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(LOCAL_SRC)/eth-qos $(1)/usr/sbin/eth-qos
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) files/stmmac.init $(1)/etc/init.d/
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
