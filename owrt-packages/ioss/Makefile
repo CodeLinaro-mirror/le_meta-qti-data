@@ -31,6 +31,8 @@ endef
 
 TARGET_CFLAGS += -I$(TOOLCHAIN_DIR)/include/linux/ethtool.h
 
+ifneq ($(KERNEL_PLATFORM_TARGET), sdxbaagha-128m)
+
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
@@ -53,6 +55,7 @@ define Build/InstallDev
 endef
 
 define KernelPackage/$(PKG_NAME)/install
+        $(SIGN_KEY) $(PKG_BUILD_DIR)/ioss.ko
 	$(INSTALL_DIR) $(1)/$(EMAC_ADDR)/
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ioss.ko $(1)/$(EMAC_ADDR)/
@@ -62,5 +65,25 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./files/ioss.init $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/start_ioss_modules  $(1)/etc/initscripts/
 endef
+
+else
+
+define Build/Prepare
+	@true
+endef
+
+define Build/Compile
+	@true
+endef
+
+define Build/InstallDev
+	@true
+endef
+
+define KernelPackage/$(PKG_NAME)/install
+	@true
+endef
+
+endif
 
 $(eval $(call KernelPackage,$(PKG_NAME)))
