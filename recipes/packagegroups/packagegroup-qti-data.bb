@@ -16,6 +16,7 @@ RDEPENDS_packagegroup-qti-data = ' \
     datarmnet \
     dhcpcd \
     ebtables \
+    ethtool \
     iproute2 \
     iptables \
     dnsmasq \
