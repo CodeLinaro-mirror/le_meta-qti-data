@@ -1,6 +1,6 @@
 #!/bin/sh /etc/rc.common
 
-#Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+#Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
 #SPDX-License-Identifier: BSD-3-Clause-Clear.
 
 IPACM_DEBUG=0
@@ -31,20 +31,6 @@ start_service() {
 
 		mkdir -p 755 /data/data_ipa
 		chown radio:radio /data/data_ipa
-
-		chmod 666 /dev/wwan_ioctl
-		chmod 666 /dev/ipa
-		chmod 660 /dev/ipaNatTable
-		chmod 666 /dev/ipa_adpl
-		chmod 666 /dev/ipa_odl_ctl
-                chmod 660 /dev/ipaIpv6CTTable
-
-		chown -h radio:radio /dev/wwan_ioctl
-		chown -h radio:radio /dev/ipa
-		chown -h radio:radio /dev/ipaNatTable
-		chown -h radio:radio /dev/ipa_adpl
-		chown -h radio:radio /dev/ipa_odl_ctl
-                chown -h radio:radio /dev/ipaIpv6CTTable
 
 		procd_open_instance
 		if [ $IPACM_DEBUG = 1 ]; then
