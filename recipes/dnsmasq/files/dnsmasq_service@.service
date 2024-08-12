@@ -9,5 +9,6 @@ ExecStart=/etc/initscripts/qcmap_start_dnsmasq.sh /var/run/data/dnsmasq_env.conf
 ExecReload=killall -HUP dnsmasq
 ExecStop=/etc/initscripts/qcmap_stop_dnsmasq.sh %i
 Type=oneshot
+KillMode=mixed
 RemainAfterExit=yes
 Nice=-20
