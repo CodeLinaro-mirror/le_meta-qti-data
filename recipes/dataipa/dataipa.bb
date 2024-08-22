@@ -33,9 +33,20 @@ do_compile() {
     ./build/build_module.sh
 }
 
+do_deploy() {
+   install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
+
+   module_path="${WORKDIR}/dataipa-modules-out/drivers/platform/msm"
+   module_list="gsi/gsim.ko ipa/ipam.ko ipa/ipanetm.ko ipa/ipa_clients/rndisipam.ko ipa/ipa_clients/ecmipam.ko ipa/ipa_clients/ipa_clientsm.ko"
+
+   for module in ${module_list}; do
+     # Copy the modules that contain debug symbols to the deploy directory
+     cp ${module_path}/${module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
+   done
+}
+
 do_install() {
    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
-   install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
 
    strip_tool="${STAGING_DIR_NATIVE}/usr/libexec/aarch64-oe-linux/gcc/aarch64-oe-linux/${GCCVER_AVAILABLE}/strip"
    module_path="${WORKDIR}/dataipa-modules-out/drivers/platform/msm"
@@ -44,9 +55,6 @@ do_install() {
 
    module_list="gsi/gsim.ko ipa/ipam.ko ipa/ipanetm.ko ipa/ipa_clients/rndisipam.ko ipa/ipa_clients/ecmipam.ko ipa/ipa_clients/ipa_clientsm.ko"
    for module in ${module_list}; do
-     # Copy the modules that contain debug symbols to the deploy directory
-     cp ${module_path}/${module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
-
      # Strip the debug symbols and sign the modules for target
      ${strip_tool} --strip-debug ${module_path}/${module}
      ${module_signer} ${module_path}/${module}
@@ -77,3 +85,4 @@ FILES_${PN}+="${sysconfdir}/udev/scripts/dataipa_udev.sh"
 FILES_${PN}+="${sysconfdir}/data/ipa_config.txt"
 FILES_${PN}+="${systemd_unitdir}/system/local-fs.target.wants/dataipa.service"
 
+addtask do_deploy after do_install
