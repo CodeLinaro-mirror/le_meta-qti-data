@@ -81,7 +81,7 @@ FILES:${PN}-lnstat = "${base_sbindir}/lnstat \
                       ${base_sbindir}/ctstat \
                       ${base_sbindir}/rtstat"
 FILES:${PN}-ifstat = "${base_sbindir}/ifstat"
-FILES:${PN}-ip = "${base_sbindir}/ip.${PN} ${sysconfdir}/iproute2"
+FILES:${PN}-ip = "${base_sbindir}/ip.iproute2 ${sysconfdir}/iproute2"
 FILES:${PN}-genl = "${base_sbindir}/genl"
 FILES:${PN}-rtacct = "${base_sbindir}/rtacct"
 FILES:${PN}-nstat = "${base_sbindir}/nstat"
