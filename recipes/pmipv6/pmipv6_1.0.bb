@@ -3,7 +3,7 @@ DESCRIPTION = "pmipv6"
 SECTION = "console/network"
 LICENSE = "GPL-2.0"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/GPL-2.0;md5=801f80980d171dd6425610833a22dbe6"
-DEPENDS = "virtual/kernel  linux-msm-headers libnfnetlink libpcap libcap configdb libcutils libsystemdq bison-native"
+DEPENDS = "virtual/kernel  linux-msm-headers libnfnetlink libpcap libcap configdb libcutils libsystemdq bison-native glib-2.0"
 do_configure[depends] += "virtual/kernel:do_shared_workdir "
 
 S = "${WORKDIR}/pmipv6"
@@ -22,6 +22,7 @@ FILES_${PN} += "/lib/systemd/*"
 
 EXTRA_OECONF += "--host arm-linux-gnueabi"
 EXTRA_OECONF += "--with-builtin-crypto"
+EXTRA_OECONF += "--with-glib"
 
 do_configure_prepend() {
     cp ${WORKDIR}/pmipv6/src/pmgr.c.in ${WORKDIR}/pmipv6/src/pmgr.c
