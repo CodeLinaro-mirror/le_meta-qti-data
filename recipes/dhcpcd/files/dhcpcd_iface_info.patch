@@ -34,17 +34,17 @@ index 0d6256e6..e15c8feb 100644
  
  if [ "$r" != "down" ]; then
 -	rm -f /var/lib/dhcpcd-"$INTERFACE".info
-+	rm -f /var/run/dhcpcd-"$INTERFACE".info
++	rm -f /var/run/dhcpcd/dhcpcd-"$INTERFACE".info
  	for x in IPADDR INTERFACE NETMASK BROADCAST NETWORK DHCPSID GATEWAYS \
  		DNSSERVERS DNSDOMAIN DNSSEARCH NISDOMAIN NISSERVERS \
  		NTPSERVERS GATEWAY DNS; do
 -		eval echo "$x=\'\$$x\'" >> /var/lib/dhcpcd-"$INTERFACE".info
-+		eval echo "$x=\'\$$x\'" >> /var/run/dhcpcd-"$INTERFACE".info
++		eval echo "$x=\'\$$x\'" >> /var/run/dhcpcd/dhcpcd-"$INTERFACE".info
  	done
  fi
  
 -set -- /var/lib/dhcpcd-"$INTERFACE".info "$r"
-+set -- /var/run/dhcpcd-"$INTERFACE".info "$r"
++set -- /var/run/dhcpcd/dhcpcd-"$INTERFACE".info "$r"
 diff --git a/hooks/Makefile b/hooks/Makefile
 index 7a0c3b1d..d081f0fd 100644
 --- a/hooks/Makefile
