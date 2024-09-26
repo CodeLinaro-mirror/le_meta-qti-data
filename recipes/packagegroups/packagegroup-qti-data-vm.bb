@@ -14,6 +14,7 @@ RDEPENDS:packagegroup-qti-data-vm += "\
     ethtool \
     dhcpcd \
     iproute2 \
+    net-tools \
     tcpdump \
     ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-tele', 'data-eth', '', d)} \
     ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-host qti-vm-tele', 'datarmnet', '', d)} \
