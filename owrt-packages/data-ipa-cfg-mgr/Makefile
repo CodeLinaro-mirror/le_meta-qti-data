@@ -36,6 +36,7 @@ TARGET_CFLAGS += -Og \
 	${LIBXML_CFLAGS} \
 	-I../inc \
 	-I$(WORKSPACE)/common/inc \
+	-DFEATURE_IPACM_DUMP \
 	-I$(STAGING_DIR)/usr/include/libxml2 \
 	-I$(STAGING_DIR)/usr/include/ipanat
 
