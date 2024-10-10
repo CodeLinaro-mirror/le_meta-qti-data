@@ -57,8 +57,8 @@ do_install_append () {
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${WORKDIR}/dhcpcd*.service ${D}${systemd_system_unitdir}
 
-    chmod 700 ${D}${DBDIR}
-    chown dhcpcd:dhcpcd ${D}${DBDIR}
+   # chmod 700 ${D}${DBDIR}
+   # chown dhcpcd:dhcpcd ${D}${DBDIR}
 }
 
 FILES_${PN}-dbg += "${libdir}/dhcpcd/dev/.debug"

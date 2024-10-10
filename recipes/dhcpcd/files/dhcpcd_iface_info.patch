@@ -19,7 +19,8 @@ index 8843435..4018e7e 100755
  : ${LIBEXECDIR:=$PREFIX/libexec}
 -: ${STATEDIR:=/var}
 +: ${STATEDIR:=/var/run}
- : ${DBDIR:=$STATEDIR/db/dhcpcd}
+-: ${DBDIR:=$STATEDIR/db/dhcpcd}
++: ${DBDIR:=$STATEDIR/dhcpcd}
 -: ${RUNSTATEDIR:=$STATEDIR/run}
 +: ${RUNSTATEDIR:=/var/run}
  : ${RUNDIR:=$RUNSTATEDIR/dhcpcd}
