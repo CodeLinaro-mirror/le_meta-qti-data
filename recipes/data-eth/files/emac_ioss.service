@@ -7,7 +7,7 @@ Description=EMAC_IOSS
 [Service]
 Restart=no
 RemainAfterExit=yes
-ExecStart=/sbin/modprobe iemac_ioss
+ExecStart=/bin/sh -c '/sbin/modprobe ioss qos_id=$(/usr/bin/id -g radio) && /sbin/modprobe iemac_ioss'
 ExecStop=/sbin/rmmod iemac_ioss
 
 [Install]
