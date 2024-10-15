@@ -15,6 +15,8 @@ else ifeq ($(BOARD),sdx65)
 
 else ifeq ($(BOARD),sdx75)
 	LOCAL_SRC:=$(TOPDIR)/src/dataipa/ipanat
+else ifeq ($(BOARD),sdx85)
+        LOCAL_SRC:=$(TOPDIR)/src/dataipa/ipanat
 endif
 
 define Package/$(PKG_NAME)

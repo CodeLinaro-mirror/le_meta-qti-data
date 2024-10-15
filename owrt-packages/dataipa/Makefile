@@ -39,24 +39,22 @@ endef
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR)
 	mkdir -p  $(1)/usr/lib/
+	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/linux
+	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/msm_ipa.h $(STAGING_DIR)/usr/include/linux
+	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/ipa_qmi_service_v01.h $(STAGING_DIR)/usr/include/linux
+	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/rmnet_ipa_fd_ioctl.h $(STAGING_DIR)/usr/include/linux
 endef
 
 define KernelPackage/$(PKG_NAME)/install
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ecmipam.ko
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/gsim.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/ipam.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/ipanetm.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/ipatestm.ko
 	$(INSTALL_DIR) $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ecmipam.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko $(1)/lib/modules/ipa/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/gsim.ko $(1)/lib/modules/ipa/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipam.ko $(1)/lib/modules/ipa/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipanetm.ko $(1)/lib/modules/ipa/
+#	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipatestm.ko $(1)/lib/modules/ipa/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/
 	$(INSTALL_BIN) ./files/dataipa.init $(1)/etc/init.d
@@ -64,12 +62,9 @@ define KernelPackage/$(PKG_NAME)/install
 
 #install dataipa ko's in /bin/targets/$(TARGET_VARIANT)/modules to be shown in owrt CRM APPS
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ecmipam.ko  $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/gsim.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipanetm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 endef
 
 $(eval $(call KernelPackage,dataipa))
