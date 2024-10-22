@@ -1,0 +1,42 @@
+#Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
+#Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From bb38442d133fab8f5cadab32bffe88efa07c7745 Mon Sep 17 00:00:00 2001
+From: Vatte Vishnuvardhan Reddy <quic_vishnuvr@quicinc.com>
+Date: Fri, 18 Oct 2024 11:51:13 +0530
+Subject: [PATCH] hostap: Change mka_sci_u64 api to support 32-bit architecture
+
+Change mka_sci_u64 api to support 32-bit architecture by avoiding
+typecasting of ieee802_1x_mka_sci struct to 64-bit integer.
+
+Change-Id: If9f90ba609a55f00f054143a9e26a5bb30a09b75
+Signed-off-by: Vatte Vishnuvardhan Reddy <quic_vishnuvr@quicinc.com>
+---
+ src/pae/ieee802_1x_kay.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/pae/ieee802_1x_kay.c b/src/pae/ieee802_1x_kay.c
+index 657de93ae..d0be378d5 100644
+--- a/src/pae/ieee802_1x_kay.c
++++ b/src/pae/ieee802_1x_kay.c
+@@ -417,12 +417,12 @@ ieee802_1x_kay_get_cipher_suite(struct ieee802_1x_mka_participant *participant,
+ 
+ u64 mka_sci_u64(struct ieee802_1x_mka_sci *sci)
+ {
+-	struct ieee802_1x_mka_sci tmp;
++	u64 result = 0;
+ 
+-	os_memcpy(tmp.addr, sci->addr, ETH_ALEN);
+-	tmp.port = sci->port;
++	memcpy(&result, sci->addr, ETH_ALEN);
++	result |= ((u64)sci->port) << (ETH_ALEN * 8);
+ 
+-	return *((u64 *) &tmp);
++	return result;
+ }
+ 
+ 
+-- 
+2.17.1
+

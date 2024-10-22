@@ -17,6 +17,7 @@ SRC_URI += "file://hostapd.buildconfig"
 SRC_URI += "file://wpa_supplicant.buildconfig"
 SRC_URI += "file://0001-hostap-2.10-Driver-changes-to-set-PHY-offload.patch"
 SRC_URI += "file://0001-hostap-2.10-Driver-changes-to-set-iface-name.patch"
+SRC_URI += "file://0001-hostap-Change-mka_sci_u64-api-to-support-32-bit-arch.patch"
 
 # MACSEC support
 SRC_URI  += "file://mka-supplicant@.service"
