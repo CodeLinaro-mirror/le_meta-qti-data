@@ -9,6 +9,7 @@ include $(INCLUDE_DIR)/package.mk
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/../* $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
 endef
 
@@ -34,9 +35,9 @@ endef
 
 define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/lib/modules/
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/rmnet_core.ko
+#       $(SIGN_KEY) $(PKG_BUILD_DIR)/rmnet_core.ko
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_core.ko $(1)/lib/modules/
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/rmnet_eth.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/rmnet_eth.ko
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_eth.ko $(1)/lib/modules/
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/rmnet_core.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
