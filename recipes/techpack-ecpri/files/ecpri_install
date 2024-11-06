@@ -6,6 +6,7 @@
 /sbin/insmod /usr/lib/modules/gsim.ko
 /sbin/insmod /usr/lib/modules/ecpri_dmam.ko
 /sbin/insmod /usr/lib/modules/fpc_qsfp.ko
+/usr/bin/transceiver_dualspeed_management
 
 #Load PHY module with local oscillator as ref clock if Silabs initialization fails
 if [ $(cat "/tmp/si5518_ready") == "1" ]; then
