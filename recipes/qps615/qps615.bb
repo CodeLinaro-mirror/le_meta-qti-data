@@ -1,4 +1,4 @@
-SUMMARY = "QPS615"
+SUMMARY = "INSTALL QPS615 SERVICE"
 
 LICENSE = "BSD-3-Clause & BSD-3-Clause-Clear"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
@@ -11,12 +11,10 @@ inherit systemd
 FILES_${PN}     += "${systemd_unitdir}/system/*"
 
 SRC_URI += "file://qps615.service"
-SRC_URI += "file://qps615.conf"
 
 SYSTEMD_SERVICE_${PN} = "qps615.service"
 
 do_install() {
    install -m 0644 ${WORKDIR}/qps615.service -D ${D}${systemd_unitdir}/system/qps615.service
-   install -m 0644 ${WORKDIR}/qps615.conf -D ${D}${sysconfdir}/modprobe.d/qps615.conf
 }
 

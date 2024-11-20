@@ -36,9 +36,8 @@ Description= Loading of QPS615 kernel modules
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStartPre=/sbin/modprobe qca-phy
-ExecStart=/sbin/modprobe qps615-ioss
-ExecStop=/sbin/rmmod qps615-ioss
+ExecStartPre=/sbin/modprobe at803x
+ExecStart=/sbin/modprobe qps615
 ExecStop=/sbin/rmmod qps615
 
 [Install]
