@@ -17,7 +17,8 @@ index 0538229..5b36adb 100644
  RPM_OPT_FLAGS = 
 -LIBS          = 
 +LIBS          = -lnetfilter_conntrack 
- 
+ LUA           = lua
+
  #################################################################
  
 -- 
