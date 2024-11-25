@@ -1,4 +1,5 @@
 From b15c87a0473aacdb04a601784793de7fec1cbb31 Mon Sep 17 00:00:00 2001
+Upstream-Status: Inappropriate [config]
 From: Paras Singh Jain<parassin@codeaurora.org>
 Date: Thu, 7 Jan 2021 00:02:05 +0530
 Subject: [PATCH] iproute2 makefile patch
@@ -12,9 +13,8 @@ diff --git a/Makefile b/Makefile
 index 0b79b1f..ec4cffa 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -15,7 +15,7 @@ endif
+@@ -17,6 +17,6 @@ endif
  PREFIX?=/usr
- LIBDIR?=$(PREFIX)/lib
  SBINDIR?=/sbin
 -CONFDIR?=/etc/iproute2
 +CONFDIR?=/etc/data/iproute2
