@@ -17,7 +17,6 @@ RDEPENDS:packagegroup-qti-data = ' \
 	datarmnet \
 	dataipa \
 	data-ipa-cfg-mgr \
-	datarmnet-ext \
         dhcpcd \
 	ebtables \
 	ethtool \
