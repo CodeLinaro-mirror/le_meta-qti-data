@@ -23,7 +23,6 @@ RDEPENDS:packagegroup-qti-data = ' \
 	iproute2 \
 	iptables \
         dnsmasq \
-	sfe \
 	iputils \
 	tcpdump \
 	strace \
