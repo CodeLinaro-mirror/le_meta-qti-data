@@ -12,7 +12,6 @@ PACKAGES = ' \
 
 RDEPENDS:packagegroup-qti-data = ' \
 	conntrack-tools \
-	data-eth \
 	data-oss \
 	datarmnet \
 	dataipa \
