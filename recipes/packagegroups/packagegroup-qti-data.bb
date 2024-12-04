@@ -11,10 +11,10 @@ PACKAGES = ' \
     '
 
 RDEPENDS:packagegroup-qti-data = ' \
+	dataipa \
 	conntrack-tools \
 	data-oss \
 	datarmnet \
-	dataipa \
 	data-ipa-cfg-mgr \
         dhcpcd \
 	ebtables \

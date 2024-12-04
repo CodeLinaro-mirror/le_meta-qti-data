@@ -16,6 +16,7 @@ EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
                 --with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc \
                 --with-glib"
 
+EXTRA_OEMAKE += 'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include'
 
 FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
 SRC_URI = "file://data-ipa-cfg-mgr"

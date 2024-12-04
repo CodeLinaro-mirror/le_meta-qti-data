@@ -7,10 +7,12 @@ ${LICENSE};md5=550794465ba0ec5312d6919e203a55f9"
 
 PR = "r1"
 
-DEPENDS  = "glib-2.0 virtual/kernel"
+DEPENDS  = "glib-2.0 virtual/kernel dataipa"
 
 EXTRA_OECONF = "--with-sanitized-headers=${KERNEL_OUT_PATH}/msm-kernel/usr/include/ \
                 --with-glib"
+
+EXTRA_OEMAKE += 'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include'
 
 FILESPATH =+ "${WORKSPACE}/dataipa:"
 SRC_URI = "file://ipanat"
