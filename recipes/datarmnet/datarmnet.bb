@@ -8,13 +8,15 @@ inherit ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', 
 
 DEPENDS = "virtual/kernel"
 
+EXTRA_OEMAKE += 'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include'
+
 PR = "r0"
 
 SRC_URI = "file://datarmnet/core/"
 SRC_URI += "file://start_rmnetcore_le"
 SRC_URI += "file://rmnetcore.service"
 
-S = "${WORKDIR}/datarmnet/core"
+S = "${WORKDIR}/src/datarmnet"
 
 inherit pkgconfig module
 
@@ -23,10 +25,12 @@ FILESPATH =+ "${WORKSPACE}:"
 do_compile() {
 	cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
 	BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
-	EXT_MODULES=../../datarmnet/core \
+	EXT_MODULES=../../datarmnet \
 	ROOTDIR=${WORKSPACE}/ \
 	MODULE_OUT=${WORKDIR}/datarmnet/core-out \
 	OUT_DIR=${KERNEL_OUT_PATH}/ \
+	ENABLE_DDK_BUILD=true \
+	TARGET_BOARD_PLATFORM=sa510m \
 	./build/build_module.sh
 }
 
