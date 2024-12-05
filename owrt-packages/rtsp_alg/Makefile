@@ -10,7 +10,7 @@ PKG_SOURCE_URL:=https://github.com/maru-sama/rtsp-linux.git
 PKG_SOURCE_VERSION:=475af0aa62dc30f1b823126eceed4eb32de52e5b
 
 PKG_MAINTAINER:=
-PKG_LICENSE:=GPL-2.0+
+PKG_LICENSE:=GPL-3.0+
 PKG_LICENSE_FILES:=LICENSE
 
 include $(INCLUDE_DIR)/package.mk

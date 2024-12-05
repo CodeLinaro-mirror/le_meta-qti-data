@@ -4,6 +4,7 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=datarmnet-ext
 PKG_RELEASE:=1.0
 LOCAL_SRC:=$(TOPDIR)/src/datarmnet-ext/sch
+PKG_LICENSE:=BSD-3-Clause
 
 include $(INCLUDE_DIR)/package.mk
 

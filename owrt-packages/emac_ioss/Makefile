@@ -4,6 +4,7 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=emac_ioss
 PKG_VERSION:=1.0
 PKG_RELEASE:=1
+PKG_LICENSE:=BSD-3-Clause
 
 ifeq ($(VARIANT),perf)
   COMPILE_MODE :=perf

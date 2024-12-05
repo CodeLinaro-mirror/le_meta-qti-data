@@ -4,6 +4,7 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=shortcut-fe
 PKG_VERSION:=1.0
 LOCAL_SRC := $(TOPDIR)/src/shortcut-fe/$(PKG_NAME)
+PKG_LICENSE:=BSD-3-Clause
 
 include $(INCLUDE_DIR)/package.mk
 
