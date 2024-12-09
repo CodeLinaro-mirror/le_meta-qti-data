@@ -273,6 +273,7 @@ elif [ ${type_inst} == "dnsv4" ]; then
     --dhcp-leasefile=${dhcp_leasefile} \
     --addn-hosts=${addn_hosts} \
     --pid-file=${pid_file} \
+    --resolv-file=${resolv_file} \
     --interface=${interface} \
     --except-interface=lo \
     -z \
