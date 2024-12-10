@@ -7,6 +7,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 inherit ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', '', d)}
 
 DEPENDS = "virtual/kernel"
+DEPENDS = "virtual/dtc-native"
 
 EXTRA_OEMAKE += 'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include'
 
@@ -18,7 +19,7 @@ SRC_URI += "file://rmnetcore.service"
 
 S = "${WORKDIR}/src/datarmnet"
 
-inherit pkgconfig module
+inherit pkgconfig
 
 FILESPATH =+ "${WORKSPACE}:"
 
@@ -34,22 +35,24 @@ do_compile() {
 	./build/build_module.sh
 }
 
+export LD_LIBRARY_PATH = "${KERNEL_OUT_PATH}dist"
+
 do_install() {
     install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
     install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
     # Copy the modules that contain debug symbols to the deploy directory
-    cp ${WORKDIR}/datarmnet/core-out/rmnet_core.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
+    cp ${WORKSPACE}/datarmnet/rmnet_core.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
     # Strip debug symbols
     ${STRIP} --strip-debug \
-    ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
+    ${WORKSPACE}/datarmnet/rmnet_core.ko
 
     #Signing and installing the datarmnet module
     LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
-    ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
-    ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
-    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
+    ${KERNEL_OUT_PATH}/dist/sign-file sha1 ${KERNEL_OUT_PATH}/dist/signing_key.pem \
+    ${KERNEL_OUT_PATH}/dist/signing_key.x509 ${WORKSPACE}/datarmnet/rmnet_core.ko
+    install -m 0755 ${WORKSPACE}/datarmnet/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
 
     #Install startup scripts
     install -d ${D}${sysconfdir}/initscripts/
