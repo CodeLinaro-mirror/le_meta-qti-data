@@ -4,6 +4,7 @@ include $(INCLUDE_DIR)/target.mk
 PKG_NAME:=datafactory
 PKG_VERSION:=1.0
 PKG_RELEASE:=1
+PKG_LICENSE:=BSD-3-Clause
 
 include $(INCLUDE_DIR)/package.mk
 

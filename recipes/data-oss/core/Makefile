@@ -3,6 +3,7 @@ include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=rmnet-core
 PKG_RELEASE:=1
+PKG_LICENSE:=GPL-2.0-only
 
 LOCAL_SRC:=$(TOPDIR)/src/datarmnet/core
 
