@@ -13,7 +13,7 @@ define Package/$(PKG_NAME)
 	SECTION:=ipa
 	CATEGORY:=Data Services Open Source Software
 	TITLE:=ipacm
-	DEPENDS:=+libxml2 +libnetfilter-conntrack +ipanat +libstdcpp +libexecinfo
+	DEPENDS:=+libxml2 +libnetfilter-conntrack +ipanat +libstdcpp +libexecinfo +kmod-dataipa
 	USERID:=radio=1001:radio=1001 radio=1001:diag=2901 radio=1001:inet=3003
 endef
 
