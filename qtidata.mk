@@ -12,4 +12,5 @@ else ifeq ($(BOARD),sdx75)
 	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet
 else ifeq ($(BOARD),sdx85)
         QTIDATA+= kmod-dataipa ipanat ipacm kmod-datarmnet datafactory avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos kmod-smem-mailbox kmod-data-devicetree
+	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet
 endif
