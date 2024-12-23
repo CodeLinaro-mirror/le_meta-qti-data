@@ -23,7 +23,7 @@ define Package/$(PKG_NAME)
 	SECTION:=ipa
 	CATEGORY:=Data Services Open Source Software
 	TITLE:=ipanat
-	DEPENDS:=+librt +libstdcpp
+	DEPENDS:=+librt +libstdcpp +kmod-dataipa
 endef
 
 define Package/$(PKG_NAME)/Description
