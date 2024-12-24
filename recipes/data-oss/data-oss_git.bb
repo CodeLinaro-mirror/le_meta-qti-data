@@ -7,7 +7,7 @@ ${LICENSE};md5=fe8b41221d7524c70688f7d059ff6d87"
 
 PR = "r4"
 
-DEPENDS += "linux-msm-headers virtual/kernel glib-2.0"
+DEPENDS += "linux-msm-headers virtual/kernel glib-2.0 rmnet-headers"
 
 do_configure[depends] += "virtual/kernel:do_shared_workdir"
 
