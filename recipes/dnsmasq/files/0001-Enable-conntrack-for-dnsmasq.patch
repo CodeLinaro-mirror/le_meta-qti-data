@@ -1,6 +1,6 @@
-From 9c24fd01d90d4de55c238c859c3ae493c29e3fb7 Mon Sep 17 00:00:00 2001
-From: Dheeraj Kumar <quic_dhekum@quicinc.com>
-Date: Thu, 30 Mar 2023 16:33:34 +0530
+From 86686868032d293c92f0d96c25ea376eec76f54a Mon Sep 17 00:00:00 2001
+From: Mayank Vishwari <quic_mayankvi@quicinc.com>
+Date: Fri, 20 Dec 2024 10:16:38 +0530
 Subject: [PATCH] Enable conntrack for dnsmasq
 
 ---
@@ -8,18 +8,18 @@ Subject: [PATCH] Enable conntrack for dnsmasq
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/src/config.h b/src/config.h
-index e71a117..b45fe24 100644
+index e722e98..2a0e8ca 100644
 --- a/src/config.h
 +++ b/src/config.h
-@@ -189,7 +189,7 @@ RESOLVFILE
+@@ -199,7 +199,7 @@ RESOLVFILE
  /* #define HAVE_DBUS */
  /* #define HAVE_IDN */
  /* #define HAVE_LIBIDN2 */
 -/* #define HAVE_CONNTRACK */
 +#define HAVE_CONNTRACK
- /* #define HAVE_NETTLEHASH */
+ /* #define HAVE_CRYPTOHASH */
  /* #define HAVE_DNSSEC */
- 
+ /* #define HAVE_NFTSET */
 -- 
-2.7.4
+2.25.1
 
