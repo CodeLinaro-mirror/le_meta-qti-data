@@ -20,6 +20,7 @@ do_configure() {
   :
 }
 do_compile() {
+        variant="${@bb.utils.contains('DEBUG_BUILD','1', "debug", "perf", d)}"
         cd ${KERNEL_PLATFORM_PATH}
         ENABLE_DDK_BUILD=${ENABLE_DDK_BUILD} \
         TARGET_BOARD_PLATFORM=${TARGET_BOARD_PLATFORM} \
@@ -27,6 +28,7 @@ do_compile() {
         BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
         EXT_MODULES=${EXT_MODULES} \
         KERNEL_KIT=${KERNEL_PREBUILT_PATH} \
+        VARIANT=${variant}_defconfig \
         OUT_DIR=${KERNEL_OUT_PATH} \
         ROOTDIR=${WORKSPACE}/ \
         MODULE_OUT=${WORKDIR}/shortcut-fe/shortcut-fe \
