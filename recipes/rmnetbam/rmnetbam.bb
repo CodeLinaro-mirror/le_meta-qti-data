@@ -33,6 +33,7 @@ EXT_MODULES = "${@os.path.relpath("${S}","${KERNEL_PLATFORM_PATH}")}"
 do_configure[depends] += "virtual/kernel:do_shared_workdir"
 
 do_compile() {
+    variant="${@bb.utils.contains('DEBUG_BUILD','1', "debug", "perf", d)}"
     cd ${KERNEL_PLATFORM_PATH}
     ENABLE_DDK_BUILD=${ENABLE_DDK_BUILD} \
     KBUILD_OPTIONS+="TARGET_SUPPORT=${BASEMACHINE}" \
@@ -42,6 +43,7 @@ do_compile() {
     ROOTDIR=${WORKSPACE}/ \
     MODULE_OUT=${WORKDIR}/msm \
     KERNEL_KIT=${KERNEL_PREBUILT_PATH} \
+    VARIANT=${variant}_defconfig \
     OUT_DIR=${KERNEL_OUT_PATH} \
     ./build/build_module.sh
 }
