@@ -22,6 +22,7 @@ define KernelPackage/$(PKG_NAME)
  CATEGORY:=Kernel modules
  SUBMENU:=Network Devices
  TITLE:= EMAC IOSS Driver
+ DEPENDS:= +kmod-ioss
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
@@ -32,7 +33,7 @@ ifneq ($(KERNEL_PLATFORM_TARGET), sdxbaagha-128m)
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
-	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/../../* $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile
