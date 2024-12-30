@@ -64,14 +64,16 @@ do_strip_module() {
         ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
     fi
 
-    #Sign iemac_ioss module
-    export LD_LIBRARY_PATH="${STAGING_KERNEL_BUILDDIR}"
-    if [ -f ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ]; then
-        ${STAGING_KERNEL_DIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ${STAGING_KERNEL_BUILDDIR}/signing_key.x509 \
-            ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
-    elif [ -f ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
-        ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 \
-            ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
+    if ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-guest', 'false', 'true', d)}; then
+        #Sign iemac_ioss module
+        export LD_LIBRARY_PATH="${STAGING_KERNEL_BUILDDIR}"
+        if [ -f ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ]; then
+            ${STAGING_KERNEL_DIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ${STAGING_KERNEL_BUILDDIR}/signing_key.x509 \
+                ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
+        elif [ -f ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
+            ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 \
+                ${PKGDEST}/kernel-module-iemac-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
+        fi
     fi
 
     if [ -f ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko ]; then
@@ -79,13 +81,15 @@ do_strip_module() {
         ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
     fi
 
-    #Sign ioss module
-    if [ -f ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ]; then
-        ${STAGING_KERNEL_DIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ${STAGING_KERNEL_BUILDDIR}/signing_key.x509 \
-            ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
-    elif [ -f ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
-        ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 \
-            ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
+    if ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-guest', 'false', 'true', d)}; then
+        #Sign ioss module
+        if [ -f ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ]; then
+            ${STAGING_KERNEL_DIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ${STAGING_KERNEL_BUILDDIR}/signing_key.x509 \
+                ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
+        elif [ -f ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
+            ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 \
+                ${PKGDEST}/kernel-module-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
+        fi
     fi
 
     if [ -f ${PKGDEST}/kernel-module-r8125-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/r8125/src/r8125.ko ]; then
