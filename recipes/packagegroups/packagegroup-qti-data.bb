@@ -15,11 +15,12 @@ RDEPENDS:packagegroup-qti-data = ' \
 	data-eth \
 	data-oss \
 	datarmnet \
+	dataipa \
+	data-ipa-cfg-mgr \
 	datarmnet-ext \
         dhcpcd \
 	ebtables \
 	ethtool \
-	eth-qos \
 	iproute2 \
 	iptables \
         dnsmasq \
@@ -28,7 +29,4 @@ RDEPENDS:packagegroup-qti-data = ' \
 	strace \
 	libgpiod \
 	phytool \
-	tcp-splice \
-	${@oe.utils.conditional('BASEMACHINE', 'sa525m', 'hostap-2.10', '', d)} \
-        ${@bb.utils.contains('MACHINE_FEATURES', 'qti-eap','', 'dataipa data-ipa-cfg-mgr datarmnet',  d)} \
     '
