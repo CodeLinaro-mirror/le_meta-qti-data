@@ -102,9 +102,21 @@ do_strip_module() {
         ${PKGDEST}/kernel-module-r8125-ioss-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/r8125_ioss/r8125_ioss.ko
     fi
 
-    if [ -f ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko ]; then
-        ${strip_tool} --strip-debug \
-        ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko
+    if ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-guest', 'true', 'false', d)}; then
+        if ${@bb.utils.contains_any('MACHINE_FEATURES', 'qti-vm-tele', 'true', 'false', d)}; then
+            if [ -f ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko ]; then
+                ${strip_tool} --strip-debug \
+                ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko
+            fi
+            export LD_LIBRARY_PATH="${STAGING_KERNEL_BUILDDIR}"
+            if [ -f ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ]; then
+                ${STAGING_KERNEL_DIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/signing_key.priv ${STAGING_KERNEL_BUILDDIR}/signing_key.x509 \
+                    ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko
+            elif [ -f ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
+                ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 \
+                    ${PKGDEST}/kernel-module-stmmac-${KERNEL_VERSION}/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_shim/stmmac.ko
+            fi
+        fi
     fi
 }
 
