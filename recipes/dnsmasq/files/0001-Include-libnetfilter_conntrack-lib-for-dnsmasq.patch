@@ -1,4 +1,5 @@
 From f8e846e2e6538ad7c75d4968538cc4790441bc64 Mon Sep 17 00:00:00 2001
+Upstream-Status: Inappropriate [config]
 From: From: Ganesh Babu Kamma <quic_gkamma@quicinc.com>
 Date: Wed, 21 Feb 2024 14:46:05 +0530
 Subject: [PATCH] Include libnetfilter_conntrack lib for dnsmasq
@@ -17,6 +18,7 @@ index 0538229..5b36adb 100644
  RPM_OPT_FLAGS = 
 -LIBS          = 
 +LIBS          = -lnetfilter_conntrack 
+ LUA           = lua
  
  #################################################################
  
