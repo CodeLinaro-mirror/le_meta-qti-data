@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
-PKG_NAME:=r8125
+PKG_NAME:=rtl8125
 PKG_VERSION:=1.0
 PKG_RELEASE:=1
 
@@ -31,7 +31,7 @@ TARGET_CFLAGS += -I$(TOOLCHAIN_DIR)/include/linux/ethtool.h
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
-	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/../../../* $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile
