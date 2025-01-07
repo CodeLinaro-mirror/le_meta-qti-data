@@ -43,6 +43,7 @@ endef
 define KernelPackage/data-devicetree/install
 	mkdir -p $(LINUX_DIR)/../techpack-dtbos
 	$(CP) $(PKG_BUILD_DIR)/ipa/*.dtbo $(LINUX_DIR)/../techpack-dtbos/
+	$(CP) $(PKG_BUILD_DIR)/eth/*.dtbo $(LINUX_DIR)/../techpack-dtbos/
 endef
 
 $(eval	$(call KernelPackage,data-devicetree))
