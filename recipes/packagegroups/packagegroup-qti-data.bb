@@ -20,6 +20,7 @@ RDEPENDS:packagegroup-qti-data = ' \
 	ebtables \
 	ethtool \
 	eth-qos \
+	iproute2-tc \
 	iproute2 \
 	iptables \
         dnsmasq \
