@@ -30,7 +30,6 @@ do_compile() {
         OUT_DIR=${KERNEL_OUT_PATH} \
         ROOTDIR=${WORKSPACE}/ \
         MODULE_OUT=${WORKDIR}/shortcut-fe/shortcut-fe \
-        INPLACE_COMPILE=y \
         KERNEL_UAPI_HEADERS_DIR=${STAGING_KERNEL_BUILDDIR} \
         ./build/build_module.sh ${KBUILD_OPTIONS}
 }
