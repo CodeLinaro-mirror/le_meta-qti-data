@@ -21,6 +21,7 @@ RDEPENDS:packagegroup-qti-data = ' \
 	ethtool \
 	eth-qos \
 	iproute2-tc \
+	eth-cli \
 	iproute2 \
 	iptables \
         dnsmasq \
