@@ -22,9 +22,7 @@ define KernelPackage/$(PKG_NAME)
  CATEGORY:=Kernel modules
  SUBMENU:=Network Devices
  TITLE:= IOSS Driver
-# DEPENDS:= +kmod-r8125
-# DEPENDS:= +kmod-r8168
-  DEPENDS:= +kmod-dataipa
+ DEPENDS:= +kmod-dataipa
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
