@@ -29,6 +29,9 @@ SRC_URI  += "file://mka_supplicant-eth1.conf"
 SRC_URI  += "file://mka_authenticator-eth1.conf"
 SRC_URI  += "file://macsec_systemd_tmpfiles.conf"
 
+# Cve Fixes
+SRC_URL  += "file://CVE-2019-1997.patch"
+
 # Git based uris are unpacked into git/ directory
 S = "${WORKDIR}/git"
 
