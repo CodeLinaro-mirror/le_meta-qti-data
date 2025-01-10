@@ -20,6 +20,9 @@ SRC_URI += "file://defconfig-wpa_supplicant.append"
 SRC_URI += "file://0001-hostap-2.9-Driver-changes-to-set-PHY-offload.patch"
 SRC_URI += "file://0001-hostap-2.9-Driver-changes-to-set-iface-name.patch"
 
+# Cve Fixes
+SRC_URL  += "file://CVE-2019-1997.patch"
+
 # Git based uris are unpacked into git/ directory
 S = "${WORKDIR}/git"
 
