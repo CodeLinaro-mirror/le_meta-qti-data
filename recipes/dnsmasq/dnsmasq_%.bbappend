@@ -5,7 +5,9 @@ SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
            file://dnsmasq.service \
            file://dnsmasq_service@.service \
+           file://qcmap_dhcp_release.service \
            file://qcmap_stop_dnsmasq.sh \
+           file://0001-dhcp_release_fix_for_ippt.patch \
            file://0001-Enable-conntrack-for-dnsmasq.patch \
            file://0001-Include-libnetfilter_conntrack-lib-for-dnsmasq.patch"
 
@@ -29,6 +31,7 @@ do_install:append () {
          install -d ${D}${systemd_unitdir}/system/
          install -m 0644 ${WORKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
          install -m 0555 ${WORKDIR}/qcmap_stop_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
+         install -m 0644 ${WORKDIR}/qcmap_dhcp_release.service -D ${D}${systemd_unitdir}/system/qcmap_dhcp_release.service
         else
          install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
         fi
