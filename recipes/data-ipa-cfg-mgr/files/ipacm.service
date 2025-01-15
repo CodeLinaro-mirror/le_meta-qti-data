@@ -6,7 +6,7 @@ After= start_stop_ipa_fws.service local-fs.target systemd-tmpfiles-setup.service
 DefaultDependencies=no
 
 [Service]
-Restart=on-failure
+Restart=no
 ExecStartPre=udevadm trigger --settle --subsystem-match=wwan_ioctl --subsystem-match=ipa --subsystem-match=ipaNatTable --subsystem-match=ipa_adpl --subsystem-match=ipa_odl_ctl --action=add
 ExecStartPre=+chmod 660 /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipa_adpl /dev/ipa_odl_ctl
 ExecStartPre=+chown -h radio.radio /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipa_adpl /dev/ipa_odl_ctl
