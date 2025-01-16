@@ -19,7 +19,7 @@ SRC_URI += "file://rmnetcore.service"
 
 S = "${WORKDIR}/src/datarmnet"
 
-inherit pkgconfig
+inherit pkgconfig module
 
 FILESPATH =+ "${WORKSPACE}:"
 
@@ -69,5 +69,5 @@ FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/*"
 FILES:${PN}+="/etc/initscripts/start_rmnetcore_le"
 FILES:${PN}+= "${systemd_unitdir}/system/rmnetcore.service"
 FILES:${PN}+= "${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service"
-RPROVIDES:${PN} += "datarmnet"
+RPROVIDES:${PN} += "kernel-module-rmnet-core-${KERNEL_VERSION}"
 
