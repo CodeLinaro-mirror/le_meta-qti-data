@@ -11,6 +11,8 @@ SRC_URI = "file://tcp-splice/"
 S = "${WORKDIR}/tcp-splice/"
 
 do_install() {
+    strip_tool="${STRIP}"
+    ${strip_tool} --strip-debug ${S}tcp_splice.ko
     module_signer="${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
                    ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509"
     ${module_signer} ${S}tcp_splice.ko
