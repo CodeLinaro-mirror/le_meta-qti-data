@@ -4,7 +4,7 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=smem-mailbox
 PKG_VERSION:=1.0
 PKG_RELEASE:=1
-PKG_LICENSE:=BSD-3-Clause
+PKG_LICENSE:=GPL-2.0-only
 
 LOCAL_SRC := $(TOPDIR)/src/data-kernel/drivers/smem-mailbox/
 
