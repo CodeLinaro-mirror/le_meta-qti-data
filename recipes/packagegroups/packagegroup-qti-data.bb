@@ -40,3 +40,4 @@ RDEPENDS:packagegroup-qti-ethernet-tools = " \
 RDEPENDS:packagegroup-qti-data-modem = " \
     data-oss \
     "
+RDEPENDS:packagegroup-qti-data:remove:mdm9607 = "sfe"
