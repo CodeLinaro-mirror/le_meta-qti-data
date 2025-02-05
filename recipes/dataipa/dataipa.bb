@@ -44,12 +44,12 @@ do_install() {
    module_list="gsim.ko ipam.ko ipanetm.ko"
    for module in ${module_list}; do
      # Copy the modules that contain debug symbols to the deploy directory
-     cp ${module_path}/${module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
+     cp ${WORKDIR}/src/dataipa-modules-out/${module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
 
      # Strip the debug symbols and sign the modules for target
-     ${strip_tool} --strip-debug ${module_path}/${module}
-     ${module_signer} ${module_path}/${module}
-     install -m 0644  ${module_path}/${module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
+     ${strip_tool} --strip-debug ${WORKDIR}/src/dataipa-modules-out/${module}
+     ${module_signer} ${WORKDIR}/src/dataipa-modules-out/${module}
+     install -m 0644  ${WORKDIR}/src/dataipa-modules-out/${module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
    done
 
    install -d ${D}${sysconfdir}/initscripts/
