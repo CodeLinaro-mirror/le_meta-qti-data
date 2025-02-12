@@ -42,17 +42,17 @@ do_install() {
     install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
     # Copy the modules that contain debug symbols to the deploy directory
-    cp ${WORKSPACE}/datarmnet/rmnet_core.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
+    cp ${WORKDIR}/datarmnet/core-out/rmnet_core.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
     # Strip debug symbols
     ${STRIP} --strip-debug \
-    ${WORKSPACE}/datarmnet/rmnet_core.ko
+    ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
 
     #Signing and installing the datarmnet module
     LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
     ${KERNEL_OUT_PATH}/dist/sign-file sha1 ${KERNEL_OUT_PATH}/dist/signing_key.pem \
-    ${KERNEL_OUT_PATH}/dist/signing_key.x509 ${WORKSPACE}/datarmnet/rmnet_core.ko
-    install -m 0755 ${WORKSPACE}/datarmnet/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
+    ${KERNEL_OUT_PATH}/dist/signing_key.x509 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
+    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
 
     #Install startup scripts
     install -d ${D}${sysconfdir}/initscripts/
