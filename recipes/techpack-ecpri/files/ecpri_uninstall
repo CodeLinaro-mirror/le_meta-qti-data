@@ -10,6 +10,8 @@
 /sbin/rmmod /usr/lib/modules/lassen_mtip.ko
 /sbin/rmmod /usr/lib/modules/lassen_qcom_aw_phy.ko
 /sbin/rmmod /usr/lib/modules/fpc_qsfp.ko
-/sbin/rmmod /usr/lib/modules/ecpri_dmam.ko
-/sbin/rmmod /usr/lib/modules/gsim.ko
+if [ $(cat "/sys/devices/soc0/hw_platform") != "X100" ]; then
+        /sbin/rmmod /usr/lib/modules/ecpri_dmam.ko
+        /sbin/rmmod /usr/lib/modules/gsim.ko
+fi
 
