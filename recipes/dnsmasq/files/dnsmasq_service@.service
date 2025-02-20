@@ -5,9 +5,10 @@ DefaultDependencies=no
 
 [Service]
 Restart=on-failure
-ExecStart=/usr/bin/dnsmasq --conf-file=/var/run/data/dnsmasq.conf.bridge%i --user=radio --group=radio
+ExecStart=/usr/bin/dnsmasq -k --conf-file=/var/run/data/dnsmasq.conf.bridge%i --user=radio --group=radio
 ExecReload=killall -HUP dnsmasq
 ExecStop=/etc/initscripts/qcmap_stop_dnsmasq.sh %i
-Type=forking
+Type=simple
+KillMode=mixed
 RemainAfterExit=yes
 Nice=-20
