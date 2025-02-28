@@ -1,8 +1,8 @@
 [Unit]
 Description= Load dataipa dlkm
 SourcePath=/etc/initscripts/start_dataipa_le
-After= systemrw.mount systemd-udevd.service
-Requires= systemrw.mount systemd-udevd.service
+After= systemrw.mount
+Requires= systemrw.mount
 DefaultDependencies=no
 
 [Service]
