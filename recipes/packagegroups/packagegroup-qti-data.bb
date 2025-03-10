@@ -26,7 +26,6 @@ RDEPENDS_packagegroup-qti-data = ' \
     strace \
     iproute2 \
     techpack-ecpri \
-    strongswan \
     bind-utils \
     '
 
