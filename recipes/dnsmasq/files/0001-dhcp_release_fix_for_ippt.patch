@@ -1,0 +1,52 @@
+From cb0b3c6d05631330ef5db57b6542e093fc419401 Mon Sep 17 00:00:00 2001
+From: Paras Singh Jain<parassin@codeaurora.org>
+Date: Sun, 1 Aug 2021 16:22:54 +0530
+Subject: [PATCH] dhcp_release_fix_for_ippt
+signed-off: Paras Singh Jain<parassin@codeaurora.org>
+
+---
+ src/rfc2131.c | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/rfc2131.c b/src/rfc2131.c
+index fc54aab..325a608 100644
+--- a/src/rfc2131.c
++++ b/src/rfc2131.c
+@@ -27,6 +27,7 @@ static void add_extradata_opt(struct dhcp_lease *lease, unsigned char *opt);
+
+ static int sanitise(unsigned char *opt, char *buf);
+ static struct in_addr server_id(struct dhcp_context *context, struct in_addr override, struct in_addr fallback);
++static struct in_addr server_id_for_fallback(struct dhcp_context *context, struct in_addr override, struct in_addr fallback);
+ static unsigned int calc_time(struct dhcp_context *context, struct dhcp_config *config, unsigned char *opt);
+ static void option_put(struct dhcp_packet *mess, unsigned char *end, int opt, int len, unsigned int val);
+ static void option_put_string(struct dhcp_packet *mess, unsigned char *end, 
+@@ -1044,7 +1045,8 @@ size_t dhcp_reply(struct dhcp_context *context, char *iface_name, int int_index,
+     case DHCPRELEASE:
+       if (!(context = narrow_context(context, mess->ciaddr, tagif_netid)) ||
+ 	  !(opt = option_find(mess, sz, OPTION_SERVER_IDENTIFIER, INADDRSZ)) ||
+-	  option_addr(opt).s_addr != server_id(context, override, fallback).s_addr)
++	  !((option_addr(opt).s_addr == server_id(context, override, fallback).s_addr) ||
++	    (option_addr(opt).s_addr == server_id_for_fallback(context, override, fallback).s_addr)))
+ 	return 0;
+       
+       if (lease && lease->addr.s_addr == mess->ciaddr.s_addr)
+@@ -1636,6 +1638,16 @@ static struct in_addr server_id(struct dhcp_context *context, struct in_addr ove
+     return fallback;
+ }
+
++static struct in_addr server_id_for_fallback(struct dhcp_context *context, struct in_addr override, struct in_addr fallback)
++{
++  if (fallback.s_addr != 0)
++    return fallback;
++  else if (context && context->local.s_addr != 0)
++    return context->local;
++  else if (override.s_addr != 0)
++    return override;
++}
++
+ static int sanitise(unsigned char *opt, char *buf)
+ {
+   char *p;
+--
+2.29.0
+
