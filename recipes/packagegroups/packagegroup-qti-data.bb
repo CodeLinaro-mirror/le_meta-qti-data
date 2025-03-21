@@ -14,6 +14,7 @@ RDEPENDS:packagegroup-qti-data = ' \
 	conntrack-tools \
 	data-eth \
 	data-oss \
+	thermal-eth-netlink \
 	datarmnet \
 	datarmnet-ext \
         dhcpcd \
