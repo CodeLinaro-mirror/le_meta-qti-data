@@ -32,7 +32,7 @@ do_compile() {
     ./build/build_module.sh
 }
 
-export LD_LIBRARY_PATH = "${KERNEL_OUT_PATH}dist"
+export LD_LIBRARY_PATH = "${KERNEL_OUT_PATH}dist/openssl/lib64/"
 do_install() {
    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
