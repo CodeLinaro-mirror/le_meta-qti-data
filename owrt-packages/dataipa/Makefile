@@ -42,6 +42,7 @@ define Build/InstallDev
 	mkdir -p  $(1)/usr/lib/
 	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/linux
 	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/msm_ipa.h $(STAGING_DIR)/usr/include/linux
+	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/linux/* $(STAGING_DIR)/usr/include/linux
 	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/ipa_qmi_service_v01.h $(STAGING_DIR)/usr/include/linux
 	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/rmnet_ipa_fd_ioctl.h $(STAGING_DIR)/usr/include/linux
 endef
