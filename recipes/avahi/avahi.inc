@@ -73,6 +73,7 @@ FILES_avahi-daemon = "${sbindir}/avahi-daemon \
                       ${sysconfdir}/avahi/services \
                       ${sysconfdir}/dbus-1 \
                       ${sysconfdir}/init.d/avahi-daemon \
+                      ${sysconfdir}/initscripts/avahi-daemon \
                       ${datadir}/avahi/introspection/*.introspect \
                       ${datadir}/avahi/avahi-service.dtd \
                       ${datadir}/avahi/service-types \
@@ -89,7 +90,7 @@ FILES_avahi-utils = "${bindir}/avahi-*"
 
 RDEPENDS_avahi-systemd = "avahi-daemon"
 
-RDEPENDS_avahi-daemon = "sysvinit-pidof"
+RDEPENDS_avahi-daemon = "${@bb.utils.contains('DISTRO_FEATURES','systemd', '', 'sysvinit-pidof', d)}"
 
 # uclibc has no nss
 RRECOMMENDS_avahi-daemon_append_libc-glibc = " libnss-mdns"
@@ -111,7 +112,7 @@ INITSCRIPT_PARAMS_avahi-dnsconfd = "defaults 99 01"
 do_install() {
         bbnote install -d ${D}${bindir}
         install -d ${D}${bindir}
-	
+
 	autotools_do_install
 
 	# don't install /var/run when populating rootfs. Do it through volatile
@@ -124,6 +125,12 @@ do_install() {
 	rm -rf ${D}${sysconfdir}/avahi/avahi-daemon.conf 
 	install ${WORKDIR}/99avahi-daemon.conf ${D}${sysconfdir}/avahi/avahi-daemon.conf
         install ${WORKDIR}/99avahi-daemon ${D}${sysconfdir}/init.d/avahi-daemon
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        install -d ${D}${systemd_unitdir}/system/
+        install -d ${D}${sysconfdir}/initscripts
+        mv ${D}${sysconfdir}/init.d/avahi-dnsconfd ${D}${sysconfdir}/initscripts/avahi-dnsconfd
+        mv ${D}${sysconfdir}/init.d/avahi-daemon ${D}${sysconfdir}/initscripts/avahi-daemon
+    fi
 }
 
 do_install_avahi-autoipd() {
@@ -137,13 +144,18 @@ do_install_avahi-autoipd() {
 
 pkg_postinst_avahi-daemon () {
 	if [ "x$D" != "x" ]; then
-		exit 0
+		echo "do nothing during build"
 	fi
 
-	DBUSPID=`pidof dbus-daemon`
+	if [ command -v systemctl >/dev/null ]
+	then
+		DBUSPID=`pidof dbus-daemon`
 
-	if [ "x$DBUSPID" != "x" ]; then
-		/etc/init.d/dbus-1 force-reload
+		if [ "x$DBUSPID" != "x" ]; then
+			/etc/init.d/dbus-1 force-reload
+		fi
+	else
+		killall -q -HUP dbus-daemon || true
 	fi
 }
 
