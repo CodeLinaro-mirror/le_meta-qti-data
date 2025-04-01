@@ -3,9 +3,12 @@ Description=Lightning Fast Webserver With Light System Requirements
 After=network.target
 
 [Service]
-#ExecStartPre=@SYSCONFDIR@/init.d/lighttpd start
-ExecStart=@SYSCONFDIR@/init.d/lighttpd start
-ExecReload=@SYSCONFDIR@/init.d/lighttpd restart
+Type=forking
+ExecStartPre=/etc/initscripts/lighttpd start
+ExecStart=/usr/sbin/lighttpd -f /data/lighttpd.conf
+
+ExecStop=/etc/initscripts/lighttpd stop
+ExecStop=kill -15 $MAINPID
 
 [Install]
 WantedBy=multi-user.target
