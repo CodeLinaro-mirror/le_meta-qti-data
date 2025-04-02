@@ -1,0 +1,16 @@
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+[Unit]
+Description= Load datarmnet dlkm service
+SourcePath=/etc/initscripts/start_rmnetcore_le
+DefaultDependencies=no
+
+[Service]
+Restart=on-failure
+RemainAfterExit=yes
+ExecStart=/etc/initscripts/start_rmnetcore_le start
+Nice=-20
+
+[Install]
+WantedBy=local-fs.target
