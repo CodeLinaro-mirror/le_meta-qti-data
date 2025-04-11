@@ -18,6 +18,7 @@ SRC_URI += "file://start_rmnetcore_le"
 SRC_URI += "file://rmnetcore.service"
 
 S = "${WORKDIR}/src/datarmnet"
+TARGET_VARIANT= "${@bb.utils.contains('KERNEL_VARIANT', 'perf_', 'perf_defconfig', 'debug_defconfig', d)}"
 
 inherit pkgconfig module
 
@@ -31,6 +32,7 @@ do_compile() {
 	MODULE_OUT=${WORKDIR}/datarmnet/core-out \
 	OUT_DIR=${KERNEL_OUT_PATH}/ \
 	ENABLE_DDK_BUILD=true \
+	VARIANT=${TARGET_VARIANT} \
 	TARGET_BOARD_PLATFORM=sa510m \
 	./build/build_module.sh
 }
