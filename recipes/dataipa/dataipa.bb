@@ -19,6 +19,7 @@ SRC_URI += "file://dataipa.service"
 SRC_URI += "file://ipa_config.txt"
 
 S = "${WORKDIR}/src/dataipa"
+TARGET_VARIANT= "${@bb.utils.contains('KERNEL_VARIANT', 'perf_', 'perf_defconfig', 'debug_defconfig', d)}"
 
 do_compile() {
     cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
@@ -28,6 +29,7 @@ do_compile() {
     MODULE_OUT=${WORKDIR}/src/dataipa-modules-out \
     OUT_DIR=${KERNEL_OUT_PATH}/ \
     ENABLE_DDK_BUILD=true \
+    VARIANT=${TARGET_VARIANT} \
     TARGET_BOARD_PLATFORM=sa510m \
     ./build/build_module.sh
 }
