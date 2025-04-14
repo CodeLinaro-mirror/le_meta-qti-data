@@ -51,9 +51,6 @@ case "$1" in
   stop)
         echo "Stopping dataipa modules" > /dev/kmsg
         echo -n "Bypassing Unloading of dataipa modules "
-        rmmod -f $MODULE_BASE/ipanetm.ko > /dev/kmsg
-        rmmod -f $MODULE_BASE/ipam.ko ipa_cfg=$cfg > /dev/kmsg
-        rmmod -f $MODULE_BASE/gsim.ko > /dev/kmsg
         ;;
   restart)
         echo "dataipa modules initiating restart" > /dev/kmsg
