@@ -19,6 +19,7 @@ SRC_URI += "file://emac_ioss.service"
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI += "file://data-eth"
 S = "${WORKDIR}/data-eth"
+TARGET_VARIANT= "${@bb.utils.contains('KERNEL_VARIANT', 'perf_', 'perf_defconfig', 'debug_defconfig', d)}"
 
 # The inherit of module.bbclass will automatically name module packages with
 # "kernel-module-" prefix as required by the oe-core build environment.
@@ -33,6 +34,7 @@ do_compile() {
 	MODULE_OUT=${WORKDIR}/data-eth/ \
 	OUT_DIR=${KERNEL_OUT_PATH}/ \
 	ENABLE_DDK_BUILD=true \
+	VARIANT=${TARGET_VARIANT} \
 	TARGET_BOARD_PLATFORM=sa510m \
 	./build/build_module.sh
 }
