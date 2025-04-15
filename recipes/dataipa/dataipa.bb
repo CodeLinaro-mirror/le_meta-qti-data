@@ -20,29 +20,29 @@ SRC_URI += "file://ipa_config.txt"
 
 S = "${WORKDIR}/src/dataipa"
 
-do_compile() {
+do_compile:kalama() {
     cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
     BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
+    CONFIG_KALAMA_IPA_LE=y \
     EXT_MODULES=../../dataipa \
     ROOTDIR=${WORKSPACE}/ \
     MODULE_OUT=${WORKDIR}/src/dataipa-modules-out \
     OUT_DIR=${KERNEL_OUT_PATH}/ \
-    ENABLE_DDK_BUILD=true \
-    TARGET_BOARD_PLATFORM=sa510m \
     ./build/build_module.sh
 }
-
-export LD_LIBRARY_PATH = "${KERNEL_OUT_PATH}dist"
 do_install() {
    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
 
    strip_tool="${STRIP}"
    module_path="${WORKDIR}/dataipa"
-   module_signer="${KERNEL_OUT_PATH}/dist/sign-file sha1 ${KERNEL_OUT_PATH}/dist/signing_key.pem \
-                  ${KERNEL_OUT_PATH}/dist/signing_key.x509"
+   module_signer="${KERNEL_OUT_PATH}/msm-kernel/scripts/sign-file sha1
+${KERNEL_OUT_PATH}/gki_kernel/common/certs/signing_key.pem \
+     ${KERNEL_OUT_PATH}/gki_kernel/common/certs/signing_key.x509"
 
-   module_list="gsim.ko ipam.ko ipanetm.ko"
+   module_list="drivers/platform/msm/gsi/gsim.ko drivers/platform/msm/ipa/ipam.ko
+drivers/platform/msm/ipa/ipanetm.ko drivers/platform/msm/ipa/ipa_clients/rndisipam.ko
+drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko"
    for module in ${module_list}; do
      # Copy the modules that contain debug symbols to the deploy directory
      cp ${WORKDIR}/src/dataipa-modules-out/${module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
@@ -60,10 +60,6 @@ do_install() {
    install -d ${D}${sysconfdir}/data/
    install -m 0644 ${WORKDIR}/ipa_config.txt -D ${D}${sysconfdir}/data/ipa_config.txt
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
-   install -d ${STAGING_DIR}/usr/include/linux
-   cp ${module_path}/drivers/platform/msm/include/uapi/linux/msm_ipa.h ${STAGING_DIR}/usr/include/linux
-   cp ${module_path}/drivers/platform/msm/include/uapi/linux/ipa_qmi_service_v01.h ${STAGING_DIR}/usr/include/linux
-   cp ${module_path}/drivers/platform/msm/include/uapi/linux/rmnet_ipa_fd_ioctl.h ${STAGING_DIR}/usr/include/linux
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
 }
