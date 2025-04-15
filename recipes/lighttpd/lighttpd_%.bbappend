@@ -6,8 +6,8 @@ SRC_URI += "\
     file://lighttpd.user \
     file://openssl.cnf \
     file://lighttpd.service \
-    file://mod_cgi_unpatch.patch \
 "
+
 DEPENDS += " openssl"
 RDEPENDS_${PN} += " \
                lighttpd-module-alias \
@@ -16,6 +16,8 @@ RDEPENDS_${PN} += " \
                lighttpd-module-auth \
                lighttpd-module-redirect \
                lighttpd-module-evasive \
+               lighttpd-module-authn-file \
+               lighttpd-module-openssl \
 "
 EXTRA_OECONF += " \
              --with-openssl \
@@ -26,10 +28,18 @@ do_install_append() {
    install -d ${D}${userfsdatadir}/www
    install -m 0755 ${WORKDIR}/openssl.cnf ${D}${userfsdatadir}
    install -m 0770 ${WORKDIR}/lighttpd.user ${D}${userfsdatadir}/www/lighttpd.user
+   install -m 0644 ${WORKDIR}/lighttpd.service -D ${D}${systemd_unitdir}/system/lighttpd.service
    rm -rf ${D}${sysconfdir}/lighttpd.conf
    install -m 0755 ${WORKDIR}/lighttpd.conf ${D}${userfsdatadir}
    rm -rf ${D}/www/logs ${D}/www/var
+   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+       rm -rf ${D}${sysconfdir}/init.d/lighttpd
+       install -d ${D}${sysconfdir}/initscripts/
+       install -m 0755 ${WORKDIR}/lighttpd -D ${D}${sysconfdir}/initscripts/lighttpd
+   fi
+
 }
 FILES_${PN} += "${userfsdatadir}/lighttpd.conf"
 FILES_${PN} += "${userfsdatadir}/openssl.cnf"
 FILES_${PN} += "${userfsdatadir}/www/*"
+FILES_${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '${sysconfdir}/initscripts/lighttpd', '', d)}"
