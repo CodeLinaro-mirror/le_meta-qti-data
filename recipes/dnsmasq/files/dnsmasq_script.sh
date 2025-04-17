@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2017, The Linux Foundation. All rights reserved.
+# Copyright (c) 2017, 2021 The Linux Foundation. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -36,7 +36,7 @@
 #  $1    $2                 $3             $4
 #
 #creating file to store dnsmasq info
-FILE="/tmp/dnsmasq_host.txt"
+FILE="/tmp/data/dnsmasq_host.txt"
 
 if [ ! -f  $FILE ] ; then
   #File  does not exists creating
@@ -46,6 +46,12 @@ fi
 
 case "$1" in
   add)
+      #  Boot KPI marker for Local IP - PLEASE DON'T REMOVE/CHANGE
+      export iface=`bridge fdb show |awk '{print $1,$3,$5}' | grep $2 | grep $DNSMASQ_INTERFACE | awk '{print$2}' | tr -d '\n'`
+      echo -n "M - $iface Client Local IP assignment" >> /sys/kernel/boot_kpi/kpi_values
+      echo "QCMAP: $iface Client Mac Address $2" > /dev/kmsg
+      echo "QCMAP: $iface Client IP Address $3" > /dev/kmsg
+
       #"add" event  means a lease has been created
       #Removing entry for that is already for  ip=$3
       sed -i "/$3/d" $FILE

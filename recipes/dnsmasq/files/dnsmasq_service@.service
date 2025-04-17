@@ -1,0 +1,11 @@
+[Unit]
+SourcePath=/usr/bin/dnsmasq
+Description= dnsmasq service
+DefaultDependencies=no
+
+[Service]
+ExecStart=/usr/bin/dnsmasq --conf-file=/var/run/data/dnsmasq.conf.bridge%i --user=radio --group=radio
+ExecReload=killall -HUP dnsmasq
+Type=forking
+RemainAfterExit=yes
+Nice=-20
