@@ -23,21 +23,17 @@ inherit pkgconfig module
 
 FILESPATH =+ "${WORKSPACE}:"
 
-do_compile() {
+do_compile:kalama() {
 	cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
 	BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
-	EXT_MODULES=../../datarmnet \
+	EXT_MODULES=../../datarmnet/core \
 	ROOTDIR=${WORKSPACE}/ \
 	MODULE_OUT=${WORKDIR}/datarmnet/core-out \
 	OUT_DIR=${KERNEL_OUT_PATH}/ \
-	ENABLE_DDK_BUILD=true \
-	TARGET_BOARD_PLATFORM=sa510m \
 	./build/build_module.sh
 }
 
-export LD_LIBRARY_PATH = "${KERNEL_OUT_PATH}dist"
-
-do_install() {
+do_install:kalama() {
     install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
     install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
 
@@ -49,9 +45,9 @@ do_install() {
     ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
 
     #Signing and installing the datarmnet module
-    LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
-    ${KERNEL_OUT_PATH}/dist/sign-file sha1 ${KERNEL_OUT_PATH}/dist/signing_key.pem \
-    ${KERNEL_OUT_PATH}/dist/signing_key.x509 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
+    #LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
+    #${KERNEL_OUT_PATH}/dist/sign-file sha1 ${KERNEL_OUT_PATH}/dist/signing_key.pem \
+    #${KERNEL_OUT_PATH}/dist/signing_key.x509 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko
     install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
 
     #Install startup scripts
