@@ -1,0 +1,11 @@
+[Unit]
+Description= dhcpcd service on %i
+SourcePath=/usr/sbin/dhcpcd
+
+[Service]
+Type=forking
+Restart=no
+ExecStart=/usr/sbin/dhcpcd %i -t 0 -o domain_name_servers --noipv4ll -h -b -G
+ExecStop=/bin/kill -15 $MAINPID
+TimeoutSec=infinity
+ExecStopPost=rm -rf /var/run/dhcpcd-%i.info
