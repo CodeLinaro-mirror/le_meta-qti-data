@@ -1,0 +1,28 @@
+#! /bin/sh
+
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.​
+#SPDX-License-Identifier: GPL-2.0-only
+
+set -e
+
+case "$1" in
+  start)
+        echo -n "Starting/Loading aquantia module: "
+		echo "aquantia:start/load" > /dev/kmsg
+        insmod /lib/modules/aquantia.ko
+        echo "done loading aquantia module"
+        ;;
+  stop)
+        echo -n "Bypassing Unloading of  aquantia modules "
+        ;;
+  restart)
+        $0 stop
+        $0 start
+        ;;
+  *)
+        echo "Usage { start | stop | restart}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
