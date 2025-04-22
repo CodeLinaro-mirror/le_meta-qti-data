@@ -2,12 +2,13 @@
 SourcePath=/usr/bin/ipacm
 Description= IPACM Service
 Before= QCMAP_ConnectionManagerd.service CcspCrSsp.service
-After= tmp.mount dataipa.service local-fs.target systemd-tmpfiles-setup.service
+After= dataipa.service local-fs.target systemd-tmpfiles-setup.service
 Requires= systemrw.mount
 DefaultDependencies=no
 
 [Service]
 Restart=no
+ExecStartPre=/bin/sleep 15
 ExecStartPre=udevadm trigger --settle --subsystem-match=wwan_ioctl --subsystem-match=ipa --subsystem-match=ipaNatTable --subsystem-match=ipa_adpl --subsystem-match=ipa_odl_ctl --action=add
 ExecStartPre=/bin/sh -c 'mkdir -p /tmp/data_ipa'
 ExecStartPre=+chmod 660 /dev/ipaNatTable /dev/ipaIpv6CTTable
