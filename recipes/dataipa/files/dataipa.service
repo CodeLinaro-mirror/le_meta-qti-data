@@ -1,7 +1,6 @@
 [Unit]
 Description= Load dataipa dlkm
-Requires= systemrw.mount
-DefaultDependencies=no
+after=systemd-modules-load.service
 
 [Service]
 Restart=no
