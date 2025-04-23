@@ -1,0 +1,38 @@
+From 34046c2e3df82df93c547cd50cf43432c55f6ef2 Mon Sep 17 00:00:00 2001
+From: Veena Sri Vallala <vsri@qti.qualcomm.com>
+Date: Mon, 21 Apr 2025 20:36:50 +0530
+Subject: [PATCH 5/8] rtl8261: Add support for 2500base-X
+
+Adding register configurations to enable 2500basex.
+
+Signed-off-by: Veena Sri Vallala <vsri@qti.qualcomm.com>
+---
+ linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+index fd9f392..bc02b09 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
++++ b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+@@ -210,6 +210,18 @@ static int rtkphy_config_init(struct phy_device *phydev)
+ 		    rtk_phylib_mmd_write(phydev, 30, 0xc2, 9, 5, 0x0);
+ 		    rtk_phylib_mmd_write(phydev, 30, 0x2a2, 7, 7, 0x0);
+ 	    }
++	    else if(phydev->interface == PHY_INTERFACE_MODE_2500BASEX) {
++		    phy_set_max_speed(phydev, SPEED_2500);
++
++		    /* Register Access APIs */
++		    rtk_phylib_mmd_write(phydev, 30, 0x105, 0, 0, 0x1);
++		    rtk_phylib_mmd_write(phydev, 30, 0xc4, 5, 0, 0x36);
++		    rtk_phylib_mmd_write(phydev, 30, 0xc2, 9, 5, 0x0);
++		    rtk_phylib_mmd_write(phydev, 30, 0x3fl, 15, 0, 0x72);
++		    rtk_phylib_mmd_write(phydev, 30, 0x2a2, 7, 7, 0x0);
++		    rtk_phylib_mmd_write(phydev, 30, 0x141, 15, 0, 0x0140);
++		    rtk_phylib_mmd_write(phydev, 30, 0x143, 15, 0, 0x8802);
++	    }
+           #if 0 /* Debug: patch check */
+             ret = phy_patch(0, phydev, 0, PHY_PATCH_MODE_CMP);
+             if (ret)
+-- 
+2.34.1
+

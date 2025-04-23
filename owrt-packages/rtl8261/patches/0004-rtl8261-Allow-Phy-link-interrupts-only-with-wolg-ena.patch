@@ -1,0 +1,80 @@
+From 60aae84854f94726295f56b4d72197b88b0df83f Mon Sep 17 00:00:00 2001
+From: Veena Sri Vallala <vsri@qti.qualcomm.com>
+Date: Mon, 21 Apr 2025 20:35:37 +0530
+Subject: [PATCH 4/8] rtl8261: Allow Phy link interrupts only with wolg enabled
+
+Mentioned below is the expected behavior for wol settings
+
+1.WoL-G: only magic packets can wake up device
+2.WoL-PG: both magic packets and the link interrupts can wake up device
+3.WoL-P: only link interrupts can wake up device
+
+Currently, when wolg is set, and if there is any physical activity, the
+device wakes up from phy link interrupts which is not expected.
+This fix prevents phy link interrupts to wake up the device in suspend
+state when wol g is enbabled.
+
+The change also enables  a flag which is allows phy to go to suspend
+when wol is enabled if wol is phy managed.
+
+Signed-off-by: Veena Sri Vallala <vsri@qti.qualcomm.com>
+---
+ linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+index 0504b59..fd9f392 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
++++ b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+@@ -255,6 +255,21 @@ static int rtkphy_c45_suspend(struct phy_device *phydev)
+ {
+     int ret = 0;
+ 
++    if (phydev->wol_enabled)
++    {
++        uint32 rtk_wol_opts = 0;
++
++        rtk_phylib_826xb_wol_get(phydev, &rtk_wol_opts);
++
++        /*these register settings prevent phy link interrupt to be triggered if wolp is disabled*/
++        if (!(rtk_wol_opts & RTK_WOL_OPT_LINK))
++        {
++            rtk_phylib_mmd_write(phydev, 31, 0xA424, 4, 4, 0);
++            rtk_phylib_mmd_write(phydev, 31, 0xA442, 15, 15, 0);
++        }
++        return 0;
++    }
++
+     ret = rtk_phylib_c45_power_low(phydev);
+ 
+     phydev->speed = SPEED_UNKNOWN;
+@@ -267,6 +282,10 @@ static int rtkphy_c45_suspend(struct phy_device *phydev)
+ 
+ static int rtkphy_c45_resume(struct phy_device *phydev)
+ {
++    /* these register settings allow phy link interrupt to be triggered*/
++    rtk_phylib_mmd_write(phydev, 31, 0xA424, 4, 4, 1);
++    rtk_phylib_mmd_write(phydev, 31, 0xA442, 15, 15, 1);
++
+     return rtk_phylib_c45_power_normal(phydev);
+ }
+ 
+@@ -657,6 +676,7 @@ static struct phy_driver rtk_phy_drivers[] = {
+         .set_tunable        = rtl826xb_set_tunable,
+         .set_wol            = rtl826xb_set_wol,
+         .get_wol            = rtl826xb_get_wol,
++	.flags		    = PHY_ALWAYS_CALL_SUSPEND,
+     },
+     {
+         PHY_ID_MATCH_EXACT(REALTEK_PHY_ID_RTL8264B),
+@@ -680,6 +700,7 @@ static struct phy_driver rtk_phy_drivers[] = {
+         .set_tunable        = rtl826xb_set_tunable,
+         .set_wol            = rtl826xb_set_wol,
+         .get_wol            = rtl826xb_get_wol,
++	.flags		    = PHY_ALWAYS_CALL_SUSPEND,
+     },
+     {
+         PHY_ID_MATCH_EXACT(REALTEK_PHY_ID_RTL8224),
+-- 
+2.34.1
+

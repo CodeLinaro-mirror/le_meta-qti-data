@@ -1,0 +1,100 @@
+From 0ef8e8002940c115b51e442e10323a3fd6c58df3 Mon Sep 17 00:00:00 2001
+From: Veena Sri Vallala <vsri@qti.qualcomm.com>
+Date: Wed, 23 Apr 2025 11:16:09 +0530
+Subject: [PATCH 8/8] rtl8261: remove ack_interrupt calls
+
+Removing ack_interrupt calls.
+
+Signed-off-by: Veena Sri Vallala <vsri@qti.qualcomm.com>
+---
+ linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c         | 17 -----------------
+ linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.c | 12 ------------
+ linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.h |  1 -
+ 3 files changed, 30 deletions(-)
+
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+index 054101b..89793dc 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
++++ b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+@@ -510,20 +510,6 @@ static int rtl826xb_config_intr(struct phy_device *phydev)
+     return ret;
+ }
+ 
+-static int rtl826xb_ack_intr(struct phy_device *phydev)
+-{
+-    int32 ret = 0;
+-    uint32 status = 0;
+-
+-    RTK_PHYLIB_ERR_CHK(rtk_phylib_826xb_intr_read_clear(phydev, &status));
+-    if (status & RTK_PHY_INTR_WOL)
+-    {
+-        rtk_phylib_826xb_wol_reset(phydev);
+-    }
+-
+-    return ret;
+-}
+-
+ static irqreturn_t rtl826xb_handle_intr(struct phy_device *phydev)
+ {
+     irqreturn_t ret;
+@@ -683,7 +669,6 @@ static struct phy_driver rtk_phy_drivers[] = {
+         .cable_test_start      = rtl826xb_cable_test_start,
+         .cable_test_get_status = rtl826xb_cable_test_get_status,
+         .config_intr        = rtl826xb_config_intr,
+-        .ack_interrupt      = rtl826xb_ack_intr,
+         .handle_interrupt   = rtl826xb_handle_intr,
+         .get_tunable        = rtl826xb_get_tunable,
+         .set_tunable        = rtl826xb_set_tunable,
+@@ -707,7 +692,6 @@ static struct phy_driver rtk_phy_drivers[] = {
+         .cable_test_start      = rtl826xb_cable_test_start,
+         .cable_test_get_status = rtl826xb_cable_test_get_status,
+         .config_intr        = rtl826xb_config_intr,
+-        .ack_interrupt      = rtl826xb_ack_intr,
+         .handle_interrupt   = rtl826xb_handle_intr,
+         .get_tunable        = rtl826xb_get_tunable,
+         .set_tunable        = rtl826xb_set_tunable,
+@@ -733,7 +717,6 @@ static struct phy_driver rtk_phy_drivers[] = {
+         .get_tunable        = rtl8224_get_tunable,
+         .set_tunable        = rtl8224_set_tunable,
+         .config_intr        = rtl8224_config_intr,
+-        .ack_interrupt      = rtl8224_ack_intr,
+         .handle_interrupt   = rtl8224_handle_intr,
+     },
+ };
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.c b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.c
+index f687beb..e8d2af9 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.c
++++ b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.c
+@@ -542,18 +542,6 @@ int rtl8224_config_intr(struct phy_device *phydev)
+     return ret;
+ }
+ 
+-int rtl8224_ack_intr(struct phy_device *phydev)
+-{
+-    int32 ret = 0;
+-    uint32 status = 0;
+-
+-    RTL8224_INTERNAL_PORT_CHECK(phydev);
+-
+-    RTK_PHYLIB_ERR_CHK(_phy_8224_intr_read_clear(phydev, &status));
+-
+-    return ret;
+-}
+-
+ irqreturn_t rtl8224_handle_intr(struct phy_device *phydev)
+ {
+     irqreturn_t ret;
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.h b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.h
+index 86d2444..8e4258c 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.h
++++ b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy_rtl8224.h
+@@ -8,6 +8,5 @@ extern int rtl8224_cable_test_get_status(struct phy_device *phydev, bool *finish
+ extern int rtl8224_get_tunable(struct phy_device *phydev, struct ethtool_tunable *tuna, void *data);
+ extern int rtl8224_set_tunable(struct phy_device *phydev, struct ethtool_tunable *tuna, const void *data);
+ extern int rtl8224_config_intr(struct phy_device *phydev);
+-extern int rtl8224_ack_intr(struct phy_device *phydev);
+ extern irqreturn_t rtl8224_handle_intr(struct phy_device *phydev);
+ 
+-- 
+2.34.1
+

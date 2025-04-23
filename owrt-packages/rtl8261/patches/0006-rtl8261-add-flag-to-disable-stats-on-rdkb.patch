@@ -1,0 +1,30 @@
+From eede708e783252fd23d807e35afe321b8e3fafbd Mon Sep 17 00:00:00 2001
+From: Veena Sri Vallala <vsri@qti.qualcomm.com>
+Date: Mon, 21 Apr 2025 20:39:24 +0530
+Subject: [PATCH 6/8] rtl8261: add flag to disable stats on rdkb
+
+Add DISABLE_MACSEC_STATS flag to enable
+stats on pinnacles and disable for rdkb.
+
+Signed-off-by: Veena Sri Vallala <vsri@qti.qualcomm.com>
+---
+ linux-5.10.146/drivers/net/phy/rtk/rtk_phylib_macsec.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/rtk_phylib_macsec.c b/linux-5.10.146/drivers/net/phy/rtk/rtk_phylib_macsec.c
+index ea24def..90c1d54 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/rtk_phylib_macsec.c
++++ b/linux-5.10.146/drivers/net/phy/rtk/rtk_phylib_macsec.c
+@@ -2341,7 +2341,9 @@ int32 rtk_phylib_macsec_stat_rxsa_get(rtk_phydev *phydev, uint32 sc_id,
+     switch (stat)
+     {
+         case RTK_MACSEC_RXSA_STAT_InPktsUnusedSA:
++            #ifndef DISABLE_MACSEC_STATS
+             MACSEC_REG_GET(phydev, dir, (base + 0x8048), &data);
++            #endif
+             cnt_l = (uint64)data;
+             MACSEC_REG_GET(phydev, dir, (base + 0x804C), &data);
+             cnt_h = (uint64)data;
+-- 
+2.34.1
+
