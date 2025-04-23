@@ -100,10 +100,6 @@ pre_start() {
 	sysctl -w net.bridge.bridge-nf-call-ip6tables=1
 	sysctl -w net.bridge.bridge-nf-call-iptables=1
 
-	#Disable ipa hw offload
-	[ -f  /sys/class/net/eth0/suspend_ipa_offload ] && echo 1 > /sys/class/net/eth0/suspend_ipa_offload
-	[ -f  /sys/class/net/eth1/suspend_ipa_offload ] && echo 1 > /sys/class/net/eth1/suspend_ipa_offload
-
 	#Disable rx-vlan-offload to make sure NIC doesn't strip vlan tag.
 	ethtool -K eth0 rx-vlan-offload off
 	ethtool -K eth1 rx-vlan-offload off
@@ -156,10 +152,6 @@ stop() {
 	#Stop/Disable ECM & SFE
 	unload_ecm
 	unload_sfe
-
-	#Enable ipa hw offload as ECM is disabled/stopped
-	[ -f  /sys/class/net/eth0/suspend_ipa_offload ] && echo 0 > /sys/class/net/eth0/suspend_ipa_offload
-	[ -f  /sys/class/net/eth1/suspend_ipa_offload ] && echo 0 > /sys/class/net/eth1/suspend_ipa_offload
 
 	#Enable rx-vlan-offload back as ECM is disabled.
 	ethtool -K eth0 rx-vlan-offload on
