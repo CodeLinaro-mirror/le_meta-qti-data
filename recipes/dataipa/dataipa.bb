@@ -36,6 +36,7 @@ do_install() {
 
    strip_tool="${STRIP}"
    module_path="${WORKDIR}/dataipa"
+   LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/
    module_signer="${KERNEL_OUT_PATH}/msm-kernel/scripts/sign-file sha1
 ${KERNEL_OUT_PATH}/gki_kernel/common/certs/signing_key.pem \
      ${KERNEL_OUT_PATH}/gki_kernel/common/certs/signing_key.x509"
@@ -49,6 +50,7 @@ drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko"
 
      # Strip the debug symbols and sign the modules for target
      ${strip_tool} --strip-debug ${WORKDIR}/src/dataipa-modules-out/${module}
+     LD_LIBRARY_PATH=${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/
      ${module_signer} ${WORKDIR}/src/dataipa-modules-out/${module}
      install -m 0644  ${WORKDIR}/src/dataipa-modules-out/${module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
    done
