@@ -5,6 +5,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 # if is TARGET_KERNEL_ARCH is set inherit qtikernel-arch to compile for that arch.
 inherit ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', '', d)}
+inherit linux-kernel-base deploy
 
 DEPENDS = "virtual/kernel"
 DEPENDS = "virtual/dtc-native"
@@ -19,7 +20,10 @@ SRC_URI += "file://rmnetcore.service"
 
 S = "${WORKDIR}/src/datarmnet"
 
-inherit pkgconfig module
+inherit pkgconfig
+
+do_compile[depends] += "virtual/kernel:do_shared_workdir"
+do_compile[cleandirs] += "${WORKDIR}/out/${KERNEL_DEFCONFIG}"
 
 FILESPATH =+ "${WORKSPACE}:"
 

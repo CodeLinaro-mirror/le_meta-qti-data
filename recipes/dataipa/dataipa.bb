@@ -1,4 +1,4 @@
-inherit module
+inherit linux-kernel-base deploy
 
 SUMMARY = "IPA driver"
 
@@ -11,6 +11,9 @@ DEPENDS = "virtual/kernel"
 DEPENDS += "data-devicetree"
 
 PR = "r0"
+
+do_compile[depends] += "virtual/kernel:do_shared_workdir"
+do_compile[cleandirs] += "${WORKDIR}/out/${KERNEL_DEFCONFIG}"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://dataipa/"
