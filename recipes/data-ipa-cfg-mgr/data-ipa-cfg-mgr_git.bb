@@ -18,9 +18,32 @@ EXTRA_OECONF = "--with-kernel=${STAGING_KERNEL_DIR} \
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-ipa-cfg-mgr"
+SRC_URI  += "file://ipacm.service"
 
 S = "${WORKDIR}/data-ipa-cfg-mgr"
 
 INITSCRIPT_NAME   = "start_ipacm_le"
 INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
-FILES_${PN} += "${userfsdatadir}/misc/ipa/IPACM_cfg.xml"
+FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
+
+do_install_append() {
+	install -d ${D}${userfsdatadir}/misc/ipa
+	install -d ${D}${sysconfdir}/data/ipa
+	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+
+	  #IPACM Service
+	  rm -rf ${D}${sysconfdir}/init.d/start_ipacm_le
+	  install -m 0644 ${WORKDIR}/ipacm.service -D ${D}${systemd_unitdir}/system/ipacm.service
+	  install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
+	  # enable the service for local-fs.target
+	  ln -sf ${systemd_unitdir}/system/ipacm.service \
+	  ${D}${systemd_unitdir}/system/local-fs.target.wants/ipacm.service
+
+	  #IPACM_cfg file stored as factory settings
+	  install -m 0644 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
+	  install -m 0644 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_cfg.xml
+	fi
+}
+FILES_${PN} += "${userfsdatadir}/misc/ipa"
+FILES_${PN} += "${systemd_unitdir}/system"
+FILES_${PN} += "${systemd_unitdir}/system/local-fs.target.wants/"
