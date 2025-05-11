@@ -119,7 +119,9 @@ do_install() {
 	# don't install /var/run when populating rootfs. Do it through volatile
 	# /var/run of current version is empty, so just remove it.
 	# if /var/run become non-empty in the future, need to install it via volatile
-	rm -rf ${D}/var/run
+        rm -rf ${D}/run
+        rm -rf ${D}/var/run
+        rm -rf ${D}/${libdir}/avahi
 	rm -rf ${D}${datadir}/dbus-1/interfaces
 	rm -rf ${D}${sysconfdir}/avahi/services/* 
 	install ${WORKDIR}/99avahi_multi.service ${D}${sysconfdir}/avahi/services/multi.service
