@@ -1,7 +1,7 @@
 [Unit]
 Description= Load datarmnet dlkm service
 SourcePath=/etc/initscripts/start_rmnetcore_le
-DefaultDependencies=no
+After=dataipa.service
 
 [Service]
 Restart=on-failure
