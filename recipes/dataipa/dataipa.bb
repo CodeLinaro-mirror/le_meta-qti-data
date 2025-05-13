@@ -14,6 +14,7 @@ PR = "r0"
 
 do_compile[depends] += "virtual/kernel:do_shared_workdir"
 do_compile[cleandirs] += "${WORKDIR}/out/${KERNEL_DEFCONFIG}"
+KERNEL_VERSION = "${@get_kernelversion_file("${STAGING_KERNEL_BUILDDIR}")}"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://dataipa/"
