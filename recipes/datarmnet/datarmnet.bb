@@ -38,15 +38,52 @@ PARALLEL_MAKE = ""
 # Disable parallel make
 PARALLEL_MAKE = "-j1"
 
-#currently not working but for some reason this compiles but do_install_append doesnt
-do_install() {
-        install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
-        install -m 0644 rmnet_core.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
-        install -d ${D}${sysconfdir}/initscripts/
-        install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
-        install -d ${D}${systemd_unitdir}/system/
-        install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
-        install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
-        ln -sf ${systemd_unitdir}/system/rmnetcore.service \
-                ${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
+
+do_compile:qcm2290-mtp() {
+   cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
+    BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
+    EXT_MODULES=../../datarmnet/core \
+    ROOTDIR=${WORKSPACE}/ \
+    MODULE_OUT=${WORKDIR}/datarmnet/core-out \
+    OUT_DIR=${KERNEL_OUT_PATH}/ \
+    ./build/build_module.sh
 }
+
+do_compile:qcm4325-mtp() {
+   cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
+    BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
+    EXT_MODULES=../../datarmnet/core \
+    ROOTDIR=${WORKSPACE}/ \
+    MODULE_OUT=${WORKDIR}/datarmnet/core-out \
+    OUT_DIR=${KERNEL_OUT_PATH}/ \
+    ./build/build_module.sh
+}
+
+
+#currently not working but for some reason this compiles but do_install_append doesnt
+do_install:qcm2290-mtp() {
+    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
+    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
+    install -d ${D}${sysconfdir}/initscripts/
+    install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
+    install -d ${D}${systemd_unitdir}/system/
+    install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
+    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
+    ln -sf ${systemd_unitdir}/system/rmnetcore.service \
+	${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
+
+}
+
+do_install:qcm4325-mtp() {
+    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
+    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
+    install -d ${D}${sysconfdir}/initscripts/
+    install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
+    install -d ${D}${systemd_unitdir}/system/
+    install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
+    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
+    ln -sf ${systemd_unitdir}/system/rmnetcore.service \
+    ${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
+
+}
+

@@ -30,7 +30,7 @@
 # SPDX-License-Identifier: BSD-3-Clause-Clear
 
 
-export MODULE_BASE=/lib/modules/`uname -r`/extra
+export MODULE_BASE=/usr/lib/modules/`uname -r`/extra
 set -e
 
 
@@ -39,7 +39,6 @@ case "$1" in
         echo -n "Starting/Loading rmnet modules: "
         echo "rmnet:start/load" > /dev/kmsg
         insmod $MODULE_BASE/rmnet_core.ko > /dev/kmsg
-        insmod $MODULE_BASE/rmnet_eth.ko > /dev/kmsg
         echo "done loading rmnet core modules" > /dev/kmsg
         ;;
   stop)

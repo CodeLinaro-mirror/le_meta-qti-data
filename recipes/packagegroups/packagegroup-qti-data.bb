@@ -21,6 +21,7 @@ RDEPENDS:packagegroup-qti-data = ' \
     dhcpcd \
     tcpdump \
     conntrack-tools \
+    data-oss \
     dataipa \
     datarmnet \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-emac-dwc-eqos", "packagegroup-qti-ethernet-tools", "", d)} \
