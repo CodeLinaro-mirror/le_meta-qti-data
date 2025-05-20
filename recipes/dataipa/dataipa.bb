@@ -38,6 +38,48 @@ do_install:kalama() {
    install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
 }
 
+do_compile:qcm2290-mtp() {
+    cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
+    BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
+    CONFIG_SCUBA_IPA_LE=y \
+    EXT_MODULES=../../dataipa \
+    ROOTDIR=${WORKSPACE}/ \
+    MODULE_OUT=${WORKDIR}/src/dataipa-modules-out \
+    OUT_DIR=${KERNEL_OUT_PATH}/ \
+    ./build/build_module.sh
+}
+
+do_install:qcm2290-mtp() {
+   install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/dataipa-load.conf -D ${D}${sysconfdir}/modules-load.d/dataipa-load.conf
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/gsi/gsim.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipam.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipanetm.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+}
+
+do_compile:qcm4325-mtp() {
+    cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
+    BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
+    CONFIG_SCUBA_IPA_LE=y \
+    EXT_MODULES=../../dataipa \
+    ROOTDIR=${WORKSPACE}/ \
+    MODULE_OUT=${WORKDIR}/src/dataipa-modules-out \
+    OUT_DIR=${KERNEL_OUT_PATH}/ \
+    ./build/build_module.sh
+}
+
+do_install:qcm4325-mtp() {
+   install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/dataipa-load.conf -D ${D}${sysconfdir}/modules-load.d/dataipa-load.conf
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/gsi/gsim.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipam.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipanetm.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
+}
+
 do_deploy() {
     install -d ${DEPLOYDIR}/kernel_modules
     cp -rp ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/gsi/gsim.ko ${DEPLOYDIR}/kernel_modules
