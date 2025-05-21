@@ -34,3 +34,5 @@ RDEPENDS:packagegroup-qti-ethernet-tools = " \
 RDEPENDS:packagegroup-qti-data-modem = " \
     data-oss \
     "
+
+RDEPENDS:packagegroup-qti-data:remove:qcs610-odk-64 = "dataipa"
