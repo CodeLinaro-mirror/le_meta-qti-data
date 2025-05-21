@@ -61,11 +61,30 @@ unload_sfe() {
 
 }
 
+load_spm() {
+
+	kernel_ver_full=$(uname -r)
+	kernel_ver_base=$(echo "$kernel_ver_full" | cut -d '-' -f 1 | cut -d '.' -f 1,2)
+	build_type=${kernel_ver_full##*-}
+	kernel_ver="$kernel_ver_base-$build_type"
+	[ -e "/lib/modules/$kernel_ver/extra/emesh-sp.ko" ] && {
+		[ -d /sys/module/emesh_sp ] || insmod "/lib/modules/$kernel_ver/extra/emesh-sp.ko"
+	}
+
+}
+
+unload_spm() {
+
+	rmmod emesh-sp
+
+}
+
 load_ecm() {
 
 	[ -d /sys/module/ecm ] || {
 		#ecm_dependency
 		insmod /lib/modules/ecm.ko front_end_selection=$( get_front_end_mode )
+
 	}
 
 }
@@ -96,10 +115,10 @@ unload_ecm() {
 
 unload_ecm_sdx_pcc() {
 
-       	if [ -d /sys/module/ecm_sdx_pcc ]; then
-        	echo 1 > proc/sys/net/ecm/ecm_sdx_pcc_unregister
-        	rmmod ecm_sdx_pcc
-       	fi
+	if [ -d /sys/module/ecm_sdx_pcc ]; then
+		echo 1 > "proc/sys/net/ecm/ecm_sdx_pcc_unregister"
+		rmmod ecm_sdx_pcc
+	fi
 
 }
 
@@ -152,6 +171,12 @@ post_start() {
 
 	echo "post_start"
 
+	#Emesh classifier enablement command
+	echo 3 > /sys/kernel/debug/ecm/ecm_classifier_emesh/enabled
+	echo 3 > /sys/kernel/debug/ecm/ecm_classifier_emesh/latency_config_enabled
+	echo 3 > /sys/kernel/debug/ecm/ecm_classifier_emesh/sawf_enabled
+	echo 0 > /sys/kernel/debug/ecm/ecm_classifier_dscp/enabled
+
 }
 
 #start_service() {
@@ -162,6 +187,9 @@ start() {
 
 	#Load SFE
 	load_sfe
+
+	#Load SPM
+	load_spm
 
 	#Load ECM
 	load_ecm
@@ -206,6 +234,12 @@ post_stop() {
 
 	echo "post_stop"
 
+	#Emesh classifier disablement command
+	echo 0 > /sys/kernel/debug/ecm/ecm_classifier_emesh/enabled
+	echo 0 > /sys/kernel/debug/ecm/ecm_classifier_emesh/latency_config_enabled
+	echo 0 > /sys/kernel/debug/ecm/ecm_classifier_emesh/sawf_enabled
+	echo 1 > /sys/kernel/debug/ecm/ecm_classifier_dscp/enabled
+
 }
 
 #stop_service() {
@@ -221,6 +255,9 @@ stop() {
 
 	#Unload ECM
 	unload_ecm
+
+	#Unload SPM
+	unload_spm
 
 	#Unload SFE
 	unload_sfe
