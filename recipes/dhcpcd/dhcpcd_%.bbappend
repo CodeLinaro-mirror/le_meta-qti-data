@@ -8,7 +8,7 @@ do_configure:append() {
         --sbindir=${exec_prefix}/sbin --disable-ipv6
 }
 
-DBDIR = "${localstatedir}/run/db/${BPN}"
+DBDIR = "${localstatedir}/run/db"
 
 do_install:append(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
