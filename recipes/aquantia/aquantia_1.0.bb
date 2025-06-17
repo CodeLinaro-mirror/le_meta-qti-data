@@ -17,6 +17,7 @@ SRC_URI += "file://0001-net-phy-aquantia-Support-out-of-tree-module-compilat.pat
 SRC_URI += "file://0002-net-phy-aquantia-Fix-WOL-check-precedence-bug.patch"
 SRC_URI += "file://0003-phy-aquantia-Ensure-correct-system-interface-status-.patch"
 SRC_URI += "file://0004-phy-aquantia-Add-eee-support-to-AQR-github-driver.patch"
+SRC_URI += "file://0005-net-phy-aquantia-Don-t-use-kernel-config-for-HWMON-s.patch"
 SRC_URI += "file://aquantia.service"
 
 S = "${WORKDIR}/git"
