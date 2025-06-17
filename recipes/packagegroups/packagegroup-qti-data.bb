@@ -15,6 +15,7 @@ PACKAGES = ' \
     '
 
 RDEPENDS:packagegroup-qti-data = ' \
+    aquantia \
     iproute2 \
     iptables \
     dnsmasq \
