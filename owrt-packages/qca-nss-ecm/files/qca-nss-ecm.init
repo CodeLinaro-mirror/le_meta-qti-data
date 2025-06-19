@@ -57,7 +57,7 @@ load_sfe() {
 
 unload_sfe() {
 
-	rmmod /lib/modules/qca-nss-sfe.ko
+	rmmod qca-nss-sfe
 
 }
 
@@ -88,9 +88,18 @@ unload_ecm() {
 		echo 1 > /sys/kernel/debug/ecm/ecm_db/defunct_all
 		sleep 5
 
-		rmmod /lib/modules/ecm.ko
+		rmmod ecm
 		sleep 1
 	fi
+
+}
+
+unload_ecm_sdx_pcc() {
+
+       	if [ -d /sys/module/ecm_sdx_pcc ]; then
+        	echo 1 > "proc/sys/net/ecm/ecm_sdx_pcc_unregister"
+        	rmmod ecm_sdx_pcc
+       	fi
 
 }
 
@@ -100,9 +109,25 @@ pre_start() {
 	sysctl -w net.bridge.bridge-nf-call-ip6tables=1
 	sysctl -w net.bridge.bridge-nf-call-iptables=1
 
+	#Disable ipa hw offload for eth
+	#[ -f  /sys/class/net/eth0/suspend_ipa_offload ] && echo 1 > /sys/class/net/eth0/suspend_ipa_offload
+	#[ -f  /sys/class/net/eth1/suspend_ipa_offload ] && echo 1 > /sys/class/net/eth1/suspend_ipa_offload
+
+	#Disable ipa offload for wifi hmt
+	#sed -i 's/^gIPAConfig=.*/gIPAConfig=0/' /etc/misc/wifi/WCNSS_qcom_cfg.ini
+	#sed -i 's/^gIPADescSize=.*/gIPADescSize=0/' /etc/misc/wifi/WCNSS_qcom_cfg.ini
+
+	#Disable ipa offload for wifi wkk
+	#if ! grep -q "gIPAConfig=0" /etc/misc/ipq/ini/internal/global_i.ini; then
+	#	echo "gIPAConfig=0" >> /etc/misc/ipq/ini/internal/global_i.ini
+	#fi
+	#if ! grep -q "gIPADescSize=0" /etc/misc/ipq/ini/internal/global_i.ini; then
+	#	echo "gIPADescSize=0" >> /etc/misc/ipq/ini/internal/global_i.ini
+	#fi
+
 	#Disable rx-vlan-offload to make sure NIC doesn't strip vlan tag.
-	ethtool -K eth0 rx-vlan-offload off
-	ethtool -K eth1 rx-vlan-offload off
+	#ethtool -K eth0 rx-vlan-offload off
+	#ethtool -K eth1 rx-vlan-offload off
 
 	# Set conntrack event mode to 1 for 6.1 kernel to get the conntrack events from ECM
 	echo 1 > /proc/sys/net/netfilter/nf_conntrack_events
@@ -113,11 +138,13 @@ post_start() {
 	#Post-Start Commands
 
 	# Delete original configuration before appending new
-	sed '/net.bridge.bridge-nf-call-ip6tables/d' -i /etc/sysctl.d/qca-nss-ecm.conf
-	sed '/net.bridge.bridge-nf-call-iptables/d' -i /etc/sysctl.d/qca-nss-ecm.conf
+	#sed '/net.bridge.bridge-nf-call-ip6tables/d' -i /etc/sysctl.d/qca-nss-ecm.conf
+	#sed '/net.bridge.bridge-nf-call-iptables/d' -i /etc/sysctl.d/qca-nss-ecm.conf
 
-	echo 'net.bridge.bridge-nf-call-ip6tables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
-	echo 'net.bridge.bridge-nf-call-iptables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
+	#echo 'net.bridge.bridge-nf-call-ip6tables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
+	#echo 'net.bridge.bridge-nf-call-iptables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
+
+	echo "post_start"
 
 }
 
@@ -138,6 +165,40 @@ start() {
 
 }
 
+pre_stop() {
+	#Pre-Stop Commands
+
+	#sed '/net.bridge.bridge-nf-call-ip6tables=1/d' -i /etc/sysctl.d/qca-nss-ecm.conf
+	#sed '/net.bridge.bridge-nf-call-iptables=1/d' -i /etc/sysctl.d/qca-nss-ecm.conf
+
+	#Unload ECM_SDX_PCC
+	unload_ecm_sdx_pcc
+}
+
+
+post_stop() {
+	#Post-Stop Commands
+
+	#Enable ipa hw offload for eth
+	#[ -f  /sys/class/net/eth0/suspend_ipa_offload ] && echo 0 > /sys/class/net/eth0/suspend_ipa_offload
+	#[ -f  /sys/class/net/eth1/suspend_ipa_offload ] && echo 0 > /sys/class/net/eth1/suspend_ipa_offload
+
+	#Enable ipa offload for wifi hmt
+	#sed -i 's/^gIPAConfig=.*/gIPAConfig=0x46d/' /etc/misc/wifi/WCNSS_qcom_cfg.ini
+	#sed -i 's/^gIPADescSize=.*/gIPADescSize=800/' /etc/misc/wifi/WCNSS_qcom_cfg.ini
+
+	#Enable ipa offload for wifi wkk
+	#sed -i '/^gIPAConfig=0$/d' /etc/misc/ipq/ini/internal/global_i.ini
+	#sed -i '/^gIPADescSize=0$/d' /etc/misc/ipq/ini/internal/global_i.ini
+
+	#Enable rx-vlan-offload back as ECM is disabled.
+	#ethtool -K eth0 rx-vlan-offload on
+	#ethtool -K eth1 rx-vlan-offload on
+
+	echo "post_stop"
+
+}
+
 #stop_service() {
 stop() {
 
@@ -146,17 +207,17 @@ stop() {
 		return
 	fi
 
-	sed '/net.bridge.bridge-nf-call-ip6tables=1/d' -i /etc/sysctl.d/qca-nss-ecm.conf
-	sed '/net.bridge.bridge-nf-call-iptables=1/d' -i /etc/sysctl.d/qca-nss-ecm.conf
+	#Pre-Stop commands
+	pre_stop
 
-	#Stop/Disable ECM & SFE
+	#Unload ECM
 	unload_ecm
+
+	#Unload SFE
 	unload_sfe
 
-	#Enable rx-vlan-offload back as ECM is disabled.
-	ethtool -K eth0 rx-vlan-offload on
-	ethtool -K eth1 rx-vlan-offload on
-
+	#Post-Stop commands
+	post_stop
 }
 
 # usage "etc/init.d/qca-nss-ecm start start

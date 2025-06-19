@@ -1,0 +1,59 @@
+From 0079e7a9d997e4f846ad27eff22125ebe55a1788 Mon Sep 17 00:00:00 2001
+From: Amitha Sanka<asanka@qti.qualcomm.com>
+Date: Tue, 11 Mar 2025 16:29:48 -0700
+Subject: [PATCH 2/2] phy: aquantia: Add support for USX5G mode
+
+Add support for 5GbaseR interface for USX5G.
+
+Signed-off-by: Amitha Sanka<asanka@qti.qualcomm.com>
+---
+ aquantia/aquantia_main.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/aquantia/aquantia_main.c b/aquantia/aquantia_main.c
+index 541c05f..b0dd8f1 100644
+--- a/aquantia/aquantia_main.c
++++ b/aquantia/aquantia_main.c
+@@ -52,7 +52,8 @@
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_OFF	9
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_OCSGMII	10
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_XFI_DIV2	11
+-#define MDIO_PHYXS_VEND_IF_STATUS_TYPE_USX_DIV2	12
++// #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_USX_DIV2	12
++#define  MDIO_PHYXS_VEND_IF_STATUS_TYPE_5GBASER	12
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_XFI_20G	13
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_USX_20G	14
+ 
+@@ -504,12 +505,10 @@ static int aqr107_read_status(struct phy_device *phydev)
+ 	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_OCSGMII:
+ 		phydev->interface = PHY_INTERFACE_MODE_2500BASEX;
+ 		break;
++	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_5GBASER:
+ 	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_XFI_DIV2:
+ 		phydev->interface = PHY_INTERFACE_MODE_5GBASER;
+ 		break;
+-	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_USX_DIV2:
+-		phydev->interface = PHY_INTERFACE_MODE_USXGMII;
+-		break;
+ 	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_XFI_20G:
+ 		phydev->interface = PHY_INTERFACE_MODE_10GBASER;
+ 		break;
+@@ -636,6 +635,7 @@ static int aqr107_config_init(struct phy_device *phydev)
+ 	    phydev->interface != PHY_INTERFACE_MODE_2500BASEX &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_XGMII &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_USXGMII &&
++	    phydev->interface != PHY_INTERFACE_MODE_5GBASER &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_10GKR &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_10GBASER)
+ 		return -ENODEV;
+@@ -1007,6 +1007,7 @@ static int aqr113_config_init(struct phy_device *phydev)
+ 	    phydev->interface != PHY_INTERFACE_MODE_2500BASEX &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_XGMII &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_USXGMII &&
++	    phydev->interface != PHY_INTERFACE_MODE_5GBASER &&
+ 	    phydev->interface != PHY_INTERFACE_MODE_10GKR)
+ 		return -ENODEV;
+ 
+-- 
+2.34.1
+
