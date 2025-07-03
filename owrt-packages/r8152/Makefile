@@ -4,6 +4,7 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=r8152
 PKG_VERSION:=1.0
 PKG_RELEASE:=1
+PKG_LICENSE:=BSD-3-Clause
 
 ifeq ($(VARIANT),perf)
   COMPILE_MODE :=perf
@@ -31,7 +32,7 @@ TARGET_CFLAGS += -I$(TOOLCHAIN_DIR)/include/linux/ethtool.h
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
-	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/../../* $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile
