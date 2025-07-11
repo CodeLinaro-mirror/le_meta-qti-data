@@ -1,4 +1,4 @@
-inherit linux-kernel-base deploy logging
+inherit linux-kernel-base deploy
 
 inherit systemd
 
