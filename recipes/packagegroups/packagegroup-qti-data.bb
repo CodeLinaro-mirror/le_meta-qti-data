@@ -41,4 +41,9 @@ RDEPENDS:packagegroup-qti-data-modem = " \
     data-oss \
     "
 
-RDEPENDS:packagegroup-qti-data:remove:qcs610-odk-64 = "dataipa aquantia qps615"
+RDEPENDS:packagegroup-qti-data:remove:qcs610-odk-64 = " \
+    dataipa \
+    aquantia \
+    qps615 \
+    datarmnet \
+    "
