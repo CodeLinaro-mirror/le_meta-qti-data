@@ -20,6 +20,7 @@ Group=radio
 SupplementaryGroups=diag inet
 AmbientCapabilities=CAP_NET_ADMIN
 StandardOutput=null
+#StandardOutput=file:/data/ipacm_log.txt
 
 [Install]
 WantedBy=local-fs.target
