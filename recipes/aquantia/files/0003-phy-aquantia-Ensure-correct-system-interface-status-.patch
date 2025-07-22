@@ -1,0 +1,91 @@
+From 48bcfc04563daf2f0120a893d68e1eeb2b8182cf Mon Sep 17 00:00:00 2001
+From: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+Date: Tue, 11 Mar 2025 16:13:03 -0700
+Subject: [PATCH 3/4] phy: aquantia: Ensure correct system-interface status
+ update
+
+Importing changes from upstream to poll status register in
+order to update the correct system-interface.
+
+The system interface connection status register is not immediately
+correct upon line side link up. This results in the status being read as
+OFF and then transitioning to the correct host side link mode with a
+short delay. This causes the phylink framework passing the OFF status
+down to all MAC config drivers, resulting in the host side link being
+misconfigured, which in turn can lead to link flapping or complete
+packet loss in some cases.
+
+Mitigate this by periodically polling the register until it not showing
+the OFF state. This will be done every 1ms for 10ms, using the same
+poll/timeout as the processor intensive operation reads.
+
+If the phy is still expressing the OFF state after the timeout, then set
+the link to false and pass the NA interface mode onto the phylink
+framework.
+
+Signed-off-by: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+---
+ aquantia/aquantia_main.c | 25 ++++++++++++++++++++++---
+ 1 file changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/aquantia/aquantia_main.c b/aquantia/aquantia_main.c
+index 867de80..5ad0872 100644
+--- a/aquantia/aquantia_main.c
++++ b/aquantia/aquantia_main.c
+@@ -49,6 +49,7 @@
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_XFI	2
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_USXGMII	3
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_SGMII	6
++#define MDIO_PHYXS_VEND_IF_STATUS_TYPE_OFF	9
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_OCSGMII	10
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_XFI_DIV2	11
+ #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_USX_DIV2	12
+@@ -188,6 +189,12 @@
+ #define VERSION_STRING_OFFSET 0x0200
+ #define HEADER_OFFSET 0x300
+ 
++/* Sleep and timeout for checking if the Processor-Intensive
++ * MDIO operation is finished
++ */
++#define AQR107_OP_IN_PROG_SLEEP		1000
++#define AQR107_OP_IN_PROG_TIMEOUT	10000
++
+ #pragma pack(1)
+ struct fw_header {
+ 	u8 padding[4];
+@@ -467,9 +474,19 @@ static int aqr107_read_status(struct phy_device *phydev)
+ 	if (!phydev->link || phydev->autoneg == AUTONEG_DISABLE)
+ 		return 0;
+ 
+-	val = phy_read_mmd(phydev, MDIO_MMD_PHYXS, MDIO_PHYXS_VEND_IF_STATUS);
+-	if (val < 0)
+-		return val;
++	/**
++	 * The status register is not immediately correct on line side link up.
++	 * Poll periodically until it reflects the correct ON state.
++	 * Only return fail for read error, timeout defaults to OFF state.
++	 */
++	ret = phy_read_mmd_poll_timeout(phydev, MDIO_MMD_PHYXS,
++					MDIO_PHYXS_VEND_IF_STATUS, val,
++					(FIELD_GET(MDIO_PHYXS_VEND_IF_STATUS_TYPE_MASK, val) !=
++					MDIO_PHYXS_VEND_IF_STATUS_TYPE_OFF),
++					AQR107_OP_IN_PROG_SLEEP,
++					AQR107_OP_IN_PROG_TIMEOUT, false);
++	if (ret && ret != -ETIMEDOUT)
++		return ret;
+ 
+ 	switch (FIELD_GET(MDIO_PHYXS_VEND_IF_STATUS_TYPE_MASK, val)) {
+ 	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_KR:
+@@ -499,7 +516,9 @@ static int aqr107_read_status(struct phy_device *phydev)
+ 	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_USX_20G:
+ 		phydev->interface = PHY_INTERFACE_MODE_USXGMII;
+ 		break;
++	case MDIO_PHYXS_VEND_IF_STATUS_TYPE_OFF:
+ 	default:
++		phydev->link = false;
+ 		phydev->interface = PHY_INTERFACE_MODE_NA;
+ 		break;
+ 	}
+-- 
+2.34.1
+

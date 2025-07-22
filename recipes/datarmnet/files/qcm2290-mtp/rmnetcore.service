@@ -1,0 +1,14 @@
+[Unit]
+Description= Load datarmnet dlkm service
+SourcePath=/etc/initscripts/start_rmnetcore_le
+DefaultDependencies=no
+
+[Service]
+Restart=on-failure
+RemainAfterExit=yes
+Type=oneshot
+ExecStart=/etc/initscripts/start_rmnetcore_le start
+Nice=-20
+
+[Install]
+WantedBy=local-fs.target
