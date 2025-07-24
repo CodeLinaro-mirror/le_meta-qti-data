@@ -9,11 +9,9 @@ Conflicts=shutdown.target
 
 [Service]
 Restart=on-failure
-ExecStartPre=+chmod 660 /dev/ipaNatTable /dev/ipaIpv6CTTable
-ExecStartPre=+chmod 660 /dev/wwan_ioctl /dev/ipa
-ExecStartPre=+chown -h radio.radio /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipaIpv6CTTable
 ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/ /etc/data/ipa/
 ExecStart=/usr/bin/ipacm
+TimeoutStopSec=20
 ExecStopPost=/bin/sh -c 'rm /var/run/data/monitor/ipacmd.pid'
 User=radio
 Group=radio
