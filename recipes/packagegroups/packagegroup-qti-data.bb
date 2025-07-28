@@ -36,8 +36,10 @@ RDEPENDS:packagegroup-qti-ethernet-tools = " \
     ethtool \
     emac-dwc-eqos \
     "
-
-RDEPENDS:packagegroup-qti-data-modem = " \
+RDEPENDS:packagegroup-qti-data-modem:qcm2290-mtp = " \
+    data-oss \
+    "
+RDEPENDS:packagegroup-qti-data-modem:qcm4325-mtp = " \
     data-oss \
     "
 
