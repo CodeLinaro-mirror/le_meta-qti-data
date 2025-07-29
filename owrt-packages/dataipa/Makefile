@@ -1,3 +1,6 @@
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
@@ -11,7 +14,7 @@ LOCAL_SRC := $(TOPDIR)/src/dataipa
 include $(INCLUDE_DIR)/package.mk
 
 define KernelPackage/$(PKG_NAME)
-  SECTION:=ipa
+  SECTION:=Kernel Modules
   CATEGORY:= External Kernel Modules
   TITLE:=Driver for IPA
 endef
@@ -24,7 +27,6 @@ endef
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
-	$(Build/Patch)
 endef
 
 MAKE_OPTS:= \
@@ -32,9 +34,11 @@ MAKE_OPTS:= \
 
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" \
-	$(MAKE_OPTS)\
-	modules
+  if [ "$(BOARD)" = "sdxecho" ]; then \
+      $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+  else \
+      $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+  fi
 endef
 
 define Build/InstallDev
@@ -48,15 +52,15 @@ define Build/InstallDev
 endef
 
 define KernelPackage/$(PKG_NAME)/install
-#	$(SIGN_KEY) $(PKG_BUILD_DIR)/gsim.ko
-#	$(SIGN_KEY) $(PKG_BUILD_DIR)/ipam.ko
-#	$(SIGN_KEY) $(PKG_BUILD_DIR)/ipanetm.ko
-#	$(SIGN_KEY) $(PKG_BUILD_DIR)/ipatestm.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko
+#	$(SIGN_KEY) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko
 	$(INSTALL_DIR) $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/gsim.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipam.ko $(1)/lib/modules/ipa/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipanetm.ko $(1)/lib/modules/ipa/
-#	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipatestm.ko $(1)/lib/modules/ipa/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko $(1)/lib/modules/ipa/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(1)/lib/modules/ipa/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko $(1)/lib/modules/ipa/
+#	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko $(1)/lib/modules/ipa/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/
 	$(INSTALL_BIN) ./files/dataipa.init $(1)/etc/init.d
@@ -64,9 +68,9 @@ define KernelPackage/$(PKG_NAME)/install
 
 #install dataipa ko's in /bin/targets/$(TARGET_VARIANT)/modules to be shown in owrt CRM APPS
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/gsim.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ipanetm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/gsi/gsim.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 endef
 
-$(eval $(call KernelPackage,dataipa))
+$(eval $(call KernelPackage,$(PKG_NAME)))

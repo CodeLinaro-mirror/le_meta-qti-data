@@ -31,9 +31,11 @@ MAKE_OPTS:= \
 	TARGET_SUPPORT="$(KERNEL_PLATFORM_TARGET)"\
 
 define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" \
-	$(MAKE_OPTS) \
-	modules
+  if [ "$(BOARD)" = "sdxecho" ]; then \
+      $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+  else \
+      $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+  fi
 endef
 
 define Build/InstallDev
