@@ -15,7 +15,6 @@ PACKAGES = ' \
     '
 
 RDEPENDS:packagegroup-qti-data = ' \
-    aquantia \
     iproute2 \
     iptables \
     dnsmasq \
@@ -25,9 +24,6 @@ RDEPENDS:packagegroup-qti-data = ' \
     data-oss \
     dataipa \
     datarmnet \
-    ethtool \
-    qps615 \
-    qps615-firmware \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-emac-dwc-eqos", "packagegroup-qti-ethernet-tools", "", d)} \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
@@ -42,10 +38,9 @@ RDEPENDS:packagegroup-qti-data-modem:qcm2290-mtp = " \
 RDEPENDS:packagegroup-qti-data-modem:qcm4325-mtp = " \
     data-oss \
     "
+RDEPENDS:packagegroup-qti-data:append:kalama = "aquantia ethtool qps615 qps615-firmware"
 
 RDEPENDS:packagegroup-qti-data:remove:qcs610-odk-64 = " \
     dataipa \
-    aquantia \
-    qps615 \
     datarmnet \
     "
