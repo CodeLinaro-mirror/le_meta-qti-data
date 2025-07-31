@@ -22,7 +22,7 @@ define KernelPackage/$(PKG_NAME)
  CATEGORY:=Kernel modules
  SUBMENU:=Network Devices
  TITLE:= AQC IOSS Driver
- DEPENDS:= +kmod-ioss
+ DEPENDS:= +kmod-atlantic_fwd +kmod-ioss
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
@@ -31,7 +31,7 @@ endef
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
-	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/../../* $(PKG_BUILD_DIR)/
 endef
 
 define Build/Compile

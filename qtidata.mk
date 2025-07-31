@@ -11,6 +11,6 @@ else ifeq ($(BOARD),sdx75)
 	QTIDATA+= ipanat ipacm kmod-dataipa kmod-datarmnet kmod-datarmnet-ext kmod-ioss kmod-emac_ioss kmod-gsb kmod-rtsp_alg datafactory kmod-r8125 kmod-r8168 avahi-nodbus-daemon kmod-r8125_ioss kmod-r8168_ioss kmod-sfe thermal-eth-netlink kmod-aqc_ioss hostap phytool kmod-r8152 zonedetect locationdb ianatzdata kmod-smem-mailbox eth-qos eth-cfg set_eth_perf
 	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet
 else ifeq ($(BOARD),sdx85)
-	QTIDATA+= kmod-dataipa ipanat ipacm kmod-datarmnet kmod-datarmnet-ext datafactory avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos kmod-smem-mailbox kmod-data-devicetree kmod-ioss kmod-emac_ioss kmod-rtl8125 kmod-r8125_ioss eth-cfg set_eth_perf kmod-qca-nss-sfe kmod-qca-nss-ecm-premium kmod-aquantia nanopb kmod-r8152 kmod-atlantic_fwd
+	QTIDATA+= kmod-dataipa ipanat ipacm kmod-datarmnet kmod-datarmnet-ext datafactory avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos kmod-smem-mailbox kmod-data-devicetree kmod-ioss kmod-emac_ioss kmod-rtl8125 kmod-r8125_ioss eth-cfg set_eth_perf kmod-qca-nss-sfe kmod-qca-nss-ecm-premium kmod-aquantia nanopb kmod-r8152 kmod-atlantic_fwd kmod-aqc_ioss
 	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet kmod-data-devicetree
 endif
