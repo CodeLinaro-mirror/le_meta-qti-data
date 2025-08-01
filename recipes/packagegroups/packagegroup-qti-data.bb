@@ -39,6 +39,7 @@ RDEPENDS:packagegroup-qti-data-modem:qcm4325-mtp = " \
     data-oss \
     "
 RDEPENDS:packagegroup-qti-data:append:kalama = "aquantia ethtool qps615 qps615-firmware"
+RDEPENDS:packagegroup-qti-data:remove:kalama = "datarmnet"
 
 RDEPENDS:packagegroup-qti-data:remove:qcs610-odk-64 = " \
     dataipa \
