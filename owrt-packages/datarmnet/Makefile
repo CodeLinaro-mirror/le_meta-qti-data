@@ -19,6 +19,7 @@ define KernelPackage/$(PKG_NAME)
   CATEGORY:=Kernel modules
   SUBMENU:=Network Support
   TITLE:=RMNET driver for handling data in multiplexing and aggregation protocol (MAP) format
+  DEPENDS:=kmod-dataipa
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
@@ -29,9 +30,11 @@ MAKE_OPTS:= \
         M="$(PKG_BUILD_DIR)"
 
 define Build/Compile
-        $(MAKE) -C "$(LINUX_DIR)" \
-                $(MAKE_OPTS) \
-                modules
+	if [ "$(BOARD)" = "sdxecho" ]; then \
+		$(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+	else \
+		$(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+	fi
 endef
 
 define KernelPackage/$(PKG_NAME)/install
