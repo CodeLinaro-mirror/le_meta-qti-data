@@ -1,0 +1,16 @@
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: GPL-2.0-only
+
+[Unit]
+Description=Aquantia
+DefaultDependencies=no
+
+[Service]
+Restart=no
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe aquantia
+ExecStop=/sbin/rmmod aquantia
+Nice=-20
+
+[Install]
+WantedBy=local-fs.target

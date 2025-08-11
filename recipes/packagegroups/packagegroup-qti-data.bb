@@ -14,4 +14,5 @@ RDEPENDS:packagegroup-qti-data = ' \
     dataipa \
     datarmnet \
     datarmnet-ext \
-    '
+    aquantia \
+'
