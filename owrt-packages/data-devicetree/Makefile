@@ -31,11 +31,9 @@ MAKE_OPTS:= \
 	TARGET_SUPPORT="$(KERNEL_PLATFORM_TARGET)"\
 
 define Build/Compile
-  if [ "$(BOARD)" = "sdxecho" ]; then \
-      $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
-  else \
-      $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
-  fi
+	if [ "$(BOARD)" = "sdxecho" ]; then \
+		$(MAKE) -C $(PKG_BUILD_DIR) sdxecho-ipa; \
+	fi
 endef
 
 define Build/InstallDev
@@ -43,9 +41,12 @@ define Build/InstallDev
 endef
 
 define KernelPackage/data-devicetree/install
+	@echo "LINUX_DIR: $(LINUX_DIR)"
+	@echo "PKG_BUILD_DIR: $(PKG_BUILD_DIR)"
 	mkdir -p $(LINUX_DIR)/../techpack-dtbos
-	$(CP) $(PKG_BUILD_DIR)/ipa/*.dtbo $(LINUX_DIR)/../techpack-dtbos/
-	$(CP) $(PKG_BUILD_DIR)/eth/*.dtbo $(LINUX_DIR)/../techpack-dtbos/
+	mkdir -p $(PKG_BUILD_DIR)/../techpack-dtbos
+	$(CP) $(PKG_BUILD_DIR)/ipa/sdxecho-ipa.dtbo $(LINUX_DIR)/../techpack-dtbos/
+	$(CP) $(PKG_BUILD_DIR)/ipa/sdxecho-ipa.dtbo $(PKG_BUILD_DIR)/../techpack-dtbos/
 endef
 
 $(eval	$(call KernelPackage,data-devicetree))
