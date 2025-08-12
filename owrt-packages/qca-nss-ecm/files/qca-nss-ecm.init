@@ -1,4 +1,4 @@
-#!/bin/sh  /etc/rc.common
+#!/bin/sh /etc/rc.common
 #
 # Copyright (c) 2014, 2019-2021 The Linux Foundation. All rights reserved.
 # Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
@@ -22,12 +22,10 @@
 # START=26
 # STOP=90
 
-USE_PROCD=1
-
 get_front_end_mode() {
-	front_end=$(uci get ecm.global.acceleration_engine)
-	#Default value is set to 'sfe'
-	[ -n "$front_end" ] || front_end="sfe"
+	local front_end=$(uci get ecm.global.acceleration_engine)
+	#Default value is set to 'ipa-sfe'
+	[ -n "$front_end" ] || front_end="ipa-sfe"
 
 	case $front_end in
 	auto)
@@ -39,8 +37,11 @@ get_front_end_mode() {
 	ipa)
 		echo '7'
 		;;
-	sfe-ipa)
+	ipa-sfe)
 		echo '8'
+		;;
+	sfe-ipa)
+		echo '9'
 		;;
 	*)
 		echo 'uci_option_acceleration_engine is invalid'
@@ -229,20 +230,5 @@ stop() {
 	post_stop
 }
 
-# usage "etc/init.d/qca-nss-ecm start start
-# usage "etc/init.d/qca-nss-ecm stop stop
-
-case $1 in
-	start)
-		start
-		;;
-
-	stop)
-		stop
-		;;
-
-	*)
-		echo "wrong argument"
-		;;
-
-esac
+# usage "etc/init.d/qca-nss-ecm start
+# usage "etc/init.d/qca-nss-ecm stop

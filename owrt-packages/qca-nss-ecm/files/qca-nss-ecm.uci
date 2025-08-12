@@ -1,2 +1,2 @@
 config ecm 'global'
-	option acceleration_engine 'auto'
+	option acceleration_engine 'ipa'
