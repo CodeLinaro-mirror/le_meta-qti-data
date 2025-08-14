@@ -12,7 +12,7 @@ else ifeq ($(BOARD),sdx75)
 	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet
 endif
 
-ifeq ($(PRPL_VERSION),3.1)
+ifneq ($(PRPL_VERSION),)
 	QTIDATA:=kmod-dataipa ipanat ipacm kmod-rtsp_alg kmod-ioss kmod-emac_ioss avahi-nodbus-daemon kmod-sfe thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos eth-cfg set_eth_perf kmod-datarmnet kmod-datarmnet-ext
 	QTIDATA512M:=
 endif
