@@ -1,0 +1,45 @@
+From dfafb26f270384295d358035b884ca4ef6198307 Mon Sep 17 00:00:00 2001
+From: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+Date: Mon, 26 May 2025 11:50:07 +0530
+Subject: [PATCH 1/4] net: phy: aquantia: Support out-of-tree module
+ compilation
+
+Edit the Makefile to support out-of-tree compilation into DLKMs.
+
+Signed-off-by: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+---
+ Makefile | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/aquantia/Makefile b/aquantia/Makefile
+index 7816ecb..9b80183 100644
+--- a/aquantia/Makefile
++++ b/aquantia/Makefile
+@@ -1,4 +1,4 @@
+-obj-$(CONFIG_AQUANTIA_PHY)	+= aquantia.o
++obj-m	+= aquantia.o
+ 
+ aquantia-objs := aquantia_main.o
+ 
+@@ -10,3 +10,18 @@ ifdef CONFIG_AQUANTIA_MACSEC
+ aquantia-objs			+= macsec/macsec.o
+ aquantia-objs			+= aqr_macsec/aqr_macsec.o
+ endif
++
++ifeq ($(KP_MODULE_ROOT),)
++	KP_MODULE_ROOT=$(KERNEL_SRC)/$(M)
++endif
++
++KBUILD_OPTIONS+=KBUILD_DTC_INCLUDE=$(KP_MODULE_ROOT)
++
++all: modules # dtbs
++
++clean:
++		$(MAKE) -C $(KERNEL_SRC) M=$(M) clean
++
++%:
++		$(MAKE) -C $(KERNEL_SRC) M=$(M) $@ $(KBUILD_OPTIONS)
++
+-- 
+2.34.1
+

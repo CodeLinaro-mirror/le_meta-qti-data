@@ -1,0 +1,58 @@
+From c35b5c553c8e2e8690015ced342be06d780ebb98 Mon Sep 17 00:00:00 2001
+From: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+Date: Sat, 14 Jun 2025 17:30:29 +0530
+Subject: [PATCH 5/5] net: phy: aquantia: Don't use kernel config for HWMON
+ support
+
+Use a Aquantia specific check instead of the Kernel's CONFIG_HWMON value
+as some phy's don't need HWMON support to be enabled.
+
+Signed-off-by: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+---
+ aquantia/Makefile         | 2 +-
+ aquantia/aquantia.h       | 2 +-
+ aquantia/aquantia_hwmon.c | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/aquantia/Makefile b/aquantia/Makefile
+index 9b80183..dccf207 100644
+--- a/aquantia/Makefile
++++ b/aquantia/Makefile
+@@ -2,7 +2,7 @@ obj-m	+= aquantia.o
+ 
+ aquantia-objs := aquantia_main.o
+ 
+-ifdef CONFIG_HWMON
++ifdef CONFIG_AQUANTIA_HWMON
+ aquantia-objs			+= aquantia_hwmon.o
+ endif
+ 
+diff --git a/aquantia/aquantia.h b/aquantia/aquantia.h
+index e8de5a3..f4aa9d8 100644
+--- a/aquantia/aquantia.h
++++ b/aquantia/aquantia.h
+@@ -14,7 +14,7 @@
+ #include "aqr_macsec/aqr_macsec.h"
+ #endif
+ 
+-#if IS_REACHABLE(CONFIG_HWMON)
++#if IS_REACHABLE(CONFIG_AQUANTIA_HWMON)
+ int aqr_hwmon_probe(struct phy_device *phydev);
+ #else
+ static inline int aqr_hwmon_probe(struct phy_device *phydev) { return 0; }
+diff --git a/aquantia/aquantia_hwmon.c b/aquantia/aquantia_hwmon.c
+index 502b0a7..e8d972f 100644
+--- a/aquantia/aquantia_hwmon.c
++++ b/aquantia/aquantia_hwmon.c
+@@ -27,7 +27,7 @@
+ #define VEND1_GENERAL_STAT1_HIGH_TEMP_WARN	BIT(12)
+ #define VEND1_GENERAL_STAT1_LOW_TEMP_WARN	BIT(11)
+ 
+-#if IS_REACHABLE(CONFIG_HWMON)
++#if IS_REACHABLE(CONFIG_AQUANTIA_HWMON)
+ 
+ static umode_t aqr_hwmon_is_visible(const void *data,
+ 				    enum hwmon_sensor_types type,
+-- 
+2.34.1
+
