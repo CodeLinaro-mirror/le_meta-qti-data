@@ -71,6 +71,8 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/etc/initscripts/
 	$(INSTALL_BIN) ./files/dataipa.init $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/start_dataipa_le  $(1)/etc/initscripts/
+	$(INSTALL_DIR) $(1)/lib/firmware/ipa
+	$(INSTALL_BIN) ./files/ipa_ini_file.ini $(1)/lib/firmware/ipa/ipa_ini_file.ini
 
 #install dataipa ko's in /bin/targets/$(TARGET_VARIANT)/modules to be shown in owrt CRM APPS
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
