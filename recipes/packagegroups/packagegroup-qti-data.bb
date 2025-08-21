@@ -7,33 +7,9 @@ inherit packagegroup
 PROVIDES = "${PACKAGES}"
 
 PACKAGES = ' \
-    packagegroup-qti-data \
-    packagegroup-qti-data-1g \
+    ${MLPREFIX}packagegroup-qti-data \
     '
 
-RDEPENDS_packagegroup-qti-data = ' \
-    data-ipa-cfg-mgr \
+RDEPENDS:packagegroup-qti-data = ' \
     dataipa \
-    data-eth \
-    ethtool \
-    tcpdump \
-    conntrack-tools \
-    rtsp-alg \
-    hostap-2.10 \
-    '
-
-RDEPENDS_packagegroup-qti-data-1g = ' \
-    avahi-daemon \
-    avahi-dnsconfd \
-    avahi-autoipd \
-    avahi-utils \
-    avahi-systemd \
-    libavahi-common \
-    libavahi-core \
-    libavahi-client \
-    libavahi-glib \
-    tinyproxy \
-    lighttpd \
-    libgpiod \
-    phytool \
     '
