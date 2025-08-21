@@ -1,5 +1,5 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
 
-SRC_URI += "file://rx_packets_stat.patch"
+SRC_URI:remove = "file://rx_packets_stat.patch"
 
 PR = "r1"
