@@ -14,5 +14,6 @@ else ifeq ($(BOARD),sdx85)
 	QTIDATA+= kmod-dataipa ipanat ipacm kmod-datarmnet kmod-datarmnet-ext datafactory avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos kmod-smem-mailbox kmod-data-devicetree kmod-ioss kmod-emac_ioss kmod-rtl8125 kmod-r8125_ioss eth-cfg set_eth_perf kmod-qca-nss-sfe kmod-qca-nss-ecm-premium kmod-aquantia nanopb kmod-r8152
 	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet kmod-data-devicetree
 else ifeq ($(BOARD),sdxecho)
-	QTIDATA+= kmod-dataipa kmod-datarmnet ipanat ipacm datafactory hostap phytool zonedetect ianatzdata eth-qos eth-cfg set_eth_perf
+	QTIDATA+= kmod-dataipa kmod-datarmnet ipanat ipacm datafactory hostap phytool zonedetect ianatzdata eth-qos eth-cfg set_eth_perf thermal-eth-netlink locationdb nanopb
+	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet kmod-data-devicetree
 endif
