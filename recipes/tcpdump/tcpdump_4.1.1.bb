@@ -1,7 +1,10 @@
 DESCRIPTION = "A sophisticated network protocol analyzer"
 HOMEPAGE = "http://www.tcpdump.org/"
-LICENSE = "BSD"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=1d4b0366557951c84a94fabe3529f867"
+LICENSE = "GPL-2.0-only"
+LICENSE:${PN} = "GPL-2.0-only"
+LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
+${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
+
 SECTION = "console/network"
 PRIORITY = "optional"
 DEPENDS = "libpcap libtirpc"
