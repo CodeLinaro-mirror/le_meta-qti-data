@@ -97,7 +97,7 @@ unload_ecm() {
 unload_ecm_sdx_pcc() {
 
        	if [ -d /sys/module/ecm_sdx_pcc ]; then
-        	echo 1 > "proc/sys/net/ecm/ecm_sdx_pcc_unregister"
+        	echo 1 > proc/sys/net/ecm/ecm_sdx_pcc_unregister
         	rmmod ecm_sdx_pcc
        	fi
 
@@ -132,6 +132,8 @@ pre_start() {
 	# Set conntrack event mode to 1 for 6.1 kernel to get the conntrack events from ECM
 	echo 1 > /proc/sys/net/netfilter/nf_conntrack_events
 
+	echo "pre_start"
+
 }
 
 post_start() {
@@ -143,6 +145,10 @@ post_start() {
 
 	#echo 'net.bridge.bridge-nf-call-ip6tables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
 	#echo 'net.bridge.bridge-nf-call-iptables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
+
+	# Disable route table events
+	echo 0 > /proc/sys/net/ecm/ecm_db/ipv4_route_handle
+	echo 0 > /proc/sys/net/ecm/ecm_db/ipv6_route_handle
 
 	echo "post_start"
 
@@ -173,6 +179,9 @@ pre_stop() {
 
 	#Unload ECM_SDX_PCC
 	unload_ecm_sdx_pcc
+
+	echo "pre_stop"
+
 }
 
 
