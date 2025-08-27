@@ -122,6 +122,14 @@ unload_ecm_sdx_pcc() {
 
 }
 
+unload_fls() {
+
+	if [ -d /sys/module/qca_nss_fls ]; then
+		rmmod qca-nss-fls
+	fi
+
+}
+
 pre_start() {
 	#Pre-Start Commands
 
@@ -258,6 +266,9 @@ stop() {
 
 	#Unload SPM
 	unload_spm
+
+	#Unload fls
+	unload_fls
 
 	#Unload SFE
 	unload_sfe
