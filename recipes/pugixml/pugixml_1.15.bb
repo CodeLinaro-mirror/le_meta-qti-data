@@ -14,8 +14,8 @@ SRC_URI = "  https://github.com/zeux/pugixml/archive/v${PV}.zip \
     file://0001-pugixml-Modified-include-dir-and-lib-dir.patch \
 "
 
-SRC_URI[md5sum] = "b3a18768b3a53e62052e03c8815eaff8"
-SRC_URI[sha256sum] = "86a2b2f16d3e107b9ea5043ef9c458306b94d38f6203d58a196dc9b9dc6351a6"
+SRC_URI[md5sum] = "6c2a10fdb858d1c069a46f648cb8d4fa"
+SRC_URI[sha256sum] = "0dd4dc16e38bbc1c889d3a59660072450127bac7d19415f3cf5d5d6b25c58b35"
 
 inherit lib_package cmake
 
