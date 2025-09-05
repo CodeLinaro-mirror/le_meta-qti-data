@@ -15,6 +15,6 @@ else ifeq ($(BOARD),sdx85)
 	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet kmod-data-devicetree
 endif
 ifneq ($(PRPL_VERSION),)
-	QTIDATA:=kmod-dataipa ipanat ipacm kmod-rtsp_alg kmod-ioss kmod-emac_ioss avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos eth-cfg set_eth_perf kmod-datarmnet kmod-datarmnet-ext
+	QTIDATA:=kmod-dataipa ipanat ipacm kmod-rtsp_alg kmod-ioss kmod-emac_ioss avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos eth-cfg set_eth_perf 
 	QTIDATA512M:=
 endif
