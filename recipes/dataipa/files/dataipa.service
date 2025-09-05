@@ -9,7 +9,6 @@ Restart=no
 RemainAfterExit=yes
 Type=oneshot
 ExecStart=/etc/initscripts/start_dataipa_le start
-ExecStop=/etc/initscripts/start_dataipa_le stop
 Nice=-20
 
 [Install]
