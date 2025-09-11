@@ -1,4 +1,5 @@
 DESCRIPTION = "Datarmnet drivers"
+PACKAGE_ARCH = "${MACHINE_ARCH}"
 LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
 
@@ -19,6 +20,15 @@ SRC_URI += "file://rmnetcore.service"
 
 S = "${WORKDIR}/src/datarmnet"
 TARGET_VARIANT= "${@bb.utils.contains('KERNEL_VARIANT', 'perf_', 'perf_defconfig', 'debug_defconfig', d)}"
+# Default to sa510m; override per MACHINE or in local.conf as needed.
+TARGET_BOARD_PLATFORM ?= "sa510m"
+
+# If your MACHINE is named 'sa510m-1g', this maps the platform string to 'sa510m.1g'
+TARGET_BOARD_PLATFORM:sa510m-1g = "sa510m.1g"
+
+# Ensure artifacts are machine-specific (kernel modules depend on kernel/machine)
+# (Optional) Restrict this recipe to the intended machines only
+COMPATIBLE_MACHINE = "(sa510m|sa510m-1g)"
 
 inherit pkgconfig module
 
@@ -33,7 +43,7 @@ do_compile() {
 	OUT_DIR=${KERNEL_OUT_PATH}/ \
 	ENABLE_DDK_BUILD=true \
 	VARIANT=${TARGET_VARIANT} \
-	TARGET_BOARD_PLATFORM=sa510m \
+	TARGET_BOARD_PLATFORM=${TARGET_BOARD_PLATFORM} \
 	./build/build_module.sh
 }
 
