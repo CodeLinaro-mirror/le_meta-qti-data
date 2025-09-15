@@ -36,7 +36,7 @@ do_install() {
    chown -R root:1001 ${D}${sysconfdir}/data/ddclient.conf
 }
 
-do_install_append(){
+do_install:append(){
    if [[ "${DISTRO_NAME}" =~ .*mdm.* ]] || [[ "${MACHINE_FEATURES}" =~ .*qti-sdx.* ]]; then
       if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}${systemd_unitdir}/system/

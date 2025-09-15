@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI += "\
     file://index.html.lighttpd \
     file://lighttpd \
@@ -23,7 +23,7 @@ EXTRA_OECONF += " \
              --with-openssl \
              --with-openssl-libs=${STAGING_LIBDIR} \
 "
-do_install_append() {
+do_install:append() {
    install -d ${D}${userfsdatadir}
    install -d ${D}${userfsdatadir}/www
    install -m 0755 ${WORKDIR}/openssl.cnf ${D}${userfsdatadir}

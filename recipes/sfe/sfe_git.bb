@@ -15,7 +15,7 @@ do_install() {
     module_do_install
 }
 
-do_module_signing() {
+do_module:signing() {
     if [ ${BASEMACHINE} == qcs40x ]; then
     if [ -f  ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
 	    bbnote "Signing ${PN} module ${i}"

@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += " \
         file://Makefile.patch \
@@ -15,13 +15,13 @@ FILES_${PN}     += "${libdir}/lib*.so"
 FILES_${PN}     += "${sbindir}/*"
 FILES_${PN}-doc += "${mandir}/*"
 
-do_configure_append() {
+do_configure:append() {
     if [ -d "${S}" ]; then
         install -m 555 ${S}/include/linux/netfilter_bridge/ebt_ulog.h ${STAGING_KERNEL_BUILDDIR}/usr/include/linux/netfilter_bridge/ebt_ulog.h
     fi
 }
 
-do_install_append () {
+do_install:append () {
       rm -f ${D}${systemd_unitdir}/system/ebtables.service
 }
 

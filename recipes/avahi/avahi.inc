@@ -52,10 +52,10 @@ EXTRA_OECONF = "--with-distro=debian \
 
 AVAHI_GTK ?= "--disable-gtk --disable-gtk3"
 
-LDFLAGS_append_libc-uclibc = " -lintl"
-LDFLAGS_append_uclinux-uclibc = " -lintl"
+LDFLAGS:append_libc-uclibc = " -lintl"
+LDFLAGS:append_uclinux-uclibc = " -lintl"
 
-do_configure_prepend() {
+do_configure:prepend() {
     sed 's:AM_CHECK_PYMOD:echo "no pymod" #AM_CHECK_PYMOD:g' -i ${WORKDIR}/avahi-${PV}/configure.ac
 }
 
@@ -89,26 +89,26 @@ FILES_libavahi-glib = "${libdir}/libavahi-glib.so.*"
 FILES_libavahi-gobject = "${libdir}/libavahi-gobject.so.*"
 FILES_avahi-utils = "${bindir}/avahi-*"
 
-RDEPENDS_avahi-systemd = "avahi-daemon"
+RDEPENDS:avahi-systemd = "avahi-daemon"
 
-RDEPENDS_avahi-daemon = "${@bb.utils.contains('DISTRO_FEATURES','systemd', '', 'sysvinit-pidof', d)}"
+RDEPENDS:avahi-daemon = "${@bb.utils.contains('DISTRO_FEATURES','systemd', '', 'sysvinit-pidof', d)}"
 
 # uclibc has no nss
-RRECOMMENDS_avahi-daemon_append_libc-glibc = " libnss-mdns"
+RRECOMMENDS:avahi-daemon_append_libc-glibc = " libnss-mdns"
 RRECOMMENDS_${PN}_append_libc-glibc = "libnss-mdns"
 
-RRECOMMENDS_avahi-dev = "expat-dev libcap-dev libdaemon-dev dbus-dev glib-2.0-dev update-rc.d-dev"
-RRECOMMENDS_avahi-dev_append_libc-glibc = " gettext-dev"
+RRECOMMENDS:avahi-dev = "expat-dev libcap-dev libdaemon-dev dbus-dev glib-2.0-dev update-rc.d-dev"
+RRECOMMENDS:avahi-dev_append_libc-glibc = " gettext-dev"
 
-RRECOMMENDS_avahi-dev[nodeprrecs] = "1"
+RRECOMMENDS:avahi-dev[nodeprrecs] = "1"
 
-CONFFILES_avahi-daemon = "${sysconfdir}/avahi/avahi-daemon.conf"
+CONFFILES:avahi-daemon = "${sysconfdir}/avahi/avahi-daemon.conf"
 
-INITSCRIPT_PACKAGES = "avahi-daemon avahi-dnsconfd"
-INITSCRIPT_NAME_avahi-daemon = "avahi-daemon"
-INITSCRIPT_PARAMS_avahi-daemon = "defaults 99 01"
-INITSCRIPT_NAME_avahi-dnsconfd = "avahi-dnsconfd"
-INITSCRIPT_PARAMS_avahi-dnsconfd = "defaults 99 01"
+INITSCRIPT:PACKAGES = "avahi-daemon avahi-dnsconfd"
+INITSCRIPT:NAME_avahi-daemon = "avahi-daemon"
+INITSCRIPT:PARAMS_avahi-daemon = "defaults 99 01"
+INITSCRIPT:NAME_avahi-dnsconfd = "avahi-dnsconfd"
+INITSCRIPT:PARAMS_avahi-dnsconfd = "defaults 99 01"
 
 do_install() {
         bbnote install -d ${D}${bindir}
@@ -135,7 +135,7 @@ do_install() {
     fi
 }
 
-do_install_avahi-autoipd() {
+do_install:avahi-autoipd() {
 	autotools_do_install
 	install -d ${D}${sysconfdir}/udhcpc.d
 	install ${WORKDIR}/00avahi-autoipd ${D}${sysconfdir}/udhcpc.d
@@ -144,7 +144,7 @@ do_install_avahi-autoipd() {
 
 # At the time the postinst runs, dbus might not be setup so only restart if running 
 
-pkg_postinst_avahi-daemon () {
+pkg_postinst:avahi-daemon () {
 	if [ "x$D" != "x" ]; then
 		echo "do nothing during build"
 	fi
@@ -162,7 +162,7 @@ pkg_postinst_avahi-daemon () {
 }
 
 # can't do this offline
-pkg_postinst_avahi-autoipd () {
+pkg_postinst:avahi-autoipd () {
 	if [ "x$D" != "x" ]; then
 		exit 0
 	fi
@@ -170,18 +170,18 @@ pkg_postinst_avahi-autoipd () {
 	grep "^avahi-autoipd:" /etc/passwd > /dev/null || adduser --disabled-password --system --home /var/lib/avahi-autoipd --no-create-home avahi-autoipd --ingroup avahi-autoipd -g "Avahi autoip daemon"
 }
 
-pkg_postrm_avahi-daemon () {
+pkg_postrm:avahi-daemon () {
 	deluser avahi || true
 	delgroup avahi || true
 }
 
-pkg_postrm_avahi-autoipd () {
+pkg_postrm:avahi-autoipd () {
 	deluser avahi-autoipd || true
 	delgroup avahi-autoipd || true
 }
 
 # can't do this offline
-pkg_postinst_avahi-systemd() {
+pkg_postinst:avahi-systemd() {
 	if [ "x$D" != "x" ]; then
 		exit 0
 	fi
@@ -189,7 +189,7 @@ pkg_postinst_avahi-systemd() {
 	systemctl enable avahi-daemon.service
 }
 
-pkg_postrm_avahi-systemd() {
+pkg_postrm:avahi-systemd() {
 	# can't do this offline
 	if [ "x$D" != "x" ]; then
 		exit 0

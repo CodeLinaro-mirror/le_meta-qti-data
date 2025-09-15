@@ -8,7 +8,7 @@ LIC_FILES_CHKSUM = "file://${R8125_SRCDIR}/r8125_n.c;\
 beginline=10;endline=18;md5=9826a2c77338d02bc1877c9cee0242e9"
 
 inherit module
-inherit qperf
+#inherit qperf
 inherit systemd
 
 EXTRA_OEMAKE += "${@bb.utils.contains('BASEMACHINE', 'sdxprairie', 'CONFIG_R8125_IPA_OFFLOAD=y', '', d)}"
@@ -26,7 +26,7 @@ RPROVIDES_${PN} += "kernel-module-r8125"
 
 SYSTEMD_SERVICE_${PN} = "r8125.service"
 
-do_install_append() {
+do_install:append() {
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.

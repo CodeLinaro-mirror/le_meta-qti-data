@@ -52,7 +52,7 @@ do_install() {
 	install -m 0755 \
 		${S}/wpa_supplicant/wpa_supplicant -D ${D}${sbindir}/mka_supplicant
 }
-do_install_append() {
+do_install:append() {
 	install -d ${D}${sysconfdir}
 	# MKA supplicant and authenticator configuration for eth0
 	install -m 0644 ${WORKDIR}/mka_supplicant-eth0.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth0.conf

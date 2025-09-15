@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI += "file://dnsmasq.conf \
            file://dnsmasq_script.sh \
            file://dnsmasq_service@.service \
@@ -9,7 +9,7 @@ EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
                 LDFLAGS='${TARGET_LDFLAGS}'"
 
-do_install_append () {
+do_install:append () {
         install -d ${D}${sysconfdir}/data/
         install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
         chown -R root:1001 ${D}${sysconfdir}/data/dnsmasq.conf

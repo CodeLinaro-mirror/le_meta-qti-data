@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += " \
         file://001_Makefile.patch \
@@ -7,7 +7,7 @@ SRC_URI += " \
         "
 SYSTEMD_AUTO_ENABLE_${PN} = "disable"
 
-do_install_append() {
+do_install:append() {
   install -d ${D}${sysconfdir}/data/
   install -m 0664 ${WORKDIR}/image/etc/tinyproxy.conf ${D}${sysconfdir}/data/
   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
@@ -17,7 +17,7 @@ do_install_append() {
   chown -R root:1001 ${D}${sysconfdir}/data/tinyproxy.conf
 }
 
-do_install_append () {
+do_install:append () {
     rm -f ${D}${systemd_unitdir}/system/tinyproxy.service
 }
 
