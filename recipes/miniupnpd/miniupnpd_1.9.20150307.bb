@@ -33,7 +33,7 @@ do_install () {
     make -f Makefile.linux DESTDIR=${D} LIBDIR=${STAGING_LIBDIR} STRIP=echo install
 }
 
-do_install_append_mdm() {
+do_install:append:mdm() {
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         rm -rf ${D}${sysconfdir}/init.d/miniupnpd
         install -d ${D}${systemd_unitdir}/system/

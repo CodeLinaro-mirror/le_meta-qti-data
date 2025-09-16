@@ -30,7 +30,7 @@ INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
 FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg_ext.xml"
 
-do_install_append() {
+do_install:append() {
 	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 

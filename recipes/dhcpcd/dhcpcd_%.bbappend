@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI += "\
             file://dhcpcd_iface_info.patch \
             file://dhcpcd@.service"
@@ -8,7 +8,7 @@ do_configure() {
         --sbindir=${exec_prefix}/sbin --disable-ipv6=yes --libexecdir=${libexecdir}
 }
 
-do_install_append(){
+do_install:append(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -m 0644 ${WORKDIR}/dhcpcd@.service -D ${D}${systemd_unitdir}/system/dhcpcd@.service

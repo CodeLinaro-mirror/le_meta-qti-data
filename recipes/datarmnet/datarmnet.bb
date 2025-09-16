@@ -39,7 +39,7 @@ PARALLEL_MAKE = ""
 PARALLEL_MAKE = "-j1"
 
 #currently not working but for some reason this compiles but do_install_append doesnt
-do_install_append() {
+do_install:append() {
         install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
         install -m 0644 rmnet_core.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
         install -d ${D}${sysconfdir}/initscripts/

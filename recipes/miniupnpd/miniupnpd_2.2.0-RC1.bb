@@ -41,7 +41,7 @@ do_install () {
     make DESTDIR=${D} LIBDIR=${STAGING_LIBDIR} INCDIR=${STAGING_INCDIR} STRIP=echo install
 }
 
-do_install_append() {
+do_install:append() {
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         rm -rf ${D}${sysconfdir}/init.d/miniupnpd
         install -d ${D}${systemd_unitdir}/system/

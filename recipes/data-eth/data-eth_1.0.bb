@@ -24,7 +24,7 @@ S = "${WORKDIR}/data-eth"
 
 RPROVIDES_${PN} += "kernel-module-data_eth"
 
-do_install_append() {
+do_install:append() {
 	# Sign the modules
 	if [ -f  ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem ]; then
 		bbnote "Signing ${PN} modules"

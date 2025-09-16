@@ -27,7 +27,7 @@ RPROVIDES_${PN} += "kernel-module-aqc_ipa_offload"
 
 SYSTEMD_SERVICE_${PN} = "aqc-ipa-offload.service"
 
-do_install_append() {
+do_install:append() {
 	install -m 0755 \
 		${WORKDIR}/aqc_gsi_stats -D ${D}${bindir}/aqc_gsi_stats
 

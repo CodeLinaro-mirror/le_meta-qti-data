@@ -36,7 +36,7 @@ RDEPENDS_python-avahi = "python-dbus"
 SRC_URI[md5sum] = "d76c59d0882ac6c256d70a2a585362a6"
 SRC_URI[sha256sum] = "57a99b5dfe7fdae794e3d1ee7a62973a368e91e414bd0dfa5d84434de5b14804"
 
-do_install_append () {
+do_install:append () {
 	rm ${D}${sysconfdir} -rf
 	rm ${D}${base_libdir} -rf
 	rm ${D}${base_libdir} -rf
