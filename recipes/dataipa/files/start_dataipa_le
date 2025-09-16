@@ -39,9 +39,6 @@ case "$1" in
         insmod $MODULE_BASE/gsim.ko > /dev/kmsg
         insmod $MODULE_BASE/ipam.ko > /dev/kmsg
         insmod $MODULE_BASE/ipanetm.ko > /dev/kmsg
-        insmod $MODULE_BASE/rndisipam.ko > /dev/kmsg
-        insmod $MODULE_BASE/ecmipam.ko > /dev/kmsg
-        insmod $MODULE_BASE/ipa_clientsm.ko > /dev/kmsg
         echo "done loading dataipa core modules" > /dev/kmsg
         ;;
   stop)
