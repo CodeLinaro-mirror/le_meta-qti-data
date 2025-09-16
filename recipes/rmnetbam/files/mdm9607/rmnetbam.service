@@ -7,7 +7,7 @@ AssertPathExists=/lib/modules/
 Restart=on-failure
 RemainAfterExit=yes
 Type=oneshot
-ExecStart=/bin/sh -c '/usr/lib/busybox/sbin/insmod /lib/modules/$(uname -r)/extra/rmnet_bam.ko'
+ExecStart=/bin/sh -c '/sbin/insmod /lib/modules/$(uname -r)/extra/rmnet_bam.ko'
 Nice=-20
 
 [Install]
