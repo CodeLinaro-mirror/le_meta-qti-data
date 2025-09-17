@@ -50,6 +50,9 @@ else
 			 -DFEATURE_EoGRE \
 			 -DFEATURE_WLAN_256_CLIENTS \
 			 -DFEATURE_PPPOE
+	ifneq ($(PRPL_VERSION),)
+		TARGET_CFLAGS += -DFEATURE_PRPLWRT
+	endif
 endif
 
 TARGET_LDFLAGS += \
@@ -83,6 +86,8 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/IPACM_cfg.xml $(1)/etc/data/ipa/factory_IPACM_cfg.xml
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/IPACM_cfg_ext.xml $(1)/etc/data/ipa
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/IPACM_cfg_ext.xml $(1)/etc/data/ipa/factory_IPACM_cfg_ext.xml
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/ipa_filter_cfg.xml $(1)/etc/data/ipa
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/src/factory_ipa_filter_cfg.xml $(1)/etc/data/ipa
 
 	$(INSTALL_DIR) $(1)/etc/capabilities
 	$(INSTALL_DATA) ./files/ipacm.json $(1)/etc/capabilities
