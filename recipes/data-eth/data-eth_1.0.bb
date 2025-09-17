@@ -10,7 +10,7 @@ beginline=1;endline=4;md5=35144d93ffd061a7458db62d36405265"
 RM_WORK_EXCLUDE += "${PN}"
 
 inherit module
-inherit qperf
+#inherit qperf
 inherit systemd
 
 # Files from meta-qti-data
