@@ -4,7 +4,7 @@ SUMMARY = "IPA driver"
 
 DESCRIPTION = "Contains IPA driver"
 
-LICENSE = "GPL-2.0"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
 
 # DEPENDS = "virtual/kernel"
@@ -16,10 +16,7 @@ FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://dataipa"
 SRC_URI += "file://start_dataipa_le"
 SRC_URI += "file://dataipa.service"
-SRC_URI += "file://dataipa.rules"
-SRC_URI += "file://dataipa_udev.sh"
 SRC_URI += "file://ipa_config.txt"
-SRC_URI += "file://kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform"
 
 S = "${WORKDIR}/dataipa"
 EXT_MODULES = "${@os.path.relpath("${S}", "${KERNEL_PLATFORM_PATH}")}"
@@ -70,15 +67,11 @@ do_install() {
    done
 
    install -d ${D}${sysconfdir}/initscripts/
-   install -m 0755 ${WORKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
+   install -m 0555 ${WORKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${systemd_unitdir}/system/
    install -m 0644 ${WORKDIR}/dataipa.service -D ${D}${systemd_unitdir}/system/dataipa.service
-   install -d ${D}${sysconfdir}/udev/rules.d/
-   install -m 0777 ${WORKDIR}/dataipa.rules ${D}${sysconfdir}/udev/rules.d/dataipa.rules
-   install -d ${D}${sysconfdir}/udev/scripts/
-   install -m 0777 ${WORKDIR}/dataipa_udev.sh ${D}${sysconfdir}/udev/scripts/dataipa_udev.sh
    install -d ${D}${sysconfdir}/data/
-   install -m 0755 ${WORKDIR}/ipa_config.txt -D ${D}${sysconfdir}/data/ipa_config.txt
+   install -m 0644 ${WORKDIR}/ipa_config.txt -D ${D}${sysconfdir}/data/ipa_config.txt
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
@@ -102,9 +95,7 @@ FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/ipa/ipam.ko"
 FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/ipa/ipanetm.ko"
 FILES:${PN}+="${nonarch_base_libdir}/usr/lib/modules/${KERNEL_VERSION}/*"
 FILES:${PN}+="${nonarch_base_libdir}/usr/lib/modules/${KERNEL_VERSION}/extra/*"
-FILES:${PN}+="${nonarch_base_libdir}/usr/lib/modules/${KERNEL_VERSION}/updates/*"
 FILES:${PN}+="${nonarch_base_libdir}/"
 FILES:${PN}+="${nonarch_base_libdir}/modules/*"
 RPROVIDES:${PN} += "dataipa"
 MAKE_TARGETS = "all"
-
