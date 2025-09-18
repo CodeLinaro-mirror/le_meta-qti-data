@@ -8,7 +8,7 @@ LIC_FILES_CHKSUM = "file://${AQO_SRCDIR}/aqo_main.c;\
 beginline=3;endline=10;md5=28fe1ff28187fe4efdc6414eeb8185e3"
 
 inherit module
-inherit qperf
+#inherit qperf
 inherit systemd
 
 # Files from meta-qti-data
