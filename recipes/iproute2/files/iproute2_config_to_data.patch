@@ -1,26 +1,27 @@
-From b15c87a0473aacdb04a601784793de7fec1cbb31 Mon Sep 17 00:00:00 2001
-From: Paras Singh Jain<parassin@codeaurora.org>
-Date: Thu, 7 Jan 2021 00:02:05 +0530
-Subject: [PATCH] iproute2 makefile patch
-signed-off: Paras Singh Jain<parassin@codeaurora.org>
+From d82424eb709141c95511f3a6cc499e92174fd33a Mon Sep 17 00:00:00 2001
+Upstream-Status: Inappropriate [config]
+From: Surendra Prasad Reddy <surendra@qti.qualcomm.com>
+Upstream-Status: Inappropriate [config]
+Date: Fri, 19 Sep 2025 11:31:54 -0700
+Subject: [PATCH] [PATCH] iproute2 makefile patch
 
 ---
  Makefile | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/Makefile b/Makefile
-index 0b79b1f..ec4cffa 100644
+index 8024d45e..736cc227 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -15,7 +15,7 @@ endif
- PREFIX?=/usr
- LIBDIR?=$(PREFIX)/lib
- SBINDIR?=/sbin
--CONFDIR?=/etc/iproute2
-+CONFDIR?=/etc/data/iproute2
- NETNS_RUN_DIR?=/var/run/netns
+@@ -20,7 +20,7 @@ NETNS_RUN_DIR?=/var/run/netns
  NETNS_ETC_DIR?=/etc/netns
  DATADIR?=$(PREFIX)/share
--- 
-2.29.0
+ HDRDIR?=$(PREFIX)/include/iproute2
+-CONF_ETC_DIR?=/etc/iproute2
++CONF_ETC_DIR?=/etc/data/iproute2
+ CONF_USR_DIR?=$(DATADIR)/iproute2
+ DOCDIR?=$(DATADIR)/doc/iproute2
+ MANDIR?=$(DATADIR)/man
+--
+2.34.1
 
