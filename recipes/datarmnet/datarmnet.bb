@@ -87,3 +87,29 @@ do_install:qcm4325-mtp() {
 
 }
 
+do_compile:kera() {
+    LE_EXTRA_CFLAGS="-I${STAGING_DIR}/usr/include"
+    cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
+    BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
+    LE_EXTRA_CFLAGS="${LE_EXTRA_CFLAGS}" \
+    EXT_MODULES=../../datarmnet/core \
+    ROOTDIR=${WORKSPACE}/ \
+    MODULE_OUT=${WORKDIR}/datarmnet/core-out \
+    OUT_DIR=${KERNEL_OUT_PATH}/ \
+    ./build/build_module.sh
+}
+
+do_install:kera() {
+    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
+    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
+    install -d ${D}${sysconfdir}/initscripts/
+    install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
+    install -d ${D}${systemd_unitdir}/system/
+    install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
+    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
+    ln -sf ${systemd_unitdir}/system/rmnetcore.service \
+    ${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
+}
+
+RPROVIDES:${PN} += "${@'kernel-module-rmnet_core-${KERNEL_VERSION}'.replace('_', '-')}"
+
