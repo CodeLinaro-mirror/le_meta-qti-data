@@ -15,4 +15,5 @@ RDEPENDS:packagegroup-qti-data = ' \
     datarmnet \
     datarmnet-ext \
     aquantia \
+    iproute2-tc \
 '
