@@ -1,0 +1,35 @@
+This patch file is from Qualcomm Technologies, Inc. are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From b26f691832e0ef8f6b207d0cc0b37cb8857c7e9d Mon Sep 17 00:00:00 2001
+From: Surendra Prasad Reddy <surendra@qti.qualcomm.com>
+Date: Wed, 3 Jan 2024 12:28:58 -0800
+Subject: [PATCH] pugixml: Modified include dir and lib dir
+
+Upstream-Status: Pending
+
+Signed-off-by: Surendra Prasad Reddy <surendra@qti.qualcomm.com>
+
+---
+ scripts/pugixml.pc.in | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/scripts/pugixml.pc.in b/scripts/pugixml.pc.in
+index 7958774..e9554cb 100644
+--- a/scripts/pugixml.pc.in
++++ b/scripts/pugixml.pc.in
+@@ -1,7 +1,7 @@
+ prefix=@CMAKE_INSTALL_PREFIX@
+ exec_prefix=${prefix}
+-includedir=@PUGIXML_PC_INCLUDEDIR@
+-libdir=@PUGIXML_PC_LIBDIR@
++includedir=/usr/include/pugixml
++libdir=/usr/lib
+ 
+ Name: pugixml
+ Description: Light-weight, simple and fast XML parser for C++ with XPath support.
+-- 
+2.17.1
+
