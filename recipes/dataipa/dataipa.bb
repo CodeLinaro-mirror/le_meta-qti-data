@@ -75,12 +75,28 @@ do_install() {
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
+
+    # This copy of the headers contains both the kernel and unsanitized UAPI.
+    # This is intended for use by other kernel modules.
+    install -d ${D}${includedir}/ipa/linux
+    install -d ${D}${includedir}/ipa/uapi/linux
+    install -m 0644 ${S}/drivers/platform/msm/include/linux/* ${D}${includedir}/ipa/linux/
+    install -m 0644 ${S}/drivers/platform/msm/include/uapi/linux/* ${D}${includedir}/ipa/uapi/linux/
+
+    # This copy of the headers contains ONLY the UAPI.
+    # It is placed in the kernel headers folder userspace sees to make it easy
+    # for userspace to include it; it's where the other linux headers are, same
+    # as it used to be.
+    # If santization is needed, THIS is the copy that should be sanitized.
+    install -d ${D}${includedir}/linux-kernel-qcom/usr/include/linux
+    install -m 0644 ${S}/drivers/platform/msm/include/uapi/linux/* ${D}${includedir}/linux-kernel-qcom/usr/include/linux
 }
 
 pkg_postinst:${PN}(){
     chown -Rh 1001:1001 $D${sysconfdir}/data/ipa_config.txt
 }
 
+FILES:${PN}+="${includedir}/*"
 #FILES:${PN}+="${libdir}/modules/*"
 #FILES:${PN} += "/lib/modules/*/updates/"
 FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/*"
