@@ -1,0 +1,31 @@
+#! /bin/sh
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+export MODULE_BASE=/usr/lib/modules/`uname -r`/extra
+set -e
+
+
+case "$1" in
+  start)
+        echo -n "Starting/Loading rmnet_sch module: "
+        echo "rmnet_sch:start/load" > /dev/kmsg
+        insmod $MODULE_BASE/rmnet_sch.ko > /dev/kmsg
+        echo "done loading rmnet_sch module" > /dev/kmsg
+        ;;
+  stop)
+        echo "Stopping rmnet_sch module" > /dev/kmsg
+        echo -n "Bypassing Unloading of rmnet_sch module "
+        ;;
+  restart)
+        echo "rmnet_sch module initiating restart" > /dev/kmsg
+        $0 stop
+        $0 start
+        ;;
+  *)
+        echo "Usage { start | stop | restart}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
