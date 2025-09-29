@@ -23,4 +23,5 @@ RDEPENDS:packagegroup-qti-data = ' \
     bridge-utils \
     conntrack-tools \
     data-eth \
-'
+    data-ipa-cfg-mgr \
+    '

@@ -1,9 +1,9 @@
-inherit autotools-brokensep pkgconfig update-rc.d
+inherit autotools-brokensep pkgconfig update-rc.d useradd
 
 DESCRIPTION = "Qualcomm IPA"
-LICENSE = "BSD"
+LICENSE = "BSD-3-Clause"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
-${LICENSE};md5=3775480a712fc46a69647678acb234cb"
+${LICENSE};md5=550794465ba0ec5312d6919e203a55f9"
 
 PR = "r4"
 
@@ -12,13 +12,19 @@ DEPENDS += "libxml2"
 DEPENDS += "libnetfilter-conntrack"
 DEPENDS += "virtual/kernel"
 DEPENDS += "data-ipanat"
+DEPENDS += "libnl"
+
+BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
 EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
-                --with-sanitized-headers=${KERNEL_PREBUILT_PATH}/msm-kernel/usr/include/  \
+                --with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include \
+                --with-sanitized-headers=${STAGING_INCDIR}/linux-kernel-qcom/usr/include \
                 --with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc \
                 --with-glib"
 
-FILESPATH =+ "${WORKSPACE}:"
+EXTRA_OEMAKE += 'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include'
+
+FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
 SRC_URI = "file://data-ipa-cfg-mgr"
 SRC_URI  += "file://ipacm.service"
 SRC_URI  += "file://ipacm.conf"
@@ -27,11 +33,9 @@ S = "${WORKDIR}/data-ipa-cfg-mgr"
 
 INITSCRIPT_NAME   = "start_ipacm_le"
 INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
-FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
-FILES_${PN} += "${sysconfdir}/data/ipa/IPACM_cfg_ext.xml"
+FILES:${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
 
 do_install:append() {
-	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 
 	  #IPACM Service
@@ -49,14 +53,11 @@ do_install:append() {
           install -m 0644 ${WORKDIR}/ipacm.conf -D ${D}${sysconfdir}/tmpfiles.d/ipacm.conf
 
           #IPACM_cfg file stored as factory settings
-          install -m 0755 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
-
-          #IPACM_cfg_ext file stored as factory settings
-          install -m 0755 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg_ext.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg_ext.xml
+          install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
+          install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_cfg.xml
 
 	fi
 }
-FILES_${PN} += "${userfsdatadir}/misc/ipa"
-FILES_${PN} += "${systemd_unitdir}/system"
-FILES_${PN} += "${sysconfdir}/tmpfiles.d/ipacm.conf"
-FILES_${PN} += "${systemd_unitdir}/system/local-fs.target.wants/"
+FILES:${PN} += "${systemd_unitdir}/system"
+FILES:${PN} += "${sysconfdir}/tmpfiles.d/ipacm.conf"
+FILES:${PN} += "${systemd_unitdir}/system/local-fs.target.wants/"
