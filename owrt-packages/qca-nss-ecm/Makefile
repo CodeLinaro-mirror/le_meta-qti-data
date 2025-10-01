@@ -39,12 +39,42 @@ define Build/Prepare
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
 endef
 
+ECM_MAKE_OPTS:=ECM_DB_PER_CLIENT_ROUTED_STATS_ENABLE=y \
+	ECM_SDX_STATS_ENABLE=y \
+	ECM_CLASSIFIER_PCC_ENABLE=y \
+	ECM_INTERFACE_RAWIP_ENABLE=y \
+	ECM_TRACKER_DPI_SUPPORT_ENABLE=y \
+	ECM_CLASSIFIER_DSCP_ENABLE=y \
+	ECM_INTERFACE_VLAN_ENABLE=y \
+	ECM_BRIDGE_VLAN_FILTERING_ENABLE=y \
+	ECM_BAND_STEERING_ENABLE=y \
+	ECM_DB_CTA_TRACK_ENABLE=y \
+	ECM_DB_ADVANCED_STATS_ENABLE=y \
+	ECM_FRONT_END_CONN_LIMIT_ENABLE=y \
+	ECM_STATE_OUTPUT_ENABLE=y \
+	ECM_DB_XREF_ENABLE=y \
+	ECM_IPV6_ENABLE=y \
+	ECM_FRONT_END_SFE_ENABLE=y \
+	ECM_SDX_PCC_ENABLED=y \
+	ECM_INTERFACE_PPP_ENABLE=n \
+	ECM_INTERFACE_PPPOE_ENABLE=n
+
+MAKE_OPTS := \
+	M="$(PKG_BUILD_DIR)" \
+	CONFIG_QCA_NSS_ECM=m
+
+ECM_EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-sfe
+
 define Build/Compile
-		echo "Linux Dir: $(LINUX_DIR)"
-		$(MAKE) -C "$(LINUX_DIR)" \
-		M="$(PKG_BUILD_DIR)" \
-		CONFIG_QCA_NSS_ECM=m \
-		modules
+	echo "Linux Dir: $(LINUX_DIR)"
+	if [ "$(BOARD)" = "sdxecho" ]; then \
+		$(KERNEL_MAKE) -C "$(LINUX_DIR)" $(ECM_MAKE_OPTS) $(MAKE_OPTS) \
+		EXTRA_CFLAGS="$(ECM_EXTRA_CFLAGS)" \
+		EXAMPLES_BUILD_SDX="$(CONFIG_QCA_NSS_ECM_EXAMPLES_SDX)" \
+		modules; \
+	else \
+		$(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+	fi
 endef
 
 define Build/InstallDev
@@ -52,7 +82,11 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include/qca-nss-ecm
 	mkdir -p  $(1)/usr/lib/
 	$(CP) $(PKG_BUILD_DIR)/ecm.ko $(1)/usr/lib/
-	$(CP) $(PKG_BUILD_DIR)/ecm_ae_select.ko $(1)/usr/lib/
+	if [ "$(BOARD)" = "sdxecho" ]; then \
+		$(CP) $(PKG_BUILD_DIR)/examples/ecm_ae_select.ko $(1)/usr/lib/; \
+	else \
+		$(CP) $(PKG_BUILD_DIR)/ecm_ae_select.ko $(1)/usr/lib/; \
+	fi
 endef
 
 define KernelPackage/$(PKG_NAME)/install
@@ -68,8 +102,23 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm.ko $(1)/lib/modules/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm_sdx_pcc.ko $(1)/lib/modules/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm_sdx_pcc.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	if [ "$(BOARD)" = "sdxecho" ]; then \
+		$(INSTALL_BIN) $(PKG_BUILD_DIR)/examples/ecm_sdx_pcc.ko $(1)/lib/modules/; \
+		$(INSTALL_BIN) $(PKG_BUILD_DIR)/examples/ecm_sdx_pcc.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/; \
+	else \
+		$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm_sdx_pcc.ko $(1)/lib/modules/; \
+		$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm_sdx_pcc.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/; \
+	fi
+endef
+
+define KernelPackage/$(PKG_NAME)/config
+menu "ECM Configuration"
+	config QCA_NSS_ECM_EXAMPLES_SDX
+		bool "Build PCC SDX module"
+		help
+			Selecting this will build the SDX PCC classifier usage module.
+		default y
+endmenu
 endef
 
 $(eval $(call KernelPackage,$(PKG_NAME)))
