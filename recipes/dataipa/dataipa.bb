@@ -90,6 +90,7 @@ do_install() {
     # If santization is needed, THIS is the copy that should be sanitized.
     install -d ${D}${includedir}/linux-kernel-qcom/usr/include/linux
     install -m 0644 ${S}/drivers/platform/msm/include/uapi/linux/* ${D}${includedir}/linux-kernel-qcom/usr/include/linux
+    install -m 0644 ${S}/Module.symvers ${D}${includedir}/ipa/Module.symvers
 }
 
 pkg_postinst:${PN}(){
