@@ -22,4 +22,5 @@ RDEPENDS:packagegroup-qti-data = ' \
     dnsmasq \
     bridge-utils \
     conntrack-tools \
+    data-eth \
 '
