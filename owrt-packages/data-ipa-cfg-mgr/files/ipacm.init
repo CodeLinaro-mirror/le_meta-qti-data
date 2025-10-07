@@ -18,6 +18,10 @@ start_service() {
 	chmod 755 /var/run/data/ipa
 	chown radio:radio /var/run/data/ipa
 
+	mkdir -p /var/run/data/monitor
+	chmod 755 /var/run/data/monitor
+	chown radio:radio /var/run/data/monitor
+
 	mkdir -p /dev/socket/data/ipa
 	chmod 755 /dev/socket/data/ipa
 	chown radio:radio /dev/socket/data/ipa
@@ -51,6 +55,7 @@ start_service() {
 		procd_set_param group radio
 	}
 	procd_set_param limits core="unlimited"
+	procd_set_param respawn 5 10 60
 	procd_close_instance
 }
 
