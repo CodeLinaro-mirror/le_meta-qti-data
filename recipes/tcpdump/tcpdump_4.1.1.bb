@@ -1,7 +1,8 @@
 DESCRIPTION = "A sophisticated network protocol analyzer"
 HOMEPAGE = "http://www.tcpdump.org/"
-LICENSE = "BSD"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=1d4b0366557951c84a94fabe3529f867"
+LICENSE = "BSD-3-Clause"
+LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
+BSD-3-Clause;md5=550794465ba0ec5312d6919e203a55f9"
 SECTION = "console/network"
 PRIORITY = "optional"
 DEPENDS = "libpcap libtirpc"
