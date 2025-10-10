@@ -44,10 +44,6 @@ do_compile() {
 }
 
 do_install() {
-	oe_runmake -C ${S} \
-         KERNEL_SRC=${STAGING_KERNEL_DIR} \
-         modules_install \
-         INSTALL_MOD_PATH=${D}/usr
 
     install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
     install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/datarmnet
