@@ -17,4 +17,9 @@ RDEPENDS:packagegroup-qti-data = ' \
     aquantia \
     iproute2-tc \
     tcpdump \
+    iproute2 \
+    iptables \
+    dnsmasq \
+    bridge-utils \
+    conntrack-tools \
 '
