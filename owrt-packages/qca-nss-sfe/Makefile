@@ -29,7 +29,12 @@ endef
 
 ifneq (, $(filter $(CONFIG_IPV6),m y))
 SFE_MAKE_OPTS:=SFE_SUPPORT_IPV6=y
+EXTRA_CFLAGS += -DSFE_SUPPORT_IPV6
 endif
+
+
+#EXTRA_CFLAGS += -DSFE_SUPPORT_PPPOE
+#SFE_MAKE_OPTS += SFE_SUPPORT_PPPOE
 
 SFE_MAKE_OPTS+=SFE_PROCESS_LOCAL_OUT=y
 
@@ -44,17 +49,22 @@ define Build/Prepare
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
 endef
 
+MAKE_OPTS := \
+    M="$(PKG_BUILD_DIR)" \
+    $(SFE_MAKE_OPTS)
+
 define Build/Compile
-	echo "Linux Dir: $(LINUX_DIR)"
-	$(MAKE) -C "$(LINUX_DIR)" \
-		M="$(PKG_BUILD_DIR)" \
-		CONFIG_QCA_NSS_SFE=m \
-		modules
+    if [ "$(BOARD)" = "sdxecho" ]; then \
+        $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" modules; \
+    else \
+        $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" modules; \
+    fi
 endef
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR)
 	$(INSTALL_DIR) $(1)/usr/include/qca-nss-sfe
+	$(CP) -rf $(PKG_BUILD_DIR)/exports/sfe_api.h $(1)/usr/include/qca-nss-sfe
 	mkdir -p $(1)/usr/lib/
 	$(CP) $(PKG_BUILD_DIR)/qca-nss-sfe.ko $(1)/usr/lib/
 endef
