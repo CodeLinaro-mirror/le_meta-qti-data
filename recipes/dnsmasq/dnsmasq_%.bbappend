@@ -39,6 +39,7 @@ do_install:append () {
         echo "dhcp-script=/bin/dnsmasq_script.sh" >> ${D}${sysconfdir}/data/dnsmasq.conf
 }
 
+SYSTEMD_SERVICE:${PN} += "dnsmasq_service@.service qcmap_dhcp_release.service"
 CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
 FILES_${PN} += "${sysconfdir}/data/dnsmasq.conf"
 FILES_${PN} += "${systemd_unitdir}/system/*"
