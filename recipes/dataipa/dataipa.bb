@@ -45,10 +45,6 @@ do_compile() {
 	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} modules
 }
 do_install() {
-    oe_runmake -C ${S}/drivers/platform/msm \
-        KERNEL_SRC=${STAGING_KERNEL_DIR} \
-        modules_install \
-        INSTALL_MOD_PATH=${D}/usr
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
 	install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
 
