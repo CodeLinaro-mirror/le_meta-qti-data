@@ -1,0 +1,38 @@
+/*This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+*/
+
+From 5e634cac6aaf867de3aea661d83200ddf6ff4708 Mon Sep 17 00:00:00 2001 
+From: Ravi Ranjan Kumar <ravi.ranjan@qti.qualcomm.com>
+Date: Fri, 26 Sep 2025 11:55:00 +0530
+Subject: [PATCH] Configure: Remove optimization flags for better debug builds
+
+This patch modifies the default CFLAGS used during configuration.
+It removes `-O2` optimization flags to improve debugging experience,
+especially for 32-bit builds, and ensures cleaner debug symbols.
+
+Signed-off-by: Ravi Ranjan Kumar <ravi.ranjan@qti.qualcomm.com>
+Upstream-Status: Inappropriate [Downstream]
+Status: Applied internally; not suitable for upstream due to custom build requirements
+
+diff --git a/configure b/configure
+index 53c62d5e..c0bda22b 100755
+--- a/configure
++++ b/configure
+@@ -3283,13 +3283,13 @@ if test "$ac_test_CFLAGS" = set; then
+   CFLAGS=$ac_save_CFLAGS
+ elif test $ac_cv_prog_cc_g = yes; then
+   if test "$GCC" = yes; then
+-    CFLAGS="-g -O2"
++    CFLAGS="-g"
+   else
+     CFLAGS="-g"
+   fi
+ else
+   if test "$GCC" = yes; then
+-    CFLAGS="-O2"
++    CFLAGS=""
+   else
+     CFLAGS=
+   fi
