@@ -33,13 +33,37 @@
 export MODULE_BASE=/lib/modules/`uname -r`/
 set -e
 
+if [ -f /etc/os-release ]; then
+        name=$(cat /etc/os-release | grep ^NAME | cut -d'"' -f2)
+        if [ -n "$name" ] && [ $name = "prplOS" ]; then
+                PRPL_WRT=1
+        fi
+fi
+
+if [ -n "$PRPL_WRT" ]; then
+    IPACONF=/etc/data/ipa_config.txt
+
+    if [ -f $IPACONF ]; then
+            echo "Updating device config and IPACONF contents to /dev/ipa" > /dev/kmsg
+            cfg=$(cat $IPACONF)
+            cfg=\""rdkb $cfg"\"
+    else
+            echo "Updating device config to /dev/ipa" > /dev/kmsg
+            cfg=\""rdkb\""
+    fi
+fi
+
 case "$1" in
   start)
         echo -n "Starting/Loading ipa module: "
 
         echo "ipa:start/load" > /dev/kmsg
         insmod /lib/modules/ipa/gsim.ko
-        insmod /lib/modules/ipa/ipam.ko
+        if [ -n "$PRPL_WRT" ]; then
+            insmod /lib/modules/ipa/ipam.ko ipa_cfg=$cfg
+        else
+            insmod /lib/modules/ipa/ipam.ko
+        fi
         insmod /lib/modules/ipa/ipanetm.ko
         echo "done loading ipa module"
         ;;

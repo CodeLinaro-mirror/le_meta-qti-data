@@ -16,6 +16,7 @@ start() {
 		ethtool -N eth0 flow-type ether proto 0x0806 action 0 loc 16
 		ethtool -N eth0 flow-type ip4 l4proto 1  action 0 loc 33
 		ethtool -N eth0 flow-type ether proto 0x888E action 0 loc 17
+		ethtool -N eth0 flow-type ether proto 0x0800 action 0 loc 18
 	else
 		echo "eth0 is not up by  atlantic-fwd"
 	fi
