@@ -1,0 +1,42 @@
+From ca18fcc7d6815d81b1c2d21003acbcfef813b242 Mon Sep 17 00:00:00 2001
+From: Veena Sri Vallala <vsri@qti.qualcomm.com>
+Date: Mon, 21 Apr 2025 20:24:40 +0530
+Subject: [PATCH 2/8] rtl8261: Watchdog issue during rtl8261 probe
+
+Fixing watchdog issue during rtl8261 driver probe by adding a
+delay in the PHYPATCH_TABLE_ASSIGN macro.
+
+Signed-off-by: Veena Sri Vallala <vsri@qti.qualcomm.com>
+---
+ linux-5.10.146/drivers/net/phy/rtk/phy_patch.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/phy_patch.h b/linux-5.10.146/drivers/net/phy/rtk/phy_patch.h
+index 9781df2..73cb336 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/phy_patch.h
++++ b/linux-5.10.146/drivers/net/phy/rtk/phy_patch.h
+@@ -16,6 +16,7 @@
+   #include <common/rt_type.h>
+   #include <common/rt_autoconf.h>
+ #endif
++#include<linux/delay.h>
+ 
+ /*
+  * Symbol Definition
+@@ -115,11 +116,13 @@
+     do {\
+         if (RTK_PATCH_TYPE_IS_DATA(_patch_type)) {\
+             _pPatchDb->_table[_idx].patch_type = _patch_type;\
++            udelay(1);\
+             _pPatchDb->_table[_idx].patch.data.conf = _para;\
+             _pPatchDb->_table[_idx].patch.data.size = sizeof(_para);\
+         }\
+         else if (RTK_PATCH_TYPE_IS_FLOW(_patch_type)) {\
+             _pPatchDb->_table[_idx].patch_type = _patch_type;\
++            udelay(1);\
+             _pPatchDb->_table[_idx].patch.flow_id = _patch_type;\
+         }\
+         else {\
+-- 
+2.34.1
+

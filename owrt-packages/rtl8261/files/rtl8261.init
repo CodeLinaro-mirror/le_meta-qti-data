@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+START=10
+STOP=97
+
+start() {
+	/etc/initscripts/start_rtl8261 start
+}
+
+stop() {
+	echo "Stopping rtl8261 Instance"
+}
