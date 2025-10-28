@@ -22,6 +22,7 @@ define KernelPackage/$(PKG_NAME)
  CATEGORY:=Kernel modules
  SUBMENU:=Network Devices
  TITLE:= ATLANTIC FWD Driver
+ DEPENDS:= +kmod-dataipa
 endef
 
 define KernelPackage/$(PKG_NAME)/Description

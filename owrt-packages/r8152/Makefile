@@ -22,6 +22,7 @@ define KernelPackage/$(PKG_NAME)
  CATEGORY:=Kernel modules
  SUBMENU:=Network Devices
  TITLE:=r8152 Driver
+ DEPENDS:= +kmod-dataipa
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
