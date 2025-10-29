@@ -22,6 +22,10 @@ RDEPENDS_${PN} += "kernel-module-ipam"
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-eth"
 SRC_URI += "file://emac_ioss.service"
+SRC_URI += "file://setup_qos_eth0.service"
+SRC_URI += "file://setup_qos_eth1.service"
+SRC_URI += "file://config.ini"
+SRC_URI += "file://config_qos.sh"
 S = "${WORKDIR}/data-eth"
 
 # The inherit of module.bbclass will automatically name module packages with
@@ -61,6 +65,14 @@ do_install() {
 	KERNEL_SRC=${STAGING_KERNEL_DIR} \
 	modules_install \
 	INSTALL_MOD_PATH=${D}/usr
+
+	install -d ${D}${sysconfdir}/initscripts
+	install -m 0755 ${WORKDIR}/config_qos.sh ${D}${sysconfdir}/initscripts
+	install -m 0755 ${WORKDIR}/config.ini ${D}${sysconfdir}/initscripts
+
+	install -d ${D}${systemd_unitdir}/system/
+	install -m 0644 ${WORKDIR}/setup_qos_eth0.service ${D}${systemd_unitdir}/system/
+	install -m 0644 ${WORKDIR}/setup_qos_eth1.service ${D}${systemd_unitdir}/system/
 
 	install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/
 	install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/
@@ -110,11 +122,21 @@ do_install() {
 # execute between compile and package stages.
 addtask copy_kernel_module after do_compile before do_package
 
+SYSTEMD_SERVICE:${PN} = "\
+       setup_qos_eth0.service \
+       setup_qos_eth1.service \
+"
+SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+
 FILES:${PN}+="${libdir}/modules/*"
 FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko"
 FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko"
 FILES:${PN}+="${systemd_unitdir}/system/emac_ioss.service"
 FILES:${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
+FILES:${PN}+="${systemd_unitdir}/system/setup_qos_eth0.service"
+FILES:${PN}+="${systemd_unitdir}/system/setup_qos_eth1.service"
+FILES:${PN}+="${sysconfdir}/initscripts/config_qos.sh"
+FILES:${PN}+="${sysconfdir}/initscripts/config.ini"
 
 RPROVIDES:${PN} += "kernel-module-*-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-iemac-ioss-${KERNEL_VERSION}"
