@@ -43,7 +43,7 @@ RDEPENDS:packagegroup-qti-data-modem:kera = " \
     data-oss \
     "
 RDEPENDS:packagegroup-qti-data:append:kalama = "aquantia ethtool qps615 qps615-firmware"
-RDEPENDS:packagegroup-qti-data:remove:kalama = "datarmnet"
+RDEPENDS:packagegroup-qti-data:remove:kalama = "datarmnet data-devicetree"
 
 RDEPENDS:packagegroup-qti-data:remove:qcs610-odk-64 = " \
     dataipa \
