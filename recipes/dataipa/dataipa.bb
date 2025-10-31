@@ -1,4 +1,4 @@
-inherit linux-kernel-base deploy logging
+inherit linux-kernel-base deploy
 SUMMARY = "Building IPA Driver Modules"
 
 DESCRIPTION = "Contains IPA Driver"
@@ -80,6 +80,16 @@ do_install:qcm4325-mtp() {
    install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
 }
 
+do_install:qcm4325-mtp-32() {
+   install -d ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/dataipa-load.conf -D ${D}${sysconfdir}/modules-load.d/dataipa-load.conf
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/gsi/gsim.ko -D ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipam.ko -D ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipanetm.ko -D ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/rndisipam.ko -D ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}
+   install -m 0644 ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko -D ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}
+}
+
 do_deploy() {
     install -d ${DEPLOYDIR}/kernel_modules
     cp -rp ${WORKDIR}/src/dataipa-modules-out/drivers/platform/msm/gsi/gsim.ko ${DEPLOYDIR}/kernel_modules
@@ -92,3 +102,5 @@ addtask do_deploy after do_install before do_package
 
 FILES:${PN} += "${sysconfdir}/*"
 FILES:${PN} += "${base_libdir}/modules/${KERNEL_VERSION}/*"
+FILES:${PN}:qcm4325-mtp-32 += "${sysconfdir}/*"
+FILES:${PN}:qcm4325-mtp-32 += "${nonarch_base_libdir}/modules/${KERNEL_VERSION}/*"

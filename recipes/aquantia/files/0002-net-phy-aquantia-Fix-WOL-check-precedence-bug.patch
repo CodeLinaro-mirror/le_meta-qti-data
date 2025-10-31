@@ -1,0 +1,30 @@
+From c9b30112b7b9e54abd8638401db1dab844c4d658 Mon Sep 17 00:00:00 2001
+From: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+Date: Mon, 26 May 2025 11:51:33 +0530
+Subject: [PATCH 2/4] net: phy: aquantia: Fix WOL check precedence bug
+
+Fix the logical operator precedence in WOL condition from
+`!wol->wolopts & WAKE_PHY` to `!(wol->wolopts & WAKE_PHY)` to ensure proper
+evaluation.
+
+Signed-off-by: Mohd Ayaan Anwar <mohdayaa@qti.qualcomm.com>
+---
+ aquantia/aquantia_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/aquantia/aquantia_main.c b/aquantia/aquantia_main.c
+index 6b4ac33..867de80 100644
+--- a/aquantia/aquantia_main.c
++++ b/aquantia/aquantia_main.c
+@@ -776,7 +776,7 @@ static int aqr113_set_wol(struct phy_device *phydev, struct ethtool_wolinfo *wol
+ 		if(err < 0)
+ 			return err;
+ 
+-		if (!wol->wolopts & WAKE_PHY) {
++		if (!(wol->wolopts & WAKE_PHY)) {
+ 			/* Disable Link Connect/Disconnect INTR */
+ 			err = phy_clear_bits_mmd(phydev, MDIO_MMD_AN, MDIO_AN_TX_VEND_INT_MASK2,
+ 									MDIO_AN_TX_VEND_INT_MASK2_LINK);
+-- 
+2.34.1
+
