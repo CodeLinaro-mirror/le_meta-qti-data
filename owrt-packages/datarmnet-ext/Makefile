@@ -11,6 +11,7 @@ include $(INCLUDE_DIR)/package.mk
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/../* $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
 endef
 
 define KernelPackage/$(PKG_NAME)
@@ -28,10 +29,13 @@ MAKE_OPTS:= \
         M="$(PKG_BUILD_DIR)"
 
 define Build/Compile
-        $(MAKE) -C "$(LINUX_DIR)" \
-                $(MAKE_OPTS) \
-                modules
+        if [ "$(BOARD)" = "sdxecho" ]; then \
+                $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+        else \
+                $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+        fi
 endef
+
 
 define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/lib/modules/
