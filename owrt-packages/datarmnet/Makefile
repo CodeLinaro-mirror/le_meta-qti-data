@@ -26,6 +26,11 @@ endef
 MAKE_OPTS:= \
         M="$(PKG_BUILD_DIR)"
 
+define Build/InstallDev
+	$(INSTALL_DIR) $(STAGING_DIR)/include/datarmnet/
+	$(INSTALL_DATA) $(PKG_BUILD_DIR)/*.h $(STAGING_DIR)/include/datarmnet/
+endef
+
 define Build/Compile
         $(MAKE) -C "$(LINUX_DIR)" \
                 $(MAKE_OPTS) \
