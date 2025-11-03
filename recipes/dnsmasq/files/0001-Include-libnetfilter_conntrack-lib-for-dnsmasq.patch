@@ -1,6 +1,6 @@
-From df2f790e71e2977d219a3981263058f6613536fe Mon Sep 17 00:00:00 2001
-From: Dheeraj Kumar <quic_dhekum@quicinc.com>
-Date: Mon, 1 May 2023 12:49:14 +0530
+From f8e846e2e6538ad7c75d4968538cc4790441bc64 Mon Sep 17 00:00:00 2001
+From: From: Ganesh Babu Kamma <quic_gkamma@quicinc.com>
+Date: Wed, 21 Feb 2024 14:46:05 +0530
 Subject: [PATCH] Include libnetfilter_conntrack lib for dnsmasq
 
 ---
@@ -8,7 +8,7 @@ Subject: [PATCH] Include libnetfilter_conntrack lib for dnsmasq
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/Makefile b/Makefile
-index 78e25f0..a354021 100644
+index 0538229..5b36adb 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -28,7 +28,7 @@ CFLAGS        = -Wall -W -O2
@@ -16,10 +16,11 @@ index 78e25f0..a354021 100644
  COPTS         = 
  RPM_OPT_FLAGS = 
 -LIBS          = 
-+LIBS          = -lnetfilter_conntrack
- 
++LIBS          = -lnetfilter_conntrack 
+ LUA           = lua
+
  #################################################################
  
 -- 
-2.7.4
+2.17.1
 

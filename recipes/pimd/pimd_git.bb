@@ -16,10 +16,10 @@ SRC_URI = "${CLO_LE_GIT}/pimd.git;protocol=https;branch=caf_migration/github/mas
            file://pimd.service \
 "
 
-SRC_URI_append_sdxprairie += "\
+SRC_URI:append:sdxprairie += "\
            file://Resolve-Implicit-fallthrough-Werror.patch "
 
-SRC_URI_append_9615-cdp += " \
+SRC_URI:append:9615-cdp += " \
            file://defs_fix_multicast_subnetmask_on_rmnet.patch \
            file://vif_fix_multicast_subnetmask_on_rmnet.patch \
            file://pimd.conf \
@@ -34,14 +34,14 @@ do_compile() {
 do_install() {
         make install DESTDIR=${D}
 }
-do_install_append_9615-cdp() {
+do_install:append:9615-cdp() {
     install -m 0755 ${WORKDIR}/pimd.conf ${D}${sysconfdir}
 }
 
-do_install_append_mdm(){
+do_install:append:mdm(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
    install -m 0644 ${WORKDIR}/pimd.service -D ${D}${systemd_unitdir}/system/pimd.service
 fi
 }
-FILES_${PN} += "${systemd_unitdir}/system/*"
+FILES:${PN} += "${systemd_unitdir}/system/*"

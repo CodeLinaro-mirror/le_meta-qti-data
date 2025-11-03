@@ -14,7 +14,8 @@ SRC_URI = "file://external/compat-wireless/drivers/net/ethernet/atheros/alx/ \
            file://start_alx_le"
 S = "${WORKDIR}/external/compat-wireless/drivers/net/ethernet/atheros/alx/"
 
-FILES_${PN}="/etc/init.d/start_alx_le"
+FILES:${PN}="/etc/init.d/start_alx_le"
+FILES:${PN} += "${base_libdir}/*"
 
 EXTRA_OEMAKE += "CONFIG_MDM_ALX=y"
 
@@ -27,7 +28,7 @@ do_install() {
 INITSCRIPT_NAME = "start_alx_le"
 INITSCRIPT_PARAMS = "start 91 5 . stop 15 0 1 6 ."
 
-#pkg_postinst_${PN} () {
+#pkg_postinst:${PN} () {
 #[ -n "$D" ] && OPT="-r $D" || OPT="-s"
 #update-rc.d $OPT -f start_alx_le remove
 #update-rc.d $OPT start_alx_le start 91 5 . stop 15 0 1 6 .

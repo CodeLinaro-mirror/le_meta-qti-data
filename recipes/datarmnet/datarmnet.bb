@@ -4,7 +4,7 @@ inherit module qperf
 inherit ${@bb.utils.contains('TARGET_KERNEL_ARCH', 'aarch64', 'qtikernel-arch', '', d)}
 
 DESCRIPTION = "Datarmnet drivers"
-LICENSE = "GPL-2.0"
+LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
 
 PR = "r0"
@@ -17,9 +17,9 @@ SRC_URI += "file://rmnetcore.service"
 
 S = "${WORKDIR}/datarmnet/core"
 
-FILES_${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/"
-FILES_${PN}+= "${systemd_unitdir}/system/rmnetcore.service"
-FILES_${PN}+= "${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service"
+FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/"
+FILES:${PN}+= "${systemd_unitdir}/system/rmnetcore.service"
+FILES:${PN}+= "${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service"
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 
@@ -33,8 +33,8 @@ PARALLEL_MAKE = ""
 # Disable parallel make
 PARALLEL_MAKE = "-j1"
 
-#currently not working but for some reason this compiles but do_install_append doesnt
-do_install_append() {
+#currently not working but for some reason this compiles but do_install:append doesnt
+do_install:append() {
         install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
         install -m 0644 rmnet_core.ko ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
         install -d ${D}${systemd_unitdir}/system/

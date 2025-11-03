@@ -25,7 +25,7 @@ SRC_URI = "\
 SRC_URI[md5sum] = "879027192c89e5376cdd2ae2d1aa33b4"
 SRC_URI[sha256sum] = "ed42d5cadf9488a95a0107341918879ef8ce4c650e19337688c46cdcd484bc4e"
 
-do_install_append () {
+do_install:append () {
     sed -i s:#network_interface=eth0:network_interface=bridge0,ppp0:g minidlna.conf
     sed -i s:"#friendly_name=My DLNA Server":"friendly_name=9x35 MobileAP DLNA":g minidlna.conf
     install -d ${D}${sysconfdir}
@@ -40,5 +40,5 @@ do_install_append () {
         install -m 0644 ${WORKDIR}/minidlnad.service -D ${D}${systemd_unitdir}/system/minidlnad.service
     fi
 }
-FILES_${PN} += "${sysconfdir}/data/minidlna.conf"
-FILES_${PN} += "${systemd_unitdir}/system/*"
+FILES:${PN} += "${sysconfdir}/data/minidlna.conf"
+FILES:${PN} += "${systemd_unitdir}/system/*"

@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 SRC_URI += "\
     file://index.html.lighttpd \
     file://lighttpd \
@@ -9,7 +9,7 @@ SRC_URI += "\
 "
 
 DEPENDS += " openssl"
-RDEPENDS_${PN} += " \
+RDEPENDS:${PN} += " \
                lighttpd-module-alias \
                lighttpd-module-compress \
                lighttpd-module-cgi \
@@ -23,7 +23,7 @@ EXTRA_OECONF += " \
              --with-openssl \
              --with-openssl-libs=${STAGING_LIBDIR} \
 "
-do_install_append() {
+do_install:append() {
    install -d ${D}${userfsdatadir}
    install -d ${D}${userfsdatadir}/www
    install -m 0755 ${WORKDIR}/openssl.cnf ${D}${userfsdatadir}
@@ -38,7 +38,7 @@ do_install_append() {
    fi
 
 }
-FILES_${PN} += "${userfsdatadir}/lighttpd.conf"
-FILES_${PN} += "${userfsdatadir}/openssl.cnf"
-FILES_${PN} += "${userfsdatadir}/www/*"
-FILES_${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '${sysconfdir}/initscripts/lighttpd', '', d)}"
+FILES:${PN} += "${userfsdatadir}/lighttpd.conf"
+FILES:${PN} += "${userfsdatadir}/openssl.cnf"
+FILES:${PN} += "${userfsdatadir}/www/*"
+FILES:${PN} += "${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '${sysconfdir}/initscripts/lighttpd', '', d)}"
