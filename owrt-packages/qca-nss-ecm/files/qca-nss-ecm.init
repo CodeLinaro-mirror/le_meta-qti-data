@@ -53,6 +53,8 @@ load_sfe() {
 		[ -d /sys/module/qca_nss_sfe ] || insmod /lib/modules/qca-nss-sfe.ko
 	}
 
+	echo 1 > /sys/sfe/flush_if_fls_breach
+
 }
 
 unload_sfe() {
