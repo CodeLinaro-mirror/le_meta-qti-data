@@ -32,7 +32,7 @@ MAKE_OPTS:= \
 
 define Build/Compile
 	if [ "$(BOARD)" = "sdxecho" ]; then \
-		$(MAKE) -C $(PKG_BUILD_DIR) sdxecho-ipa; \
+		$(MAKE) -C $(PKG_BUILD_DIR) dtbs; \
 	fi
 endef
 
@@ -45,8 +45,8 @@ define KernelPackage/data-devicetree/install
 	@echo "PKG_BUILD_DIR: $(PKG_BUILD_DIR)"
 	mkdir -p $(LINUX_DIR)/../techpack-dtbos
 	mkdir -p $(PKG_BUILD_DIR)/../techpack-dtbos
-	$(CP) $(PKG_BUILD_DIR)/ipa/sdxecho-ipa.dtbo $(LINUX_DIR)/../techpack-dtbos/
-	$(CP) $(PKG_BUILD_DIR)/ipa/sdxecho-ipa.dtbo $(PKG_BUILD_DIR)/../techpack-dtbos/
+	$(CP) `find $(PKG_BUILD_DIR)/ -name "*.dtbo"` $(LINUX_DIR)/../techpack-dtbos/
+	$(CP) `find $(PKG_BUILD_DIR)/ -name "*.dtbo"` $(PKG_BUILD_DIR)/../techpack-dtbos/
 endef
 
 $(eval	$(call KernelPackage,data-devicetree))
