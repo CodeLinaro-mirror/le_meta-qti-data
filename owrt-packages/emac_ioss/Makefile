@@ -33,15 +33,19 @@ ifneq ($(KERNEL_PLATFORM_TARGET), sdxbaagha-128m)
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
-	$(CP) $(LOCAL_SRC)/../../* $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
 endef
 
-define Build/Compile
-	$(MAKE) -C "$(LINUX_DIR)" \
+MAKE_OPTS := \
 	M="$(PKG_BUILD_DIR)" \
 	CONFIG_EMAC_IOSS=m \
-	KBUILD_EXTRA_SYMBOLS=$(STAGING_DIR_TARGET)/usr/modules-symbols/ioss/Module.symvers \
-	modules
+
+define Build/Compile
+  if [ "$(BOARD)" = "sdxecho" ]; then \
+      $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+  else \
+      $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+  fi
 endef
 
 define Build/InstallDev
