@@ -1,5 +1,5 @@
 DESCRIPTION = "Data devicetree"
-LICENSE = "BSD-3-Clause & GPL-2.0 | BSD-2-Clause"
+LICENSE = "BSD-3-Clause & GPL-2.0-only | BSD-2-Clause"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
 BSD-3-Clause;md5=550794465ba0ec5312d6919e203a55f9"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/\
