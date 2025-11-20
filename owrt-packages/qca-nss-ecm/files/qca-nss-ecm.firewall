@@ -16,8 +16,9 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
-iptables -nvL FORWARD | grep -q "physdev" && iptables -Z FORWARD 1
-iptables -nvL FORWARD | grep -q "physdev" || iptables -I FORWARD -m physdev --physdev-is-bridged -j ACCEPT
+iptables -w -C FORWARD -m physdev --physdev-is-bridged -j ACCEPT 2>/dev/null && iptables -Z FORWARD 1
+iptables -w -C FORWARD -m physdev --physdev-is-bridged -j ACCEPT 2>/dev/null || \
+iptables -w -I FORWARD 1 -m physdev --physdev-is-bridged -j ACCEPT
 
 if grep -q "fw3" /etc/init.d/firewall; then
 	iptables -nvL | grep -q "Chain RATE-LIMIT" && iptables -F RATE-LIMIT
