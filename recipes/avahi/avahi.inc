@@ -97,7 +97,7 @@ RDEPENDS:avahi-daemon = "${@bb.utils.contains('DISTRO_FEATURES','systemd', '', '
 RRECOMMENDS:avahi-daemon:append:libc-glibc = " libnss-mdns"
 RRECOMMENDS:${PN}:append:libc-glibc = "libnss-mdns"
 
-RRECOMMENDS:avahi-dev = "expat-dev libcap-dev libdaemon-dev dbus-dev glib-2.0-dev update-rc.d-dev"
+RRECOMMENDS:avahi-dev += "expat-dev libcap-dev libdaemon-dev dbus-dev glib-2.0-dev update-rc.d-dev"
 RRECOMMENDS:avahi-dev:append:libc-glibc = " gettext-dev"
 
 RRECOMMENDS:avahi-dev[nodeprrecs] = "1"
