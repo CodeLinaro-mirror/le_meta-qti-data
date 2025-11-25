@@ -51,7 +51,7 @@ do_install:append() {
           #install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
           #install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_vlan_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_vlan_cfg.xml
 	   install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_cfg.xml
-	   install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_vlan_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_vlan_cfg.xml
+	   #install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_vlan_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_vlan_cfg.xml
 
 	fi
 }
