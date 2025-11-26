@@ -44,3 +44,4 @@ do_module_signing() {
 }
 
 addtask do_module_signing after do_package before do_package_write_ipk
+INSANE_SKIP:${PN} += "installed-vs-shipped"
