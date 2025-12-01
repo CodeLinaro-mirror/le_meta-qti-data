@@ -1,0 +1,82 @@
+#!/bin/sh
+# Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#     * Redistributions of source code must retain the above copyright
+#       notice, this list of conditions and the following disclaimer.
+#     * Redistributions in binary form must reproduce the above
+#       copyright notice, this list of conditions and the following
+#       disclaimer in the documentation and/or other materials provided
+#       with the distribution.
+#     * Neither the name of The Linux Foundation nor the names of its
+#       contributors may be used to endorse or promote products derived
+#       from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+# OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+# IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Changes from Qualcomm Technologies, Inc. are provided under the following license:
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+
+DUMP_TO_KMSG=/dev/kmsg
+
+file="$1"
+. "$1"
+
+interface="$2"
+
+echo "script loaded for QoS STARTED" > $DUMP_TO_KMSG
+
+if [ "eth0" = "$interface" ];
+then
+	tc qdisc add dev eth0 handle $mqprio_handle0: parent root mqprio num_tc $num_tc0 map $mqprio_map0 queues $queues0 hw 0
+	tc qdisc add dev eth0 clsact
+	tc filter add dev eth0 egress prio 0 u32 match u16 0x88f7 0xffff at -2 action skbedit priority 1
+	tc filter add dev eth0 egress prio 0 u32 match u32 0x400222f0 0xffffffff at -4 action skbedit priority 2
+	tc filter add dev eth0 egress prio 0 u32 match u32 0x600222f0 0xffffffff at -4 action skbedit priority 3
+
+	if [ $q3_idle_slope0 -ne 0 ] && [ $q3_send_slope0 -ne 0 ];
+	then
+		tc qdisc replace dev eth0 handle $q3_cbs_handle0 parent $mqprio_handle0:3 cbs idleslope $q3_idle_slope0 sendslope $q3_send_slope0 hicredit $q3_hicredit0 locredit $q3_locredit0 offload 1
+	fi
+	if [ $q4_idle_slope0 -ne 0 ] && [ $q4_send_slope0 -ne 0 ];
+	then
+		tc qdisc replace dev eth0 handle $q4_cbs_handle0 parent $mqprio_handle0:4 cbs idleslope $q4_idle_slope0 sendslope $q4_send_slope0 hicredit $q4_hicredit0 locredit $q4_locredit0 offload 1
+	fi
+
+	ip link add link eth0 name eth0.$vlan_id type vlan id $vlan_id
+fi
+
+if [ "eth1" = "$interface" ];
+then
+	tc qdisc add dev eth1 handle $mqprio_handle1: parent root mqprio num_tc $num_tc1 map $mqprio_map1 queues $queues1 hw 0
+	tc qdisc add dev eth1 clsact
+	tc filter add dev eth1 egress prio 0 u32 match u16 0x88f7 0xffff at -2 action skbedit priority 1
+	tc filter add dev eth1 egress prio 0 u32 match u32 0x400222f0 0xffffffff at -4 action skbedit priority 2
+	tc filter add dev eth1 egress prio 0 u32 match u32 0x600222f0 0xffffffff at -4 action skbedit priority 3
+	if [ $q3_idle_slope1 -ne 0 ] && [ $q3_send_slope1 -ne 0 ];
+	then
+		tc qdisc replace dev eth1 handle $q3_cbs_handle1 parent $mqprio_handle1:3 cbs idleslope $q3_idle_slope1 sendslope $q3_send_slope1 hicredit $q3_hicredit1 locredit $q3_locredit1 offload 1
+	fi
+	if [ $q4_idle_slope1 -ne 0 ] && [ $q4_send_slope1 -ne 0 ];
+	then
+		tc qdisc replace dev eth1 handle $q4_cbs_handle1 parent $mqprio_handle1:4 cbs idleslope $q4_idle_slope1 sendslope $q4_send_slope1 hicredit $q4_hicredit1 locredit $q4_locredit1 offload 1
+	fi
+
+	ip link add link eth1 name eth1.$vlan_id type vlan id $vlan_id
+fi
+
+echo "script loaded for QoS DONE" > $DUMP_TO_KMSG
+exit 0
