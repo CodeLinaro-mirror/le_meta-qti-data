@@ -1,5 +1,5 @@
 inherit useradd
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 DEPENDS = "libnetfilter-conntrack"
 
 SRC_URI += "file://dnsmasq.conf \
@@ -14,7 +14,7 @@ EXTRA_OEMAKE = "CC='${CC}' \
                 CFLAGS='${TARGET_CFLAGS}' \
                 LDFLAGS='${TARGET_LDFLAGS}'"
 
-do_install_append () {
+do_install:append () {
         install -d ${D}${sysconfdir}/data/
         install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
         chown -R root:1001 ${D}${sysconfdir}/data/dnsmasq.conf
@@ -41,8 +41,8 @@ do_install_append () {
         rm -d ${D}${sysconfdir}/systemd/resolved.conf.d
 }
 
-CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
-FILES_${PN} += "${sysconfdir}/data/dnsmasq.conf"
-FILES_${PN} += "${systemd_unitdir}/system/*"
+CONFFILES:${PN} = "${sysconfdir}/data/dnsmasq.conf"
+FILES:${PN} += "${sysconfdir}/data/dnsmasq.conf"
+FILES:${PN} += "${systemd_unitdir}/system/*"
 
-SYSTEMD_SERVICE_${PN} = ""
+SYSTEMD_SERVICE:${PN} = ""

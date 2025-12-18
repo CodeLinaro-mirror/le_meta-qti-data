@@ -1,5 +1,5 @@
 inherit useradd
-FILESEXTRAPATHS_prepend := "${THISDIR}/files:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += " \
         file://001_Makefile.patch \
@@ -8,7 +8,7 @@ SRC_URI += " \
         "
 
 
-do_install_append() {
+do_install:append() {
   install -d ${D}${sysconfdir}/data/
   install -m 644 ${WORKDIR}/image/etc/tinyproxy.conf ${D}${sysconfdir}/data/
   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
@@ -17,5 +17,5 @@ do_install_append() {
   fi
   chown -R root:1001 ${D}${sysconfdir}/data/tinyproxy.conf
 }
-FILES_${PN} += "${sysconfdir}/data/tinyproxy.conf"
-FILES_${PN} += "${systemd_unitdir}/system/*"
+FILES:${PN} += "${sysconfdir}/data/tinyproxy.conf"
+FILES:${PN} += "${systemd_unitdir}/system/*"

@@ -29,7 +29,7 @@ do_configure() {
 	sed -i 's:/usr/include:${STAGING_INCDIR}:' ./Makefile
 }
 
-do_install_append() {
+do_install:append() {
 	# tcpdump 4.0.0 installs a copy to /usr/sbin/tcpdump.4.0.0
 	rm -f ${D}${sbindir}/tcpdump.${PV}
 }

@@ -8,19 +8,19 @@ Subject: [PATCH] dhcpcdv6_reset_RA
  1 file changed, 3 deletions(-)
 
 diff --git a/src/if-linux.c b/src/if-linux.c
-index aad2142..7541bd0 100644
+index fd05147b..51353e57 100644
 --- a/src/if-linux.c
 +++ b/src/if-linux.c
-@@ -1881,9 +1881,6 @@ if_setup_inet6(const struct interface *ifp)
- 		/* The sysctl probably doesn't exist, but this isn't an
+@@ -2118,9 +2118,6 @@ if_setup_inet6(const struct interface *ifp)
  		 * error as such so just log it and continue */
- 		logfunc("%s", path);
+ 		if (errno != ENOENT)
+ 			logerr("%s: %s", __func__, path);
 -	} else if (ra != 0) {
--		if (if_writepathuint(path, 0) == -1)
+-		if (if_writepathuint(ctx, path, 0) == -1)
 -			logerr("%s: %s", __func__, path);
  	}
  }
  
 -- 
-2.7.4
+2.17.1
 
