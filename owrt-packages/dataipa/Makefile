@@ -29,6 +29,13 @@ endef
 MAKE_OPTS:= \
     M="$(PKG_BUILD_DIR)"
 
+ifeq ($(BOARD),sdxecho)
+MAKE_OPTS += CONFIG_ARCH_SDXECHO=y
+endif
+
+ifeq ($(BOARD),sa535m)
+MAKE_OPTS += CONFIG_ARCH_SA535M=y
+endif
 
 define Build/Compile
   if [ "$(BOARD)" = "sdxecho" ]; then \
