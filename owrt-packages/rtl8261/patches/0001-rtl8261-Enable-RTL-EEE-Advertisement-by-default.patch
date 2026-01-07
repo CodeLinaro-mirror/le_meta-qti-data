@@ -1,0 +1,30 @@
+From 84d1838c8672624fb5a09c406303100d310449a1 Mon Sep 17 00:00:00 2001
+From: Veena Sri Vallala <vsri@qti.qualcomm.com>
+Date: Mon, 21 Apr 2025 20:23:08 +0530
+Subject: [PATCH 1/8] rtl8261: Enable RTL EEE Advertisement by default
+
+Current RTL PHY driver disable EEE by default. Modify RTL PHY driver to
+enable it by default.
+
+Signed-off-by: Veena Sri Vallala <vsri@qti.qualcomm.com>
+---
+ linux-5.10.146/net/phy/rtk/rtk_phy.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+index fb6efb0..80d37cb 100644
+--- a/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
++++ b/linux-5.10.146/drivers/net/phy/rtk/rtk_phy.c
+@@ -156,6 +156,9 @@ static int rtkphy_config_init(struct phy_device *phydev)
+             mdelay(30);
+           #endif
+ 
++            // Enable EEE advertisement by default
++            phy_write_mmd(phydev, MDIO_MMD_AN, MDIO_AN_EEE_ADV, MDIO_EEE_100TX | MDIO_EEE_1000T | MDIO_EEE_10GT);
++
+             ret = phy_patch(0, phydev, 0, PHY_PATCH_MODE_NORMAL);
+             if (ret)
+             {
+-- 
+2.34.1
+

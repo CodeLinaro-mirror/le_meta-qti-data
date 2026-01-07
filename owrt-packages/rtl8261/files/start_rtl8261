@@ -1,0 +1,28 @@
+#! /bin/sh
+
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+set -e
+
+case "$1" in
+  start)
+        echo -n "Starting/Loading rtl8261 module: "
+        echo "rtl8261:start/load" > /dev/kmsg
+        insmod /lib/modules/rtl8261.ko
+        echo "done loading rtl8261 module"
+        ;;
+  stop)
+        echo -n "Bypassing Unloading of  rtl8261 modules "
+        ;;
+  restart)
+        $0 stop
+        $0 start
+        ;;
+  *)
+        echo "Usage { start | stop | restart}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
