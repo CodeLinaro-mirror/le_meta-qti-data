@@ -12,5 +12,5 @@ S = "${WORKDIR}/tcp-splice"
 
 do_install() {
     install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
-    install -m 0644 ${S}tcp_splice.ko ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
+    install -m 0644 ${S}/tcp_splice.ko ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net
 }
