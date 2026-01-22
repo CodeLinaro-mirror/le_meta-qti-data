@@ -1,0 +1,26 @@
+From 167e81281b304937233eb5dce153afed57236a26 Mon Sep 17 00:00:00 2001
+From: Yinxin Sun <yinxsun@qti.qualcomm.com>
+Date: Mon, 5 Jan 2026 17:30:29 +0800
+Subject: [PATCH] Include qcmap swanctl config
+
+Load /etc/data/qcmap_swanctl.conf so deployments can leverage the
+existing swanctl settings without editing the main strongswan.conf.
+
+Signed-off-by: Yinxin Sun <yinxsun@qti.qualcomm.com>
+---
+ conf/strongswan.conf | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/conf/strongswan.conf b/conf/strongswan.conf
+index d906728617..beef93dd63 100644
+--- a/conf/strongswan.conf
++++ b/conf/strongswan.conf
+@@ -12,3 +12,5 @@ charon {
+ }
+ 
+ include strongswan.d/*.conf
++
++include /etc/data/qcmap_swanctl.conf
+-- 
+2.34.1
+

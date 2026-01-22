@@ -21,7 +21,7 @@ define KernelPackage/$(PKG_NAME)
 	CONFIG_NF_CONNTRACK_CHAIN_EVENTS=n \
 	CONFIG_NF_CONNTRACK_DSCPREMARK_EXT=y
   PROVIDES:=kmod-qca-nss-ecm-premium
-  DEPENDS:= +kmod-qca-nss-sfe
+  DEPENDS:= +kmod-qca-nss-sfe +kmod-emesh-sp
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
@@ -30,7 +30,8 @@ endef
 
 EXTRA_CFLAGS += -DCONFIG_FUNCTION_ALIGNMENT=16 \
 				-DCONFIG_CLANG_VERSION=180000 \
-				-DCONFIG_KERNEL_ATOMIC64=y
+				-DCONFIG_KERNEL_ATOMIC64=y \
+				-I$(STAGING_DIR)/usr/include/emesh-sp
 
 define Build/Prepare
 #$(warning "********************Prepare$(M) *********************")
