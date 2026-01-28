@@ -12,7 +12,7 @@ LOCAL_SRC := $(TOPDIR)/src/qca-nss-ecm/
 ECM_ADDR := lib/modules/ecm/
 
 ECM_DEPENDS := +kmod-qca-nss-sfe
-ifneq ($(TARGET_VARIANT),cpe-tarang)
+ifneq ($(PROFILE),cpe-tarang)
   ECM_DEPENDS += +kmod-emesh-sp
 endif
 

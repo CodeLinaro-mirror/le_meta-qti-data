@@ -25,7 +25,7 @@ endef
 FLS_MAKE_OPTS:= \
         M="$(PKG_BUILD_DIR)"
 
-#ifneq ($(TARGET_VARIANT),cpe-tarang)
+#ifneq ($(PROFILE),cpe-tarang)
 #FLS_MAKE_OPTS+=FLS_ECM_CLASSIFIER_EMESH_ENABLE=y
 #endif
 
