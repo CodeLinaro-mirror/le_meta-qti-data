@@ -53,7 +53,7 @@ define Build/InstallDev
 endef
 
 define KernelPackage/$(PKG_NAME)/install
-	$(SIGN_KEY) $(PKG_BUILD_DIR)/*/*.ko
+	find $(PKG_BUILD_DIR) -type f -name "*.ko" -exec $(SIGN_KEY) {} \;
 	$(INSTALL_DIR) $(1)/$(ETH_ADDR)/
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/*/*.ko $(1)/$(ETH_ADDR)/
