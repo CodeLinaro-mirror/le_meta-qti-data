@@ -13,6 +13,7 @@ else
 endif
 
 LOCAL_SRC := $(TOPDIR)/src/data-eth/drivers
+LOCAL_FILES_SRC := $(TOPDIR)/src/data-eth/files
 ETH_ADDR :=lib/modules/ethernet
 
 include $(INCLUDE_DIR)/package.mk
@@ -34,6 +35,7 @@ TARGET_CFLAGS += -I$(TOOLCHAIN_DIR)/include/linux/ethtool.h
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) -R $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	$(CP) -R $(LOCAL_FILES_SRC)/* $(PKG_BUILD_DIR)/
 endef
 
 MAKE_OPTS := \
@@ -60,8 +62,8 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/*/*.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/
-	$(INSTALL_BIN) ./files/eth-sdk-dlkm.init $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/eth-sdk-dlkm  $(1)/etc/initscripts/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/owrt/eth-sdk-dlkm.init $(1)/etc/init.d
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/owrt/eth-sdk-dlkm  $(1)/etc/initscripts/
 endef
 
 $(eval $(call KernelPackage,$(PKG_NAME)))
