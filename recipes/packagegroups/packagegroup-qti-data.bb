@@ -47,5 +47,6 @@ RDEPENDS:packagegroup-qti-data:remove:kalama = "datarmnet data-devicetree"
 
 RDEPENDS:packagegroup-qti-data:remove:qcs610-odk-64 = " \
     dataipa \
+    data-devicetree \
     datarmnet \
     "
