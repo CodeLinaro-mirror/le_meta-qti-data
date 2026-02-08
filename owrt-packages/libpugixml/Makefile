@@ -2,6 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=libpugixml
 PKG_VERSION:=v1.11.4
+PKG_VERSION:=$(patsubst v%,%,$(PKG_VERSION_TAG))
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/zeux/pugixml.git
