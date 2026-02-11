@@ -29,10 +29,10 @@ do_install () {
                    install
         install -d ${D}${sysconfdir}/ ${D}${sysconfdir}/init.d ${D}${sysconfdir}/dnsmasq.d
         install -d ${D}${sysconfdir}/data/
-        install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
-        chown -R root:1001 ${D}${sysconfdir}/data/dnsmasq.conf
+        install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}
+        chown -R root:1001 ${D}${sysconfdir}/dnsmasq.conf
         # symlink dnsmasq.conf under /etc
-        ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
+        #ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
 
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}/etc/initscripts
@@ -48,5 +48,5 @@ do_install () {
         chown -h 65534:65534 ${D}${base_bindir}/dnsmasq_script.sh
 }
 
-CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
-FILES_${PN} += "${sysconfdir}/data/dnsmasq.conf"
+CONFFILES_${PN} = "${sysconfdir}/dnsmasq.conf"
+FILES_${PN} += "${sysconfdir}/dnsmasq.conf"
