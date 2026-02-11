@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/kernel.mk
 
 PKG_NAME:=datarmnet
-PKG_RELEASE:=1.0
+PKG_RELEASE:=1
 LOCAL_SRC:=$(TOPDIR)/src/datarmnet/core
 PKG_LICENSE:=BSD-3-Clause
 
