@@ -11,7 +11,6 @@ Conflicts=shutdown.target
 Restart=on-failure
 ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/ipa_filter_cfg.xml /etc/data/ipa/ipa_filter_cfg.xml
 ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/IPACM_cfg.xml /etc/data/ipa/IPACM_cfg.xml
-ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa_config.txt /etc/data/ipa_config.txt
 ExecStart=/usr/bin/ipacm
 TimeoutStopSec=20
 ExecStopPost=/bin/sh -c 'rm /var/run/data/monitor/ipacmd.pid'
