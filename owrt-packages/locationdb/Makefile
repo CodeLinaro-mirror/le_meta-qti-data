@@ -5,7 +5,7 @@ PKG_VERSION:=1
 PKG_RELEASE:=1
 
 PKG_SOURCE:=db-2019c.zip
-PKG_SOURCE_URL:=https://mirrors.kernel.org/caf_mirrored_source/quic/le/
+PKG_SOURCE_URL:=https://codelinaro.jfrog.io/artifactory/codelinaro-le/
 PKG_MD5SUM:=8ffbf97144f0bc827c6bd0c08a84328c
 PKG_LICENSE:=ODbl-1.0
 UNPACK_CMD=unzip -q -d $(1) $(DL_DIR)/$(PKG_SOURCE)
