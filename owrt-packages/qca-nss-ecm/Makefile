@@ -37,6 +37,7 @@ define Build/Prepare
 	$(warning build_dir $(PKG_BUILD_DIR))
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	echo "ccflags-y += -I$(STAGING_DIR)/usr/include/qca-nss-sfe" >> $(PKG_BUILD_DIR)/Makefile
 endef
 
 ECM_MAKE_OPTS:=ECM_DB_PER_CLIENT_ROUTED_STATS_ENABLE=y \
@@ -63,13 +64,10 @@ MAKE_OPTS := \
 	M="$(PKG_BUILD_DIR)" \
 	CONFIG_QCA_NSS_ECM=m
 
-ECM_EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-sfe
-
 define Build/Compile
 	echo "Linux Dir: $(LINUX_DIR)"
 	if [ "$(BOARD)" = "sdxecho" ]; then \
 		$(KERNEL_MAKE) -C "$(LINUX_DIR)" $(ECM_MAKE_OPTS) $(MAKE_OPTS) \
-		EXTRA_CFLAGS="$(ECM_EXTRA_CFLAGS)" \
 		EXAMPLES_BUILD_SDX="$(CONFIG_QCA_NSS_ECM_EXAMPLES_SDX)" \
 		modules; \
 	else \
