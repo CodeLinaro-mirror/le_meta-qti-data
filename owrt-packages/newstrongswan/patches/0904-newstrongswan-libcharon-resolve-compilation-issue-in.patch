@@ -1,0 +1,38 @@
+From e135fe0fad0c056269ddf6ef84c3efa5750fc80f Mon Sep 17 00:00:00 2001
+From: "Kuruva, Jaya Krishna" <jkuruva@qti.qualcomm.com>
+Date: Mon, 9 Feb 2026 11:22:35 +0530
+Subject: [PATCH] newstrongswan: libcharon resolve compilation issue in
+ openwrt25
+
+Signed-off-by: Kuruva, Jaya Krishna <jkuruva@qti.qualcomm.com>
+---
+ src/libcharon/plugins/uci/uci_parser.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/src/libcharon/plugins/uci/uci_parser.c b/src/libcharon/plugins/uci/uci_parser.c
+index c34c897..3b6eb0f 100644
+--- a/src/libcharon/plugins/uci/uci_parser.c
++++ b/src/libcharon/plugins/uci/uci_parser.c
+@@ -73,8 +73,7 @@ METHOD(enumerator_t, section_enumerator_enumerate, bool,
+ 	value = va_arg(args, char**);
+ 	if (value)
+ 	{
+-		if (uci_lookup(this->ctx, &element, this->package,
+-					   this->current->name, "name") == UCI_OK)
++		if (uci_lookup_next(this->ctx, &element, this->list, "name") == UCI_OK)
+ 		{	/* use "name" attribute as config name if available ... */
+ 			*value = uci_to_option(element)->v.string;
+ 		}
+@@ -88,8 +87,7 @@ METHOD(enumerator_t, section_enumerator_enumerate, bool,
+ 	for (i = 0; this->keywords[i]; i++)
+ 	{
+ 		value = va_arg(args, char**);
+-		if (value && uci_lookup(this->ctx, &element, this->package,
+-						  this->current->name, this->keywords[i]) == UCI_OK)
++		if (value && uci_lookup_next(this->ctx, &element, this->list, this->keywords[i]) == UCI_OK)
+ 		{
+ 			*value = uci_to_option(element)->v.string;
+ 		}
+-- 
+2.34.1
+
