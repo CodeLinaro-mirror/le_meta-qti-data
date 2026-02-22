@@ -5,6 +5,7 @@ PKG_NAME:=rmnetctl
 PKG_VERSION:=1
 PKG_RELEASE:=1
 PKG_FIXUP:=autoreconf
+PKG_LICENSE:=BSD-3-Clause & BSD-3-Clause-Clear
 
 LOCAL_SRC:=$(TOPDIR)/src/data-oss/rmnetctl
 
