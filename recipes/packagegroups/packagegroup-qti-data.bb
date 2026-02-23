@@ -19,11 +19,14 @@ RDEPENDS:packagegroup-qti-data = ' \
     iptables \
     dnsmasq \
     dhcpcd \
+    iperf3 \
+    ethtool \
     tcpdump \
     conntrack-tools \
     data-oss \
     dataipa \
     datarmnet \
+    qps615 \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-emac-dwc-eqos", "packagegroup-qti-ethernet-tools", "", d)} \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
