@@ -2,7 +2,6 @@ DESCRIPTION = "Dnsmasq is a lightweight, easy to configure DNS forwarder and DHC
 HOMEPAGE = "http://www.thekelleys.org.uk/dnsmasq/doc.html"
 SECTION = "console/network"
 LICENSE = "GPL-2.0-only"
-LICENSE:${PN} = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://COPYING;md5=801f80980d171dd6425610833a22dbe6"
 
 PR = "r4"
