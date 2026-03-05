@@ -1,0 +1,26 @@
+From f8e846e2e6538ad7c75d4968538cc4790441bc64 Mon Sep 17 00:00:00 2001
+From: Raju Velpula <rvelpula@qti.qualcomm.com>
+Date: Wed, 21 Feb 2024 14:46:05 +0530
+Subject: [PATCH] Include libnetfilter_conntrack lib for dnsmasq
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 0538229..5b36adb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -28,7 +28,7 @@ CFLAGS        = -Wall -W -O2
+ LDFLAGS       = 
+ COPTS         = 
+ RPM_OPT_FLAGS = 
+-LIBS          = 
++LIBS          = -lnetfilter_conntrack 
+ LUA           = lua
+
+ #################################################################
+ 
+-- 
+2.17.1
+
