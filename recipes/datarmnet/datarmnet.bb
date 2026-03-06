@@ -13,17 +13,10 @@ DEPENDS = "virtual/kernel"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://datarmnet/core/"
-SRC_URI += "file://start_rmnetcore_le"
-SRC_URI += "file://rmnetcore.service"
+SRC_URI += "file://datarmnet-load.conf"
 
 S = "${WORKDIR}/datarmnet/core"
 
-FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/"
-FILES:${PN}+="/etc/initscripts/start_rmnetcore_le"
-FILES:${PN}+= "${systemd_unitdir}/system/rmnetcore.service"
-FILES:${PN}+= "${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service"
-
-INITSCRIPT_NAME = "start_rmnetcore_le"
 INITSCRIPT_PARAMS = "start 35 5 . stop 15 0 1 6 ."
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
@@ -62,28 +55,16 @@ do_compile:qcm4325-mtp() {
 
 #currently not working but for some reason this compiles but do_install_append doesnt
 do_install:qcm2290-mtp() {
-    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
-    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
-    install -d ${D}${sysconfdir}/initscripts/
-    install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
-    install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
-    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
-    ln -sf ${systemd_unitdir}/system/rmnetcore.service \
-	${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
+    install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}
+    install -m 0644 ${WORKDIR}/datarmnet-load.conf -D ${D}${sysconfdir}/modules-load.d/datarmnet-load.conf
+    install -m 0644 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
 
 }
 
 do_install:qcm4325-mtp() {
-    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
-    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
-    install -d ${D}${sysconfdir}/initscripts/
-    install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
-    install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
-    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
-    ln -sf ${systemd_unitdir}/system/rmnetcore.service \
-    ${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
+    install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}
+    install -m 0644 ${WORKDIR}/datarmnet-load.conf -D ${D}${sysconfdir}/modules-load.d/datarmnet-load.conf
+    install -m 0644 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
 
 }
 
@@ -100,16 +81,11 @@ do_compile:kera() {
 }
 
 do_install:kera() {
-    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
-    install -m 0755 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/rmnet_core.ko
-    install -d ${D}${sysconfdir}/initscripts/
-    install -m 0755 ${WORKDIR}/start_rmnetcore_le ${D}${sysconfdir}/initscripts/start_rmnetcore_le
-    install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${WORKDIR}/rmnetcore.service -D ${D}${systemd_unitdir}/system/rmnetcore.service
-    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
-    ln -sf ${systemd_unitdir}/system/rmnetcore.service \
-    ${D}${systemd_unitdir}/system/local-fs.target.wants/rmnetcore.service
+    install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}
+    install -m 0644 ${WORKDIR}/datarmnet-load.conf -D ${D}${sysconfdir}/modules-load.d/datarmnet-load.conf
+    install -m 0644 ${WORKDIR}/datarmnet/core-out/rmnet_core.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}
 }
 
-RPROVIDES:${PN} += "${@'kernel-module-rmnet_core-${KERNEL_VERSION}'.replace('_', '-')}"
-
+FILES:${PN} += "${base_libdir}/modules/${KERNEL_VERSION}/*"
+FILES:${PN} += "${sysconfdir}/modules-load.d/datarmnet-load.conf"
+RPROVIDES:${PN} += "kernel-module-rmnet-core-${KERNEL_VERSION}"
