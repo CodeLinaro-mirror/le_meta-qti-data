@@ -34,8 +34,8 @@ TARGET_CFLAGS += -I$(TOOLCHAIN_DIR)/include/linux/ethtool.h
 
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
-	$(CP) -LR $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
-	$(CP) -R $(LOCAL_FILES_SRC)/* $(PKG_BUILD_DIR)/
+	$(CP) -H $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
+	$(CP) $(LOCAL_FILES_SRC)/* $(PKG_BUILD_DIR)/
 endef
 
 MAKE_OPTS := \
