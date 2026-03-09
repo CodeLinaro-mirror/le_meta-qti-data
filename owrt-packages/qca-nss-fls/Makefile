@@ -25,9 +25,9 @@ endef
 FLS_MAKE_OPTS:= \
         M="$(PKG_BUILD_DIR)"
 
-ifneq ($(CONFIG_PACKAGE_kmod-emesh-sp),)
-FLS_MAKE_OPTS+=FLS_ECM_CLASSIFIER_EMESH_ENABLE=y
-endif
+#ifneq ($(PROFILE),cpe-tarang)
+#FLS_MAKE_OPTS+=FLS_ECM_CLASSIFIER_EMESH_ENABLE=y
+#endif
 
 EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-sfe
 EXTRA_CFLAGS+= -I$(STAGING_DIR)/usr/include/qca-nss-ecm

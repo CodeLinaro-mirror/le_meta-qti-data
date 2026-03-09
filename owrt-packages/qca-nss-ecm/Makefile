@@ -11,6 +11,12 @@ include $(INCLUDE_DIR)/package.mk
 LOCAL_SRC := $(TOPDIR)/src/qca-nss-ecm/
 ECM_ADDR := lib/modules/ecm/
 
+ECM_DEPENDS := +kmod-qca-nss-sfe
+
+ifeq ($(filter cpe-tarang cpe-min,$(PROFILE)),)
+  ECM_DEPENDS += +kmod-emesh-sp
+endif
+
 define KernelPackage/$(PKG_NAME)
   SECTION:=kernel
   CATEGORY:=Kernel modules
@@ -21,7 +27,7 @@ define KernelPackage/$(PKG_NAME)
 	CONFIG_NF_CONNTRACK_CHAIN_EVENTS=n \
 	CONFIG_NF_CONNTRACK_DSCPREMARK_EXT=y
   PROVIDES:=kmod-qca-nss-ecm-premium
-  DEPENDS:= +kmod-qca-nss-sfe +kmod-emesh-sp
+  DEPENDS:=$(ECM_DEPENDS)
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
