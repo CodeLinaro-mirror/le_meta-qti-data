@@ -19,14 +19,11 @@ RDEPENDS:packagegroup-qti-data = ' \
     iptables \
     dnsmasq \
     dhcpcd \
-    iperf3 \
-    ethtool \
     tcpdump \
     conntrack-tools \
     data-oss \
     dataipa \
     datarmnet \
-    qps615 \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-emac-dwc-eqos", "packagegroup-qti-ethernet-tools", "", d)} \
     ${@bb.utils.contains_any("MACHINE_FEATURES", "qti-data-modem", "packagegroup-qti-data-modem", "", d)} \
     '
@@ -44,6 +41,9 @@ RDEPENDS:packagegroup-qti-data-modem:qcm4325-mtp = " \
 RDEPENDS:packagegroup-qti-data-modem:kera = " \
     data-oss \
     data-devicetree \
+    qps615 \
+    ethtool \
+    iperf3 \
     "
 RDEPENDS:packagegroup-qti-data:append:kalama = "aquantia ethtool qps615 qps615-firmware"
 RDEPENDS:packagegroup-qti-data:remove:kalama = "datarmnet"
