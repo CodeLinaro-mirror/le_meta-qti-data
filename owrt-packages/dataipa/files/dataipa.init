@@ -16,6 +16,7 @@ start() {
 	chmod 666 /dev/ipa_adpl
 	chmod 666 /dev/ipa_odl_ctl
 	chmod 660 /dev/ipaIpv6CTTable
+	chmod 666 /etc/data/ipa_config.txt
 
 	chown -h radio:radio /dev/wwan_ioctl
 	chown -h radio:radio /dev/ipa
