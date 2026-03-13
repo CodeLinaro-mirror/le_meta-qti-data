@@ -45,8 +45,10 @@ start_service() {
 		procd_set_param command /bin/sh -c "/usr/bin/ipacm > /data/data_ipa/ipacm_log.txt"
 		procd_set_param stdout 1
 		procd_set_param stderr 1
+		procd_set_param nice "-1"
 	else
 		procd_set_param command /usr/bin/ipacm
+		procd_set_param nice "-1"
 	fi
 	[ -x /sbin/ujail -a -e /etc/capabilities/ipacm.json ] && {
 		procd_add_jail ipacm
