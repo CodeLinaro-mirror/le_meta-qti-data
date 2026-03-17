@@ -31,7 +31,7 @@ MAKE_OPTS:= \
 	TARGET_SUPPORT="$(KERNEL_PLATFORM_TARGET)"\
 
 define Build/Compile
-	if [ "$(BOARD)" = "sdxecho" ]; then \
+	if [ "$(BOARD)" = "echo" ]; then \
 		$(MAKE) -C $(PKG_BUILD_DIR) dtbs; \
 	fi
 endef
