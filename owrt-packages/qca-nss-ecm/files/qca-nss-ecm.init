@@ -19,8 +19,8 @@
 # openwrt build scripts automatically enable this package starting
 # at boot.
 
-# START=26
-# STOP=90
+START=09
+STOP=88
 
 get_front_end_mode() {
 	local front_end=$(uci get ecm.global.acceleration_engine)
@@ -73,8 +73,8 @@ load_ecm() {
 
 unload_ecm() {
 
-	sysctl -w net.bridge.bridge-nf-call-ip6tables=0
-	sysctl -w net.bridge.bridge-nf-call-iptables=0
+	[ -w /proc/sys/net/bridge/bridge-nf-call-ip6tables ] && sysctl -w net.bridge.bridge-nf-call-ip6tables=0
+	[ -w /proc/sys/net/bridge/bridge-nf-call-iptables ]  && sysctl -w net.bridge.bridge-nf-call-iptables=0
 
 	if [ -d /sys/module/ecm ]; then
 		#
@@ -107,8 +107,8 @@ unload_ecm_sdx_pcc() {
 pre_start() {
 	#Pre-Start Commands
 
-	sysctl -w net.bridge.bridge-nf-call-ip6tables=1
-	sysctl -w net.bridge.bridge-nf-call-iptables=1
+	[ -w /proc/sys/net/bridge/bridge-nf-call-ip6tables ] && sysctl -w net.bridge.bridge-nf-call-ip6tables=1
+	[ -w /proc/sys/net/bridge/bridge-nf-call-iptables ]  && sysctl -w net.bridge.bridge-nf-call-iptables=1
 
 	#Disable ipa hw offload for eth
 	#[ -f  /sys/class/net/eth0/suspend_ipa_offload ] && echo 1 > /sys/class/net/eth0/suspend_ipa_offload
