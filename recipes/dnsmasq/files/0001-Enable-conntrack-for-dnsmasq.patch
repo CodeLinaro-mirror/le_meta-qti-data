@@ -1,0 +1,25 @@
+From 2de063de6b9471f579a9a77de9fe311cf2072529 Mon Sep 17 00:00:00 2001
+From: Raju Velpula <rvelpula@qti.qualcomm.com>
+Date: Wed, 21 Feb 2024 14:40:07 +0530
+Subject: [PATCH] Enable conntrack for dnsmasq
+
+---
+ src/config.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/config.h b/src/config.h
+index cd37900..39326ce 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -193,7 +193,7 @@ RESOLVFILE
+ /* #define HAVE_DBUS */
+ /* #define HAVE_IDN */
+ /* #define HAVE_LIBIDN2 */
+-/* #define HAVE_CONNTRACK */
++#define HAVE_CONNTRACK
+ /* #define HAVE_CRYPTOHASH */
+ /* #define HAVE_DNSSEC */
+ /* #define HAVE_NFTSET */
+-- 
+2.17.1
+
