@@ -8,13 +8,14 @@ DefaultDependencies=no
 
 [Service]
 Restart=no
+Environment=IPACM_DEBUG=0
 ExecStartPre=udevadm trigger --settle --subsystem-match=wwan_ioctl --subsystem-match=ipa --subsystem-match=ipaNatTable --subsystem-match=ipa_adpl --subsystem-match=ipa_odl_ctl --action=add
 ExecStartPre=/bin/sh -c 'mkdir -p /tmp/data_ipa'
 ExecStartPre=+chmod 660 /dev/ipaNatTable /dev/ipaIpv6CTTable
 ExecStartPre=+chmod 666 /dev/wwan_ioctl /dev/ipa /dev/ipa_adpl /dev/ipa_odl_ctl
 ExecStartPre=+chown -h radio.radio /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipa_adpl /dev/ipa_odl_ctl /dev/ipaIpv6CTTable
 ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/ /etc/data/ipa/ /tmp/data_ipa
-ExecStart=/usr/bin/ipacm
+ExecStart=/usr/bin/ipacm --logs=${IPACM_DEBUG}
 User=radio
 Group=radio
 SupplementaryGroups=diag inet
