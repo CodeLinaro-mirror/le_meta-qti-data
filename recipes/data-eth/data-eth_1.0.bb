@@ -11,7 +11,15 @@ inherit module
 inherit qperf
 inherit systemd
 
-DEPENDS += "dataipa"
+python () {
+    import os
+    workspace = d.getVar('WORKSPACE')
+    if not workspace:
+        bb.fatal("WORKSPACE is not set — cannot determine dataipa in-tree/out-of-tree build mode")
+    d.setVar('DATAIPA_INTREE', '1' if os.path.isdir(workspace + '/dataipa') else '0')
+}
+
+DEPENDS += "${@'dataipa' if d.getVar('DATAIPA_INTREE') == '1' else 'virtual/kernel virtual/dtc-native data-devicetree linux-msm-headers'}"
 
 # Files from meta-qti-data
 SRC_URI += "file://emac_ioss.service"

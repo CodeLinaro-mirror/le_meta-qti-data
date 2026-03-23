@@ -11,10 +11,8 @@ PACKAGES = ' \
     packagegroup-qti-data-iptables \
     '
 RDEPENDS:packagegroup-qti-data = ' \
-	dataipa \
 	conntrack-tools \
 	data-oss \
-	datarmnet \
 	data-eth \
 	data-ipa-cfg-mgr \
 	dhcpcd \

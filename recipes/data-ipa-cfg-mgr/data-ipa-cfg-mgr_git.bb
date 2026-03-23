@@ -7,16 +7,25 @@ ${LICENSE};md5=550794465ba0ec5312d6919e203a55f9"
 
 PR = "r4"
 
-DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat libnl"
+python () {
+    import os
+    workspace = d.getVar('WORKSPACE')
+    if not workspace:
+        bb.fatal("WORKSPACE is not set — cannot determine dataipa in-tree/out-of-tree build mode")
+    d.setVar('DATAIPA_INTREE', '1' if os.path.isdir(workspace + '/dataipa') else '0')
+}
+
+DEPENDS = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel libnl"
+DEPENDS += "${@'data-ipanat' if d.getVar('DATAIPA_INTREE') == '1' else 'linux-msm-headers'}"
 
 BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
 EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
 		--with-sanitized-headers=${KERNEL_OUT_PATH}/msm-kernel/usr/include/  \
-                --with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc \
-                --with-glib"
+		--with-glib \
+		${@'--with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc' if d.getVar('DATAIPA_INTREE') == '1' else ''}"
 
-EXTRA_OEMAKE += 'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include'
+EXTRA_OEMAKE += "${@'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include' if d.getVar('DATAIPA_INTREE') == '1' else ''}"
 
 FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
 SRC_URI = "file://data-ipa-cfg-mgr"
@@ -36,6 +45,9 @@ do_install:append() {
 	  #IPACM Service
 	  rm -rf ${D}${sysconfdir}/init.d/start_ipacm_le
 	  install -m 0644 ${WORKDIR}/ipacm.service -D ${D}${systemd_unitdir}/system/ipacm.service
+	  if [ "${@'yes' if d.getVar('DATAIPA_INTREE') == '1' else 'no'}" = "no" ]; then
+	      sed -i -E 's/[[:space:]]*dataipa\.service//' ${D}${systemd_unitdir}/system/ipacm.service
+	  fi
 	  install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
 	  # enable the service for local-fs.target
 	  ln -sf ${systemd_unitdir}/system/ipacm.service \
