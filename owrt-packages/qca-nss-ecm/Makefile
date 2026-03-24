@@ -12,10 +12,7 @@ LOCAL_SRC := $(TOPDIR)/src/qca-nss-ecm/
 ECM_ADDR := lib/modules/ecm/
 
 ECM_DEPENDS := +kmod-qca-nss-sfe
-
-ifeq ($(filter cpe-tarang cpe-min,$(PROFILE)),)
-  ECM_DEPENDS += +kmod-emesh-sp
-endif
+ECM_DEPENDS += +PACKAGE_kmod-emesh-sp:kmod-emesh-sp +PACKAGE_kmod-emesh-sp-mcc:kmod-emesh-sp-mcc
 
 define KernelPackage/$(PKG_NAME)
   SECTION:=kernel
