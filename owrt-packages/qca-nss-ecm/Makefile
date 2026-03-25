@@ -21,7 +21,7 @@ define KernelPackage/$(PKG_NAME)
 	CONFIG_NF_CONNTRACK_CHAIN_EVENTS=n \
 	CONFIG_NF_CONNTRACK_DSCPREMARK_EXT=y
   PROVIDES:=kmod-qca-nss-ecm-premium
-  DEPENDS:= +kmod-qca-nss-sfe
+  DEPENDS:= +kmod-qca-nss-sfe +kmod-dataipa
 endef
 
 define KernelPackage/$(PKG_NAME)/Description
@@ -38,6 +38,7 @@ define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)/
 	$(CP) $(LOCAL_SRC)/* $(PKG_BUILD_DIR)/
 	echo "ccflags-y += -I$(STAGING_DIR)/usr/include/qca-nss-sfe" >> $(PKG_BUILD_DIR)/Makefile
+	echo "ccflags-y += -I$(STAGING_DIR)/usr/include/dataipa" >> $(PKG_BUILD_DIR)/Makefile
 endef
 
 ECM_MAKE_OPTS:=ECM_DB_PER_CLIENT_ROUTED_STATS_ENABLE=y \
@@ -58,7 +59,8 @@ ECM_MAKE_OPTS:=ECM_DB_PER_CLIENT_ROUTED_STATS_ENABLE=y \
 	ECM_FRONT_END_SFE_ENABLE=y \
 	ECM_SDX_PCC_ENABLED=y \
 	ECM_INTERFACE_PPP_ENABLE=n \
-	ECM_INTERFACE_PPPOE_ENABLE=n
+	ECM_INTERFACE_PPPOE_ENABLE=n \
+	ECM_FRONT_END_IPA_ENABLE=y
 
 MAKE_OPTS := \
 	M="$(PKG_BUILD_DIR)" \
