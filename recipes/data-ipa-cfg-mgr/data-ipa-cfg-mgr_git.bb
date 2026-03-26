@@ -7,14 +7,15 @@ ${LICENSE};md5=550794465ba0ec5312d6919e203a55f9"
 
 PR = "r4"
 
-DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat libnl"
+DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat libnl dlt-daemon"
 
 BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
 EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
 		--with-sanitized-headers=${KERNEL_OUT_PATH}/msm-kernel/usr/include/  \
                 --with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc \
-                --with-glib"
+                --with-glib \
+				--with-dltlogging"
 
 
 FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
