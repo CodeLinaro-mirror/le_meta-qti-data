@@ -20,7 +20,7 @@ SRC_URI += "file://setup_avtp_routing_le"
 SRC_URI += "file://emac_dwc_eqos.service"
 SRC_URI += "file://setup_avtp_routing_le.service"
 
-S = "${WORKDIR}/data-kernel/drivers/emac-dwc-eqos/"
+S = "${WORKDIR}/data-kernel/drivers/emac-dwc-eqos"
 
 EXTRA_OEMAKE += "LBITS=32"
 EXTRA_OEMAKE += "DWC_ETH_QOS_ENABLE_ETHTOOL=1"
@@ -93,6 +93,6 @@ do_module_signing() {
 
 addtask module_signing after do_package before do_package_write_ipk
 
-RPROVIDES:${PN} += "${@'kernel-module-emac-dwc-eqos-${KERNEL_VERSION}'.replace('_', '-')}"
+RPROVIDES:${PN} += "kernel-module-emac-dwc-eqos-${KERNEL_VERSION}"
 # uncomment below line if you are compiling test module for vipertooth
 #RPROVIDES:${PN} += "${@'kernel-module-dwc-eth-qos-testmod-${KERNEL_VERSION}'.replace('_', '-')}"

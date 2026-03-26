@@ -18,6 +18,9 @@ INC_PR = "r12"
 
 DEPENDS = "expat libcap libdaemon dbus glib-2.0 glib-2.0-native"
 
+COMPATIBLE_MACHINE:qcm2290-mtp = "null"
+COMPATIBLE_MACHINE:qcm4325-mtp = "null"
+
 SRC_URI = "https://github.com/lathiat/avahi/releases/download/v${PV}/avahi-${PV}.tar.gz \
           file://00avahi-autoipd \
           file://99avahi-autoipd \
@@ -97,7 +100,7 @@ RDEPENDS:avahi-daemon = "${@bb.utils.contains('DISTRO_FEATURES','systemd', '', '
 RRECOMMENDS:avahi-daemon:append:libc-glibc = " libnss-mdns"
 RRECOMMENDS:${PN}:append:libc-glibc = "libnss-mdns"
 
-RRECOMMENDS:avahi-dev = "expat-dev libcap-dev libdaemon-dev dbus-dev glib-2.0-dev update-rc.d-dev"
+RRECOMMENDS:avahi-dev += "expat-dev libcap-dev libdaemon-dev dbus-dev glib-2.0-dev update-rc.d-dev"
 RRECOMMENDS:avahi-dev:append:libc-glibc = " gettext-dev"
 
 RRECOMMENDS:avahi-dev[nodeprrecs] = "1"
