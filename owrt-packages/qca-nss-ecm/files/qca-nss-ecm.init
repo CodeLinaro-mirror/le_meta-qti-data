@@ -153,6 +153,9 @@ post_start() {
 
 	echo "post_start"
 
+	#update alg tcp/udp denied ports
+	echo add 21 53 554 5060 1720 1723 4500 6566 6667 > /proc/sys/net/ecm/tcp_denied_ports
+	echo add 53 67 69 137 138 1719 5060 4500 10080 > /proc/sys/net/ecm/udp_denied_ports
 }
 
 #start_service() {
