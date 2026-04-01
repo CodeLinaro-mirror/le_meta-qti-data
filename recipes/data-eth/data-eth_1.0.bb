@@ -75,31 +75,22 @@ do_install() {
 	install -m 0644 ${WORKDIR}/setup_qos_eth1.service ${D}${systemd_unitdir}/system/
 
 	install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/
-	install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/
 	install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/data-eth/drivers/ioss/
-	install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/data-eth/drivers/emac_ioss/
 
 	# Copy the modules that contain debug symbols to the deploy directory
 	cp ${WORKDIR}/data-eth/drivers/ioss/ioss.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/data-eth/drivers/ioss/
-	cp ${WORKDIR}/data-eth/drivers/emac_ioss/iemac_ioss.ko ${DEPLOY_DIR_IMAGE}/kernel_modules/data-eth/drivers/emac_ioss/
 
 	# Strip debug symbols
 	${STRIP} --strip-debug \
-	${WORKDIR}/data-eth/drivers/ioss/ioss.ko \
-	${WORKDIR}/data-eth/drivers/emac_ioss/iemac_ioss.ko
+	${WORKDIR}/data-eth/drivers/ioss/ioss.ko
 
-	#Signing and installing the datarmnet module
+	#Signing and installing the ioss module
 	LD_LIBRARY_PATH=${WORKSPACE}/kernel/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
 	${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
 	${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/data-eth/drivers/ioss/ioss.ko
 
-	LD_LIBRARY_PATH=${WORKSPACE}/kernel/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
-	${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
-	${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${WORKDIR}/data-eth/drivers/emac_ioss/iemac_ioss.ko
-
 	# Install the stripped modules to the rootfs
 	install -m 644 ${WORKDIR}/data-eth/drivers/ioss/ioss.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko
-	install -m 644 ${WORKDIR}/data-eth/drivers/emac_ioss/iemac_ioss.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko
 
 	# Create a symlink for the module
 	#ln -sf /usr/lib/modules/${KERNEL_VERSION}/extra/ioss.ko ${D}/lib/modules/${KERNEL_VERSION}/extra/ioss.ko
@@ -109,12 +100,6 @@ do_install() {
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
 	install -d ${D}${systemd_unitdir}/system/
-	install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
-
-	install -m 0644 ${WORKDIR}/emac_ioss.service \
-		-D ${D}${systemd_unitdir}/system/emac_ioss.service
-	ln -sf -r ${D}${systemd_unitdir}/system/emac_ioss.service \
-		${D}${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service
 }
 
 # qperf class adds do_copy_kernel_module() after do_module_signing().
@@ -130,16 +115,12 @@ SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 FILES:${PN}+="${libdir}/modules/*"
 FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/ioss/ioss.ko"
-FILES:${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/emac_ioss/iemac_ioss.ko"
-FILES:${PN}+="${systemd_unitdir}/system/emac_ioss.service"
-FILES:${PN}+="${systemd_unitdir}/system/multi-user.target.wants/emac_ioss.service"
 FILES:${PN}+="${systemd_unitdir}/system/setup_qos_eth0.service"
 FILES:${PN}+="${systemd_unitdir}/system/setup_qos_eth1.service"
 FILES:${PN}+="${sysconfdir}/initscripts/config_qos.sh"
 FILES:${PN}+="${sysconfdir}/initscripts/config.ini"
 
 RPROVIDES:${PN} += "kernel-module-*-${KERNEL_VERSION}"
-RPROVIDES:${PN} += "kernel-module-iemac-ioss-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-ioss-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-data-eth-${KERNEL_VERSION}"
 do_remove[noexec] = "1"
