@@ -54,7 +54,7 @@ MAKE_OPTS := \
     $(SFE_MAKE_OPTS)
 
 define Build/Compile
-    if [ "$(BOARD)" = "sdxecho" ]; then \
+    if [ "$(BOARD)" = "echo" ]; then \
         $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" modules; \
     else \
         $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) EXTRA_CFLAGS="$(EXTRA_CFLAGS)" modules; \

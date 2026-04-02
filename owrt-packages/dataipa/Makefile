@@ -29,7 +29,7 @@ endef
 MAKE_OPTS:= \
     M="$(PKG_BUILD_DIR)"
 
-ifeq ($(BOARD),sdxecho)
+ifeq ($(BOARD),echo)
 MAKE_OPTS += CONFIG_ARCH_SDXECHO=y
 endif
 

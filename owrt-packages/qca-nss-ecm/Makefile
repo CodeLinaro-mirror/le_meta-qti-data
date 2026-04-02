@@ -68,7 +68,7 @@ MAKE_OPTS := \
 
 define Build/Compile
 	echo "Linux Dir: $(LINUX_DIR)"
-	if [ "$(BOARD)" = "sdxecho" ]; then \
+	if [ "$(BOARD)" = "echo" ]; then \
 		$(KERNEL_MAKE) -C "$(LINUX_DIR)" $(ECM_MAKE_OPTS) $(MAKE_OPTS) \
 		EXAMPLES_BUILD_SDX="$(CONFIG_QCA_NSS_ECM_EXAMPLES_SDX)" \
 		modules; \
@@ -82,7 +82,7 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include/qca-nss-ecm
 	mkdir -p  $(1)/usr/lib/
 	$(CP) $(PKG_BUILD_DIR)/ecm.ko $(1)/usr/lib/
-	if [ "$(BOARD)" = "sdxecho" ]; then \
+	if [ "$(BOARD)" = "echo" ]; then \
 		$(CP) $(PKG_BUILD_DIR)/examples/ecm_ae_select.ko $(1)/usr/lib/; \
 	else \
 		$(CP) $(PKG_BUILD_DIR)/ecm_ae_select.ko $(1)/usr/lib/; \
@@ -102,7 +102,7 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm.ko $(1)/lib/modules/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
-	if [ "$(BOARD)" = "sdxecho" ]; then \
+	if [ "$(BOARD)" = "echo" ]; then \
 		$(INSTALL_BIN) $(PKG_BUILD_DIR)/examples/ecm_sdx_pcc.ko $(1)/lib/modules/; \
 		$(INSTALL_BIN) $(PKG_BUILD_DIR)/examples/ecm_sdx_pcc.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/; \
 	else \

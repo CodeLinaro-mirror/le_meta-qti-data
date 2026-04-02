@@ -21,7 +21,7 @@ else ifeq ($(BOARD),sdx75)
 	LOCAL_SRC:=$(TOPDIR)/src/dataipa/kernel-tests
 else ifeq ($(BOARD),sdx85)
 	LOCAL_SRC:=$(TOPDIR)/src/dataipa/kernel-tests
-else ifeq ($(BOARD),sdxecho)
+else ifeq ($(BOARD),echo)
 	LOCAL_SRC:=$(TOPDIR)/src/dataipa/kernel-tests
 endif
 
