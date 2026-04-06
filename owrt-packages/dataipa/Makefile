@@ -30,7 +30,7 @@ MAKE_OPTS:= \
     M="$(PKG_BUILD_DIR)"
 
 ifeq ($(BOARD),echo)
-MAKE_OPTS += CONFIG_ARCH_SDXECHO=y
+MAKE_OPTS += CONFIG_ARCH_ECHO=y
 endif
 
 ifeq ($(BOARD),sa535m)
@@ -38,7 +38,7 @@ MAKE_OPTS += CONFIG_ARCH_SA535M=y
 endif
 
 define Build/Compile
-  if [ "$(BOARD)" = "sdxecho" ]; then \
+  if [ "$(BOARD)" = "echo" ]; then \
       $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
   else \
       $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
