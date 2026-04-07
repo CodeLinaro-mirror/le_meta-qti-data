@@ -38,6 +38,8 @@ do_install_append () {
          install -m 0755 ${WORKDIR}/dnsmasq_script.sh ${D}${base_bindir}
          chown -h 65534:65534 ${D}${base_bindir}/dnsmasq_script.sh
 
+         rm -f ${D}${sysconfdir}/systemd/system/dnsmasq.service
+         rm -f ${D}${systemd_unitdir}/system/dnsmasq.service
          rm -f ${D}${sysconfdir}/systemd/resolved.conf.d/*
          rm -d ${D}${sysconfdir}/systemd/resolved.conf.d
 }
