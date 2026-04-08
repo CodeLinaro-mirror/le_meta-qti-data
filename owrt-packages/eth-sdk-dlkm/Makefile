@@ -42,7 +42,7 @@ MAKE_OPTS := \
 	M="$(PKG_BUILD_DIR)"
 
 define Build/Compile
-  if [ "$(BOARD)" = "sdxecho" ]; then \
+  if [ "$(BOARD)" = "echo" ]; then \
       $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS)  modules; \
   fi
 endef
