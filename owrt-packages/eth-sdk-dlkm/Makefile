@@ -39,7 +39,7 @@ define Build/Prepare
 endef
 
 MAKE_OPTS := \
-	M="$(PKG_BUILD_DIR)"
+	M="$(PKG_BUILD_DIR)" BOARD="$(BOARD)"
 
 define Build/Compile
   if [ "$(BOARD)" = "echo" ]; then \
