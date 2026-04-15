@@ -10,20 +10,14 @@ PACKAGES = ' \
     ${MLPREFIX}packagegroup-qti-data \
     '
 
+# The following packages are optional and can be added if needed:
+# datarmnet-ext, aquantia, iproute2-tc, tcpdump, iproute2
+# dnsmasq, bridge-utils, conntrack-tools, data-eth, data-ipa-cfg-mgr
+
 RDEPENDS:packagegroup-qti-data = ' \
     dataipa \
     datarmnet \
-    datarmnet-ext \
-    aquantia \
-    iproute2-tc \
-    tcpdump \
-    iproute2 \
     iptables \
-    dnsmasq \
-    bridge-utils \
-    conntrack-tools \
-    data-eth \
-    data-ipa-cfg-mgr \
     '
 
 RDEPENDS:packagegroup-qti-data:echo += "data-devicetree"
