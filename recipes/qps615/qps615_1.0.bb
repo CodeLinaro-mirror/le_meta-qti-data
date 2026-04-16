@@ -9,7 +9,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 RRECOMMENDS:${PN} += "qps615-firmware"
 
-DEPENDS = "virtual/kernel linux-msm-headers rsync-native"
+DEPENDS = "virtual/kernel linux-msm-headers ${@bb.utils.contains('DDK_BUILD', 'true', '', 'rsync-native', d)}"
 
 SRC_URI += "file://qps615.service"
 
@@ -42,13 +42,12 @@ do_install:kalama() {
 
 do_compile:kera() {
     cd ${KERNEL_PLATFORM_PATH}
-    export PATH="${STAGING_BINDIR_NATIVE}:${PATH}"
     BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
+    CONFIG_QPS615=y \
     EXT_MODULES=../../data-eth \
     ROOTDIR=${WORKSPACE}/ \
     MODULE_OUT=${WORKDIR}/../src/data-eth-modules-out \
     OUT_DIR=${KERNEL_OUT_PATH} \
-    ENABLE_DDK_BUILD=true \
     VARIANT=${KERNEL_DEFCONFIG_VARIANT} \
     TARGET_BOARD_PLATFORM=${TARGET_BOARD_PLATFORM} \
     ./build/build_module.sh
@@ -57,10 +56,10 @@ export LD_LIBRARY_PATH = "${KERNEL_OUT_PATH}dist"
 
 do_install:kera() {
    # Strip debug symbols
-   ${STRIP} --strip-debug ${WORKDIR}/../src/data-eth-modules-out/tc956x_pcie_eth.ko
+   ${STRIP} --strip-debug ${WORKDIR}/../src/data-eth-modules-out/drivers/qps615/src/tc956x_pcie_eth.ko
 
    install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}
-   install -m 0644 ${WORKDIR}/../src/data-eth-modules-out/tc956x_pcie_eth.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}/tc956x_pcie_eth.ko
+   install -m 0644 ${WORKDIR}/../src/data-eth-modules-out/drivers/qps615/src/tc956x_pcie_eth.ko -D ${D}${base_libdir}/modules/${KERNEL_VERSION}/tc956x_pcie_eth.ko
    install -d ${D}${systemd_unitdir}/system
    install -d ${D}${systemd_unitdir}/system/multi-user.target.wants
    install -m 0644 ${WORKDIR}/qps615.service -D ${D}${systemd_unitdir}/system/qps615.service
@@ -74,8 +73,8 @@ do_deploy() {
         cp -rp ${WORKDIR}/src/data-eth-modules-out/tc956x_pcie_eth.ko ${DEPLOYDIR}/kernel_modules
     fi
 
-    if [ -f ${WORKDIR}/data-eth-modules-out/tc956x_pcie_eth.ko ]; then
-        cp -rp ${WORKDIR}/data-eth-modules-out/tc956x_pcie_eth.ko ${DEPLOYDIR}/kernel_modules
+    if [ -f ${WORKDIR}/data-eth-modules-out/drivers/qps615/src/tc956x_pcie_eth.ko ]; then
+        cp -rp ${WORKDIR}/data-eth-modules-out/drivers/qps615/src/tc956x_pcie_eth.ko ${DEPLOYDIR}/kernel_modules
     fi
 }
 addtask do_deploy after do_install before do_package
