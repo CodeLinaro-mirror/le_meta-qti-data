@@ -7,8 +7,9 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 SRCREV = "1a4467eb0faa2a9fae96d1a68c79f9ea77342436"
 SRC_URI = "git://git.codelinaro.org/clo/le/external/github.com/aquantia/linux-aqr-phy-only.git;protocol=https;branch=aquantia/main \
            file://kobj/Makefile \
-           file://aquantia.service"
-
+           file://aquantia.service \
+           file://0001-phy-aquantia-Ensure-correct-system-interface-status-.patch \
+           file://0002-phy-aquantia-Add-support-for-USX5G-mode.patch"
 
 inherit pkgconfig autotools deploy module linux-kernel-base
 S = "${WORKDIR}/git/aquantia"
