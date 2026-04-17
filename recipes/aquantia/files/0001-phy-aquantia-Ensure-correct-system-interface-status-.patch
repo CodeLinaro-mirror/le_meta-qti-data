@@ -28,10 +28,10 @@ Signed-off-by: Amitha Sanka<asanka@qti.qualcomm.com>
  aquantia/aquantia_main.c | 25 ++++++++++++++++++++++---
  1 file changed, 22 insertions(+), 3 deletions(-)
 
-diff --git a/aquantia/aquantia_main.c b/aquantia/aquantia_main.c
+diff --git a/aquantia_main.c b/aquantia_main.c
 index 6b4ac33..541c05f 100644
---- a/aquantia/aquantia_main.c
-+++ b/aquantia/aquantia_main.c
+--- a/aquantia_main.c
++++ b/aquantia_main.c
 @@ -49,6 +49,7 @@
  #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_XFI	2
  #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_USXGMII	3

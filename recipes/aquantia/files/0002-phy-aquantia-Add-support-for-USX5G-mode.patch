@@ -10,10 +10,10 @@ Signed-off-by: Amitha Sanka<asanka@qti.qualcomm.com>
  aquantia/aquantia_main.c | 9 +++++----
  1 file changed, 5 insertions(+), 4 deletions(-)
 
-diff --git a/aquantia/aquantia_main.c b/aquantia/aquantia_main.c
+diff --git a/aquantia_main.c b/aquantia_main.c
 index 541c05f..b0dd8f1 100644
---- a/aquantia/aquantia_main.c
-+++ b/aquantia/aquantia_main.c
+--- a/aquantia_main.c
++++ b/aquantia_main.c
 @@ -52,7 +52,8 @@
  #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_OFF	9
  #define MDIO_PHYXS_VEND_IF_STATUS_TYPE_OCSGMII	10
