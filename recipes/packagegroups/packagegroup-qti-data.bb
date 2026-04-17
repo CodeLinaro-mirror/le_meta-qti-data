@@ -28,6 +28,8 @@ RDEPENDS:packagegroup-qti-data = ' \
     conntrack-tools \
     eth-sdk-dlkm \
     data-ipa-cfg-mgr \
+    qca-nss-ecm \
     '
 RDEPENDS:packagegroup-qti-data:append:echo = " data-devicetree"
 RDEPENDS:packagegroup-qti-data:remove:echo = "datarmnet-ext aquantia iproute2-tc tcpdump iproute2 dnsmasq bridge-utils conntrack-tools data-ipa-cfg-mgr"
+
