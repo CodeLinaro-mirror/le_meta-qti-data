@@ -18,6 +18,7 @@ User=radio
 Group=radio
 SupplementaryGroups=diag inet
 AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
 
 [Install]
 WantedBy=local-fs.target
