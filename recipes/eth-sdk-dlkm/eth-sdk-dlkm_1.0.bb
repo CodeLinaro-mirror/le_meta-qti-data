@@ -11,6 +11,11 @@ RM_WORK_EXCLUDE += "${PN}"
 
 inherit module linux-kernel-base systemd
 
+KERNEL_SPLIT_MODULES = "0"
+
+SYSTEMD_SERVICE:${PN} = "eth-sdk-dlkm.service"
+SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+
 KERNEL_VERSION = "${@get_kernelversion_file("${STAGING_KERNEL_BUILDDIR}")}"
 do_configure[depends] += "virtual/kernel:do_shared_workdir"
 
