@@ -7,7 +7,9 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 PR = "r0"
 
-inherit deploy
+COMPATIBLE_MACHINE = "echo"
+
+inherit deploy kernel-arch
 
 # Ensure kernel headers/build artifacts are available in sysroot
 DEPENDS += "virtual/kernel"
@@ -42,6 +44,8 @@ do_install() {
     :
 }
 
+do_deploy[dirs] = "${DEPLOYDIR}"
+
 do_deploy() {
     # Create deployment directory for DTBOs
     install -d ${DEPLOYDIR}/tech_dtbs
@@ -49,10 +53,10 @@ do_deploy() {
     # Find and install DTBOs generated under ipa/ and eth only.
     # -type f   : regular files only
     # -name     : DTBO overlays
-    # -print0   : NUL-separated output for filename safety
-    find ${S}/ipa ${S}/eth -type f -name "*.dtbo" -print0 | \
-        xargs -0 install -m 0644 -t ${DEPLOYDIR}/tech_dtbs \
-        ${WORKDIR}/vendor/qcom/opensource/data-devicetree/*.dtbo
+    find ${S}/ipa ${S}/eth -type f -name "*.dtbo" \
+        -exec install -m 0644 {} ${DEPLOYDIR}/tech_dtbs \;
 }
 
 addtask do_deploy after do_install
+
+ALLOW_EMPTY:${PN} = "1"

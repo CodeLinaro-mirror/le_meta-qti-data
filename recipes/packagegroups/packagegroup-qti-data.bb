@@ -25,3 +25,5 @@ RDEPENDS:packagegroup-qti-data = ' \
     data-eth \
     data-ipa-cfg-mgr \
     '
+
+RDEPENDS:packagegroup-qti-data:echo += "data-devicetree"
