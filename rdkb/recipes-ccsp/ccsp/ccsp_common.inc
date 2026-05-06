@@ -6,10 +6,10 @@ LDFLAGS += "-lrdkloggers"
 
 inherit coverity pkgconfig
 
-CFLAGS_append += " -D_COSA_HAL_ -U_COSA_SIM_ -fno-exceptions -ffunction-sections -fdata-sections -fomit-frame-pointer -fno-strict-aliasing \ 
-           -DCONFIG_SYSTEM_MOCA -D_ANSC_LINUX -D_ANSC_USER -D_ANSC_LITTLE_ENDIAN_ -D_CCSP_CWMP_TCP_CONNREQ_HANDLER \ 
-           -D_DSLH_STUN_ -D_NO_PKI_KB5_SUPPORT -D_BBHM_SSE_FILE_IO -D_ANSC_USE_OPENSSL_ -DENABLE_SA_KEY \ 
-           -D_ANSC_AES_USED_ -D_COSA_INTEL_USG_ARM_ -D_COSA_FOR_COMCAST_ -D_NO_EXECINFO_H_ -DFEATURE_SUPPORT_SYSLOG \ 
+CFLAGS_append += " -D_COSA_HAL_ -U_COSA_SIM_ -fno-exceptions -ffunction-sections -fdata-sections -fomit-frame-pointer -fno-strict-aliasing \
+           -DCONFIG_SYSTEM_MOCA -D_ANSC_LINUX -D_ANSC_USER -D_ANSC_LITTLE_ENDIAN_ -D_CCSP_CWMP_TCP_CONNREQ_HANDLER \
+           -D_DSLH_STUN_ -D_NO_PKI_KB5_SUPPORT -D_BBHM_SSE_FILE_IO -D_ANSC_USE_OPENSSL_ -DENABLE_SA_KEY \
+           -D_ANSC_AES_USED_ -D_COSA_INTEL_USG_ARM_ -D_COSA_FOR_COMCAST_ -D_NO_EXECINFO_H_ -DFEATURE_SUPPORT_SYSLOG \
            -DBUILD_WEB -D_NO_ANSC_ZLIB_ -D_DEBUG -U_ANSC_IPV6_COMPATIBLE_ -DINCLUDE_BREAKPAD -DUSE_NOTIFY_COMPONENT -DNTPD_ENABLE \
 	   -DUTC_ENABLE -DXDNS_ENABLE -DMOCA_HOME_ISOLATION -DCCSP_SUPPORT_ENABLED \
 	   "
@@ -145,14 +145,20 @@ CFLAGS_append += " ${@bb.utils.contains('DISTRO_FEATURES', 'partner_default_ext'
 CFLAGS_append  += " ${@bb.utils.contains('DISTRO_FEATURES', 'SpeedBoostSupportEnable', ' -DSPEED_BOOST_SUPPORTED', '', d)}"
 
 #Adding flag for Amenity network
-CFLAGS_append = " ${@bb.utils.contains('DISTRO_FEATURES', 'AmenitiesNetworkSupportEnable', '-DAMENITIES_NETWORK_ENABLED', '', d)}"
+CFLAGS_append += " ${@bb.utils.contains('DISTRO_FEATURES', 'AmenitiesNetworkSupportEnable', '-DAMENITIES_NETWORK_ENABLED', '', d)}"
+
 
 # Adding flag for Lanmanager support
 CFLAGS_append  += " ${@bb.utils.contains('DISTRO_FEATURES', 'pm_lan_mgr', ' -DLAN_MGR_SUPPORT ', '', d)}"
 
-CFLAGS_append =  "${@bb.utils.contains('DISTRO_FEATURES', 'no_moca_support', ' -DNO_MOCA_FEATURE_SUPPORT ', '', d)}"
+
+CFLAGS_append +=  "${@bb.utils.contains('DISTRO_FEATURES', 'no_moca_support', ' -DNO_MOCA_FEATURE_SUPPORT ', '', d)}"
+
 CFLAGS_remove =  "${@bb.utils.contains('DISTRO_FEATURES', 'no_moca_support', ' -DMOCA_DIAGONISTIC -DMOCA_HOME_ISOLATION -DCONFIG_SYSTEM_MOCA ', '', d)}"
 
 FILES_${PN} += "${libdir}/*.so"
 FILES_SOLIBSDEV = ""
 INSANE_SKIP_${PN} += "dev-so"
+
+DEPENDS += "breakpad-wrapper"
+LDFLAGS += "-lbreakpadwrapper"

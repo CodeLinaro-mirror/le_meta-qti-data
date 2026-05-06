@@ -49,3 +49,9 @@ CONFFILES:${PN} = "${sysconfdir}/data/dnsmasq.conf"
 FILES:${PN} += "${sysconfdir}/data/dnsmasq.conf"
 FILES:${PN} += "${systemd_unitdir}/system/*"
 SYSTEMD_SERVICE:${PN} = ""
+
+# Fix host contamination in syslog-ng metadata directory ownership.
+# This ensures BitBake wraps the task with fakeroot-native, so all directory and file creation inside ${D} is recorded with root:root
+# ownership, eliminating the host contamination QA error.
+
+do_write_metadata_syslog_ng[fakeroot] = "1"
