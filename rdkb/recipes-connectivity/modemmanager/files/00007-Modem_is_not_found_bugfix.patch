@@ -1,0 +1,154 @@
+From ed131f2dfcd6d873c505831d86f6b57b2b1258c6 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 15 May 2026 08:42:56 +0000
+Subject: [PATCH 3/3] Modem_is_not_found_bugfix
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ src/mm-plugin-manager.c | 70 +++++++++++++++++++++++++++++++----------
+ src/mm-plugin.h         |  8 +++++
+ 2 files changed, 62 insertions(+), 16 deletions(-)
+
+diff --git a/src/mm-plugin-manager.c b/src/mm-plugin-manager.c
+index b461ebac..bd37b786 100644
+--- a/src/mm-plugin-manager.c
++++ b/src/mm-plugin-manager.c
+@@ -708,22 +708,30 @@ port_context_new (MMPluginManager *self,
+ /* Device context */
+ 
+ /* Time to wait for ports to appear before starting to probe the first one */
+-#define MIN_WAIT_TIME_MSECS 2000
++#define MIN_WAIT_TIME_MSECS 3000
++#define NAND_MIN_WAIT_TIME_MSECS 3000
+ 
+ /* Time to wait for other ports to appear once the first port is exposed
+  * (needs to be > MIN_WAIT_TIME_MSECS!!) */
+-#define MIN_PROBING_TIME_MSECS 15000
++#define MIN_PROBING_TIME_MSECS 4000
++#define NAND_MIN_PROBING_TIME_MSECS 15000
+ 
+ /* Additional time to wait for other ports to appear after the last port is
+  * exposed in the system. Longer time when not using udev, as we rely on
+  * mmcli --report-kernel-event events to report new port additions, e.g.
+  * via openwrt hotplug scripts. */
+ #if defined WITH_UDEV
+-# define EXTRA_PROBING_TIME_MSECS 18000
++#define EXTRA_PROBING_TIME_MSECS 3000
+ #else
+-# define EXTRA_PROBING_TIME_MSECS 18000
++#define EXTRA_PROBING_TIME_MSECS 5000
+ #endif
+ 
++#define NAND_EXTRA_PROBING_TIME_MSECS 18000
++#define MODEMMANAGER_UBI_ROOTFS_LOCATION_STR "/proc/cmdline"
++#define MODEMMANAGER_UBI_ROOTFS_STR "ubi0"
++
++struct stMMProbeTimer  g_stMMProbeTimer;
++static void mm_plugin_manager_qrtr_update_timer(void);
+ /* The wait time we define must always be less than the probing time */
+ G_STATIC_ASSERT (MIN_WAIT_TIME_MSECS < MIN_PROBING_TIME_MSECS);
+ 
+@@ -1298,7 +1306,8 @@ device_context_port_grabbed (DeviceContext  *device_context,
+     /* Refresh the extra probing timeout. */
+     if (device_context->extra_probing_time_id)
+         g_source_remove (device_context->extra_probing_time_id);
+-    device_context->extra_probing_time_id = g_timeout_add (EXTRA_PROBING_TIME_MSECS,
++
++    device_context->extra_probing_time_id = g_timeout_add (g_stMMProbeTimer.extraProbingTimeMsec,
+                                                            (GSourceFunc) device_context_extra_probing_time_elapsed,
+                                                            device_context);
+ 
+@@ -1391,6 +1400,9 @@ device_context_run (MMPluginManager     *self,
+     g_assert (!device_context->min_probing_time_id);
+     g_assert (!device_context->extra_probing_time_id);
+ 
++    /*this function used to update probe timer values in the g_stMMProbeTimer structure*/
++    mm_plugin_manager_qrtr_update_timer();
++
+     /* Connect to device port grabbed/released notifications from the device */
+     device_context->grabbed_id = g_signal_connect_swapped (device_context->device,
+                                                            MM_DEVICE_PORT_GRABBED,
+@@ -1402,21 +1414,21 @@ device_context_run (MMPluginManager     *self,
+                                                             device_context);
+ 
+     /* Set the initial waiting timeout. We don't want to probe any port before
+-     * this timeout expires, so that we get as many ports added in the device
+-     * as possible. If we don't do this, some plugin filters won't work properly,
+-     * like the 'forbidden-drivers' one.
+-     */
+-    device_context->min_wait_time_id = g_timeout_add (MIN_WAIT_TIME_MSECS,
++    * this timeout expires, so that we get as many ports added in the device
++    * as possible. If we don't do this, some plugin filters won't work properly,
++    * like the 'forbidden-drivers' one.
++    */
++    device_context->min_wait_time_id = g_timeout_add (g_stMMProbeTimer.minWaitTimeMsec,
+                                                       (GSourceFunc) device_context_min_wait_time_elapsed,
+                                                       device_context);
+ 
+     /* Set the initial probing timeout. We force the probing time of the device to
+-     * be at least this amount of time, so that the kernel has enough time to
+-     * bring up ports. Given that we launch this only when the first port of the
+-     * device has been exposed in udev, this timeout effectively means that we
+-     * leave up to 2s to the remaining ports to appear.
+-     */
+-    device_context->min_probing_time_id = g_timeout_add (MIN_PROBING_TIME_MSECS,
++    * be at least this amount of time, so that the kernel has enough time to
++    * bring up ports. Given that we launch this only when the first port of the
++    * device has been exposed in udev, this timeout effectively means that we
++    * leave up to 2s to the remaining ports to appear.
++    */
++    device_context->min_probing_time_id = g_timeout_add (g_stMMProbeTimer.minProbingTimeMsec,
+                                                          (GSourceFunc) device_context_min_probing_time_elapsed,
+                                                          device_context);
+ 
+@@ -2071,3 +2083,29 @@ mm_plugin_manager_class_init (MMPluginManagerClass *manager_class)
+                               MM_TYPE_FILTER,
+                               G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
+ }
++
++static void mm_plugin_manager_qrtr_update_timer(void)
++{
++
++    char command[100];
++    memset(&command, 0, sizeof(command));
++
++    snprintf(command, sizeof(command), "grep -r \"%s\" %s", MODEMMANAGER_UBI_ROOTFS_STR, MODEMMANAGER_UBI_ROOTFS_LOCATION_STR);
++
++    /* for NAND modem ubi0 string should be present in /proc/cmdline,
++     * system command return as 0 and structure update with nand timer values
++     * otherwise it should be emmc modem and structure update with emmc timer values*/
++    if(!system(command))
++    {
++        g_stMMProbeTimer.extraProbingTimeMsec = NAND_EXTRA_PROBING_TIME_MSECS;
++        g_stMMProbeTimer.minProbingTimeMsec = NAND_MIN_PROBING_TIME_MSECS;
++        g_stMMProbeTimer.minWaitTimeMsec = NAND_MIN_WAIT_TIME_MSECS;
++    }
++    else
++    {
++        g_stMMProbeTimer.extraProbingTimeMsec = EXTRA_PROBING_TIME_MSECS;
++        g_stMMProbeTimer.minProbingTimeMsec = MIN_PROBING_TIME_MSECS;
++        g_stMMProbeTimer.minWaitTimeMsec = MIN_WAIT_TIME_MSECS;
++    }
++    return;
++}
+diff --git a/src/mm-plugin.h b/src/mm-plugin.h
+index 1c071383..af54c963 100644
+--- a/src/mm-plugin.h
++++ b/src/mm-plugin.h
+@@ -125,6 +125,14 @@ struct _MMPluginClass {
+                            GError **error);
+ };
+ 
++extern struct stMMProbeTimer  g_stMMProbeTimer;
++
++typedef  struct stMMProbeTimer{
++    int minWaitTimeMsec;
++    int minProbingTimeMsec;
++    int extraProbingTimeMsec;
++};
++
+ GType mm_plugin_get_type (void);
+ G_DEFINE_AUTOPTR_CLEANUP_FUNC (MMPlugin, g_object_unref)
+ 
+-- 
+2.34.1
+

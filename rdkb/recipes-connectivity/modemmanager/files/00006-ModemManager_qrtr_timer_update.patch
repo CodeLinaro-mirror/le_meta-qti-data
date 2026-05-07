@@ -1,0 +1,77 @@
+From ec13077daf3884789b6b9c6f25a924cac8ddc735 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 15 May 2026 08:41:30 +0000
+Subject: [PATCH 2/3] ModemManager_qrtr_timer_update
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ data/ModemManager.service.in | 2 +-
+ src/mm-plugin-manager.c      | 8 ++++----
+ src/mm-qrtr-bus-watcher.c    | 3 ++-
+ 3 files changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/data/ModemManager.service.in b/data/ModemManager.service.in
+index 51b73dee..e8237fdf 100644
+--- a/data/ModemManager.service.in
++++ b/data/ModemManager.service.in
+@@ -7,7 +7,7 @@ ConditionVirtualization=!container
+ [Service]
+ Type=dbus
+ BusName=org.freedesktop.ModemManager1
+-ExecStart=@sbindir@/ModemManager
++ExecStart=@sbindir@/ModemManager --log-file=/rdklogs/logs/mmlog.txt --log-level=INFO --log-timestamps --log-relative-timestamps
+ StandardError=null
+ Restart=always
+ RestartSec=3
+diff --git a/src/mm-plugin-manager.c b/src/mm-plugin-manager.c
+index 2c22ab23..b461ebac 100644
+--- a/src/mm-plugin-manager.c
++++ b/src/mm-plugin-manager.c
+@@ -708,20 +708,20 @@ port_context_new (MMPluginManager *self,
+ /* Device context */
+ 
+ /* Time to wait for ports to appear before starting to probe the first one */
+-#define MIN_WAIT_TIME_MSECS 1500
++#define MIN_WAIT_TIME_MSECS 2000
+ 
+ /* Time to wait for other ports to appear once the first port is exposed
+  * (needs to be > MIN_WAIT_TIME_MSECS!!) */
+-#define MIN_PROBING_TIME_MSECS 2500
++#define MIN_PROBING_TIME_MSECS 15000
+ 
+ /* Additional time to wait for other ports to appear after the last port is
+  * exposed in the system. Longer time when not using udev, as we rely on
+  * mmcli --report-kernel-event events to report new port additions, e.g.
+  * via openwrt hotplug scripts. */
+ #if defined WITH_UDEV
+-# define EXTRA_PROBING_TIME_MSECS 1500
++# define EXTRA_PROBING_TIME_MSECS 18000
+ #else
+-# define EXTRA_PROBING_TIME_MSECS 3000
++# define EXTRA_PROBING_TIME_MSECS 18000
+ #endif
+ 
+ /* The wait time we define must always be less than the probing time */
+diff --git a/src/mm-qrtr-bus-watcher.c b/src/mm-qrtr-bus-watcher.c
+index ebc9d9f3..62372f65 100644
+--- a/src/mm-qrtr-bus-watcher.c
++++ b/src/mm-qrtr-bus-watcher.c
+@@ -21,6 +21,7 @@
+ 
+ #include "mm-qrtr-bus-watcher.h"
+ 
++#define SERVICE_DISCOVERY_TIME 10000
+ static void log_object_iface_init (MMLogObjectInterface *iface);
+ 
+ G_DEFINE_TYPE_EXTENDED (MMQrtrBusWatcher, mm_qrtr_bus_watcher, G_TYPE_OBJECT, 0,
+@@ -132,7 +133,7 @@ handle_qrtr_node_added (QrtrBus          *qrtr_bus,
+ 
+     qrtr_node_wait_for_services (node,
+                                  services,
+-                                 3000, /* ms */
++                                 SERVICE_DISCOVERY_TIME, /* ms */
+                                  NULL,
+                                  (GAsyncReadyCallback) qrtr_node_services_ready,
+                                  ctx);
+-- 
+2.34.1
+

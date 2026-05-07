@@ -1,0 +1,26 @@
+From 591518e203cb6dff10f34c8cb2e798a7570a3981 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Wed, 13 May 2026 02:12:35 +0000
+Subject: libqrtr-timer-increase
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+
+---
+ src/mm-qrtr-bus-watcher.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/mm-qrtr-bus-watcher.c b/src/mm-qrtr-bus-watcher.c
+index ee0cb28b..ebc9d9f3 100644
+--- a/src/mm-qrtr-bus-watcher.c
++++ b/src/mm-qrtr-bus-watcher.c
+@@ -132,7 +132,7 @@ handle_qrtr_node_added (QrtrBus          *qrtr_bus,
+ 
+     qrtr_node_wait_for_services (node,
+                                  services,
+-                                 1000, /* ms */
++                                 3000, /* ms */
+                                  NULL,
+                                  (GAsyncReadyCallback) qrtr_node_services_ready,
+                                  ctx);
+-- 
+2.34.1
+
