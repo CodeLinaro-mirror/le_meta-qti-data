@@ -1,0 +1,426 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From c509f2c7471d17c037429c2d5deff3c4d8d2ad15 Mon Sep 17 00:00:00 2001
+From: Sagar Kothawar <kothawar@qti.qualcomm.com>
+Date: Tue, 12 May 2026 14:48:21 +0000
+Subject: [PATCH] ethagent-23Q1-Port-modified
+
+Signed-off-by: Sagar Kothawar <kothawar@qti.qualcomm.com>
+---
+ source/EthSsp/ssp_main.c                      |  2 +-
+ .../TR-181/board_sbapi/cosa_ethernet_apis.c   | 17 +++--
+ .../board_sbapi/cosa_ethernet_manager.c       | 20 +++++-
+ .../source-arm/cosa_ethernet_apis_arm.c       |  4 +-
+ .../source-arm/cosa_ethernet_apis_ext_arm.h   | 15 +++--
+ source/TR-181/include/cosa_ethernet_apis.h    |  6 +-
+ .../cosa_ethernet_interface_dml.c             | 64 ++++++++++++++++---
+ .../middle_layer_src/cosa_ethernet_internal.c |  4 +-
+ .../middle_layer_src/cosa_rbus_handler_apis.c |  6 +-
+ .../middle_layer_src/cosa_rbus_handler_apis.h |  4 +-
+ .../middle_layer_src/plugin_main_apis.c       |  2 +-
+ 11 files changed, 106 insertions(+), 38 deletions(-)
+
+diff --git a/source/EthSsp/ssp_main.c b/source/EthSsp/ssp_main.c
+index f87704e..6aa6ca2 100644
+--- a/source/EthSsp/ssp_main.c
++++ b/source/EthSsp/ssp_main.c
+@@ -52,7 +52,7 @@
+ #include <syscfg/syscfg.h>
+ #include "cap.h"
+ #include "safec_lib_common.h"
+-#if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_BANANAPI_R4_)
++#if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_)
+ #include "cosa_rbus_handler_apis.h"
+ #include "cosa_apis_util.h"
+ #endif
+diff --git a/source/TR-181/board_sbapi/cosa_ethernet_apis.c b/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+index 61c43da..b640833 100755
+--- a/source/TR-181/board_sbapi/cosa_ethernet_apis.c
++++ b/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+@@ -1818,7 +1818,7 @@ ANSC_STATUS CosaDmlIfaceFinalize(char *pValue, BOOL isAutoWanMode)
+     else
+     {
+ 	/* CID 190051 Calling risky function fix */
+-	strncpy(wanPhyName, "erouter0", sizeof(wanPhyName)-1);
++	strlcpy(wanPhyName, "eth0", sizeof(wanPhyName));
+     }
+
+     // Do wan interface bridge creation/deletion only if last detected wan and current detected wan interface are different.
+@@ -2893,11 +2893,11 @@ CosaDmlEthWanSetEnable
+                CcspTraceInfo(("Failed to rename the interface dummy-rf with erouter0\n"));
+             }
+             #else
+-            v_secure_system("ifconfig erouter0 down");
++            v_secure_system("ifconfig eth0 down");
+             // NOTE: Eventually ETHWAN_DEF_INTF_NAME should be replaced with GWP_GetEthWanInterfaceName()
+-            v_secure_system("ip link set erouter0 name " ETHWAN_DEF_INTF_NAME);
+-            CcspTraceWarning(("****************value of command = ip link set erouter0 name %s**********************\n", ETHWAN_DEF_INTF_NAME));
+-            v_secure_system("ip link set dummy-rf name erouter0");
++            v_secure_system("ip link set eth0 name " ETHWAN_DEF_INTF_NAME);
++            CcspTraceWarning(("****************value of command = ip link set eth0 name %s**********************\n", ETHWAN_DEF_INTF_NAME));
++            v_secure_system("ip link set dummy-rf name eth0");
+             #endif
+             rc =  memset_s(command,sizeof(command),0,sizeof(command));
+             ERR_CHK(rc);
+@@ -2914,7 +2914,7 @@ CosaDmlEthWanSetEnable
+                CcspTraceInfo(("Failed to up the interface erouter0\n"));
+             }
+             #else
+-            v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" up;ifconfig erouter0 up");
++            v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" up;ifconfig eth0 up");
+             #endif
+             CcspTraceWarning(("****************value of command = ifconfig %s**********************\n", ETHWAN_DEF_INTF_NAME));
+         }
+@@ -3085,8 +3085,7 @@ ANSC_STATUS EthWanBridgeInit(PCOSA_DATAMODEL_ETHERNET pEthernet)
+     }
+     else
+     {
+-        strncpy(wanPhyName, "erouter0", sizeof(wanPhyName) - 1);
+-
++        strlcpy(wanPhyName, "eth0", sizeof(wanPhyName));
+     }
+
+ 	//Get the ethwan interface name from HAL
+@@ -3444,7 +3443,7 @@ CosaDmlEthInit(
+         }
+     }
+ #else
+-    #if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_)
++    #if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_SDX_)
+
+     char wanPhyName[20] = {0},out_value[20] = {0};
+
+diff --git a/source/TR-181/board_sbapi/cosa_ethernet_manager.c b/source/TR-181/board_sbapi/cosa_ethernet_manager.c
+index fe97d7f..4a1144f 100644
+--- a/source/TR-181/board_sbapi/cosa_ethernet_manager.c
++++ b/source/TR-181/board_sbapi/cosa_ethernet_manager.c
+@@ -375,18 +375,24 @@ static ethSmState_t Transition_EthWanLinkFound(PETH_SM_PRIVATE_INFO pstInfo)
+ #if defined(FEATURE_RDKB_WAN_AGENT)
+     if (ANSC_STATUS_SUCCESS != CosaDmlEthCreateEthLink(pstInfo->Name, stGlobalInfo.Path))
+ #elif defined(FEATURE_RDKB_WAN_MANAGER)
+-    #if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_)
++    #if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_SDX_)
+     CHAR wanPhyName[20] = {0},out_value[20] = {0};
+     if (!syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value)))
+     {
+-           strcpy(wanPhyName, out_value);
++           strlcpy(wanPhyName, out_value, sizeof(wanPhyName));
+     }
+
+-    if (!strncmp(wanPhyName, "erouter0", sizeof(wanPhyName)))
++    if (!strncmp(wanPhyName, "eth0", sizeof(wanPhyName)))
+     {
+             CosaDmlEthPortSetWanStatus(pstInfo->Name,ETH_WAN_UP);
+             return Transition_EthWanLinkUp(pstInfo);
+     }
++    #elif defined(_PLATFORM_SDX_)
++    if (strstr(pstInfo->Name, "eth") != NULL)
++    {
++        CosaDmlEthPortSetWanStatus(pstInfo->Name,ETH_WAN_UP);
++        return Transition_EthWanLinkUp(pstInfo);
++    }
+     #endif
+     if (ANSC_STATUS_SUCCESS != CosaDmlEthCreateEthLink(pstInfo->Name, stGlobalInfo.LowerLayers))
+ #endif
+@@ -414,6 +420,14 @@ static ethSmState_t Transition_EthWanLinkUp(PETH_SM_PRIVATE_INFO pstInfo)
+     {
+         CcspTraceError(("%s Failed to set LinkUp to WAN\n", __FUNCTION__));
+     }
++    char out_value[64] = {0};
++    syscfg_get(NULL, "last_erouter_mode", out_value, sizeof(out_value));
++    CcspTraceInfo(("%s %d last_erouter_mode -%s wan-interface name- %s \n", __FUNCTION__, __LINE__, out_value, WAN_INTERFACE_NAME));
++    if (strcmp(out_value,"1") == 0)
++    {
++      v_secure_system("echo 1 > /proc/sys/net/ipv6/conf/eth0/disable_ipv6");
++      CcspTraceWarning(("%s %d Switching to Ipv4 only mode \n", __FUNCTION__, __LINE__));
++    }
+     if (ANSC_STATUS_SUCCESS != CosaDmlEthSetWanLinkStatusForWanManager(pstInfo->Name, "Up"))
+ #endif
+     {
+diff --git a/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_arm.c b/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_arm.c
+index 02798cf..82e2eb5 100644
+--- a/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_arm.c
++++ b/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_arm.c
+@@ -392,12 +392,12 @@ CosaDmlEthInterfaceInit
+     }
+     else
+     {
+-       strncpy(wanPhyName, "erouter0", sizeof(wanPhyName));
++       strlcpy(wanPhyName, "eth0", sizeof(wanPhyName));
+        CcspTraceInfo(("%s %d - WanPhyName=%s \n", __FUNCTION__,__LINE__, wanPhyName));
+     }
+     if ( (-1 != _getMac(wanPhyName, strMac)))
+ #else
+-    if ( (-1 != _getMac("erouter0", strMac)))
++    if ( (-1 != _getMac("eth0", strMac)))
+ #endif
+     {
+         if (erouterIndex < g_EthernetIntNum)
+diff --git a/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h b/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h
+index 7f15fa4..377dc1d 100644
+--- a/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h
++++ b/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h
+@@ -40,13 +40,15 @@
+ #define COSA_ETH_INT_SYSCFG_NAMESPACE "CosaEthInt"
+ #define COSA_ETH_INT_ID_SYSCFG_NAMESPACE COSA_ETH_INT_SYSCFG_NAMESPACE"IDs"
+
++
++
+ // Original Code Assumed Four Physical Ethernet Ports. Set to that for backwards compatibility.
+ #if ! (defined (ETH_2_PORTS) || defined (ETH_3_PORTS) || defined (ETH_4_PORTS) || defined (ETH_5_PORTS) || defined (ETH_6_PORTS) || defined (ETH_8_PORTS))
+ #define ETH_4_PORTS
+ #endif
+
+-#define SWITCH_PORT_0_NAME "sw_1"
+-#define SWITCH_PORT_1_NAME "sw_2"
++#define SWITCH_PORT_0_NAME "eth0"
++#define SWITCH_PORT_1_NAME "eth1"
+ #define SWITCH_PORT_2_NAME "sw_3"
+ #define SWITCH_PORT_3_NAME "sw_4"
+
+@@ -66,12 +68,17 @@
+ #define BRLAN_ETHERNET_IFNAME "brlan0"
+
+ #if defined(_COSA_INTEL_USG_ARM_) || defined(_COSA_BCM_ARM_) || defined(_COSA_BCM_MIPS_)
+-#define WAN_ETHERNET_IFNAME "erouter0"
++#define WAN_ETHERNET_IFNAME "eth0"
+ #else
+ #define WAN_ETHERNET_IFNAME "wan0"
+ #endif
+
+-#define DMSB_ETH_IF_NAME_DFT_WanBridging            "lbr0"
++#if defined _PLATFORM_SDX_
++#define DMSB_ETH_IF_NAME_DFT_WanBridging            "brlan0"
++#else
++ #define DMSB_ETH_IF_NAME_DFT_WanBridging            "lbr0"
++ #endif
++
+ #define DMSB_ETH_IF_NAME_DFT_WanRouting             WAN_ETHERNET_IFNAME
+
+ #include "cosa_ethernet_apis.h"
+diff --git a/source/TR-181/include/cosa_ethernet_apis.h b/source/TR-181/include/cosa_ethernet_apis.h
+index 1ea34c7..b7b50b5 100644
+--- a/source/TR-181/include/cosa_ethernet_apis.h
++++ b/source/TR-181/include/cosa_ethernet_apis.h
+@@ -68,7 +68,7 @@
+ #include "../middle_layer_src/plugin_main_apis.h"
+ #include "ccsp_hal_ethsw.h"
+
+-#define WAN_ETHERNET_IFNAME "erouter0"
++#define WAN_ETHERNET_IFNAME "eth0"
+
+ #define PSM_ETHMANAGER_CFG_UPSTREAM      "dmsb.ethagent.if.%d.Upstream"
+ #define PSM_ETHMANAGER_CFG_ADDTOBRIDGE   "dmsb.ethagent.if.%d.AddToLanBridge"
+@@ -101,7 +101,7 @@
+
+ #define BUFLEN_256 256
+ #define BUFLEN_32  32
+-#define WAN_INTERFACE_NAME         "erouter0"
++#define WAN_INTERFACE_NAME         "eth0"
+
+ #define ETHERNET_IF_PATH                  "Device.Ethernet.X_RDK_Interface."
+ #define ETHERNET_IF_LOWERLAYERS           "Device.Ethernet.X_RDK_Interface."
+@@ -154,7 +154,7 @@
+
+ #define WAN_BOOTINFORM_CUSTOMCONFIGPATH_PARAM_VALUE "Device.X_CISCO_COM_CableModem."
+ #define WAN_ENABLE_PARAM "Device.X_RDK_WanManager.Enable"
+-#define WAN_IF_NAME_PRIMARY "erouter0"
++#define WAN_IF_NAME_PRIMARY "eth0"
+ #define WAN_PHYPATH_VALUE "Device.X_RDKCENTRAL-COM_EthernetWAN."
+ #define WAN_CM_INTERFACE_INSTANCE_NUM      1
+ #define WAN_ETH_INTERFACE_INSTANCE_NUM     2
+diff --git a/source/TR-181/middle_layer_src/cosa_ethernet_interface_dml.c b/source/TR-181/middle_layer_src/cosa_ethernet_interface_dml.c
+index 641f144..1c6449d 100644
+--- a/source/TR-181/middle_layer_src/cosa_ethernet_interface_dml.c
++++ b/source/TR-181/middle_layer_src/cosa_ethernet_interface_dml.c
+@@ -408,8 +408,33 @@ Interface_GetParamStringValue
+     if (strcmp(ParamName, "Name") == 0)
+     {
+         /* collect value */
+-        AnscCopyString(pValue, pEthernetPortFull->StaticInfo.Name);
+-        return 0;
++        char wan_ifname[32] = {0};
++        syscfg_get(NULL, "wan_physical_ifname", wan_ifname, sizeof(wan_ifname));
++        if (strstr(wan_ifname, "eth") != NULL)
++        {
++            if (pEthernetPortFull->Cfg.InstanceNumber == 1)
++            {
++                snprintf(pEthernetPortFull->StaticInfo.Name, sizeof(pEthernetPortFull->StaticInfo.Name), "eth%d", (pEthernetPortFull->Cfg.InstanceNumber));
++                AnscCopyString(pValue, pEthernetPortFull->StaticInfo.Name);
++                return 0;
++            }
++            else
++            {
++                AnscCopyString(pValue, pEthernetPortFull->StaticInfo.Name);
++            }
++        }
++        else if (strstr(wan_ifname, "qmapmux") != NULL)
++        {
++            if ((pEthernetPortFull->Cfg.InstanceNumber == 1) || (pEthernetPortFull->Cfg.InstanceNumber == 2))
++            {
++                snprintf(pEthernetPortFull->StaticInfo.Name, sizeof(pEthernetPortFull->StaticInfo.Name), "eth%d", ((pEthernetPortFull->Cfg.InstanceNumber)-1));
++                AnscCopyString(pValue, pEthernetPortFull->StaticInfo.Name);
++            }
++            else
++            {
++                AnscCopyString(pValue, pEthernetPortFull->StaticInfo.Name);
++            }
++        }
+     }
+
+     if (strcmp(ParamName, "LowerLayers") == 0)
+@@ -426,9 +451,32 @@ Interface_GetParamStringValue
+         if( (0x00 == pEthernetPortFull->StaticInfo.MacAddress[0]) && (0x00 == pEthernetPortFull->StaticInfo.MacAddress[1]) && (0x00 == pEthernetPortFull->StaticInfo.MacAddress[2]) && (0x00 == pEthernetPortFull->StaticInfo.MacAddress[3]) && (0x00 == pEthernetPortFull->StaticInfo.MacAddress[4]) && (0x00 == pEthernetPortFull->StaticInfo.MacAddress[5]))
+         {
+             CHAR strMac[128] = {0};
+-            if ( -1 != _getMac("brlan0", strMac) )
++            char wan_ifname[32] = {0};
++            char tmp[8] = {0};
++            syscfg_get(NULL, "wan_physical_ifname", wan_ifname, sizeof(wan_ifname));
++            if (strstr(wan_ifname, "eth") != NULL)
+             {
+-                AnscCopyMemory(pEthernetPortFull->StaticInfo.MacAddress,strMac,6);
++                snprintf(tmp, sizeof(tmp), "eth%d", (pEthernetPortFull->Cfg.InstanceNumber));
++                if ((-1 != _getMac(tmp,strMac)) && (strncmp(pEthernetPortFull->StaticInfo.Name,"eth",strlen("eth")) == 0))
++                {
++                    AnscCopyMemory(pEthernetPortFull->StaticInfo.MacAddress,strMac,6);
++                }
++                else if (-1 != _getMac("brlan0", strMac))
++                {
++                    AnscCopyMemory(pEthernetPortFull->StaticInfo.MacAddress,strMac,6);
++                }
++            }
++            else if (strstr(wan_ifname, "qmapmux") != NULL)
++            {
++                snprintf(tmp, sizeof(tmp), "eth%d", ((pEthernetPortFull->Cfg.InstanceNumber)-1));
++                if ((-1 != _getMac(tmp,strMac)) && (strncmp(pEthernetPortFull->StaticInfo.Name,"eth",strlen("eth")) == 0))
++                {
++                    AnscCopyMemory(pEthernetPortFull->StaticInfo.MacAddress,strMac,6);
++                }
++                else if (-1 != _getMac("brlan0", strMac))
++                {
++                    AnscCopyMemory(pEthernetPortFull->StaticInfo.MacAddress,strMac,6);
++                }
+             }
+         }
+ #endif
+@@ -445,14 +493,14 @@ Interface_GetParamStringValue
+         }
+         else
+         {
+-           strncpy(wanPhyName, "erouter0", sizeof(wanPhyName));
++           strlcpy(wanPhyName, "eth0", sizeof(wanPhyName));
+            CcspTraceInfo(("%s %d - WanPhyName=%s \n", __FUNCTION__,__LINE__, wanPhyName));
+         }
+         if(strcmp(pEthernetPortFull->StaticInfo.Name, wanPhyName) == 0 ) {
+                 if ( -1 != _getMac(wanPhyName, strMac) )
+ #else
+-        if(strcmp(pEthernetPortFull->StaticInfo.Name, "erouter0") == 0 ) {
+-                if ( -1 != _getMac("erouter0", strMac) )
++        if(strcmp(pEthernetPortFull->StaticInfo.Name, "eth0") == 0 ) {
++                if ( -1 != _getMac("eth0", strMac) )
+ #endif
+                 {
+                         AnscCopyMemory(pEthernetPortFull->StaticInfo.MacAddress,strMac,6);
+@@ -463,7 +511,7 @@ Interface_GetParamStringValue
+                 char buf[BUFLEN_6]= {0};
+                 syscfg_get(NULL, "eth_wan_enabled", buf, sizeof(buf));
+                 if(strcmp(buf, "true") == 0) {
+-                        if ( -1 != _getMac("erouter0", strMac) )
++                        if ( -1 != _getMac("eth0", strMac) )
+                         {
+                                AnscCopyMemory(pEthernetPortFull->StaticInfo.MacAddress,strMac,6);
+                         }
+diff --git a/source/TR-181/middle_layer_src/cosa_ethernet_internal.c b/source/TR-181/middle_layer_src/cosa_ethernet_internal.c
+index 9adef2b..64cc5e2 100644
+--- a/source/TR-181/middle_layer_src/cosa_ethernet_internal.c
++++ b/source/TR-181/middle_layer_src/cosa_ethernet_internal.c
+@@ -83,7 +83,7 @@
+ #endif
+ #endif //#if defined (FEATURE_RDKB_WAN_MANAGER)
+
+-#if defined (WAN_FAILOVER_SUPPORTED)  ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_BANANAPI_R4_)
++#if defined (WAN_FAILOVER_SUPPORTED)  ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ #include "cosa_rbus_handler_apis.h"
+ #endif
+
+@@ -370,7 +370,7 @@ CosaEthernetInitialize
+
+ #if defined(FEATURE_RDKB_WAN_MANAGER)
+
+-#if defined (WAN_FAILOVER_SUPPORTED) || defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_BANANAPI_R4_)
++#if defined (WAN_FAILOVER_SUPPORTED) || defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ 	ethAgentRbusInit();
+ #endif
+
+diff --git a/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.c b/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.c
+index b26c67b..33d96b7 100644
+--- a/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.c
++++ b/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.c
+@@ -23,7 +23,7 @@
+ #include "ccsp_trace.h"
+ #include "cosa_rbus_handler_apis.h"
+
+-#if  defined  (WAN_FAILOVER_SUPPORTED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) ||  defined(_PLATFORM_BANANAPI_R4_)
++#if  defined  (WAN_FAILOVER_SUPPORTED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ rbusHandle_t handle;
+ #endif
+
+@@ -187,7 +187,7 @@ void publishEWanLinkStatus(bool link_status)
+ }
+ #endif //WAN_FAILOVER_SUPPORTED
+
+-#if defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) ||  defined(_PLATFORM_BANANAPI_R4_)
++#if defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ BOOL EthAgent_Rbus_discover_components(char const *pModuleList)
+ {
+     rbusError_t rc = RBUS_ERROR_SUCCESS;
+@@ -245,7 +245,7 @@ BOOL EthAgent_Rbus_discover_components(char const *pModuleList)
+
+ #endif //_HUB4_PRODUCT_REQ_
+
+-#if  defined  (WAN_FAILOVER_SUPPORTED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) ||  defined(_PLATFORM_BANANAPI_R4_)
++#if  defined  (WAN_FAILOVER_SUPPORTED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ /***********************************************************************
+
+   ethAgentRbusInit(): Initialize Rbus and data elements
+diff --git a/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.h b/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.h
+index 35b89fa..55865b6 100644
+--- a/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.h
++++ b/source/TR-181/middle_layer_src/cosa_rbus_handler_apis.h
+@@ -20,7 +20,7 @@
+ #ifndef  RBUS_HANDLER_APIS_H
+ #define  RBUS_HANDLER_APIS_H
+
+-#if defined (WAN_FAILOVER_SUPPORTED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) ||  defined(_PLATFORM_BANANAPI_R4_)
++#if defined (WAN_FAILOVER_SUPPORTED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ #include <stdbool.h>
+ #include <rbus/rbus.h>
+
+@@ -49,7 +49,7 @@ void publishEWanLinkStatus(bool link_status);
+
+ #endif //WAN_FAILOVER_SUPPORTED
+ rbusError_t ethAgentRbusInit();
+-#if defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) ||  defined(_PLATFORM_BANANAPI_R4_)
++#if defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ BOOL EthAgent_Rbus_discover_components(char const *pModuleList);
+ #endif //_HUB4_PRODUCT_REQ_
+ #endif // WAN_FAILOVER_SUPPORTED RBUS_BUILD_FLAG_ENABLE _HUB4_PRODUCT_REQ_
+diff --git a/source/TR-181/middle_layer_src/plugin_main_apis.c b/source/TR-181/middle_layer_src/plugin_main_apis.c
+index 9961260..8d9008f 100644
+--- a/source/TR-181/middle_layer_src/plugin_main_apis.c
++++ b/source/TR-181/middle_layer_src/plugin_main_apis.c
+@@ -73,7 +73,7 @@
+ #include "cosa_common_util.h"
+ #endif
+
+-#if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_BANANAPI_R4_)
++#if defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_SDX_) || defined(_PLATFORM_BANANAPI_R4_)
+ extern int sock;
+ #endif
+
+--
+2.34.1
+

@@ -1,0 +1,56 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From f7dc2f3bff83cde158d1d26eb2e0acc99e081536 Mon Sep 17 00:00:00 2001
+From: Desireddy Suresh kumar reddy <dsureshk@qti.qualcomm.com>
+Date: Thu, 25 Jul 2024 15:40:49 +0000
+Subject: [PATCH] Device_Host_fix
+Signed-off-by: Desireddy Suresh Kumar Reddy <dsureshk@qti.qualcomm.com>
+---
+ source/TR-181/board_sbapi/eth_hal_interface.c | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+Index: git/source/TR-181/board_sbapi/eth_hal_interface.c
+===================================================================
+--- git.orig/source/TR-181/board_sbapi/eth_hal_interface.c
++++ git/source/TR-181/board_sbapi/eth_hal_interface.c
+@@ -57,8 +57,13 @@ int ValidateClient(char *mac)
+ 	FILE *fp1 = NULL;
+ 	FILE *fp2 = NULL;
+         errno_t rc = -1;
+-		//Need to ignore brlan1 - XHS clients when during CB case
++#ifdef _PLATFORM_SDX_
++        //getting all connected clients from bridge
++        v_secure_system("bridge fdb show | grep -i %s | grep -v permanent > " ARP_CACHE, mac);
++#else
++        //Need to ignore brlan1 - XHS clients when during CB case
+         v_secure_system("ip nei show | grep -v brlan1 | grep -i %s | grep -i REACHABLE > " ARP_CACHE, mac);
++#endif
+ 	if ( (fp1 = fopen(ARP_CACHE, "r")) == NULL )
+ 	{
+         	return ret;
+@@ -67,12 +72,22 @@ int ValidateClient(char *mac)
+         ERR_CHK(rc);
+ 	if(fgets(buf, sizeof(buf), fp1)!= NULL)
+ 	{
+-
++#ifdef _PLATFORM_SDX_
++                // ATH0, ATH1, ATH2, ATH3, ATH14 ATH15 and ATH16 are the wifi clients in SDX
++                if(!(strstr(buf,"ath0") || strstr(buf,"ath1") || strstr(buf,"ath2") || strstr(buf,"ath3") || strstr(buf,"ath14") || strstr(buf,"ath15") || strstr(buf,"ath16")))
++                {
++#endif
+ 			ret = 1;
+             		fclose(fp1);
+             		unlink(ARP_CACHE);
+ 			return ret;
+-
++#ifdef _PLATFORM_SDX_
++                }
++                else
++                {
++                        return ret;
++                }
++#endif
+ 	}
+ 	else
+ 	{
