@@ -2,7 +2,9 @@ SUMMARY = "Data Ethernet Drivers"
 DESCRIPTION = "Generic recipe to build out-of-tree kernel modules from \
 src/data-eth/drivers. Module selection is controlled by \
 src/data-eth/drivers/Kbuild (obj-m entries). Service files are \
-sourced from src/data-eth/files/rdkb/."
+sourced from src/data-eth/files/${BASEMACHINE}-${DISTRO}/."
+
+DISTRO = "yocto"
 
 LICENSE = "GPL-2.0-only"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5=801f80980d171dd6425610833a22dbe6"
@@ -24,11 +26,11 @@ RDEPENDS:${PN} += "kernel-module-ipam-${KERNEL_VERSION}"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI  = "file://data-eth/drivers"
-SRC_URI += "file://data-eth/files/rdkb"
+SRC_URI += "file://data-eth/files/${BASEMACHINE}-${DISTRO}"
 SRC_URI += "file://data-eth/cli"
 
 S = "${WORKDIR}/data-eth/drivers"
-RDKB_FILES_DIR = "${WORKDIR}/data-eth/files/rdkb"
+FILES_DIR = "${WORKDIR}/data-eth/files/${BASEMACHINE}-${DISTRO}"
 ETH_CLI_DIR    = "${WORKDIR}/data-eth/cli"
 
 IPA_SYSROOT = "${WORKDIR}/recipe-sysroot/usr/include/ipa"
@@ -99,9 +101,9 @@ do_install() {
 	done
 
 	# Install eth-sdk-dlkm.service
-	if [ -f ${RDKB_FILES_DIR}/eth-sdk-dlkm.service ]; then
+	if [ -f ${FILES_DIR}/eth-sdk-dlkm.service ]; then
 		install -d ${D}${systemd_unitdir}/system/
-		install -m 0644 ${RDKB_FILES_DIR}/eth-sdk-dlkm.service \
+		install -m 0644 ${FILES_DIR}/eth-sdk-dlkm.service \
 			-D ${D}${systemd_unitdir}/system/eth-sdk-dlkm.service
 	fi
 
