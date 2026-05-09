@@ -1,0 +1,185 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Mon, 11 May 2026 04:30:00 +0000
+Subject: [PATCH] Adds echo platform support to utopia LAN/DHCP stack with interface management and network tuning fixes.
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+
+Index: git/source/scripts/init/service.d/lan_handler.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/lan_handler.sh
++++ git/source/scripts/init/service.d/lan_handler.sh
+@@ -395,6 +395,10 @@ case "$1" in
+ 	#BRLAN0 ISSUE : Manually invoking lan-start to fix brlan0 failure during intial booting. Root cause for event has to be identified
+ 	   	if [ "$RPI_SPECIFIC" = "rpi" ] || [ "$BOX_TYPE" = "bpi" ]; then
+         		        sleep 2
++# Manually invoking service_lan.sh with lan-start to bring up brlan0
++                if [ "$BOX_TYPE" = "echo" ]; then
++                   /etc/utopia/service.d/service_lan.sh lan-start
++                fi
+                                 L3NET=`sysevent get primary_lan_l3net`
+                                 if [ -z "$L3NET" ]; then
+                                      L3NET=4
+Index: git/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
++++ git/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+@@ -191,6 +191,34 @@ isValidLANIP () {
+ }
+ 
+ #--------------------------------------------------------------
++#Toggles all non-backhaul Wi-Fi interfaces down then up to force clients to reconnect with fresh network settings
++#--------------------------------------------------------------
++toggling_wifi_clients() {
++    my_array=()
++    wifiInterfaces=("wifi0" "wifi1" "wifi2")
++
++    for token in "${wifiInterfaces[@]}"; do
++        isDisabled=$(syscfg get wireless.$token.disabled)
++        if [ "$isDisabled" != "1" ]; then  # Check if interface is enabled
++            for path in /sys/class/net/ath*/parent; do
++                if grep -q "$token" "$path"; then
++                    iface=$(basename "$(dirname "$path")")
++                   status=$(syscfg get "wireless.${iface}.MapBSSType")
++                    if [[ "$status" != "16" ]]; then
++                        ip link set "$iface" down
++                        my_array+=("$iface")
++                    fi
++                fi
++            done
++        fi  # end of isDisabled check
++    done
++
++    for ath in "${my_array[@]}"; do
++        ip link set "$ath" up    # Bring interface up
++    done
++}
++
++#--------------------------------------------------------------
+ #  figure out the dhcp range to use
+ #   The lan interface ip address
+ #   The lan interface netmask
+@@ -988,6 +1016,8 @@ fi
+        echo "domain-needed" >> $LOCAL_DHCP_CONF
+        echo "bogus-priv" >> $LOCAL_DHCP_CONF
+ 
++       #Makes dnsmasq the sole DHCP authority on the LAN, enabling instant lease rejection for stale clients instead of silent timeouts
++       echo "dhcp-authoritative" >> $LOCAL_DHCP_CONF
+        PARTNER_ID=`syscfg get PartnerID`
+        if [ "$BOX_TYPE" = "SR213" ] || [ "$PARTNER_ID" = "sky-uk" ] ; then
+            echo "strict-order" >> $LOCAL_DHCP_CONF
+@@ -1088,18 +1118,20 @@ fi
+    if [ "dns_only" != "$3" ] ; then
+       my_array=()
+       prepare_dhcp_conf_static_hosts
++      #Triggers Wi-Fi client toggling during DHCP config preparation, ensuring wireless clients are refreshed/reconnected when DHCP is reconfigured
++      toggling_wifi_clients
+       #prepare_dhcp_options
+ 	  prepare_dhcp_options_wan_dns	
+    fi
+-   
+-   if [ "$BOX_TYPE" != "HUB4" ] && [ "$BOX_TYPE" != "SR300" ] && [ "$BOX_TYPE" != "SE501" ] && [ "$BOX_TYPE" != "SR213" ] && [ "$SelfHealSupport" != "true" ]; then
++    #Replaces the generic SelfHealSupport flag with box type
++    if [ "$BOX_TYPE" != "HUB4" ] && [ "$BOX_TYPE" != "SR300" ] && [ "$BOX_TYPE" != "SE501" ] && [ "$BOX_TYPE" != "SR213" ] && [ "$BOX_TYPE" != "echo" ]; then
+       nameserver=`grep "nameserver" $RESOLV_CONF | awk '{print $2}'|grep -v ":"|tr '\n' ','| sed -e 's/,$//'`
+       if [ -n "$nameserver" ]; then
+          echo "option:dns-server,$nameserver" >> $DHCP_OPTIONS_FILE
+       fi
+    fi
+-  
+-   if [ "$BOX_TYPE" = "rpi" ] || [ "$BOX_TYPE" = "bpi" ] || [ "$BOX_TYPE" = "turris" ]; then
++   #Device type is added to the existing group of platforms
++   if  [ "$BOX_TYPE" = "rpi" ] || [ "$BOX_TYPE" = "bpi" ] || [ "$BOX_TYPE" = "turris" ]|| [ "$BOX_TYPE" = "echo" ]; then
+ 	   LAN_STATUS=`sysevent get lan-status`
+ 	   BRIDGE_MODE=`syscfg get bridge_mode`
+ 	   if [ "$LAN_STATUS" = "stopped" ] && [ $BRIDGE_MODE == 0 ]; then                
+Index: git/source/scripts/init/service.d/service_lan.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_lan.sh
++++ git/source/scripts/init/service.d/service_lan.sh
+@@ -148,7 +148,10 @@ bringup_ethernet_interfaces() {
+ 
+    for loop in $SYSCFG_lan_ethernet_physical_ifnames
+    do
+-      ifconfig "$loop" 0.0.0.0
++      #Prevents clearing Ethernet interface IPs on the echo
++      if [ "$BOX_TYPE" != "echo" ];then
++         ifconfig "$loop" 0.0.0.0
++      fi
+       ip link set "$loop" allmulticast on
+    done
+ }
+@@ -822,12 +825,40 @@ case "$1" in
+       service_stop
+       ;;
+    "${SERVICE_NAME}-restart")
++      #Clears the DHCP lease file on restart so all clients get fresh IP assignments
++      rm -rf /nvram/dnsmasq.leases
+       echo "service_init : setting lan-restarting to 1"
+       sysevent set lan-restarting 1
+       service_stop
+       service_start
+       echo "service_init : setting lan-restarting to 0"
+       sysevent set lan-restarting 0
++      #Toggles Ethernet and Wi-Fi interfaces on echo to force clients to reconnect and get fresh network settings
++      if [ "$BOX_TYPE" = "echo" ];then
++         CMD1=`brctl show | grep -c eth0`
++         CMD2=`brctl show | grep -c eth1`
++         if ([ "$CMD1" = "1" ]); then
++            ethtool -r eth0
++         fi
++         if ([ "$CMD2" = "1" ]); then
++            ethtool -r eth1
++         fi
++         wifiInterfaces=("wifi0" "wifi1" "wifi2")
++         for token in "${wifiInterfaces[@]}"; do
++            isDisabled=`syscfg get wireless.$token.disabled`
++
++            if [ "$isDisabled" != "1" ]; then  # Check if interface is enabled
++               interfaces=$(grep -rl "$token" /sys/class/net/ath*/parent | awk -F/ '{print $(NF-1)}')
++
++               if [ -n "$interfaces" ]; then
++                     for ath in $interfaces; do
++                        ip link set "$ath" down  # Bring down interface completely
++                        ip link set "$ath" up    # Bring interface up
++                     done
++              fi  # end of ath interfaces check
++            fi  # end of isDisabled check
++         done
++      fi
+       ;;
+    docsis-initialized)
+          # For USGv2 Only: allow LAN site access to CM Diagnostic IP 192.168.100.1
+Index: git/source/scripts/init/system/utopia_init.sh
+===================================================================
+--- git.orig/source/scripts/init/system/utopia_init.sh
++++ git/source/scripts/init/system/utopia_init.sh
+@@ -76,6 +76,16 @@ echo 7440 > /proc/sys/net/netfilter/nf_c
+ echo 8192 > /proc/sys/net/netfilter/nf_conntrack_max
+ echo 400 > /proc/sys/net/netfilter/nf_conntrack_expect_max
+ 
++if [ "$BOX_TYPE" = "echo" ];then
++   # To enable ARP probing for IPv4
++   echo 1 > /proc/sys/net/ipv4/neigh/default/neigh_probe
++   # First garbage-collection threshold for the ARP table
++   echo 1 > /proc/sys/net/ipv4/neigh/default/gc_thresh1
++   # To allow out-of-order, unexpected, or slightly invalid TCP packets
++   echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_be_liberal
++   # To disable checksum validation in conntrack
++   echo 0 > /proc/sys/net/netfilter/nf_conntrack_checksum
++fi
+ if [ "$BOX_TYPE" = "XB3" ];then
+     RESERVED_PORTS="58081,50755,50757,50759,50760"
+     sysctl -w net.ipv4.ip_local_reserved_ports="$RESERVED_PORTS"
+@@ -117,7 +127,8 @@ XDNS_DNSMASQ_SERVERS_CONFIG_FILE_NAME="$
+ FACTORY_RESET_REASON=false
+ 
+ HOTSPOT_BLOB="/nvram/hotspot_blob"
+-HOTSPOT_JSON="/nvram/hotspot.json"
++#Disabling HOTSPOT_JSON variable
++#HOTSPOT_JSON="/nvram/hotspot.json"
+ MWO_PATH="/nvram/mwo"
+ CHANNEL_KEEPOUT_PATH="/nvram/mesh"
+ 
