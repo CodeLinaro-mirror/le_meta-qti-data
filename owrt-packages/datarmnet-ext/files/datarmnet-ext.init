@@ -1,0 +1,20 @@
+#!/bin/sh /etc/rc.common
+
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+START=10
+STOP=68
+
+USE_PROCD=1
+
+start_service() {
+	procd_open_instance
+	procd_set_param command insmod /lib/modules/rmnet_wlan.ko
+	procd_set_param respawn ${respawn_threshold:-3600} ${respawn_timeout:-5} ${respawn_retry:-5}
+	procd_close_instance
+}
+
+stop_service() {
+	echo "Stopping datarmnet-ext Instance"
+}
