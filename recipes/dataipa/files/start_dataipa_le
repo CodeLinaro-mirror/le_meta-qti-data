@@ -30,14 +30,23 @@
 export MODULE_BASE=/usr/lib/modules/`uname -r`/extra
 set -e
 IPACONF=/systemrw/data/ipa_config.txt
+IPA_PLATFORM="@IPA_PLATFORM@"
 
 if [ -f $IPACONF ]; then
         echo "Updating device config and IPACONF contents to /dev/ipa" > /dev/kmsg
-        cfg=$(cat $IPACONF)
-        cfg=\""rdkb $cfg"\"
+        cfg_content=$(cat $IPACONF)
+        if [ -n "$IPA_PLATFORM" ]; then
+                cfg=\""$IPA_PLATFORM $cfg_content"\"
+        else
+                cfg=\""$cfg_content"\"
+        fi
 else
         echo "Updating device config to /dev/ipa" > /dev/kmsg
-        cfg=\""rdkb\""
+        if [ -n "$IPA_PLATFORM" ]; then
+                cfg=\""$IPA_PLATFORM\""
+        else
+                cfg=""
+        fi
 fi
 
 case "$1" in
@@ -45,7 +54,11 @@ case "$1" in
         echo -n "Starting/Loading dataipa modules: "
         echo "dataipa:start/load" > /dev/kmsg
         insmod $MODULE_BASE/gsim.ko > /dev/kmsg
-        insmod $MODULE_BASE/ipam.ko ipa_cfg=$cfg > /dev/kmsg
+        if [ -n "$cfg" ]; then
+                insmod $MODULE_BASE/ipam.ko ipa_cfg=$cfg > /dev/kmsg
+        else
+                insmod $MODULE_BASE/ipam.ko > /dev/kmsg
+        fi
         insmod $MODULE_BASE/ipanetm.ko > /dev/kmsg
         echo "done loading dataipa core modules" > /dev/kmsg
         ;;
