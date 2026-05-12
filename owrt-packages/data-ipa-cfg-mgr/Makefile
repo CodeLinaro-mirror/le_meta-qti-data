@@ -95,6 +95,9 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DATA) ./files/ipacm.json $(1)/etc/capabilities
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/ipacm.init $(1)/etc/init.d
+
+	$(INSTALL_DIR) $(1)/data
+	$(INSTALL_BIN) $(TOPDIR)/src/data-ipa-cfg-mgr/debug_scripts/ipa_script.sh $(1)/data
 endef
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
