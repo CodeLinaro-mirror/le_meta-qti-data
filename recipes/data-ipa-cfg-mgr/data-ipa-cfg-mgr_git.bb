@@ -7,14 +7,15 @@ ${LICENSE};md5=550794465ba0ec5312d6919e203a55f9"
 
 PR = "r4"
 
-DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat libnl"
+DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat libnl dlt-daemon"
 
 BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
 EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
 		--with-sanitized-headers=${KERNEL_OUT_PATH}/msm-kernel/usr/include/  \
                 --with-ipanat-headers=${WORKSPACE}/dataipa/ipanat/inc \
-                --with-glib"
+                --with-glib \
+				--with-dltlogging"
 
 
 FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
@@ -26,7 +27,7 @@ S = "${WORKDIR}/data-ipa-cfg-mgr"
 
 INITSCRIPT_NAME   = "start_ipacm_le"
 INITSCRIPT_PARAMS = "start 32 S . stop 62 0 1 6 ."
-FILES:${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml ${sysconfdir}/data/ipa/IPACM_vlan_cfg.xml"
+FILES:${PN} += "${sysconfdir}/data/ipa/IPACM_cfg.xml"
 
 do_install:append() {
 	install -d 0664 -o 1001 -g 1001 ${D}${userfsdatadir}/misc/ipa
@@ -47,11 +48,7 @@ do_install:append() {
           install -m 0644 ${WORKDIR}/ipacm.conf -D ${D}${sysconfdir}/tmpfiles.d/ipacm.conf
 
           #IPACM_cfg file stored as factory settings
-          install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
-          install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_vlan_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_vlan_cfg.xml
-	   install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_cfg.xml
-	   install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_vlan_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_vlan_cfg.xml
-
+		  install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_cfg.xml
 	fi
 }
 FILES:${PN} += "${userfsdatadir}/misc/ipa"

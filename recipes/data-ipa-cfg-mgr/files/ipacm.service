@@ -9,16 +9,16 @@ Conflicts=shutdown.target
 
 [Service]
 Restart=on-failure
-ExecStartPre=+chmod 660 /dev/ipaNatTable /dev/ipaIpv6CTTable
-ExecStartPre=+chmod 660 /dev/wwan_ioctl /dev/ipa
-ExecStartPre=+chown -h radio.radio /dev/wwan_ioctl /dev/ipa /dev/ipaNatTable /dev/ipaIpv6CTTable
-ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/ /etc/data/ipa/
+ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/ipa_filter_cfg.xml /etc/data/ipa/ipa_filter_cfg.xml
+ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/IPACM_cfg.xml /etc/data/ipa/IPACM_cfg.xml
 ExecStart=/usr/bin/ipacm
+TimeoutStopSec=20
 ExecStopPost=/bin/sh -c 'rm /var/run/data/monitor/ipacmd.pid'
 User=radio
 Group=radio
-SupplementaryGroups=diag inet
+SupplementaryGroups=diag inet dlt
 AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
 
 [Install]
 WantedBy=local-fs.target

@@ -3,7 +3,7 @@ SUMMARY = "Eth QOS CLI Program"
 
 export ETH_SRCDIR = "${WORKSPACE}/data-eth"
 LICENSE = "BSD-3-Clause-Clear"
-LIC_FILES_CHKSUM = "file://${ETH_SRCDIR}/cli/eth-qos;beginline=2;endline=3;md5=2848b180796f0e294bf40e26e0ba34d8"
+LIC_FILES_CHKSUM = "file://${ETH_SRCDIR}/cli/eth-qos;beginline=2;endline=3;md5=081b4e1b2ac6ec49b60cfa9d600daa6d"
 
 SRC_URI += "file://${ETH_SRCDIR}/cli/eth-qos"
 
