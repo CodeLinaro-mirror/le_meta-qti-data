@@ -49,7 +49,7 @@ do_compile() {
 }
 do_install() {
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
-	install -d ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra
+   install -d ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra
 
    module_path="${WORKDIR}/dataipa/drivers/platform/msm"
 
@@ -84,6 +84,8 @@ do_install() {
     # This is intended for use by other kernel modules.
     install -d ${D}${includedir}/ipa/linux
     install -d ${D}${includedir}/ipa/uapi/linux
+    install -d ${D}${includedir}/dataipa
+    [ -d ${S}/exports ] && install -m 0644 ${S}/exports/* ${D}${includedir}/dataipa/ || true
     install -m 0644 ${S}/drivers/platform/msm/include/linux/* ${D}${includedir}/ipa/linux/
     install -m 0644 ${S}/drivers/platform/msm/include/uapi/linux/* ${D}${includedir}/ipa/uapi/linux/
 
@@ -95,6 +97,7 @@ do_install() {
     install -d ${D}${includedir}/linux-kernel-qcom/usr/include/linux
     install -m 0644 ${S}/drivers/platform/msm/include/uapi/linux/* ${D}${includedir}/linux-kernel-qcom/usr/include/linux
     install -m 0644 ${S}/Module.symvers ${D}${includedir}/ipa/Module.symvers
+    install -m 0644 ${S}/Module.symvers ${D}${includedir}/dataipa/Module.symvers
 }
 
 pkg_postinst:${PN}(){

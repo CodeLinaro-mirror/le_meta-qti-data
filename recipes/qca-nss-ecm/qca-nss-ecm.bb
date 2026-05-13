@@ -7,7 +7,9 @@ inherit pkgconfig autotools deploy module linux-kernel-base systemd
 KERNEL_VERSION = "${@get_kernelversion_file("${STAGING_KERNEL_BUILDDIR}")}"
 do_configure[depends] += "virtual/kernel:do_shared_workdir"
 
-DEPENDS = "virtual/kernel linux-kernel-qcom-headers"
+DEPENDS = "virtual/kernel linux-kernel-qcom-headers dataipa"
+
+RDEPENDS:${PN} += "kernel-module-ipam-${KERNEL_VERSION}"
 
 PR = "r0"
 
@@ -44,6 +46,7 @@ EXTRA_OEMAKE += " \
     ECM_DB_XREF_ENABLE=y \
     ECM_IPV6_ENABLE=y \
     ECM_FRONT_END_SFE_ENABLE=n \
+    ECM_FRONT_END_IPA_ENABLE=y \
     ECM_SDX_PCC_ENABLED=y \
     ECM_INTERFACE_PPP_ENABLE=n \
     ECM_INTERFACE_PPPOE_ENABLE=n \
@@ -52,14 +55,32 @@ EXTRA_OEMAKE += " \
 
 # Extra compiler flags passed to the kernel build system via EXTRA_CFLAGS.
 # These are appended to ccflags-y inside the kernel Makefile infrastructure.
-EXTRA_CFLAGS += ""
+
+# Use explicit recipe-sysroot path for dataipa recipes.
+EXTRA_CFLAGS += "-I${RECIPE_SYSROOT}${includedir}/dataipa"
+
+# Point modpost to the IPA module's exported symbols so that inter-module
+# references (ipa_ipv4_tx, ipa_ipv6_tx, etc.) are resolved at build time.
+IPA_SYMVERS = "${RECIPE_SYSROOT}${includedir}/dataipa/Module.symvers"
+
 # "-DCONFIG_FUNCTION_ALIGNMENT=16 \
 #                 -DCONFIG_CLANG_VERSION=180000 \
 #                 -DCONFIG_KERNEL_ATOMIC64=y"
 
+do_configure:append() {
+     # Propagate EXTRA_CFLAGS (include paths, defines) into the kernel build
+     # system via ccflags-y, mirroring the standard pattern:
+     #   ccflags-y += $(EXTRA_CFLAGS)
+     # This replaces the hardcoded echo approach and lets the recipe control
+     # all include paths purely through EXTRA_CFLAGS.
+     grep -q 'ccflags-y.*EXTRA_CFLAGS' ${S}/Makefile || \
+        echo 'subdir-ccflags-y += $(EXTRA_CFLAGS)' >> ${S}/Makefile
+}
+
 do_compile() {
     cd ${S}
     unset CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
+
     oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} modules \
                KERNEL_PATH=${STAGING_KERNEL_DIR} \
                KERNEL_VERSION=${KERNEL_VERSION} \
@@ -67,7 +88,7 @@ do_compile() {
                AR="${KERNEL_AR}" OBJCOPY="${KERNEL_OBJCOPY}" \
                STRIP="${KERNEL_STRIP}" \
                O=${STAGING_KERNEL_BUILDDIR} \
-               KBUILD_EXTRA_SYMBOLS="${KBUILD_EXTRA_SYMBOLS}" \
+               KBUILD_EXTRA_SYMBOLS="${KBUILD_EXTRA_SYMBOLS} ${IPA_SYMVERS}" \
                EXTRA_CFLAGS="${EXTRA_CFLAGS}" \
                ${EXTRA_OEMAKE} \
                ${MAKE_TARGETS}
