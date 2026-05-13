@@ -35,6 +35,8 @@ RPROVIDES:${PN} += "kernel-module-ipam-${KERNEL_VERSION}"
 EXTRA_OEMAKE += "DATAIPADRVTOP=${DATAIPADRVTOP}"
 EXTRA_OEMAKE += "KERNEL_SRC=${STAGING_KERNEL_DIR}"
 
+IPA_PLATFORM = "${@'rdkb' if d.getVar('BASEMACHINE') == 'echo' else ''}"
+
 #TARGET_VARIANT= "${@bb.utils.contains('KERNEL_VARIANT', 'perf_', 'perf_defconfig', 'debug_defconfig', d)}"
 #do_configure() {
 #    cp ${WORKDIR}/kobj/Makefile ${S}/
@@ -64,6 +66,7 @@ do_install() {
 
    install -d ${D}${sysconfdir}/initscripts/
    install -m 0555 ${WORKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
+   sed -i 's|@IPA_PLATFORM@|${IPA_PLATFORM}|g' ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${systemd_unitdir}/system/
    install -m 0644 ${WORKDIR}/dataipa.service -D ${D}${systemd_unitdir}/system/dataipa.service
    install -d ${D}${sysconfdir}/data/
