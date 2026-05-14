@@ -17,6 +17,7 @@ SRC_URI = "file://dataipa"
 SRC_URI += "file://start_dataipa_le"
 SRC_URI += "file://dataipa.service"
 SRC_URI += "file://ipa_config.txt"
+SRC_URI += "file://ipa_ini_file.ini"
 
 S = "${WORKDIR}/dataipa"
 EXT_MODULES = "${@os.path.relpath("${S}", "${KERNEL_PLATFORM_PATH}")}"
@@ -66,6 +67,9 @@ do_install() {
 
    install -d ${D}${sysconfdir}/initscripts/
    install -m 0555 ${WORKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
+   install -d ${D}${sysconfdir}/data/ipa_be/
+   install -d ${D}/lib/firmware/ipa_be/
+   install -m 0555 ${WORKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
    sed -i 's|@IPA_PLATFORM@|${IPA_PLATFORM}|g' ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${systemd_unitdir}/system/
    install -m 0644 ${WORKDIR}/dataipa.service -D ${D}${systemd_unitdir}/system/dataipa.service
@@ -74,6 +78,7 @@ do_install() {
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
+   ln -sf ${sysconfdir}/data/ipa_be/ipa_ini_file.ini ${D}/lib/firmware/ipa_be/ipa_ini_file.ini
 
     # This copy of the headers contains both the kernel and unsanitized UAPI.
     # This is intended for use by other kernel modules.
@@ -104,6 +109,8 @@ FILES:${PN}+="${sysconfdir}/initscripts/start_dataipa_le"
 FILES:${PN}+="${systemd_unitdir}/system/dataipa.service"
 FILES:${PN}+="${sysconfdir}/data/ipa_config.txt"
 FILES:${PN}+="${systemd_unitdir}/system/local-fs.target.wants/dataipa.service"
+FILES:${PN} += "${sysconfdir}/data/ipa_be"
+FILES:${PN} += "/lib/firmware/ipa_be"
 
 FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/*"
 FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/gsi/gsim.ko"
