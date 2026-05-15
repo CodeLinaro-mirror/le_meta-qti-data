@@ -1,0 +1,29 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From c6ddc59c4f24013e27976b9b76046e2d3bae4828 Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Wed, 28 May 2025 07:38:31 +0000
+Subject: [PATCH] eth-agent-fix-leak
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ source/TR-181/board_sbapi/eth_hal_interface.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/source/TR-181/board_sbapi/eth_hal_interface.c b/source/TR-181/board_sbapi/eth_hal_interface.c
+index 072c1f2..883b59a 100644
+--- a/source/TR-181/board_sbapi/eth_hal_interface.c
++++ b/source/TR-181/board_sbapi/eth_hal_interface.c
+@@ -89,6 +89,7 @@ int ValidateClient(char *mac)
+                 }
+                 else
+                 {
++                        fclose(fp1);
+                         return ret;
+                 }
+ #endif
+--
+2.34.1
+
