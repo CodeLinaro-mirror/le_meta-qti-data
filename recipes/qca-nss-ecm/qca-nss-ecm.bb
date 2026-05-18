@@ -10,6 +10,7 @@ do_configure[depends] += "virtual/kernel:do_shared_workdir"
 DEPENDS = "virtual/kernel linux-kernel-qcom-headers"
 
 PR = "r0"
+FILESPATH =+ "${WORKSPACE}:"
 
 SRC_URI = "file://qca-nss-ecm/"
 SRC_URI += "file://qca-nss-ecm.service"
@@ -19,8 +20,6 @@ SRC_URI += "file://qca-nss-ecm.sysctl"
 SRC_URI += "file://ecm_dump.sh"
 
 S = "${WORKDIR}/qca-nss-ecm"
-
-FILESPATH =+ "${WORKSPACE}:"
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 
