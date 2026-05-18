@@ -17,8 +17,8 @@ ExecStopPost=/bin/sh -c 'rm /var/run/data/monitor/ipacmd.pid'
 User=radio
 Group=radio
 SupplementaryGroups=diag inet
-AmbientCapabilities=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_NICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_NICE
 
 [Install]
 WantedBy=local-fs.target
