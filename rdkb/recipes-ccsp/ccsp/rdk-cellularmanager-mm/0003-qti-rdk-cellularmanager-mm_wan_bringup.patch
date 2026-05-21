@@ -1,0 +1,29 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From dd8610d036271a6dddff720e7b0ef18d69406c9c Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Sun, 10 May 2026 08:55:45 +0000
+Subject: [PATCH 2/3] wan bringup fix
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_sm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+Index: git/source/CellularManager/cellularmgr_sm.c
+===================================================================
+--- git.orig/source/CellularManager/cellularmgr_sm.c
++++ git/source/CellularManager/cellularmgr_sm.c
+@@ -386,6 +386,10 @@ int CellularMgrIPReadyCBForSM( CellularI
+     {
+         CcspTraceInfo(("%s %d: Failed to set LinkStatus in Interface table\n", __FUNCTION__, __LINE__));
+     }
++#else
++    //Modem manager is providing full static IPv4 and IPv6 address. Hence setting IP source as DML_PARAM_VALUE_IPSOURCE_STATIC
++    pIpSource = DML_PARAM_VALUE_IPSOURCE_STATIC;
++    CellularMgrUpdateIpSource ( gpstCellularPolicyCtrl->acWANIfName, pIpSource);
+ #endif
+     if ( cellular_hal_get_data_interface(pstIPStruct->WANIFName) != RETURN_OK)
+     {

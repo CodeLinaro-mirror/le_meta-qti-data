@@ -1,0 +1,27 @@
+From aeb38740b5b8207ac8a5f1b0eaf70ddb71759293 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Wed, 13 May 2026 02:11:20 +0000
+Subject: service-update
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+
+---
+ data/ModemManager.service.in | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/data/ModemManager.service.in b/data/ModemManager.service.in
+index 4e4472d9..51b73dee 100644
+--- a/data/ModemManager.service.in
++++ b/data/ModemManager.service.in
+@@ -9,7 +9,8 @@ Type=dbus
+ BusName=org.freedesktop.ModemManager1
+ ExecStart=@sbindir@/ModemManager
+ StandardError=null
+-Restart=on-abort
++Restart=always
++RestartSec=3
+ CapabilityBoundingSet=CAP_SYS_ADMIN CAP_NET_ADMIN
+ ProtectSystem=true
+ ProtectHome=true
+-- 
+2.34.1
+

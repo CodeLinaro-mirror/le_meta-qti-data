@@ -1,0 +1,108 @@
+From 5f375c371a8a113d90cf0d588fbe8311e1dee63b Mon Sep 17 00:00:00 2001
+From: Dhaneeshlal D R <dhaneesh@qti.qualcomm.com>
+Date: Fri, 8 Aug 2025 10:46:00 +0530
+Subject: Retry mechanism was introduced to resend QRTR messages,
+if the QRTR send request failed due to EAGAIN error.
+Signed-off-by: Dhaneeshlal D R <dhaneesh@qti.qualcomm.com>
+---
+ src/libqmi-glib/qmi-endpoint-qrtr.c | 75 ++++++++++++++++++++++++++++-
+ 1 file changed, 73 insertions(+), 2 deletions(-)
+
+diff --git a/src/libqmi-glib/qmi-endpoint-qrtr.c b/src/libqmi-glib/qmi-endpoint-qrtr.c
+index a02cab8..ce0582d 100644
+--- a/src/libqmi-glib/qmi-endpoint-qrtr.c
++++ b/src/libqmi-glib/qmi-endpoint-qrtr.c
+@@ -49,6 +49,10 @@
+ #define QMI_MESSAGE_CTL_GET_VERSION_INFO 0x0021
+ #define QMI_MESSAGE_CTL_SYNC 0x0027
+ 
++/* Constants for EAGAIN retry mechanism */
++#define EAGAIN_MAX_RETRIES 5
++#define EAGAIN_RETRY_TIMEOUT_US 10000 /* 10 milliseconds */
++
+ G_DEFINE_TYPE (QmiEndpointQrtr, qmi_endpoint_qrtr, QMI_TYPE_ENDPOINT)
+ 
+ struct _QmiEndpointQrtrPrivate {
+@@ -486,10 +490,77 @@ endpoint_send (QmiEndpoint   *endpoint,
+     qrtr_message = g_byte_array_sized_new (raw_message_len);
+     g_byte_array_append (qrtr_message, raw_message, raw_message_len);
+ 
+-    return qrtr_client_send (client_info->client,
++    if (qrtr_client_send (client_info->client,
+                              qrtr_message,
+                              cancellable,
+-                             error);
++                             error)) {
++        return TRUE;
++    }
++
++    if (!error || !*error) {
++        g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
++            "Failed to send QRTR message, error: Unknown error");
++        return FALSE;
++    }
++
++    /* Resend message on EAGAIN error. */
++    guint retries;
++    for (retries = 0; retries < EAGAIN_MAX_RETRIES; retries++) {
++        /*[G_IO_ERROR_WOULD_BLOCK = EAGAIN from QRTR] */
++        if ((*error)->code == G_IO_ERROR_WOULD_BLOCK) {
++            g_warning("[%s]: QRTR msg send failed for "
++                "client: %u, service %s "
++                "Proceeding with retry — Attempt: %u",
++                qmi_endpoint_get_name (QMI_ENDPOINT (self)),
++                cid,
++                qmi_service_get_string (service),
++                retries);
++
++            /* Ensure the first retry happens without delay */
++            if (retries) {
++                /* Exponential backoff sleep added for next retry */
++                guint sleep_time = (EAGAIN_RETRY_TIMEOUT_US *
++                                        (1 << (retries - 1)));
++                g_usleep (sleep_time);
++            }
++            /* Clear the error and retry */
++            g_clear_error (error);
++            if (qrtr_client_send (client_info->client,
++                                    qrtr_message,
++                                    cancellable,
++                                    error)) {
++                return TRUE;
++            }
++
++            if (!error || !*error) {
++                g_set_error (error, QMI_CORE_ERROR, QMI_CORE_ERROR_FAILED,
++                    "Failed to send QRTR message, error: Unknown error");
++                return FALSE;
++            }
++        }
++        else {
++            /* Retry only on EAGAIN; log and break on other errors */
++            g_warning("[%s]: QRTR msg send failed for "
++                "client: %u, service %s "
++                "error: %s",
++                qmi_endpoint_get_name (QMI_ENDPOINT (self)),
++                cid,
++                qmi_service_get_string (service),
++                (*error)->message);
++            break;
++        }
++    }
++
++    if (retries >= EAGAIN_MAX_RETRIES) {
++        g_warning("[%s]: QRTR msg send failed for "
++            "client: %u, service %s "
++            "error: Maximum retry attempt exceeded",
++            qmi_endpoint_get_name (QMI_ENDPOINT (self)),
++            cid,
++            qmi_service_get_string (service));
++    }
++
++    return FALSE;
+ }
+ 
+ /*****************************************************************************/
+-- 
+2.34.1
+

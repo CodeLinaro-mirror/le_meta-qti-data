@@ -1,0 +1,31 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From b7d0a18f7567a5328625ab10e7d92d270b88e2e4 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Sun, 10 May 2026 08:56:47 +0000
+Subject: [PATCH 3/3] dm walk crash fix
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal_mm_apis.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 817d472..052ba23 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -1226,7 +1226,8 @@ INT cellular_hal_mm_get_signal (CHAR *index, CellularSignalInfoStruct *radioSign
+                 if( radioSignal->RSSI != 0 )
+                     res = RETURN_OK;
+             }
+-            g_clear_object (&signal);
++            /* mm_modem_signal_peek_*() returns a non-owned signal object. */
++            signal = NULL;
+         }
+     }
+     context_free(ctx);
+-- 
+2.34.1
+

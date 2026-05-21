@@ -1,0 +1,26 @@
+From da1197244ac619c25fc04fc1d0f1b510c96c40e7 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 15 May 2026 08:36:12 +0000
+Subject: Fix-mtu-updation
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+
+---
+ src/mm-port-qmi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/mm-port-qmi.c b/src/mm-port-qmi.c
+index 82c9c40d..9df53121 100644
+--- a/src/mm-port-qmi.c
++++ b/src/mm-port-qmi.c
+@@ -954,7 +954,7 @@ internal_reset (MMPortQmi           *self,
+                 mm_port_get_device (ctx->data));
+     mm_port_net_link_setup (MM_PORT_NET (ctx->data),
+                             FALSE,
+-                            MM_PORT_NET_MTU_DEFAULT,
++                            0, /*ignore */
+                             NULL,
+                             (GAsyncReadyCallback) net_link_down_ready,
+                             task);
+-- 
+2.34.1
+
