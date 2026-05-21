@@ -1,0 +1,62 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 21 May 2026 02:40:00 +0000
+Subject: [PATCH] Fix NULL dereference and incorrect CCSP_SUCCESS check in PSM rbus/dbus
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+Index: git/source/Ssp/ssp_dbus.c
+===================================================================
+--- git.orig/source/Ssp/ssp_dbus.c
++++ git/source/Ssp/ssp_dbus.c
+@@ -686,9 +686,10 @@ int  getParameterValues(
+ 
+         for ( k = 1; k < sizeof(NamespacePsm)/sizeof(name_spaceType_t); k++ )
+         {
+-            rc = strcmp_s(parameterNames[i], sizeof(parameterNames[i]), NamespacePsm[k].name_space, &ind);
+-	    ERR_CHK(rc);
+-	    if((rc == EOK) && (ind == 0))
++            //Use strlen() instead of sizeof() to get actual string length for accurate namespace comparison
++            rc = strcmp_s(parameterNames[i], strlen(parameterNames[i]), NamespacePsm[k].name_space, &ind);
++            ERR_CHK(rc);
++            if((rc == EOK) && (ind == 0))
+             {
+                 returnStatus = getCommParam(parameterNames[i], &pParameterValue);
+ 
+@@ -1493,6 +1494,12 @@ int PsmDbusInit()
+     }
+ 
+     CCSP_Message_Bus_Init(CName, CCSP_MSG_BUS_CFG, &bus_handle,(CCSP_MESSAGE_BUS_MALLOC) Ansc_AllocateMemory_Callback, Ansc_FreeMemory_Callback);
++    //Validate bus_handle before proceeding to prevent NULL dereference when D-Bus initialization fails
++    if (bus_handle == NULL)
++    {
++        return 0;
++    }
++
+     g_psmHealth = CCSP_COMMON_COMPONENT_HEALTH_Yellow;
+     /* Wait for CR ready */
+     waitConditionReady(bus_handle, CrName, CCSP_DBUS_PATH_CR, CName);
+Index: git/source/Ssp/ssp_rbus.c
+===================================================================
+--- git.orig/source/Ssp/ssp_rbus.c
++++ git/source/Ssp/ssp_rbus.c
+@@ -271,10 +271,17 @@ static int getParameterValues_rbus(rbusO
+     }
+ 
+     result = getParameterValues(0, parameterNames, param_size, &size, &val , NULL);
+-    if (result)
++    //Explicitly check CCSP_SUCCESS and non-NULL val to avoid processing invalid parameter values
++    if (result == CCSP_SUCCESS && val != NULL)
+     {
+         for(i = 0; i < size; i++)
+         {
++            //Guard against NULL parameterValue before invoking rbusValue_SetParamVal to prevent SIGSEGV
++            if(!val[i] || !val[i]->parameterValue)
++            {
++                CcspTraceError(("%s - val[%d] or parameterValue is NULL\n",__func__,i));
++                continue;
++            }
+             rbusValue_Init(&value);
+             if(true == rbusValue_SetParamVal(value, (ULONG)val[i]->type, val[i]->parameterValue))
+             {
