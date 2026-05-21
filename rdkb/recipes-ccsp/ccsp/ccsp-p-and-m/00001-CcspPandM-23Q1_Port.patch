@@ -1,0 +1,219 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 95d6e6164237d866802ac8aa87d1f8e943b5d865 Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Wed, 13 May 2026 14:13:47 +0000
+Subject: [PATCH] This patch ports CcspPandM to the SDX platform by adding _PLATFORM_SDX_ compile guards across device info, user management, and ethernet APIs. It also disables HAL-dependent features (MACsec, SNMPv3, CMTS MAC, Ethernet switch stats) that are not yet available or required on this platform using #if 0 blocks.
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+---
+ .../TR-181/board_sbapi/cosa_deviceinfo_apis.c    |  7 +++++--
+ .../TR-181/board_sbapi/cosa_ethernet_apis.c      |  3 +++
+ source-arm/TR-181/board_sbapi/cosa_users_apis.c  |  4 ++--
+ .../middle_layer_src/cosa_deviceinfo_dml.c       | 16 ++++++++++++----
+ .../middle_layer_src/cosa_users_internal.c       |  3 ++-
+ .../cosa_x_rdkcentral_com_xpc_internal.c         |  7 +++++--
+ 6 files changed, 29 insertions(+), 11 deletions(-)
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c b/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c
+index 8091bbc..18f8420 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c
+@@ -114,7 +114,7 @@
+ 
+ static int writeToJson(char *data, char *file);
+ 
+-#if defined(_PLATFORM_IPQ_) || defined(_XER5_PRODUCT_REQ_)
++#if defined(_PLATFORM_IPQ_) || defined(_PLATFORM_SDX_)
+ #include "ccsp_vendor.h"
+ #endif
+ 
+@@ -544,6 +544,7 @@ CosaDmlDiGetCMTSMac
+ {
+    UNREFERENCED_PARAMETER(hContext);
+     UNREFERENCED_PARAMETER(pulSize);
++#if 0 /*CMTS not part of requirement*/
+    if ( platform_hal_getCMTSMac(pValue) != RETURN_OK){
+         CcspTraceWarning(("Unable to fetch the CMTS MAC \n"));
+         return ANSC_STATUS_FAILURE;
+@@ -552,6 +553,8 @@ CosaDmlDiGetCMTSMac
+             return ANSC_STATUS_SUCCESS;
+ 
+          }
++#endif
++
+ }
+ /*Changes for 6560-end*/
+ #endif
+@@ -4064,7 +4067,7 @@ void FillPartnerIDValues(cJSON *json , char *partnerID , PCOSA_DATAMODEL_RDKB_UI
+ 					v_secure_system("sh /lib/rdk/wan_ssh.sh disable &");
+ 				}
+ 
+-#if defined(_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_ENABLE_DSL_SUPPORT_) && !defined(_PLATFORM_BANANAPI_R4_) && !defined(_PLATFORM_IPQ_)
++#if defined(_COSA_BCM_ARM_) && !defined(_CBR_PRODUCT_REQ_) && !defined(_PLATFORM_RASPBERRYPI_) && !defined(_ENABLE_DSL_SUPPORT_) && !defined(_PLATFORM_BANANAPI_R4_) && !defined(_PLATFORM_IPQ_) && !defined(_PLATFORM_SDX_)
+                                 paramObjVal = cJSON_GetObjectItem(cJSON_GetObjectItem( partnerObj, "Device.DeviceInfo.X_RDKCENTRAL-COM_Syndication.CMVoiceImageSelect"), "ActiveValue");
+                                 if ( paramObjVal != NULL )
+                                 {
+diff --git a/source-arm/TR-181/board_sbapi/cosa_ethernet_apis.c b/source-arm/TR-181/board_sbapi/cosa_ethernet_apis.c
+index 068687a..1ed0ca8 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_ethernet_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_ethernet_apis.c
+@@ -1473,7 +1473,10 @@ int puma6_getSwitchDInfo(PCosaEthInterfaceInfo eth, PCOSA_DML_ETH_PORT_DINFO pDi
+ int puma6_getSwitchStats(PCosaEthInterfaceInfo eth, PCOSA_DML_ETH_STATS pStats){
+ #if defined(ETH_STATS_ENABLED)
+     CCSP_HAL_ETHSW_PORT   port  = *((PCCSP_HAL_ETHSW_PORT)eth->hwid);
++#if 0
++    /*TODO: commented as hal implementation not available.Later need to be removed*/
+     CcspHalEthSwGetEthPortStats(port, (PCCSP_HAL_ETH_STATS)pStats);
++#endif
+ #else
+     UNREFERENCED_PARAMETER(eth);
+     UNREFERENCED_PARAMETER(pStats);
+diff --git a/source-arm/TR-181/board_sbapi/cosa_users_apis.c b/source-arm/TR-181/board_sbapi/cosa_users_apis.c
+index 35cfb2c..b8bd4f1 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_users_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_users_apis.c
+@@ -572,7 +572,7 @@ user_validatepwd
+ 
+    if(fromDB[0] == '\0')
+    {
+-#if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_IPQ_)
++#if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_IPQ_) || defined(_PLATFORM_SDX_)
+          user_hashandsavepwd(hContext,pEntry->Password,pEntry);
+ #elif defined(LIBRDKCONFIG_BUILD)
+ #if defined (_RDKB_GLOBAL_PRODUCT_REQ_)
+@@ -726,7 +726,7 @@ CosaDmlUserResetPassword
+    UNREFERENCED_PARAMETER(bValue);
+    CcspTraceWarning(("%s, Entered Reset function\n",__FUNCTION__)); 
+    char defPassword[10];
+-#if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)  || defined(_PLATFORM_BANANAPI_R4_) || defined(LIBRDKCONFIG_BUILD) || (defined(_COSA_FOR_BCI_) &&  defined(LIBRDKCONFIG_BUILD))
++#if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_)  || defined(_PLATFORM_BANANAPI_R4_) || defined(LIBRDKCONFIG_BUILD) || (defined(_COSA_FOR_BCI_) &&  defined(LIBRDKCONFIG_BUILD)) || defined(_PLATFORM_SDX_)
+    errno_t safec_rc = -1;
+ #endif
+    if(!strcmp(pEntry->Username,"admin"))
+diff --git a/source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c b/source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c
+index b2731ab..f7e4974 100644
+--- a/source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c
++++ b/source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c
+@@ -3676,9 +3676,9 @@ Snmpv3DHKickstart_SetParamBoolValue
+         if( pKickstart->TableUpdated == TRUE && pKickstart->Enabled == TRUE )
+         {
+ #if !defined(_XER5_PRODUCT_REQ_) && !defined(_SR213_PRODUCT_REQ_) && !defined(PON_GATEWAY) && !defined(_PLATFORM_IPQ_)
+-	    i = cm_hal_snmpv3_kickstart_initialize( &Snmpv3_Kickstart_Table );
+-            CcspTraceError(("cm_hal_snmpv3_kickstart_initialize: return value = %d\n", i));
+-            pKickstart->TableUpdated = FALSE;
++	    //i = cm_hal_snmpv3_kickstart_initialize( &Snmpv3_Kickstart_Table );
++            //CcspTraceError(("cm_hal_snmpv3_kickstart_initialize: return value = %d\n", i));
++            //pKickstart->TableUpdated = FALSE;
+ #endif
+         }
+     }
+@@ -4530,6 +4530,8 @@ MACsecRequired_GetParamBoolValue
+     )
+ {
+     UNREFERENCED_PARAMETER(hInsContext);
++#if 0
++    /*TODO: commented as hal implementation not available.Later need to be removed*/
+     if (strcmp(ParamName, "Enable") == 0)
+     {
+         if ( RETURN_ERR == platform_hal_GetMACsecEnable( ETHWAN_DEF_INTF_NUM, pBool )) {
+@@ -4537,7 +4539,7 @@ MACsecRequired_GetParamBoolValue
+         }
+         return TRUE;
+     }
+-
++#endif
+     return FALSE;
+ }
+ 
+@@ -4581,6 +4583,8 @@ MACsecRequired_SetParamBoolValue
+ {
+     if (IsBoolSame(hInsContext, ParamName, bValue, MACsecRequired_GetParamBoolValue))
+         return TRUE;
++#if 0
++    /*TODO: commented as hal implementation not available.Later need to be removed*/
+ 
+     if (strcmp(ParamName, "Enable") == 0)
+     {
+@@ -4589,6 +4593,7 @@ MACsecRequired_SetParamBoolValue
+         }
+         return TRUE;
+     }
++#endif
+     return FALSE;
+ }
+ #endif
+@@ -16446,6 +16451,8 @@ EthernetWAN_MACsec_GetParamStringValue
+     UNREFERENCED_PARAMETER(hInsContext);
+     errno_t  rc = -1;
+     /* check the parameter name and return the corresponding value */
++#if 0
++    /*TODO: commented as hal implementation not available..Later need to be removed*/    
+     if (strcmp(ParamName, "OperationalStatus") == 0)
+     {
+         BOOL flag;
+@@ -16461,6 +16468,7 @@ EthernetWAN_MACsec_GetParamStringValue
+            return 0;
+         }
+     }
++#endif
+     return 0;
+ }
+ #endif
+diff --git a/source/TR-181/middle_layer_src/cosa_users_internal.c b/source/TR-181/middle_layer_src/cosa_users_internal.c
+index 138b986..a99813c 100644
+--- a/source/TR-181/middle_layer_src/cosa_users_internal.c
++++ b/source/TR-181/middle_layer_src/cosa_users_internal.c
+@@ -171,7 +171,8 @@ CosaUsersInitialize
+     errno_t safec_rc = -1;
+     int res;
+     
+-    #if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_IPQ_)
++    #if defined(_HUB4_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_IPQ_) || defined(_PLATFORM_SDX_)
++
+         //No need to remove any hardcoded passwords
+     #else
+     #if defined(_RDKB_GLOBAL_PRODUCT_REQ_)
+diff --git a/source/TR-181/middle_layer_src/cosa_x_rdkcentral_com_xpc_internal.c b/source/TR-181/middle_layer_src/cosa_x_rdkcentral_com_xpc_internal.c
+index 019544b..3873e8d 100644
+--- a/source/TR-181/middle_layer_src/cosa_x_rdkcentral_com_xpc_internal.c
++++ b/source/TR-181/middle_layer_src/cosa_x_rdkcentral_com_xpc_internal.c
+@@ -85,12 +85,13 @@ ANSC_STATUS CosaXpcEnable(ANSC_HANDLE hThisObject)
+ {
+     ANSC_STATUS                 returnStatus = ANSC_STATUS_SUCCESS;
+     PCOSA_DATAMODEL_XPC     pMyObject    = (PCOSA_DATAMODEL_XPC)hThisObject;
+-
++#if 0 /*SNMP not part of requirement*/
+     system("sysevent set snmp-onboard-reboot enable");
+     if ( platform_hal_SetSNMPOnboardRebootEnable("enable") != RETURN_OK )
+     {
+         return ANSC_STATUS_FAILURE;
+     }
++#endif
+     pMyObject->bEnable = TRUE;
+     return returnStatus;
+ }
+@@ -99,12 +100,14 @@ ANSC_STATUS CosaXpcDisable(ANSC_HANDLE hThisObject)
+ {
+     ANSC_STATUS                 returnStatus = ANSC_STATUS_SUCCESS;
+     PCOSA_DATAMODEL_XPC     pMyObject    = (PCOSA_DATAMODEL_XPC)hThisObject;
+-
+     system("sysevent set snmp-onboard-reboot disable");
++#if 0 /*SNMP not part of requirement*/    
+     if ( platform_hal_SetSNMPOnboardRebootEnable("disable") != RETURN_OK )
+     {
+         return ANSC_STATUS_FAILURE;
+     }
++#endif
++
+     pMyObject->bEnable = FALSE;
+     return returnStatus;
+ }
+-- 
+2.34.1
+
