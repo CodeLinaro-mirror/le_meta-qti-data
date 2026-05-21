@@ -1,0 +1,78 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Mon, 12 May 2026 09:07:00 +0000
+Subject: [PATCH] qti-WanManager_ethwan_v4_bringup
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+Index: git/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.h
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.h
++++ git/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.h
+@@ -119,6 +119,7 @@
+ #define WANMGR_WAN_LINKSTATUS_CHECK                   (strstr(name, WANMGR_INFACE_WAN_LINKSTATUS_SUFFIX))
+ #define WANMGR_ALIASNAME_CHECK                        (strstr(name, WANMGR_INFACE_ALIASNAME_SUFFIX))
+ #endif /* WAN_MANAGER_UNIFICATION_ENABLED */
++#define ETHWAN_IF_NAME "eth"
+ 
+ //TandD connectivity check DML
+ #define TANDD_START_CONNECTIVITY_CHECK               "Device.X_RDK_DNSInternet.StartConnectivityCheck()"
+Index: git/source/WanManager/wanmgr_dhcpv4_apis.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_dhcpv4_apis.c
++++ git/source/WanManager/wanmgr_dhcpv4_apis.c
+@@ -147,7 +147,8 @@ ANSC_STATUS wanmgr_handle_dhcpv4_event_d
+       strcmp(pVirtIf->IP.Ipv4Data.mask, pDhcpcInfo->mask) ||
+       strcmp(pVirtIf->IP.Ipv4Data.gateway, pDhcpcInfo->gateway) ||
+       strcmp(pVirtIf->IP.Ipv4Data.dnsServer, pDhcpcInfo->dnsServer) ||
+-      strcmp(pVirtIf->IP.Ipv4Data.dnsServer1, pDhcpcInfo->dnsServer1))
++      strcmp(pVirtIf->IP.Ipv4Data.dnsServer1, pDhcpcInfo->dnsServer1) ||
++      pVirtIf->IP.Ipv4Data.mtuSize != pDhcpcInfo->mtuSize)
+     {
+         CcspTraceInfo(("%s %d - IPV4 configuration changed \n", __FUNCTION__, __LINE__));
+         IPv4ConfigChanged = TRUE;
+Index: git/source/WanManager/wanmgr_interface_sm.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_interface_sm.c
++++ git/source/WanManager/wanmgr_interface_sm.c
+@@ -2186,7 +2186,22 @@ static eWanState_t wan_transition_wan_va
+         CcspTraceInfo(("%s %d - Configuring IP from Cellular Manager \n", __FUNCTION__, __LINE__, p_VirtIf->Name));
+         WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
+     }
++    // ETH - WAN case only
++    if ((strstr(p_VirtIf->Name,"eth") != NULL)) {
+ 
++        if(p_VirtIf->IP.IPv4Source == DML_WAN_IP_SOURCE_DHCP && (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK || p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV4_ONLY))
++        {
++             /* Start DHCPv4 client */
++             p_VirtIf->IP.Dhcp4cPid = WanManager_StartDhcpv4Client(p_VirtIf,pInterface->Name, pInterface->IfaceType);
++             CcspTraceInfo(("%s %d - Started dhcpc on interface %s, dhcpv4_pid %d \n",
++                           __FUNCTION__, __LINE__, p_VirtIf->Name, p_VirtIf->IP.Dhcp4cPid));
++        }
++        if (p_VirtIf->IP.IPv6Source == DML_WAN_IP_SOURCE_DHCP && (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK || p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV6_ONLY))
++        {
++              p_VirtIf->IP.Dhcp6cPid = WanManager_StartDhcpv6Client(p_VirtIf, pInterface->IfaceType);
++              CcspTraceInfo(("%s %d - Started dhcpv6 client on interface %s, dhcpv6_pid %d \n", __FUNCTION__, __LINE__, p_VirtIf->Name, p_VirtIf->IP.Dhcp6cPid));
++        }
++    }
+ #if defined(_DT_WAN_Manager_Enable_)
+     Enable_CaptivePortal(FALSE);
+ #endif
+Index: git/source/WanManager/wanmgr_policy_auto_impl.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_policy_auto_impl.c
++++ git/source/WanManager/wanmgr_policy_auto_impl.c
+@@ -47,7 +47,7 @@ typedef enum {
+     STATE_AUTO_WAN_TEARING_DOWN,
+     STATE_AUTO_WAN_SM_EXIT
+ } WcAwPolicyState_t;
+-
++int IPA_cli_exec(int Iface_index, bool Vlan_enabled);
+ 
+ 
+ /* SELECTION STATES */

@@ -1,0 +1,778 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Mon, 12 May 2026 09:07:00 +0000
+Subject: [PATCH] This patch addresses compilation warnings and errors in the WAN Manager component by fixing type mismatches, correcting printf/scanf format specifiers, resolving improper function pointer casts, and improving string handling safety through buffer size increases and use of safer APIs like strlcpy and strtok_r. It also includes platform-specific functional fixes such as updating the default WAN interface to eth0, correcting the CLIENT_DUID_FILE path, adding MTU-aware gateway route configuration, and triggering dhcp_server-restart for Cellular interfaces during IPv4 setup.
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+Index: git/source/TR-181/include/wanmgr_dml.h
+===================================================================
+--- git.orig/source/TR-181/include/wanmgr_dml.h
++++ git/source/TR-181/include/wanmgr_dml.h
+@@ -350,7 +350,7 @@ typedef struct _WANMGR_IPV6_DATA
+ {
+    char ifname[BUFLEN_32];
+    char address[BUFLEN_48];      /**< New IPv6 address, if addrAssigned==TRUE */
+-   char pdIfAddress[BUFLEN_48];      /**< New IPv6 address of PD interface */
++   char pdIfAddress[BUFLEN_64];      /**< New IPv6 address of PD interface */
+    char nameserver[BUFLEN_128];  /**< New nameserver, if addressAssigned==TRUE */
+    char nameserver1[BUFLEN_128];  /**< New nameserver, if addressAssigned==TRUE */
+    char domainName[BUFLEN_64];  /**< New domain Name, if addressAssigned==TRUE */
+Index: git/source/TR-181/middle_layer_src/wanmgr_dml_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_dml_apis.c
++++ git/source/TR-181/middle_layer_src/wanmgr_dml_apis.c
+@@ -189,7 +189,7 @@ BOOL WanManager_SetParamStringValue(ANSC
+         if (strcmp(ParamName, "Data") == 0)
+         {
+             char *webConf = NULL;
+-            size_t webSize = 0;
++            ULONG webSize = 0;
+ 
+             webConf = AnscBase64Decode(pString, &webSize);
+             if(!webConf)
+@@ -213,7 +213,7 @@ BOOL WanManager_SetParamStringValue(ANSC
+         else if (strcmp(ParamName, "WanFailoverData") == 0)
+         {
+             char *webConf = NULL;
+-            size_t webSize = 0;
++            ULONG webSize = 0;
+ 
+             webConf = AnscBase64Decode(pString, &webSize);
+             if(!webConf)
+Index: git/source/TR-181/middle_layer_src/wanmgr_dml_dhcpv6.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_dml_dhcpv6.c
++++ git/source/TR-181/middle_layer_src/wanmgr_dml_dhcpv6.c
+@@ -480,7 +480,7 @@ Client3_AddEntry
+         pCxtLink->InstanceNumber   = pDhcpc->Cfg.InstanceNumber;
+         *pInsNumber                = pDhcpc->Cfg.InstanceNumber;
+ 
+-        _ansc_sprintf( pDhcpc->Cfg.Alias, "Client%d", pDhcpc->Cfg.InstanceNumber);
++        _ansc_sprintf( pDhcpc->Cfg.Alias, "Client%d", (int) pDhcpc->Cfg.InstanceNumber);
+ 
+         /* Put into our list */
+         SListPushEntryByInsNum(&pDhcpv6->ClientList, (PCONTEXT_LINK_OBJECT)pCxtLink);
+@@ -2040,7 +2040,7 @@ SentOption1_AddEntry
+     pCxtLink->InstanceNumber       = pDhcpSentOption->InstanceNumber;
+     *pInsNumber                    = pDhcpSentOption->InstanceNumber;
+ 
+-    _ansc_sprintf( (char*)pDhcpSentOption->Alias, "SentOption%d", pDhcpSentOption->InstanceNumber);
++    _ansc_sprintf( (char*)pDhcpSentOption->Alias, "SentOption%d", (int) pDhcpSentOption->InstanceNumber);
+ 
+     /* Put into our list */
+     SListPushEntryByInsNum(&pCxtDhcpcLink->SentOptionList, (PCONTEXT_LINK_OBJECT)pCxtLink);
+Index: git/source/TR-181/middle_layer_src/wanmgr_dml_iface_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_dml_iface_apis.c
++++ git/source/TR-181/middle_layer_src/wanmgr_dml_iface_apis.c
+@@ -821,7 +821,7 @@ BOOL WanIfCfg_SetParamUlongValue(ANSC_HA
+             {
+                 if(uValue > WanMgr_GetTotalNoOfGroups())
+                 {
+-                    CcspTraceWarning(("%s %d Group Id(%d) is not supported. MAX_INTERFACE GROUP %d \n", __FUNCTION__, __LINE__,uValue, WanMgr_GetTotalNoOfGroups()));
++                    CcspTraceWarning(("%s %d Group Id(%d) is not supported. MAX_INTERFACE_GROUP %d \n", __FUNCTION__, __LINE__, (int)uValue,MAX_INTERFACE_GROUP));
+                 }
+                 else if(pWanDmlIface->Selection.Group != uValue)
+                 {
+@@ -829,7 +829,7 @@ BOOL WanIfCfg_SetParamUlongValue(ANSC_HA
+                     WANMGR_IFACE_GROUP* pWanIfaceGroup = WanMgr_GetIfaceGroup_locked((uValue -1));
+                     if (pWanIfaceGroup != NULL)
+                     {
+-                        CcspTraceInfo(("%s %d Group(%d) configuration changed  \n", __FUNCTION__, __LINE__,uValue));
++                        CcspTraceInfo(("%s %d Group(%d) configuration changed  \n", __FUNCTION__, __LINE__, (int) uValue));
+                         pWanIfaceGroup->ConfigChanged = TRUE;
+                         /* Add Interface to New group Available list */
+                         pWanIfaceGroup->InterfaceAvailable |= (1<<pIfaceDmlEntry->data.uiIfaceIdx);
+Index: git/source/TR-181/middle_layer_src/wanmgr_plugin_main.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_plugin_main.c
++++ git/source/TR-181/middle_layer_src/wanmgr_plugin_main.c
+@@ -322,7 +322,7 @@ int ANSC_EXPORT_API WanManagerDmlInit(UL
+     }
+ 
+     /* Get Message Bus Handle */
+-    g_GetMessageBusHandle = (PFN_CCSPCCDM_APPLY_CHANGES)pPlugInfo->AcquireFunction("COSAGetMessageBusHandle");
++    g_GetMessageBusHandle = (COSAGetHandleProc)pPlugInfo->AcquireFunction("COSAGetMessageBusHandle");
+     if ( g_GetMessageBusHandle == NULL )
+     {
+         goto EXIT;
+Index: git/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
++++ git/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
+@@ -25,6 +25,7 @@
+ #include "dmsb_tr181_psm_definitions.h"
+ #include "wanmgr_telemetry.h"
+ #include "wanmgr_interface_apis.h"
++#include "wanmgr_webconfig_apis.h"
+ 
+ enum {
+ ENUM_PHY = 1,
+@@ -222,7 +223,7 @@ rbusError_t wanMgrDmlPublishEventHandler
+ 
+     if(index  == 0)
+     {
+-        sscanf(name, WANMGR_INFACE_TABLE".%63s.", &AliasName);
++        sscanf(name, TABLE_NAME_WAN_INTERFACE "%[^.]", AliasName);
+         index = WanMgr_GetIfaceIndexByAliasName(AliasName);
+     }
+     if(index <= 0)
+@@ -452,7 +453,7 @@ rbusError_t WanMgr_Interface_SetHandler(
+ 
+     if(index  == 0)
+     {
+-        sscanf(name, WANMGR_INFACE_TABLE".%63s.", &AliasName);
++        sscanf(name, TABLE_NAME_WAN_INTERFACE "%[^.]", AliasName);
+         index = WanMgr_GetIfaceIndexByAliasName(AliasName);
+     }
+     if(index <= 0)
+@@ -557,7 +558,7 @@ rbusError_t WanMgr_Interface_SetHandler(
+             {
+                 BOOL Enable = FALSE;
+                 char param_name[256] = {0};
+-                _ansc_sprintf(param_name, PSM_WANMANAGER_IF_SELECTION_ENABLE, index);
++                _ansc_sprintf(param_name, PSM_WANMANAGER_IF_SELECTION_ENABLE, (int) index);
+                 if(rbusValue_GetBoolean(value))
+                 {
+                     pWanDmlIface->Selection.Enable = TRUE;
+@@ -1042,7 +1043,7 @@ ANSC_STATUS WanMgr_IDM_Invoke(idm_invoke
+     rbusObject_SetValue(inParams, "Operation", value);
+     rbusValue_Release(value);
+ 
+-    rc = rbusMethod_InvokeAsync(rbusHandle, X_RDK_REMOTE_INVOKE, inParams, IDM_request->asyncHandle, IDM_request->timeout);
++    rc = rbusMethod_InvokeAsync(rbusHandle, X_RDK_REMOTE_INVOKE, inParams, (rbusMethodAsyncHandle_t *)IDM_request->asyncHandle, IDM_request->timeout);
+ 
+     rbusObject_Release(inParams);
+     if(rc == RBUS_ERROR_SUCCESS)
+@@ -1314,11 +1315,11 @@ ANSC_STATUS WanMgr_Rbus_EventPublishHand
+             break;
+         case RBUS_UINT64:
+             rbusValue_SetUInt64(value, (*(int*)(dm_value)));
+-            CcspTraceInfo(("%s %d - dm_value[%d]\n", __FUNCTION__, __LINE__, dm_value));
++            CcspTraceInfo(("%s %d - dm_value[%d]\n", __FUNCTION__, __LINE__, *(int *) dm_value));
+             break;
+         case RBUS_STRING:
+             rbusValue_SetString(value, (char*)dm_value);
+-            CcspTraceInfo(("%s %d - dm_value[%s]\n", __FUNCTION__, __LINE__, dm_value));
++            CcspTraceInfo(("%s %d - dm_value[%s]\n", __FUNCTION__, __LINE__, (char *) dm_value));
+             break;
+         default:
+             CcspTraceError(("%s %d - Cannot identify valueType %d\n", __FUNCTION__, __LINE__, valueType));
+@@ -1374,7 +1375,7 @@ ANSC_STATUS WanMgr_Rbus_String_EventPubl
+     event.data = rdata;
+     event.type = RBUS_EVENT_VALUE_CHANGED;
+ 
+-    CcspTraceInfo(("%s %d - dm_event[%s],prev_dm_value[%s],dm_value[%s]\n", __FUNCTION__, __LINE__, dm_event, prev_dm_value, dm_value));
++    CcspTraceInfo(("%s %d - dm_event[%s],prev_dm_value[%s],dm_value[%s]\n", __FUNCTION__, __LINE__, dm_event, (char*) prev_dm_value, (char *) dm_value));
+ 
+     if(rbusEvent_Publish(rbusHandle, &event) != RBUS_ERROR_SUCCESS)
+     {
+@@ -1451,7 +1452,7 @@ ANSC_STATUS WanMgr_WanRemoteIfaceConfigu
+     pthread_t                threadId;
+     int                      iErrorCode     = 0;
+ 
+-    iErrorCode = pthread_create( &threadId, NULL, &WanMgr_WanRemoteIfaceConfigure_thread, pDeviceChangeEvent);
++    iErrorCode = pthread_create( &threadId, NULL, (void *) &WanMgr_WanRemoteIfaceConfigure_thread, pDeviceChangeEvent);
+     if( 0 != iErrorCode )
+     {
+         CcspTraceError(("%s %d - Failed to start WanMgr_WanRemoteIfaceConfigure_thread EC:%d\n", __FUNCTION__, __LINE__, iErrorCode ));
+@@ -1605,7 +1606,7 @@ void *WanMgr_WanRemoteIfaceConfigure_thr
+         if(RemoteDMsQueryList[i].get_request)
+         {
+             /* IDM get request*/
+-            CcspTraceInfo(("%s %d - Requesting  %s \n", __FUNCTION__, __LINE__,RemoteDMsQueryList[i]));
++            CcspTraceInfo(("%s %d - Requesting  %s \n", __FUNCTION__, __LINE__,RemoteDMsQueryList[i].name));
+             memset(&IDM_request,0, sizeof(idm_invoke_method_Params_t));
+ 
+             /* Update request parameters */
+@@ -1630,11 +1631,11 @@ void *WanMgr_WanRemoteIfaceConfigure_thr
+             memset(&IDM_request,0, sizeof(idm_invoke_method_Params_t));
+ 
+             /* Update request parameters */
+-            strncpy(IDM_request.Mac_dest, pDeviceChangeEvent->mac_addr,sizeof(IDM_request.Mac_dest)-1);
+-            strncpy(IDM_request.param_name, RemoteDMsQueryList[i].name, sizeof(IDM_request.param_name)-1);
++            strlcpy(IDM_request.Mac_dest, pDeviceChangeEvent->mac_addr,sizeof(IDM_request.Mac_dest));
++            strlcpy(IDM_request.param_name, RemoteDMsQueryList[i].name, sizeof(IDM_request.param_name));
+             IDM_request.timeout = 600;
+             IDM_request.operation = IDM_SUBS;
+-            IDM_request.asyncHandle = &CPEInterface_AsyncMethodHandler; //pointer to callback
++            IDM_request.asyncHandle = (rbusMethodAsyncHandle_t) &CPEInterface_AsyncMethodHandler; //pointer to callback
+ 
+             WanMgr_IDM_Invoke(&IDM_request);
+         }
+Index: git/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
++++ git/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
+@@ -69,7 +69,7 @@ int get_Wan_Interface_ParametersFromPSM(
+ 
+     _ansc_memset(param_name, 0, sizeof(param_name));
+     _ansc_memset(param_value, 0, sizeof(param_value));
+-    _ansc_sprintf(param_name, PSM_WANMANAGER_IF_SELECTION_ENABLE, instancenum);
++    _ansc_sprintf(param_name, PSM_WANMANAGER_IF_SELECTION_ENABLE, (int) instancenum);
+     retPsmGet = WanMgr_RdkBus_GetParamValuesFromDB(param_name,param_value,sizeof(param_value));
+     if (retPsmGet == CCSP_SUCCESS)
+     {
+@@ -210,7 +210,7 @@ int get_Wan_Interface_ParametersFromPSM(
+     retPsmGet = WanMgr_RdkBus_GetParamValuesFromDB(param_name,param_value,sizeof(param_value));
+     if (retPsmGet == CCSP_SUCCESS)
+     {
+-        _ansc_sscanf(param_value, "%d", &(p_Interface->NoOfVirtIfs));
++        _ansc_sscanf(param_value, "%d", (int *)&(p_Interface->NoOfVirtIfs));
+     }
+ 
+     _ansc_memset(param_name, 0, sizeof(param_name));
+@@ -509,7 +509,7 @@ int write_Wan_Interface_ParametersFromPS
+     {
+         _ansc_sprintf(param_value, "FALSE");
+     }
+-    _ansc_sprintf(param_name, PSM_WANMANAGER_IF_SELECTION_ENABLE, instancenum);
++    _ansc_sprintf(param_name, PSM_WANMANAGER_IF_SELECTION_ENABLE, (int) instancenum);
+     WanMgr_RdkBus_SetParamValuesToDB(param_name,param_value);
+ 
+     memset(param_value, 0, sizeof(param_value));
+@@ -837,7 +837,7 @@ static void WanMgr_RemoveMarkingEntryFro
+     char *save_ptr;
+     char *tmpToken = NULL;
+     INT     iTotalMarking        = 0;
+-    char                     acPSMQuery[128]    = { 0 },
++    char                     acPSMQuery[256]    = { 0 },
+                              acPSMValue[64]     = { 0 };
+ 
+     //split marking table value
+@@ -903,7 +903,7 @@ ANSC_STATUS WanMgr_WanIfaceMarkingInit (
+     for( iLoopCount = 0; iLoopCount < pWanIfaceCtrl->ulTotalNumbWanInterfaces; iLoopCount++ )
+     {
+             ULONG                    ulIfInstanceNumber = 0;
+-            char                     acPSMQuery[128]    = { 0 },
++            char                     acPSMQuery[256]    = { 0 },
+                                      acPSMValue[64]     = { 0 };
+ 
+             //Interface instance number
+@@ -922,20 +922,20 @@ ANSC_STATUS WanMgr_WanIfaceMarkingInit (
+                 char acTmpString[64] = { 0 };
+                 char *token          = NULL;
+                 char acOldMarkingList[64] = { 0 };
+-
++                char *save_ptr       = NULL;
+ 
+                 //Parse PSM output
+-                snprintf( acTmpString, sizeof( acTmpString ), acPSMValue );
+-                snprintf( acOldMarkingList, sizeof( acOldMarkingList ), acPSMValue );
++                snprintf( acTmpString, sizeof( acTmpString ),"%s", acPSMValue );
++                snprintf( acOldMarkingList, sizeof( acOldMarkingList ),"%s", acPSMValue );
+ 
+                 //split marking table value
+-                token = strtok( acTmpString, "-" );
++                token = strtok_r( acTmpString, "-" , &save_ptr );
+ 
+                 //check and add
+                 while ( token != NULL )
+                 {
+                     char aTableName[512] = {0};
+-                    ULONG                                ulInstanceNumber  = 0;
++                    int                                ulInstanceNumber  = 0;
+ 
+                     DML_MARKING    Marking;
+                     DML_MARKING*   p_Marking = &Marking;
+@@ -1120,7 +1120,7 @@ DmlCheckAndProceedMarkingOperations
+         DML_WAN_MARKING_DML_OPERATIONS enMarkingOp
+     )
+ {
+-    char    acPSMQuery[128]    = { 0 },
++    char    acPSMQuery[256]    = { 0 },
+             acPSMValue[64]     = { 0 };
+     ULONG   ulIfInstanceNumber = 0;
+ 
+@@ -1159,12 +1159,13 @@ DmlCheckAndProceedMarkingOperations
+                  acFoundMarkingRecord[64] = { 0 };
+         char     *token                   = NULL;
+         BOOL     IsMarkingRecordFound     = FALSE;
++        char     *save_ptr                = NULL;
+ 
+         //Parse PSM output
+-        snprintf( acTmpString, sizeof( acTmpString ), acPSMValue );
++        snprintf( acTmpString, sizeof( acTmpString ),"%s", acPSMValue );
+ 
+         //split marking table value
+-        token = strtok( acTmpString, "-" );
++        token = strtok_r( acTmpString, "-" , &save_ptr );
+ 
+         //check and add
+         while ( token != NULL )
+@@ -1197,8 +1198,8 @@ DmlCheckAndProceedMarkingOperations
+         {
+              case WAN_MARKING_ADD:
+              {
+-                char    acPSMRecEntry[64],
+-                        acPSMRecValue[64];
++                char    acPSMRecEntry[128],
++                        acPSMRecValue[128];
+ 
+                 if( TRUE == IsMarkingRecordFound )
+                 {
+@@ -1294,7 +1295,7 @@ DmlCheckAndProceedMarkingOperations
+ 
+              case WAN_MARKING_UPDATE:
+              {
+-                char    acPSMRecEntry[64],
++                char    acPSMRecEntry[128],
+                         acPSMRecValue[64];
+ 
+                 if( FALSE == IsMarkingRecordFound )
+@@ -1341,13 +1342,13 @@ DmlCheckAndProceedMarkingOperations
+ 
+              case WAN_MARKING_DELETE:
+              {
+-                char    acPSMRecEntry[64],
++                char    acPSMRecEntry[128],
+                         acPSMRecValue[64],
+                         acNewMarkingList[64] = { 0 },
+                         acNewTmpString[64]   = { 0 },
+                         *tmpToken            = NULL;
+                 INT     iTotalMarking        = 0;
+-
++                char    *save_ptr            = NULL;
+ 
+                 if( FALSE == IsMarkingRecordFound )
+                 {
+@@ -1382,10 +1383,10 @@ DmlCheckAndProceedMarkingOperations
+                 //Remove entry from LIST
+ 
+                 //Parse PSM output
+-                snprintf( acNewTmpString, sizeof( acNewTmpString ), acPSMValue );
++                snprintf( acNewTmpString, sizeof( acNewTmpString ),"%s", acPSMValue );
+ 
+                 //split marking table value
+-                tmpToken = strtok( acNewTmpString, "-" );
++                tmpToken = strtok_r( acNewTmpString, "-" , &save_ptr );
+ 
+                 //check and add
+                 while ( tmpToken != NULL )
+Index: git/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.h
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.h
++++ git/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.h
+@@ -61,9 +61,9 @@
+ struct IFACE_INFO
+ {
+     INT     Priority;
+-    CHAR    AvailableStatus[BUFLEN_64];
++    CHAR    AvailableStatus[70];
+     CHAR    InterfaceIpStatus[BUFLEN_64];
+-    CHAR    ActiveStatus[BUFLEN_64];
++    CHAR    ActiveStatus[70];
+     CHAR    CurrentActive[BUFLEN_64];
+     CHAR    CurrentStandby[BUFLEN_64];
+     struct IFACE_INFO *next;
+@@ -92,6 +92,12 @@ ANSC_STATUS DmlGetTotalNoOfGroups(int *w
+ ANSC_STATUS WanMgr_RdkBus_setWanPolicy(DML_WAN_POLICY wan_policy, UINT groupId);
+ ANSC_STATUS WanMgr_Read_GroupConf_FromPSM(WANMGR_IFACE_GROUP *pGroup, UINT groupId);
+ 
++ANSC_STATUS SListPushMarkingEntryByInsNum
++    (
++        PSLIST_HEADER               pListHead,
++        PCONTEXT_LINK_OBJECT   pLinkContext
++    );
++
+ /**
+  * @brief Updates the VLAN in use parameter and stores it to persisted memory.
+  *
+Index: git/source/TR-181/middle_layer_src/wanmgr_rdkbus_utils.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_rdkbus_utils.c
++++ git/source/TR-181/middle_layer_src/wanmgr_rdkbus_utils.c
+@@ -653,7 +653,7 @@ static ANSC_STATUS WanMgr_RdkBus_GetInte
+             //Traverse from loop
+             for ( iLoopCount = 0; iLoopCount < iTotalNoofEntries; iLoopCount++ )
+             {
+-                char acTmpQueryParam[BUFLEN_256] = { 0 };
++                char acTmpQueryParam[300] = { 0 };
+ 
+                 //Query
+                 snprintf( acTmpQueryParam, sizeof(acTmpQueryParam ), "%sX_RDK_BaseInterface", a2cTmpTableParams[ iLoopCount ] );
+Index: git/source/WanManager/wanmgr_network_monitor.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_network_monitor.c
++++ git/source/WanManager/wanmgr_network_monitor.c
+@@ -397,7 +397,7 @@ static void NetMonitor_ProcessNetlinkRou
+ 
+     ssize_t status = recvmsg(netlinkRouteMonitorFd, &msg, 0);
+     if (status <= 0) {
+-        CcspTraceError(("%s-%d: Received Message Status Failed %d \n", __FUNCTION__, __LINE__, status));
++        CcspTraceError(("%s-%d: Received Message Status Failed %zu \n", __FUNCTION__, __LINE__, status));
+         return;
+     }
+ 
+Index: git/source/WanManager/wanmgr_controller.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_controller.c
++++ git/source/WanManager/wanmgr_controller.c
+@@ -22,6 +22,8 @@
+ #include "wanmgr_rdkbus_utils.h"
+ #include "wanmgr_data.h"
+ #include "secure_wrapper.h"
++#include "wanmgr_wan_failover.h"
++#include "wanmgr_rdkbus_apis.h"
+ 
+ /* WanController_Init_StateMachine */
+ ANSC_STATUS WanController_Init_StateMachine(void)
+Index: git/source/WanManager/wanmgr_dhcpv4_apis.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_dhcpv4_apis.c
++++ git/source/WanManager/wanmgr_dhcpv4_apis.c
+@@ -156,7 +156,7 @@ ANSC_STATUS wanmgr_handle_dhcpv4_event_d
+         pVirtIf->IP.RestartConnectivityCheck = TRUE;
+     }
+ 
+-    char name[64] = {0};
++    char name[128] = {0};
+     char value[64] = {0};
+     uint32_t up_time = 0;
+ 
+@@ -678,7 +678,7 @@ ANSC_HANDLE WanMgr_DmlDhcpcAddEntry ( AN
+         pDhcpc->Cfg.InstanceNumber = pDhcpv4->maxInstanceOfClient;
+         pCxtLink->InstanceNumber   = pDhcpc->Cfg.InstanceNumber;
+ 
+-        _ansc_sprintf( pDhcpc->Cfg.Alias, "Client%d", pDhcpc->Cfg.InstanceNumber);
++        _ansc_sprintf( pDhcpc->Cfg.Alias, "Client%d", (int)pDhcpc->Cfg.InstanceNumber);
+ 
+         /* Put into our list */
+         SListPushEntryByInsNum(&pDhcpv4->ClientList, (PCONTEXT_LINK_OBJECT)pCxtLink);
+Index: git/source/WanManager/wanmgr_dhcpv6_apis.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_dhcpv6_apis.c
++++ git/source/WanManager/wanmgr_dhcpv6_apis.c
+@@ -41,11 +41,9 @@ extern char g_Subsystem[32];
+ #if defined(CISCO_CONFIG_DHCPV6_PREFIX_DELEGATION) && defined(_COSA_BCM_MIPS_)
+ #include <netinet/in.h>
+ #endif
+-#define CLIENT_DUID_FILE "/var/lib/dibbler/client-duid"
++#define CLIENT_DUID_FILE "/tmp/dibbler/client-duid"
+ #define DHCPS6V_SERVER_RESTART_FIFO "/tmp/ccsp-dhcpv6-server-restart-fifo.txt"
+-
+ #define CLIENT_BIN     "dibbler-client"
+-
+ #if defined (INTEL_PUMA7)
+ #define NO_OF_RETRY 90
+ #if defined(MULTILAN_FEATURE)
+@@ -952,7 +950,7 @@ static int _write_dibbler_sent_option_fi
+             if (g_sent_options[i].bEnabled)
+                 fprintf(fp, "%lu:%d:%s\n",
+                         g_sent_options[i].Tag,
+-                        strlen((const char*)g_sent_options[i].Value)/2,
++                        (int) strlen((const char*)g_sent_options[i].Value)/2,
+                         g_sent_options[i].Value);
+         }
+ 
+@@ -973,9 +971,9 @@ WanMgr_DmlDhcpv6cGetSentOption
+ {
+     UNREFERENCED_PARAMETER(hContext);
+     UNREFERENCED_PARAMETER(ulClientInstanceNumber);
+-    char namespace[64];
+-    char buf[128];
+-    char out[32];
++    char out[256] = {0};
++    char buf[300] = {0};
++    char namespace[256] = {0};
+ 
+     if ((int) ulIndex > g_sent_option_num - 1 || !g_sent_options)
+     {
+@@ -1078,8 +1076,9 @@ WanMgr_DmlDhcpv6cSetSentOptionValues
+ 
+ static int _syscfg_add_sent_option(PDML_DHCPCV6_SENT pEntry, int index)
+ {
+-    char namespace[64];
+-    char buf[128];
++    char out[300] = {0};
++    char buf[300] = {0};
++    char namespace[256] = {0};
+ 
+     if (!pEntry)
+         return -1;
+@@ -1214,6 +1213,10 @@ WanMgr_DmlDhcpv6cSetSentOption
+     UNREFERENCED_PARAMETER(hContext);
+     UNREFERENCED_PARAMETER(ulClientInstanceNumber);
+     ULONG index = 0;
++    char                            buf[300] = {0};
++    char                            out[256] = {0};
++    char                            namespace[256] = {0};
++    int                             i = 0;
+ 
+     for (index = 0; index < g_sent_option_num; index++)
+     {
+@@ -1607,7 +1610,7 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_d
+     }
+ 
+     BOOL connected = FALSE;
+-    char set_value[BUFLEN_64];
++    char set_value[BUFLEN_128];
+ 
+     memset(set_value, 0, sizeof(set_value));
+ 
+@@ -1816,7 +1819,7 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_d
+ 
+     if (!pNewIpcMsg->addrAssigned)
+     {
+-        char guAddrPrefix[IP_ADDR_LENGTH] = {0};
++        char guAddrPrefix[128] = {0};
+         char guAddr[IP_ADDR_LENGTH] = {0};
+         uint32_t prefixLen = 0;
+         ANSC_STATUS r2;
+Index: git/source/WanManager/wanmgr_dhcpv6_internal.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_dhcpv6_internal.c
++++ git/source/WanManager/wanmgr_dhcpv6_internal.c
+@@ -458,7 +458,7 @@ WanMgr_Dhcpv6BackendGetDhcpv6Info
+         }
+         else
+         {
+-            CcspTraceWarning(("WanMgr_Dhcpv6BackendGetDhcpv6Info -- WanMgr_DmlDhcpv6cGetServerCfg() return error:%d.\n", returnStatus));
++            CcspTraceWarning(("WanMgr_Dhcpv6BackendGetDhcpv6Info -- WanMgr_DmlDhcpv6cGetServerCfg() return error:%lu.\n", returnStatus));
+         }
+  
+         /* We begin treat DHCPv6.Client.{i}.SentOption.{i} */
+@@ -586,7 +586,7 @@ WanMgr_Dhcpv6BackendGetDhcpv6Info
+         }
+         else
+         {
+-            CcspTraceWarning(("WanMgr_Dhcpv6BackendGetDhcpv6Info -- WanMgr_DmlDhcpv6cGetReceivedOptionCfg() return error:%d.\n", returnStatus));
++            CcspTraceWarning(("WanMgr_Dhcpv6BackendGetDhcpv6Info -- WanMgr_DmlDhcpv6cGetReceivedOptionCfg() return error:%lu.\n", returnStatus));
+         }
+         
+     }
+Index: git/source/WanManager/wanmgr_interface_sm.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_interface_sm.c
++++ git/source/WanManager/wanmgr_interface_sm.c
+@@ -1233,7 +1233,7 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_
+     }
+ 
+     int ret = RETURN_OK;
+-    char cmdStr[BUFLEN_128 + IP_ADDR_LENGTH] = {0};
++    char cmdStr[BUFLEN_256] = {0};
+     char bCastStr[IP_ADDR_LENGTH] = {0};
+     char buf[BUFLEN_32] = {0};
+ 
+@@ -1245,6 +1245,13 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_
+      {
+          CcspTraceError(("%s %d - Could not store ipv4 data!", __FUNCTION__, __LINE__));
+      }
++      else
++     {
++         if (strstr(pInterface->BaseInterface, "Cellular"))
++         {
++             sysevent_set(sysevent_fd, sysevent_token, "dhcp_server-restart", "" , 0);
++         }
++     }
+ 
+     /** configure DNS */
+     if (RETURN_OK != wan_updateDNS(pWanIfaceCtrl, TRUE, (p_VirtIf->IP.Ipv6Status == WAN_IFACE_IPV6_STATE_UP)))
+@@ -1337,7 +1344,7 @@ static int wan_tearDownIPv4(WanMgr_Iface
+     }
+ 
+     int ret = RETURN_OK;
+-    char cmdStr[BUFLEN_64] = {0};
++    char cmdStr[BUFLEN_128] = {0};
+     char buf[BUFLEN_32] = {0};
+ 
+     DEVICE_NETWORKING_MODE DeviceNwMode = pWanIfaceCtrl->DeviceNwMode;
+Index: git/source/WanManager/wanmgr_net_utils.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_net_utils.c
++++ git/source/WanManager/wanmgr_net_utils.c
+@@ -113,6 +113,8 @@ extern int stop_dhcpv4_client (dhcp_para
+ #define MODEM_TABLE_NAME "MODEM"
+ #define WAN_BRIDGE       "brWAN"
+ 
++#define MIN_IPv4_MTU 68
++
+ #define SET_MAX_RETRY_COUNT 10 // max. retry count for set requests
+ /***************************************************************************
+  * @brief API used to check the incoming ipv4 address is a valid ipv4 address
+@@ -1809,7 +1811,7 @@ int WanManager_GetBCastFromIpSubnetMask(
+ 
+ int WanManager_DelDefaultGatewayRoute(DEVICE_NETWORKING_MODE DeviceNwMode, BOOL DeviceNwModeChange, const WANMGR_IPV4_DATA* pIpv4Info)
+ {
+-    char cmd[BUFLEN_128]={0};
++    char cmd[BUFLEN_256]={0};
+     int ret = RETURN_OK;
+     DEVICE_NETWORKING_MODE ModeConfigToDelete;
+ 
+@@ -1869,7 +1871,15 @@ int WanManager_AddDefaultGatewayRoute(DE
+         /* For IPoE, always use gw IP address. */
+         if (IsValidIpv4Address(pIpv4Info->gateway) && !(IsZeroIpvxAddress(AF_SELECT_IPV4, pIpv4Info->gateway)))
+         {
+-            snprintf(cmd, sizeof(cmd), "route add default gw %s dev %s", pIpv4Info->gateway, pIpv4Info->ifname);
++            /*68 as that is the minimun packet size that can be transferred*/
++            if((pIpv4Info->mtuSize) >= MIN_IPv4_MTU)
++            {
++                snprintf(cmd, sizeof(cmd), "ip route add default via %s dev %s mtu %d", pIpv4Info->gateway, pIpv4Info->ifname, pIpv4Info->mtuSize);
++            }
++            else
++            {
++                snprintf(cmd, sizeof(cmd), "route add default gw %s dev %s", pIpv4Info->gateway, pIpv4Info->ifname);
++            }
+             WanManager_DoSystemAction("SetUpDefaultSystemGateway:", cmd);
+             CcspTraceInfo(("%s %d - The default gateway route entries set!, cmd(%s)\n",__FUNCTION__,__LINE__, cmd));
+         }
+@@ -1885,7 +1895,7 @@ int WanManager_AddDefaultGatewayRoute(DE
+ 
+         // add route to extender gateway via extender wan interface
+         memset (cmd, 0, sizeof(cmd));
+-        snprintf(cmd, sizeof(cmd), "ip route add default via %s dev %s table MODEM", pIpv4Info->gateway, pIpv4Info->ifname, WAN_BRIDGE, MODEM_TABLE_NAME);
++        snprintf(cmd, sizeof(cmd), "ip route add default via %s dev %s table MODEM", pIpv4Info->gateway, pIpv4Info->ifname);
+         WanManager_DoSystemAction("SetUpDefaultSystemGateway:", cmd);
+ 
+         // put the previous rule/route to action
+Index: git/source/WanManager/wanmgr_net_utils.h
+===================================================================
+--- git.orig/source/WanManager/wanmgr_net_utils.h
++++ git/source/WanManager/wanmgr_net_utils.h
+@@ -259,6 +259,7 @@ bool IsDefaultRoutePresent(char *IfaceNa
+ 
+ #ifdef FEATURE_802_1P_COS_MARKING
+ ANSC_HANDLE WanManager_AddIfaceMarking(DML_WAN_IFACE* pWanDmlIface, ULONG* pInsNumber);
++void Marking_UpdateInitValue(ANSC_HANDLE hInsContext, ULONG ulIfInstanceNumber, ULONG nIndex,DML_MARKING* pmark);
+ #endif /* * FEATURE_802_1P_COS_MARKING */
+ ANSC_STATUS WanManager_CheckGivenTypeExists(INT IfIndex, UINT uiTotalIfaces, DML_WAN_IFACE_TYPE priorityType, INT priority, BOOL *Status);
+ ANSC_STATUS WanManager_CheckGivenPriorityExists(INT IfIndex, UINT uiTotalIfaces, INT priority, BOOL *Status);
+Index: git/source/WanManager/wanmgr_ssp_messagebus_interface.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_ssp_messagebus_interface.c
++++ git/source/WanManager/wanmgr_ssp_messagebus_interface.c
+@@ -126,7 +126,7 @@ ssp_Mbi_MessageBusEngage(char* component
+ 
+     if ( returnStatus != CCSP_Message_Bus_OK )
+     {
+-         CcspTraceError((" !!! CCSP_Message_Bus_Register_Event: CurrentSessionIDSignal ERROR returnStatus: %d!!!\n", returnStatus));
++        CcspTraceError((" !!! CCSP_Message_Bus_Register_Event: CurrentSessionIDSignal ERROR returnStatus: %lu!!!\n", returnStatus));
+ 
+         return returnStatus;
+     }
+Index: git/source/WanManager/wanmgr_sysevents.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_sysevents.c
++++ git/source/WanManager/wanmgr_sysevents.c
+@@ -156,7 +156,7 @@ ANSC_STATUS wanmgr_sysevents_ipv6Info_in
+ 
+ ANSC_STATUS wanmgr_sysevents_ipv4Info_set(const ipc_dhcpv4_data_t* dhcp4Info, const char *wanIfName)
+ {
+-    char name[BUFLEN_64] = {0};
++    char name[BUFLEN_128] = {0};
+     char value[BUFLEN_64] = {0};
+ 
+     snprintf(name, sizeof(name), SYSEVENT_IPV4_DS_CURRENT_RATE, wanIfName);
+@@ -193,7 +193,7 @@ ANSC_STATUS wanmgr_sysevents_ipv4Info_se
+ 
+ ANSC_STATUS wanmgr_set_Ipv4Sysevent(const WANMGR_IPV4_DATA* dhcp4Info, DEVICE_NETWORKING_MODE DeviceNwMode)
+ {
+-    char name[BUFLEN_64] = {0};
++    char name[BUFLEN_128] = {0};
+     char value[BUFLEN_64] = {0};
+     char ipv6_status[BUFLEN_16] = {0};
+     char ifaceMacAddress[BUFLEN_128] = {0};
+@@ -1510,7 +1510,7 @@ void wanmgr_get_wan_interface(char *wanI
+ 
+     if (wanInterface[0] == '\0')
+     {
+-        strcpy(wanInterface,"erouter0"); // default wan interface
++        strlcpy(wanInterface, "eth0", BUFLEN_64); // default wan interface
+     }
+ }
+ #endif
+Index: git/source/WanManager/wanmgr_utils.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_utils.c
++++ git/source/WanManager/wanmgr_utils.c
+@@ -100,7 +100,7 @@ static int parseArgs(const char *cmd, co
+ 
+     if (array[argIndex] == NULL)
+     {
+-        CcspTraceError(("memory allocation of %d failed", strlen(cmdStr) + 1));
++        CcspTraceError(("memory allocation of %lu failed", strlen(cmdStr) + 1));
+         freeArgs(array);
+         return -1;
+     }
+@@ -647,7 +647,7 @@ int GetPathToApp(const char *name, char
+     rc = snprintf(envPathBuf, sizeof(envPathBuf), "%s", getenv("PATH"));
+     if (rc >= (int32_t)sizeof(envPathBuf))
+     {
+-        CcspTraceError(("envPathBuf (size=%d) is too small to hold PATH env %s \n",
++        CcspTraceError(("envPathBuf (size=%lu) is too small to hold PATH env %s \n",
+                         sizeof(envPathBuf), getenv("PATH")));
+         return RETURN_ERROR;
+     }
+@@ -896,7 +896,7 @@ void WanManager_GetDateAndUptime( char *
+         snprintf( buf, sizeof( buf ), fmt, tv.tv_usec );
+     }
+ 
+-    snprintf( buffer, sizeof(buf)-1, "%s", buf);
++    snprintf( buffer, sizeof(buf), "%s", buf);
+ 
+     *uptime= info.uptime;
+ }
+Index: git/source/WanManager/wanmgr_utils.h
+===================================================================
+--- git.orig/source/WanManager/wanmgr_utils.h
++++ git/source/WanManager/wanmgr_utils.h
+@@ -159,6 +159,7 @@ int util_runCommandInShellBlocking(char
+ int util_getZombiePidByName(char * name);
+ void WanManager_Util_GetShell_output(FILE *fp, char *out, int len);
+ int WanMgr_SetRestartWanInfo (const char * param, int idx, char * value);
++bool util_isFilePresent(char *filename);
+ 
+ ANSC_STATUS WanMgr_RestartUpdateCfg (const char * param, int idx, char * output, int size);
+ ANSC_STATUS WanMgr_RestartUpdateCfg_Bool (const char * param, int idx, BOOL* output);
+Index: git/source/WanManager/wanmgr_webconfig_apis.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_webconfig_apis.c
++++ git/source/WanManager/wanmgr_webconfig_apis.c
+@@ -144,7 +144,7 @@ pErr WanMgr_Process_Webconfig_Request(vo
+                     }
+                     for(markIdx = 0; markIdx < markingCount; markIdx++)
+                     {
+-                        pCxtLink = Marking_GetEntry((ANSC_HANDLE)pWanDmlIfaceData, markIdx, &insNum);
++                        pCxtLink = Marking_GetEntry((ANSC_HANDLE)pWanDmlIfaceData, markingCount, (ULONG *) &insNum);
+                         if (pCxtLink)
+                         {
+                             memset(dmlAlias, 0, sizeof(dmlAlias));
+@@ -169,12 +169,12 @@ pErr WanMgr_Process_Webconfig_Request(vo
+                             else
+                             {
+                                 CcspTraceError(("%s : Failed to read Alias for marking entry: %d..\n",
+-                                            __FUNCTION__, markIdx));
++                                            __FUNCTION__, (int) markIdx));
+                             }
+                         }
+                         else
+                         {
+-                            CcspTraceError(("%s : Failed to fetch entry at index: %d..\n",
++                            CcspTraceError(("%s : Failed to fetch entry at index: %lu..\n",
+                                         __FUNCTION__, markIdx));
+                         }
+                     }
+@@ -401,7 +401,7 @@ ANSC_STATUS WanMgrDmlWanFailOverDataSet
+         {
+             if (map_ptr->val.type == MSGPACK_OBJECT_POSITIVE_INTEGER) {
+                 pWebConfig->version = (unsigned long) map_ptr->val.via.u64;
+-                CcspTraceInfo(("Version :%lu\n",pWebConfig->version));
++                CcspTraceInfo(("Version :%ld\n",pWebConfig->version));
+             }
+         }
+         else if (strncmp(map_ptr->key.via.str.ptr, "transaction_id",map_ptr->key.via.str.size) == 0)
+@@ -544,7 +544,7 @@ ANSC_STATUS WanMgrDmlWanDataSet(const vo
+         {
+             if (map_ptr->val.type == MSGPACK_OBJECT_POSITIVE_INTEGER) {
+                 pWebConfig->version = (unsigned long) map_ptr->val.via.u64;
+-                CcspTraceInfo(("Version :%lu\n",pWebConfig->version));
++                CcspTraceInfo(("Version :%ld\n",pWebConfig->version));
+             }
+         }
+         else if (strncmp(map_ptr->key.via.str.ptr, "transaction_id",map_ptr->key.via.str.size) == 0)
