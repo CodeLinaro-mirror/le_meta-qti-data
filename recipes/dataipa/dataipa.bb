@@ -49,7 +49,7 @@ do_compile() {
 }
 do_install() {
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
-	install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
+	install -d ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra
 
    module_path="${WORKDIR}/dataipa/drivers/platform/msm"
 
@@ -62,13 +62,13 @@ do_install() {
 		LD_LIBRARY_PATH=${WORKSPACE}/kernel/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
 		${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
 		${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${module_path}/${module}
-     install -m 0644  ${module_path}/${module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
+     install -m 0644  ${module_path}/${module} ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/
    done
 
    install -d ${D}${sysconfdir}/initscripts/
    install -m 0555 ${WORKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${sysconfdir}/data/ipa_be/
-   install -d ${D}/lib/firmware/ipa_be/
+   install -d ${D}${nonarch_base_libdir}/firmware/ipa_be/
    install -m 0555 ${WORKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
    sed -i 's|@IPA_PLATFORM@|${IPA_PLATFORM}|g' ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${systemd_unitdir}/system/
@@ -78,7 +78,7 @@ do_install() {
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
-   ln -sf ${sysconfdir}/data/ipa_be/ipa_ini_file.ini ${D}/lib/firmware/ipa_be/ipa_ini_file.ini
+   ln -sf ${sysconfdir}/data/ipa_be/ipa_ini_file.ini ${D}${nonarch_base_libdir}/firmware/ipa_be/ipa_ini_file.ini
 
     # This copy of the headers contains both the kernel and unsanitized UAPI.
     # This is intended for use by other kernel modules.
@@ -110,7 +110,7 @@ FILES:${PN}+="${systemd_unitdir}/system/dataipa.service"
 FILES:${PN}+="${sysconfdir}/data/ipa_config.txt"
 FILES:${PN}+="${systemd_unitdir}/system/local-fs.target.wants/dataipa.service"
 FILES:${PN} += "${sysconfdir}/data/ipa_be"
-FILES:${PN} += "/lib/firmware/ipa_be"
+FILES:${PN} += "${nonarch_base_libdir}/firmware/ipa_be"
 
 FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/*"
 FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/gsi/gsim.ko"
