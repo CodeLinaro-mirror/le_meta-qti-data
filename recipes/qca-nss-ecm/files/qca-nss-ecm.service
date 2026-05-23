@@ -1,0 +1,12 @@
+[Unit]
+Description=QCA NSS Enhanced Connection Manager
+After=network.target dataipa.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/qca-nss-ecm.sh start
+ExecStop=/usr/sbin/qca-nss-ecm.sh stop
+
+[Install]
+WantedBy=local-fs.target
