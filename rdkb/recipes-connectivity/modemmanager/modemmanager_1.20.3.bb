@@ -17,7 +17,7 @@ SRCREV ?= "9bf1095434a340d79ab1933a622ac971eedf7037"
 
 # Patch 0001 will be in ModemManager > 1.19
 SRC_URI = " \
-    git://gitlab.freedesktop.org/mobile-broadband/ModemManager.git;protocol=https;branch=mm-1-20 \
+    git://git.codelinaro.org/clo/rdkb/mobile-broadband/ModemManager.git;protocol=https;branch=rdkb/mm-1-20 \
 "
 SRC_URI[sha256sum] = "6b2c0a194a1a7ba1880dd4af01c86e28182285803edd7cae69628742b517695c"
 
