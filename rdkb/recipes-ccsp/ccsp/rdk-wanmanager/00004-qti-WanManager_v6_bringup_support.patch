@@ -1,0 +1,248 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 92219177c52e9ab206aee961424931ca0f3864c4 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Mon, 1 Jun 2026 06:39:41 +0000
+Subject: [PATCH] qti-WanManager_v6_bringup_support
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/TR-181/include/wanmgr_dml.h            |  1 +
+ .../wanmgr_rbus_handler_apis.c                |  5 +-
+ source/WanManager/wanmgr_data.c               |  2 +-
+ source/WanManager/wanmgr_dhcpv4_apis.c        | 70 ++++++++++++-------
+ source/WanManager/wanmgr_interface_sm.c       | 41 ++++++++++-
+ 5 files changed, 90 insertions(+), 29 deletions(-)
+
+diff --git a/source/TR-181/include/wanmgr_dml.h b/source/TR-181/include/wanmgr_dml.h
+index c9c239f..8a70af3 100644
+--- a/source/TR-181/include/wanmgr_dml.h
++++ b/source/TR-181/include/wanmgr_dml.h
+@@ -550,6 +550,7 @@ typedef struct _DML_VIRTUALIF_VLAN
+     UINT                        NoOfMarkingEntries;
+     DML_VIRTIF_MARKING*         VirtMarking;
+     DML_WAN_IFACE_LINKSTATUS    Status;
++    DML_WAN_IFACE_LINKSTATUS    PrevStatus;
+     BOOL                        Expired;
+     BOOL                        Reset;
+     struct timespec             TimerStart;
+diff --git a/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c b/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
+index 8f00815..7054206 100644
+--- a/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
++++ b/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
+@@ -509,7 +509,8 @@ rbusError_t WanMgr_Interface_SetHandler(rbusHandle_t handle, rbusProperty_t prop
+                 if(strncmp(String,"Down",strlen(String)) == 0)
+                 {
+                     WanMgr_ProcessTelemetryMarker(p_VirtIf,WAN_ERROR_VLAN_DOWN);
+-                }			
++                }
++                p_VirtIf->VLAN.PrevStatus = p_VirtIf->VLAN.Status;
+                 WanMgr_StringToEnum(&p_VirtIf->VLAN.Status, ENUM_WAN_LINKSTATUS, String);
+                 if (pWanDmlIface->Sub.WanLinkStatusSub)
+                 {
+@@ -833,7 +834,7 @@ static void WanMgr_Rbus_EventReceiveHandler(rbusHandle_t handle, rbusEvent_t con
+                     if (strncmp(pValue,"Down",strlen(pValue)) == 0 )
+                     {
+                         WanMgr_ProcessTelemetryMarker(WanMgr_getVirtualIfaceById( pWanIfaceData->VirtIfList,0),WAN_ERROR_VLAN_DOWN);
+-                    }				
++                    }
+                     WanMgr_StringToEnum(&pWanIfaceData->VirtIfList->VLAN.Status, ENUM_WAN_LINKSTATUS, pValue);
+                     if(pWanIfaceData->VirtIfList->VLAN.Status == WAN_IFACE_LINKSTATUS_UP)
+                     {
+diff --git a/source/WanManager/wanmgr_data.c b/source/WanManager/wanmgr_data.c
+index 572dcf0..5b9e74a 100644
+--- a/source/WanManager/wanmgr_data.c
++++ b/source/WanManager/wanmgr_data.c
+@@ -823,7 +823,7 @@ void WanMgr_VirtIface_Init(DML_VIRTUAL_IFACE * pVirtIf, UINT iface_index)
+     pVirtIf->Status = WAN_IFACE_STATUS_DISABLED;
+     pVirtIf->RemoteStatus = WAN_IFACE_STATUS_DISABLED;
+     pVirtIf->VLAN.Status = WAN_IFACE_LINKSTATUS_DOWN;
+-
++    pVirtIf->VLAN.PrevStatus = WAN_IFACE_LINKSTATUS_DOWN;
+     pVirtIf->VLAN.Enable = FALSE;
+     pVirtIf->VLAN.NoOfMarkingEntries = 0;
+     pVirtIf->VLAN.Timeout = 0;
+diff --git a/source/WanManager/wanmgr_dhcpv4_apis.c b/source/WanManager/wanmgr_dhcpv4_apis.c
+index ee7cbd8..3835681 100644
+--- a/source/WanManager/wanmgr_dhcpv4_apis.c
++++ b/source/WanManager/wanmgr_dhcpv4_apis.c
+@@ -440,44 +440,64 @@ void WanMgr_UpdateIpFromCellularMgr (WanMgr_IfaceSM_Controller_t* pWanIfaceCtrl)
+         if (acTmpReturnValue[0] != '\0')
+         {
+             //TODO: send ipv6 lease info via pandm. review and modify the code to directly update IPv6 from CellularManager.
+-
+             // CELLULARMGR sends us only the ipv6 address, so assigning the default value for rest of the values
+-            char * fifo_pattern = "dibbler-client add '%s' '1' '\\0' '\\0' '\\0' '\\0' '\\0' 0 '1' '\\0' '\\0' '3600' '7200' ''";
++            char * fifo_pattern = "dibbler-client add '%s' '1' '\\0' '\\0' '\\0' '\\0' %s %d '1' '\\0' '\\0' '3600' '7200' ''";
+             char ipv6_addr [128] = {0};
++            char prefixIp [100] = {0};
++            char prefix[BUFLEN_48] = {0};
++            char* temp = NULL;
++            char* temp_str = NULL;
++            int prefLen=0;
+             char buff [512] = {0};
+             int sock   = -1;
+             int bytes  = -1;
+-
+             // copy the ipv6_addr to local buff
+-            strncpy (ipv6_addr, acTmpReturnValue, sizeof(ipv6_addr) - 1);
+-
+-            // copy the ipv6_addr to string pattern so reading side can parse it
+-            snprintf(buff, sizeof (buff), fifo_pattern,ipv6_addr);
+-
+-            // open fifo
+-            sock = open(CCSP_COMMON_FIFO, O_WRONLY);
+-            if (sock < 0)
++            strlcpy (ipv6_addr, acTmpReturnValue, sizeof(ipv6_addr));
++            sysevent_get(sysevent_fd, sysevent_token, "cellular_ipv6_prefix", prefix, sizeof(prefix));
++            if(strlen(prefix)>0)
+             {
+-                CcspTraceInfo(("%s %d: Failed to create the socket , error = [%d][%s]\n", __FUNCTION__, __LINE__, errno, strerror(errno)));
+-                return;
+-            }
++                temp=prefix;
++                temp_str = strtok_r(temp,"/",&temp);
++                if (temp_str && strlen(temp_str) < sizeof(prefixIp)) {
++                    snprintf(prefixIp,sizeof(prefixIp),"%s",temp_str);
++                    temp_str = strtok_r(temp,"/",&temp);
++                    if (temp_str) {
++                        prefLen = atoi(temp_str);
++                    } else {
++                        CcspTraceError(("%s %d: Invalid prefix format\n", __FUNCTION__, __LINE__));
++                        return;
++                    }
++                } else {
++                    CcspTraceError(("%s %d: Prefix IP too long\n", __FUNCTION__, __LINE__));
++                    return;
++                }
++                // copy the ipv6_addr to string pattern so reading side can parse it
++                snprintf(buff, sizeof (buff), fifo_pattern,ipv6_addr,prefixIp, prefLen);
+ 
+-            // write data
+-            bytes = write(sock, buff, strlen(buff));
+-            if (bytes == 0)
+-            {
+-                CcspTraceInfo(("%s %d: Failed to write in fifo , error = [%d][%s]\n", __FUNCTION__, __LINE__, errno, strerror(errno)));
+-                close(sock);
+-                return;
+-            }
++                // open fifo
++                sock = open(CCSP_COMMON_FIFO, O_WRONLY);
++                if (sock < 0)
++                {
++                    CcspTraceInfo(("%s %d: Failed to create the socket , error = [%d][%s]\n", __FUNCTION__, __LINE__, errno, strerror(errno)));
++                    return;
++                }
++                // write data
++                bytes = write(sock, buff, strlen(buff));
++                if (bytes <= 0)
++                {
++                    CcspTraceInfo(("%s %d: Failed to write in fifo , error = [%d][%s]\n", __FUNCTION__, __LINE__, errno, strerror(errno)));
++                    close(sock);
++                    return;
++                }
+ 
+-            // close fifo
++            bytes = write(sock, buff, strlen(buff));
+             close(sock);
++            }
+         }
+     }
++    return;
+ }
+-
+-ANSC_STATUS IPCPStateChangeHandler (DML_VIRTUAL_IFACE* pVirtIf) 
++ANSC_STATUS IPCPStateChangeHandler (DML_VIRTUAL_IFACE* pVirtIf)
+ {
+     //get iface data
+     if(pVirtIf == NULL)
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index 2f62756..86834a3 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -2185,10 +2185,13 @@ static eWanState_t wan_transition_wan_validated(WanMgr_IfaceSM_Controller_t* pWa
+     {
+         CcspTraceInfo(("%s %d - Configuring IP from Cellular Manager \n", __FUNCTION__, __LINE__, p_VirtIf->Name));
+         WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
++        // Start DHCPv6 Client
++        p_VirtIf->IP.Dhcp6cPid = WanManager_StartDhcpv6Client(p_VirtIf, pInterface->IfaceType);
++        CcspTraceInfo(("%s %d - Started dhcpv6 client on interface %s, dhcpv6_pid %d \n", __FUNCTION__, __LINE__, p_VirtIf->Name, p_VirtIf->IP.Dhcp6cPid));
+     }
+     // ETH - WAN case only
+     if ((strstr(p_VirtIf->Name,"eth") != NULL)) {
+-
++        int ret = 0;
+         if(p_VirtIf->IP.IPv4Source == DML_WAN_IP_SOURCE_DHCP && (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK || p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV4_ONLY))
+         {
+              /* Start DHCPv4 client */
+@@ -2200,6 +2203,27 @@ static eWanState_t wan_transition_wan_validated(WanMgr_IfaceSM_Controller_t* pWa
+         {
+               p_VirtIf->IP.Dhcp6cPid = WanManager_StartDhcpv6Client(p_VirtIf, pInterface->IfaceType);
+               CcspTraceInfo(("%s %d - Started dhcpv6 client on interface %s, dhcpv6_pid %d \n", __FUNCTION__, __LINE__, p_VirtIf->Name, p_VirtIf->IP.Dhcp6cPid));
++        if (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV6_ONLY) {
++                  ret = v_secure_system("sysctl -w net.ipv6.conf.%s.accept_ra=2",p_VirtIf->Name);
++                  if(ret != 0) {
++                     CcspTraceWarning(("%s : Failure in executing command via v_secure_system. ret:[%d] \n",__FUNCTION__, ret));
++                  }
++
++                  sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_CURRENT_WAN_STATE, WAN_STATUS_UP, 0);
++                  sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_IPV6_CONNECTION_STATE, WAN_STATUS_UP, 0);
++                  sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_RADVD_RESTART, NULL, 0);
++                  sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_WAN_START, "", 0);
++                  sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_WAN_STATUS, WAN_STATUS_STARTED, 0);
++
++                  /* Set the current WAN Interface name */
++                  sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_CURRENT_WAN_IFNAME, p_VirtIf->Name, 0);
++                  if(strlen(p_VirtIf->Name) > 0)
++                  {
++                     syscfg_set_commit(NULL, SYSCFG_WAN_INTERFACE_NAME, p_VirtIf->Name);
++                  }
++                  sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_FIREWALL_RESTART, NULL, 0);
++                  wanmgr_sshd_restart();
++             }
+         }
+     }
+ #if defined(_DT_WAN_Manager_Enable_)
+@@ -3691,6 +3715,11 @@ static eWanState_t wan_state_ipv4_leased(WanMgr_IfaceSM_Controller_t* pWanIfaceC
+     {
+         return wan_transition_ipv4_down(pWanIfaceCtrl);
+     }
++    /*Adding condition to check VLAN Previous and current status*/
++    else if ((p_VirtIf->VLAN.PrevStatus ==  WAN_IFACE_LINKSTATUS_UP) && (p_VirtIf->VLAN.Status ==  WAN_IFACE_LINKSTATUS_DOWN))
++    {
++        return wan_transition_ipv4_down(pWanIfaceCtrl);
++    }
+     else if ((pInterface->Selection.Status != WAN_IFACE_ACTIVE) || (pWanIfaceCtrl->DeviceNwModeChanged == TRUE))
+     {
+         return wan_transition_standby_deconfig_ips(pWanIfaceCtrl);
+@@ -3799,6 +3828,11 @@ static eWanState_t wan_state_ipv6_leased(WanMgr_IfaceSM_Controller_t* pWanIfaceC
+     {
+         return wan_transition_ipv6_down(pWanIfaceCtrl);
+     }
++    /*Adding condition to check VLAN Previous and current status*/
++    else if ((p_VirtIf->VLAN.PrevStatus ==  WAN_IFACE_LINKSTATUS_UP) && (p_VirtIf->VLAN.Status ==  WAN_IFACE_LINKSTATUS_DOWN))
++    {
++        return wan_transition_ipv6_down(pWanIfaceCtrl);
++    }
+     else if ((pInterface->Selection.Status != WAN_IFACE_ACTIVE)  || (pWanIfaceCtrl->DeviceNwModeChanged == TRUE))
+     {
+         return wan_transition_standby_deconfig_ips(pWanIfaceCtrl);
+@@ -3905,6 +3939,11 @@ static eWanState_t wan_state_dual_stack_active(WanMgr_IfaceSM_Controller_t* pWan
+     {
+         return wan_transition_dual_stack_down(pWanIfaceCtrl);
+     }
++    /*Adding condition to check VLAN Previous and current status*/
++    else if ((p_VirtIf->VLAN.PrevStatus ==  WAN_IFACE_LINKSTATUS_UP) && (p_VirtIf->VLAN.Status ==  WAN_IFACE_LINKSTATUS_DOWN))
++    {
++        return wan_transition_dual_stack_down(pWanIfaceCtrl);
++    }
+     else if (p_VirtIf->IP.Ipv4Status == WAN_IFACE_IPV4_STATE_DOWN ||
+             (p_VirtIf->IP.RefreshDHCP == TRUE && ( p_VirtIf->IP.IPv4Source != DML_WAN_IP_SOURCE_DHCP ||
+             (p_VirtIf->IP.Mode != DML_WAN_IP_MODE_DUAL_STACK && p_VirtIf->IP.Mode != DML_WAN_IP_MODE_IPV4_ONLY))))
+-- 
+2.34.1
+

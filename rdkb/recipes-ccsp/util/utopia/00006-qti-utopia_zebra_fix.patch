@@ -1,0 +1,83 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a841124bed6d58ad7479faff0e89b92d8c52f4f3 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Tue, 2 Jun 2026 16:07:15 +0000
+Subject: [PATCH] qti-utopia_zebra_fix.patch
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/service_routed/service_routed.c | 23 ++++++++++++++---------
+ 1 file changed, 14 insertions(+), 9 deletions(-)
+
+diff --git a/source/service_routed/service_routed.c b/source/service_routed/service_routed.c
+index b264731..3c8fdb3 100644
+--- a/source/service_routed/service_routed.c
++++ b/source/service_routed/service_routed.c
+@@ -94,11 +94,9 @@ static const char* const service_routed_component_id = "ccsp.routed";
+ }
+ #include <libnet.h>
+ #endif
+-
+ #define ZEBRA_PID_FILE  "/var/zebra.pid"
+ #define RIPD_PID_FILE   "/var/ripd.pid"
+-#define ZEBRA_CONF_FILE "/var/zebra.conf"
+-
++#define ZEBRA_CONF_FILE "/var/volatile/zebra.conf"
+ #if defined (_BWG_PRODUCT_REQ_)
+ #define RIPD_CONF_FILE  "/var/ripd.conf"
+ #else
+@@ -1017,8 +1015,11 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+     memset(last_broadcasted_prefix,0,sizeof(last_broadcasted_prefix));
+     if (gIpv6AddrAssignment == ULA_IPV6)
+     {
+-        sysevent_get(sefd, setok, "ipv6_prefix_ula", prefix, sizeof(prefix));
+-
++#if defined PREFIX_SHARING_CELLULAR
++           sysevent_get(sefd, setok, "ipv6_prefix", prefix, sizeof(prefix));
++#else
++           sysevent_get(sefd, setok, "ipv6_prefix_ula", prefix, sizeof(prefix));
++#endif
+     }
+     else
+     {
+@@ -1149,13 +1150,14 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+ #endif
+ //RDKB-47758
+ #ifdef WAN_FAILOVER_SUPPORTED
++// Added not defined SDX flag to prevent prefix getting updated with sysevent ipv6_prefix_ula
++#if !defined PREFIX_SHARING_CELLULAR
+ 	if (gIpv6AddrAssignment == ULA_IPV6)
+     {
+         sysevent_get(sefd, setok, "ipv6_prefix_ula", prefix, sizeof(prefix));
+-
+     }
+ #endif
+-
++#endif
+ #if defined (_COSA_BCM_MIPS_)
+        if (strlen(prefix) == 0)
+          {
+@@ -1374,10 +1376,13 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+             else
+ #endif
+             {
+-
+                 /* If WAN is stopped or not in IPv6 or dual stack mode, send RA with router lifetime of zero */
++#if defined PREFIX_SHARING_CELLULAR
++                if ( (strcmp(wan_st, "stopped") == 0) )
++#else
+                 if ( (strcmp(wan_st, "stopped") == 0) || (atoi(rtmod) != 2 && atoi(rtmod) != 3) )
+-                {
++#endif
++                {
+                     fprintf(fp, "   ipv6 nd ra-lifetime 0\n");
+                 }
+                 else
+-- 
+2.34.1
+

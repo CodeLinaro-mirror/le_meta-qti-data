@@ -1,0 +1,37 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 710a712a4cf6636470f488a3795faf5418b24ca5 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Tue, 2 Jun 2026 16:11:15 +0000
+Subject: [PATCH] qti-utopia-eth1_ipv6_enable
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/service_lan.sh | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/source/scripts/init/service.d/service_lan.sh b/source/scripts/init/service.d/service_lan.sh
+index 37730af..099b489 100755
+--- a/source/scripts/init/service.d/service_lan.sh
++++ b/source/scripts/init/service.d/service_lan.sh
+@@ -626,8 +626,11 @@ lan_create () {
+     # enslave interfaces to the bridge
+     for loop in "${a[@]}"
+     do
+-      # disable IPv6 for bridge port so it won't interfere bridge interface's DAD procedure
+-      echo 1 > /proc/sys/net/ipv6/conf/"$loop"/disable_ipv6
++      # SDX Platform specific: avoiding disable_ipv6 from being set to 1, to allow eth1 to generate link-local IPv6 address
++      if [ "$BOX_TYPE" != "echo" ]; then
++         # disable IPv6 for bridge port so it won't interfere bridge interface's DAD procedure
++         echo 1 > /proc/sys/net/ipv6/conf/"$loop"/disable_ipv6
++      fi
+       enslave_a_interface "$loop" "$SYSCFG_lan_ifname"
+     done
+ 
+-- 
+2.34.1
+

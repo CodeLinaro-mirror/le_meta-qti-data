@@ -13,6 +13,8 @@ SRC_URI += " \
               file://00002-CcspPandM-vendor.patch \
               file://00003-fix-iana-addr-null-deref.patch \
               file://00004-CcspPandM-DNSProxy-bringup.patch \
+              file://00005-qti-ccsp-p-and-m_Cellular_v6_bringup.patch \
+              file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
