@@ -49,7 +49,7 @@ do_compile() {
 }
 do_install() {
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
-   install -d ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra
+   install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
 
    module_path="${WORKDIR}/dataipa/drivers/platform/msm"
 
@@ -62,7 +62,7 @@ do_install() {
 		LD_LIBRARY_PATH=${WORKSPACE}/kernel/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
 		${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
 		${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${module_path}/${module}
-     install -m 0644  ${module_path}/${module} ${D}${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/
+     install -m 0644  ${module_path}/${module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
    done
 
    install -d ${D}${sysconfdir}/initscripts/
