@@ -8,8 +8,10 @@ KERNEL_VERSION = "${@get_kernelversion_file("${STAGING_KERNEL_BUILDDIR}")}"
 do_configure[depends] += "virtual/kernel:do_shared_workdir"
 
 DEPENDS = "virtual/kernel linux-kernel-qcom-headers dataipa"
+DEPENDS:append:echo = " qca-nss-sfe"
 
 RDEPENDS:${PN} += "kernel-module-ipam-${KERNEL_VERSION}"
+RDEPENDS:${PN}:append:echo = " qca-nss-sfe"
 
 PR = "r0"
 
@@ -45,23 +47,41 @@ EXTRA_OEMAKE += " \
     ECM_STATE_OUTPUT_ENABLE=y \
     ECM_DB_XREF_ENABLE=y \
     ECM_IPV6_ENABLE=y \
-    ECM_FRONT_END_SFE_ENABLE=n \
+    ECM_FRONT_END_SFE_ENABLE=${ECM_FRONT_END_SFE_ENABLE} \
     ECM_FRONT_END_IPA_ENABLE=y \
     ECM_SDX_PCC_ENABLED=y \
     ECM_INTERFACE_PPP_ENABLE=n \
     ECM_INTERFACE_PPPOE_ENABLE=n \
     EXAMPLES_BUILD_SDX=y \
 "
+# ECM_FRONT_END_SFE_ENABLE: enabled only for echo target(RDKB), disabled for sa535m.
+# ECM_FRONT_END_SFE_ENABLE:echo:qti-distro-nogplv3-debug example for MACHINE and DISTRO
+# ECM_FRONT_END_SFE_ENABLE:echo only for MACHINE
+# ECM_FRONT_END_SFE_ENABLE:qti-distro-nogplv3-debug example for DISTRO only
+ECM_FRONT_END_SFE_ENABLE = "n"
+ECM_FRONT_END_SFE_ENABLE:echo = "y"
+
+# ECM_FRONT_END_SELECTION: default acceleration engine written into the config file at build time.
+# The installed /etc/qca-nss-ecm/config is a plain text file sourced by qca-nss-ecm.sh at
+# runtime, so editing it on the device takes effect on the next service restart.
+#   echo   -> ipa-sfe  (IPA hardware offload, Shortcut Forwarding Engine)
+#   sa535m -> ipa  (IPA hardware offload, default)
+ECM_FRONT_END_SELECTION = "ipa"
+ECM_FRONT_END_SELECTION:echo = "ipa-sfe"
 
 # Extra compiler flags passed to the kernel build system via EXTRA_CFLAGS.
 # These are appended to ccflags-y inside the kernel Makefile infrastructure.
-
 # Use explicit recipe-sysroot path for dataipa recipes.
 EXTRA_CFLAGS += "-I${RECIPE_SYSROOT}${includedir}/dataipa"
+# Use explicit recipe-sysroot path for sfe recipes.
+EXTRA_CFLAGS:append:echo = " -I${RECIPE_SYSROOT}${includedir}/qca-nss-sfe"
 
 # Point modpost to the IPA module's exported symbols so that inter-module
 # references (ipa_ipv4_tx, ipa_ipv6_tx, etc.) are resolved at build time.
 IPA_SYMVERS = "${RECIPE_SYSROOT}${includedir}/dataipa/Module.symvers"
+# Point modpost to the SFE module's exported symbols so that inter-module
+SFE_SYMVERS = ""
+SFE_SYMVERS:echo = "${RECIPE_SYSROOT}${includedir}/qca-nss-sfe/Module.symvers"
 
 # "-DCONFIG_FUNCTION_ALIGNMENT=16 \
 #                 -DCONFIG_CLANG_VERSION=180000 \
@@ -88,7 +108,7 @@ do_compile() {
                AR="${KERNEL_AR}" OBJCOPY="${KERNEL_OBJCOPY}" \
                STRIP="${KERNEL_STRIP}" \
                O=${STAGING_KERNEL_BUILDDIR} \
-               KBUILD_EXTRA_SYMBOLS="${KBUILD_EXTRA_SYMBOLS} ${IPA_SYMVERS}" \
+               KBUILD_EXTRA_SYMBOLS="${KBUILD_EXTRA_SYMBOLS} ${IPA_SYMVERS} ${SFE_SYMVERS}" \
                EXTRA_CFLAGS="${EXTRA_CFLAGS}" \
                ${EXTRA_OEMAKE} \
                ${MAKE_TARGETS}
@@ -130,8 +150,13 @@ do_install() {
     install -m 0644 ${WORKDIR}/qca-nss-ecm.sysctl ${D}${sysconfdir}/sysctl.d/qca-nss-ecm.conf
 
     # Install ECM config file (replaces OpenWRT UCI config)
+    # Patch ECM_FRONT_END_SELECTION with the machine-specific default at build time.
+    # The file is sourced by qca-nss-ecm.sh at runtime, so on-device edits take
+    # effect immediately on the next service restart without any rebuild.
     install -d ${D}${sysconfdir}/qca-nss-ecm/
     install -m 0644 ${WORKDIR}/qca-nss-ecm-config ${D}${sysconfdir}/qca-nss-ecm/config
+    sed -i "s|^ECM_FRONT_END_SELECTION=.*|ECM_FRONT_END_SELECTION=${ECM_FRONT_END_SELECTION}|" \
+        ${D}${sysconfdir}/qca-nss-ecm/config
 
     # Install helper script (converted from OpenWRT init script)
     install -d ${D}${sbindir}/
