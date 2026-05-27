@@ -28,6 +28,8 @@ SRC_URI_append += " \
     file://00005-Fix-mtu-updation.patch \
     file://00006-ModemManager_qrtr_timer_update.patch \
     file://00007-Modem_is_not_found_bugfix.patch \
+    file://00008-ModemManager_service_dependency_update.patch \
+    file://00009-ModemManager_timer_optimization.patch \
 "
 
 S = "${WORKDIR}/git"
