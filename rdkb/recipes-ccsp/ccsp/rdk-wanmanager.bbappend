@@ -14,6 +14,7 @@ CFLAGS_append = " ${@bb.utils.contains('DISTRO_FEATURES', 'syslog-ng', ' -D_SYSL
 SRC_URI += " \
     file://00001-qti-wanmanager_bringup.patch \
     file://00002-qti-WanManager_ethwan_v4_bringup.patch \
+    file://00003-wanmanager-DNSProxy-bringup.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "

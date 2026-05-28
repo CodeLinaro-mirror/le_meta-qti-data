@@ -1,0 +1,42 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Thu, 14 May 2026 09:46:40 +0000
+Subject: [PATCH] Dns proxy bringup
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+
+---
+ source/WanManager/wanmgr_dhcpv4_apis.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/source/WanManager/wanmgr_dhcpv4_apis.c b/source/WanManager/wanmgr_dhcpv4_apis.c
+index 7590b69..06ab097 100644
+--- a/source/WanManager/wanmgr_dhcpv4_apis.c
++++ b/source/WanManager/wanmgr_dhcpv4_apis.c
+@@ -70,6 +70,8 @@ extern char g_Subsystem[32];
+ #define DHCP_STATE_RENEW   "renew"
+ #define DHCP_STATE_DOWN    "Down"
+ #define DHCP_STATE_BOUND   "bound"
++#define SYSEVENT_WAN_DNS     "wan_dhcp_dns"
++#define SYSEVENT_WAN_DNS1     "wan_dhcp_dns1"
+ 
+ static ANSC_STATUS wanmgr_dchpv4_get_ipc_msg_info(WANMGR_IPV4_DATA* pDhcpv4Data, ipc_dhcpv4_data_t* pIpcIpv4Data)
+ {
+@@ -178,7 +180,8 @@ ANSC_STATUS wanmgr_handle_dhcpv4_event_data(DML_VIRTUAL_IFACE* pVirtIf)
+                      pDhcpcInfo->renewalTime,
+                      pDhcpcInfo->dhcpState,
+                      pDhcpcInfo->mtuSize));
+-
++        sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_WAN_DNS, pDhcpcInfo->dnsServer, 0);
++        sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_WAN_DNS1, pDhcpcInfo->dnsServer1, 0);
+         if (IPv4ConfigChanged)
+         {
+ #if !defined(FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE) //Sysevents will be configured by ISM while selecting Iface as Active.
+-- 
+2.34.1
+
