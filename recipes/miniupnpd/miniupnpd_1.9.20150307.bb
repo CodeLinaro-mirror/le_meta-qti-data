@@ -37,7 +37,7 @@ do_install:append:mdm() {
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         rm -rf ${D}${sysconfdir}/init.d/miniupnpd
         install -d ${D}${systemd_unitdir}/system/
-        install -m 0644 ${WORKDIR}/miniupnpd.service -D ${D}${systemd_unitdir}/system/miniupnpd.service
+        install -m 0644 ${UNPACKDIR}/miniupnpd.service -D ${D}${systemd_unitdir}/system/miniupnpd.service
     fi
 }
 

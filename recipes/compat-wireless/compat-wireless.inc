@@ -17,7 +17,7 @@ COMPAT_WIRELESS_VERSION = "3.0"
 
 PV = "${COMPAT_WIRELESS_VERSION}"
 
-S = "${WORKDIR}/compat-wireless"
+S = "${UNPACKDIR}/compat-wireless"
 
 EXTRA_OEMAKE = "KLIB_BUILD=${STAGING_KERNEL_DIR} KLIB=${D}"
 

@@ -6,6 +6,7 @@ Subject: [PATCH 2/2] phy: aquantia: Add support for USX5G mode
 Add support for 5GbaseR interface for USX5G.
 
 Signed-off-by: Amitha Sanka<asanka@qti.qualcomm.com>
+Upstream-Status: Inappropriate [platform specific]
 ---
  aquantia/aquantia_main.c | 9 +++++----
  1 file changed, 5 insertions(+), 4 deletions(-)

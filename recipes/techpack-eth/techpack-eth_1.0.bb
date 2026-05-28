@@ -1,7 +1,7 @@
 SUMMARY = "Techpack by Data Ethernet"
 DESCRIPTION = "Helper recipe to build Data Ethernet Techpack drivers out-of-tree or in devshell"
 
-export ETH_OBJDIR = "${WORKDIR}/kobj"
+export ETH_OBJDIR = "${UNPACKDIR}/kobj"
 export ETH_SRCDIR = "${WORKSPACE}/kernel/msm-5.4/techpack/data-eth"
 
 LICENSE = "GPLv2"

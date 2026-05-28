@@ -7,6 +7,7 @@ Import fixes present in the no-ship driver into
 AQR-github driver.
 
 Signed-off-by: Amitha Sanka<asanka@qti.qualcomm.com>
+Upstream-Status: Inappropriate [platform specific]
 ---
  aquantia/aquantia_main.c | 30 +++++-------------------------
  1 file changed, 5 insertions(+), 25 deletions(-)

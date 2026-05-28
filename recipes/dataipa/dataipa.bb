@@ -19,12 +19,12 @@ SRC_URI += "file://dataipa.service"
 SRC_URI += "file://ipa_config.txt"
 SRC_URI += "file://ipa_ini_file.ini"
 
-S = "${WORKDIR}/dataipa"
+S = "${UNPACKDIR}/dataipa"
 EXT_MODULES = "${@os.path.relpath("${S}", "${KERNEL_PLATFORM_PATH}")}"
 KERNEL_VERSION = "${@get_kernelversion_file("${STAGING_KERNEL_BUILDDIR}")}"
 do_configure[depends]   += "virtual/kernel:do_shared_workdir"
 DEPENDS = "virtual/kernel linux-kernel-qcom-headers"
-DATAIPADRVTOP = "${WORKDIR}/dataipa/drivers/platform/msm"
+DATAIPADRVTOP = "${UNPACKDIR}/dataipa/drivers/platform/msm"
 FILES:${PN}+="${nonarch_base_libdir}/modules/${KERNEL_VERSION}/extra/*"
 FILES:${PN}+="${nonarch_base_libdir}/"
 RPROVIDES:${PN} += "dataipa"
@@ -39,10 +39,6 @@ EXTRA_OEMAKE += "KERNEL_SRC=${STAGING_KERNEL_DIR}"
 IPA_PLATFORM = "${@'rdkb' if d.getVar('BASEMACHINE') == 'echo' else ''}"
 
 #TARGET_VARIANT= "${@bb.utils.contains('KERNEL_VARIANT', 'perf_', 'perf_defconfig', 'debug_defconfig', d)}"
-#do_configure() {
-#    cp ${WORKDIR}/kobj/Makefile ${S}/
-#}
-
 do_compile() {
 	cd ${S}
 	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} modules
@@ -51,7 +47,7 @@ do_install() {
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
 
-   module_path="${WORKDIR}/dataipa/drivers/platform/msm"
+   module_path="${UNPACKDIR}/dataipa/drivers/platform/msm"
 
    module_list="gsi/gsim.ko ipa/ipam.ko ipa/ipanetm.ko"
 	 for module in ${module_list}; do
@@ -66,19 +62,18 @@ do_install() {
    done
 
    install -d ${D}${sysconfdir}/initscripts/
-   install -m 0555 ${WORKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
+   install -m 0555 ${UNPACKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${sysconfdir}/data/ipa_be/
    install -d ${D}${nonarch_base_libdir}/firmware/ipa_be/
-   install -m 0555 ${WORKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
+   install -m 0555 ${UNPACKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
    sed -i 's|@IPA_PLATFORM@|${IPA_PLATFORM}|g' ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${systemd_unitdir}/system/
-   install -m 0644 ${WORKDIR}/dataipa.service -D ${D}${systemd_unitdir}/system/dataipa.service
+   install -m 0644 ${UNPACKDIR}/dataipa.service -D ${D}${systemd_unitdir}/system/dataipa.service
    install -d ${D}${sysconfdir}/data/
-   install -m 0644 ${WORKDIR}/ipa_config.txt -D ${D}${sysconfdir}/data/ipa_config.txt
+   install -m 0644 ${UNPACKDIR}/ipa_config.txt -D ${D}${sysconfdir}/data/ipa_config.txt
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
-   ln -sf ${sysconfdir}/data/ipa_be/ipa_ini_file.ini ${D}${nonarch_base_libdir}/firmware/ipa_be/ipa_ini_file.ini
 
     # This copy of the headers contains both the kernel and unsanitized UAPI.
     # This is intended for use by other kernel modules.
@@ -125,3 +120,7 @@ FILES:${PN}+="${nonarch_base_libdir}/"
 FILES:${PN}+="${nonarch_base_libdir}/modules/*"
 RPROVIDES:${PN} += "dataipa"
 MAKE_TARGETS = "all"
+
+do_configure[noexec] = "1"
+INSANE_SKIP:${PN} += "buildpaths"
+INSANE_SKIP:${PN}-dbg += "buildpaths"

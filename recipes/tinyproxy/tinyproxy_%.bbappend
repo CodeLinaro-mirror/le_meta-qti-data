@@ -9,10 +9,10 @@ SYSTEMD_AUTO_ENABLE_${PN} = "disable"
 
 do_install:append() {
   install -d ${D}${sysconfdir}/data/
-  install -m 0664 ${WORKDIR}/image/etc/tinyproxy.conf ${D}${sysconfdir}/data/
+  install -m 0664 ${UNPACKDIR}/image/etc/tinyproxy.conf ${D}${sysconfdir}/data/
   if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
       install -d ${D}${systemd_unitdir}/system/
-      install -m 0644 ${WORKDIR}/tinyproxyd.service -D ${D}${systemd_unitdir}/system/tinyproxyd.service
+      install -m 0644 ${UNPACKDIR}/tinyproxyd.service -D ${D}${systemd_unitdir}/system/tinyproxyd.service
   fi
   chown -R root:1001 ${D}${sysconfdir}/data/tinyproxy.conf
 }

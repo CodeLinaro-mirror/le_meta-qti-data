@@ -1,6 +1,7 @@
 From: Sergey Lapin <slapin@slind.org>
 Date: Wed, 28 Jan 2009 16:34:15 +0300
 Subject: [PATCH] minimal IEEE802.15.4 allowed
+Upstream-Status: Inappropriate [platform specific]
 
 ---
  tcpdump.c |    3 +++

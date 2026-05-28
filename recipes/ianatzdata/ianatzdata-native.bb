@@ -2,7 +2,7 @@ require ianatimezone.inc
 
 SUMMARY = "tzcode, timezone zoneinfo utils -- zic, zdump, tzselect"
 
-S = "${WORKDIR}"
+S = "${UNPACKDIR}"
 
 inherit native
 

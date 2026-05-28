@@ -20,5 +20,5 @@ EXTRA_OEMAKE += 'DATAIPA_STAGING_INCDIR=${STAGING_DIR}/usr/include'
 FILESPATH =+ "${WORKSPACE}/dataipa:"
 SRC_URI = "file://ipanat"
 
-S = "${WORKDIR}/ipanat/src"
+S = "${UNPACKDIR}/ipanat/src"
 

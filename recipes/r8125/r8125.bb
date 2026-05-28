@@ -1,6 +1,6 @@
 SUMMARY = "R8125"
 
-export R8125_OBJDIR = "${WORKDIR}/kobj"
+export R8125_OBJDIR = "${UNPACKDIR}/kobj"
 export R8125_SRCDIR = "${WORKSPACE}/data-kernel/drivers/r8125/src"
 
 LICENSE = "GPLv2"
@@ -30,7 +30,7 @@ do_install:append() {
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
-	install -m 0644 ${WORKDIR}/r8125.service \
+	install -m 0644 ${UNPACKDIR}/r8125.service \
 		-D ${D}${systemd_system_unitdir}/r8125.service
 }
 

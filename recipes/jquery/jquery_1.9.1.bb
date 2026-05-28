@@ -14,12 +14,12 @@ do_compile() {
 
 do_install() {
         install -m 0755 -d ${D}/WEBSERVER/www/js/
-        install -m 0644 ${WORKDIR}/jquery-${PV}.min.js ${D}/WEBSERVER/www/js/jquery.js
+        install -m 0644 ${UNPACKDIR}/jquery-${PV}.min.js ${D}/WEBSERVER/www/js/jquery.js
 }
 
 SRC_URI = "http://code.jquery.com/jquery-1.9.1.min.js"
 
-S = "${WORKDIR}"
+S = "${UNPACKDIR}"
 
 FILES_${PN} += "/WEBSERVER/www/js/jquery.js"
 

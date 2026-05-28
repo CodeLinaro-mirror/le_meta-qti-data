@@ -17,7 +17,7 @@ FILESEXTRAPATHS:prepend := "${TOPDIR}/../src:"
 SRC_URI = "file://qca-nss-sfe/"
 SRC_URI += "file://sfe_dump"
 
-S = "${WORKDIR}/qca-nss-sfe"
+S = "${UNPACKDIR}/qca-nss-sfe"
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 EXTRA_OEMAKE += "CONFIG_QCA_NSS_SFE=m"
@@ -50,7 +50,7 @@ do_install() {
     install -m 0644 ${S}/qca-nss-sfe.ko \
         ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/qca-nss-sfe.ko
     install -d ${D}${bindir}
-    install -m 0755 ${WORKDIR}/sfe_dump ${D}${bindir}/sfe_dump
+    install -m 0755 ${UNPACKDIR}/sfe_dump ${D}${bindir}/sfe_dump
     # Install public API headers so dependent recipes (e.g. qca-nss-ecm)
     # can find them via ${STAGING_INCDIR}/qca-nss-sfe/ (mirrors OpenWrt
     # Build/InstallDev: cp exports/sfe_api.h $(STAGING_DIR)/usr/include/qca-nss-sfe)

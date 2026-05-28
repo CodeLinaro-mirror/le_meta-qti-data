@@ -16,25 +16,25 @@ EXTRA_OEMAKE = "CC='${CC}' \
 
 do_install:append () {
         install -d ${D}${sysconfdir}/data/
-        install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
+        install -m 644 ${UNPACKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
         chown -R root:root ${D}${sysconfdir}/data/dnsmasq.conf
         # symlink dnsmasq.conf under /etc
         ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
 
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}/etc/initscripts
-         install -m 555 ${WORKDIR}/init ${D}${sysconfdir}/initscripts/dnsmasq
+         install -m 555 ${UNPACKDIR}/init ${D}${sysconfdir}/initscripts/dnsmasq
          install -d ${D}/etc/systemd/system/
          install -d ${D}/etc/systemd/system/multi-user.target.wants/
          install -d ${D}${systemd_unitdir}/system/
-         install -m 0644 ${WORKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
-         install -m 0555 ${WORKDIR}/qcmap_stop_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
-         install -m 0644 ${WORKDIR}/qcmap_dhcp_release.service -D ${D}${systemd_unitdir}/system/qcmap_dhcp_release.service
+         install -m 0644 ${UNPACKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
+         install -m 0555 ${UNPACKDIR}/qcmap_stop_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
+         install -m 0644 ${UNPACKDIR}/qcmap_dhcp_release.service -D ${D}${systemd_unitdir}/system/qcmap_dhcp_release.service
         else
-         install -m 755 ${WORKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
+         install -m 755 ${UNPACKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
         fi
         install -d ${D}${base_bindir}
-        install -m 0755 ${WORKDIR}/dnsmasq_script.sh ${D}${base_bindir}
+        install -m 0755 ${UNPACKDIR}/dnsmasq_script.sh ${D}${base_bindir}
         chown -h root:root ${D}${base_bindir}/dnsmasq_script.sh
         rm -f ${D}${sysconfdir}/systemd/resolved.conf.d/*
         rm -d ${D}${sysconfdir}/systemd/resolved.conf.d
