@@ -1,0 +1,62 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 85c4aaad654ea124ef8927925a4e59966e5ea2ad Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Wed, 20 May 2026 05:28:36 +0000
+Subject: [PATCH] embedded downlink
+
+[Issue Description]: Embedded downlink traffic was blocked by firewall DROP rules on SDX, preventing inbound IPv4 traffic from reaching the device.
+
+[Fix Description]: Excluded the INPUT, LOG_INPUT_DROP DROP and xlog_drop_wan2self rules for _PLATFORM_SDX_, allowing embedded downlink traffic and enabling IPv4 embedded DL to work
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+---
+ source/firewall/firewall.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 389620d..dd92e83 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -3102,7 +3102,14 @@ static int prepare_globals_from_configuration(void)
+ #if !(defined INTEL_PUMA7) && !(defined _COSA_BCM_ARM_) && !defined(_PLATFORM_TURRIS_) && !defined(_PLATFORM_BANANAPI_R4_) && !defined(_COSA_QCA_ARM_)
+    fprintf(fp, "-A xlog_drop_wan2lan -j DROP\n");
+ #endif
++#if defined(_PLATFORM_SDX_)
++   /* For SDX platforms, skip the catch-all WAN-to-Self DROP rule if firewall level is "Low"
++   * to ensure embedded downlink traffic is not blocked by default. */
++   if (strncasecmp(firewall_level, "Low", strlen("Low")) != 0)
++      fprintf(fp, "-A xlog_drop_wan2self -j DROP\n");
++#else
+    fprintf(fp, "-A xlog_drop_wan2self -j DROP\n");
++#endif
+ 
+    fprintf(fp, "-A xlog_drop_wanattack -j DROP\n");
+ 
+@@ -12058,7 +12065,18 @@ static int prepare_subtables(FILE *raw_fp, FILE *mangle_fp, FILE *nat_fp, FILE *
+     * filter
+     */
+    fprintf(filter_fp, "*filter\n");
++
++#if defined(_PLATFORM_SDX_)
++   /* Do not enforce default INPUT DROP on SDX when firewall level is Low.
++    * Otherwise device-input traffic falls through to DROP and Embedded
++    * Downlink behaves as blocked even in permissive mode.
++   */
++   if (strncasecmp(firewall_level, "Low", strlen("Low")) != 0)
++      fprintf(filter_fp, "%s\n", ":INPUT DROP [0:0]");
++#else
+    fprintf(filter_fp, ":%s DROP [0:0]\n", "INPUT");
++#endif
++
+    fprintf(filter_fp, ":%s ACCEPT [0:0]\n", "FORWARD");
+    fprintf(filter_fp, ":%s ACCEPT [0:0]\n", "OUTPUT");
+ 
+-- 
+2.34.1
+
