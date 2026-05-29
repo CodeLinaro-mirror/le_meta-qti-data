@@ -12,8 +12,8 @@ COMPATIBLE_MACHINE = "echo"
 inherit deploy kernel-arch
 
 # Ensure kernel headers/build artifacts are available in sysroot
-DEPENDS += "virtual/kernel"
-do_compile[depends] += "virtual/kernel:do_compile"
+DEPENDS += "virtual/kernel dtc-native"
+do_compile[depends] += "virtual/kernel:do_shared_workdir"
 
 # Allow SRC_URI file://vendor/... to resolve under your workspace
 FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
@@ -24,7 +24,7 @@ SRC_URI += "file://Makefile"
 S = "${WORKDIR}/vendor/qcom/opensource/data-devicetree"
 
 # Use kernel build dtc and staged kernel headers
-DTC = "${STAGING_KERNEL_BUILDDIR}/scripts/dtc/dtc"
+DTC = "${STAGING_BINDIR_NATIVE}/dtc"
 KERNEL_INCLUDE = "${STAGING_KERNEL_DIR}/include"
 
 do_configure:prepend() {

@@ -1,6 +1,6 @@
 [Unit]
 Description=QCA NSS Enhanced Connection Manager
-After=network.target dataipa.service
+After=network.target dataipa.service systemd-modules-load.service
 
 [Service]
 Type=oneshot
