@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 PR = "r0"
 
-COMPATIBLE_MACHINE = "echo"
+COMPATIBLE_MACHINE = "(echo|sa535m)"
 
 inherit deploy kernel-arch
 
@@ -31,6 +31,8 @@ do_configure:prepend() {
     # Override upstream Makefile with Yocto-specific Makefile
     install -m 0644 ${WORKDIR}/Makefile ${S}/Makefile
 }
+
+EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 
 do_compile() {
     test -f ${S}/Makefile || bbfatal "Missing Makefile at ${S}/Makefile"
