@@ -1,0 +1,38 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Sat, 30 May 2026 10:07:00 +0000
+Subject: [PATCH] This patch addresses the issue of sysevent wan_ifname not getting set. Set the `wan_ifname` sysevent whenever the current active WAN interface changes. Firewall rule generation relies on this sysevent to determine the active WAN interface. If it is stale or unset, features such as DMZ/NAT rule generation may miss the correct WAN interface context
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+
+Index: git/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
++++ git/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
+@@ -2165,12 +2165,17 @@ ANSC_STATUS Update_Interface_Status()
+
+         CcspTraceInfo(("%s %d -CurrentActiveInterface- [%s] [%s]\n",__FUNCTION__,__LINE__,pWanDmlData->CurrentActiveInterface,CurrentActiveInterface));
+         if(strlen(CurrentActiveInterface) > 0)
+-        {
++        {
+             if(strcmp(pWanDmlData->CurrentActiveInterface,CurrentActiveInterface) != 0 )
+-            {
+-                strncpy(prevCurrentActiveInterface,pWanDmlData->CurrentActiveInterface, sizeof(prevCurrentActiveInterface) - 1);
++            {
++                // Only set sysevent when interface actually changes
++                int ret = v_secure_system("sysevent set wan_ifname %s", CurrentActiveInterface);
++                if (ret != 0) {
++                    CcspTraceError(("%s %d - Failed to set wan_ifname sysevent\n", __FUNCTION__, __LINE__));
++                }
++                strlcpy(prevCurrentActiveInterface,pWanDmlData->CurrentActiveInterface, sizeof(prevCurrentActiveInterface) - 1);
+                 memset(pWanDmlData->CurrentActiveInterface, 0, sizeof(pWanDmlData->CurrentActiveInterface));
+-                strncpy(pWanDmlData->CurrentActiveInterface,CurrentActiveInterface, sizeof(pWanDmlData->CurrentActiveInterface) - 1);
++                strlcpy(pWanDmlData->CurrentActiveInterface,CurrentActiveInterface, sizeof(pWanDmlData->CurrentActiveInterface) - 1);
+ #ifdef RBUS_BUILD_FLAG_ENABLE
+                 publishCurrentActiveInf = TRUE;
+ #endif //RBUS_BUILD_FLAG_ENABLE
