@@ -1,0 +1,27 @@
+From d5d3166d2b89a906847e100c12be76db9538fb0d Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Wed, 27 May 2026 10:15:17 +0000
+Subject: Updated service dependency to ModemManager.service
+
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ data/ModemManager.service.in | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/data/ModemManager.service.in b/data/ModemManager.service.in
+index e8237fdf..47c0665c 100644
+--- a/data/ModemManager.service.in
++++ b/data/ModemManager.service.in
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=Modem Manager
+-After=@MM_POLKIT_SERVICE@
+-Requires=@MM_POLKIT_SERVICE@
++After=qrtr_ns.service utopia.service @MM_POLKIT_SERVICE@
++Requires=init_sys_mss.service @MM_POLKIT_SERVICE@
+ ConditionVirtualization=!container
+ 
+ [Service]
+-- 
+2.34.1
+
