@@ -20,11 +20,9 @@ DEPENDS=" \
   libqrtr-glib \
 "
 FILES:${PN} += "/usr/share/bash-completion"
-S = "${WORKDIR}/libqmi-${SRCREV}/"
+S = "${WORKDIR}/git"
 SRCREV = "d0973775d2bce93fb927ce7bc6c61385b146f54d"
-SRC_URI = "https://gitlab.freedesktop.org/mobile-broadband/libqmi/-/archive/${SRCREV}/libqmi-${SRCREV}.tar.bz2"
-
-SRC_URI[sha256sum] = "9d3292cb7f4387e760c304802ac1266fc541ce501bc0ada107bfd7d493704e68"
+SRC_URI = "git://git.codelinaro.org/clo/rdkb/mobile-broadband/libqmi.git;protocol=https;branch=rdkb/qmi-1-32"
 
 SRC_URI_append += " \
     file://00002-qmi_retry_mechanism_for_eagain_failure.patch \
