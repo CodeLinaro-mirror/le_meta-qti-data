@@ -45,7 +45,8 @@ start_service() {
 
 	procd_open_instance
 	if [ $IPACM_DEBUG = 1 ]; then
-		procd_set_param command /bin/sh -c "/usr/bin/ipacm > /data/data_ipa/ipacm_log.txt"
+		rm -f /data/data_ipa/ipacm_log.txt
+		procd_set_param command /bin/sh -c "/usr/bin/ipacm >> /data/data_ipa/ipacm_log.txt"
 		procd_set_param stdout 1
 		procd_set_param stderr 1
 		procd_set_param nice "-1"
