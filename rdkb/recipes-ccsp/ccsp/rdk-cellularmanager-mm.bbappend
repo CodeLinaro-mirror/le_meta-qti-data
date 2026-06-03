@@ -9,6 +9,7 @@ SRC_URI += " \
     file://0002-qti-rdk-cellularmanager-mm-fix-wan-ip-source.patch \
     file://0003-qti-rdk-cellularmanager-mm_dm_walk_crash_fix.patch \
     file://0004-qti-rdk-cellularmanager-mm_autoconnect_connectbackhaul.patch \
+    file://0005-qti-rdk-cellularmanager-mm_ipv6.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
@@ -57,5 +58,3 @@ do_install:append () {
 FILES_${PN} += " \
    ${libdir}/* \
 "
-
-
