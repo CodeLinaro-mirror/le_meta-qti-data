@@ -1,0 +1,1023 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 7fd34223ffcd84b18820b88a7635c20d495cd76b Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Mon, 25 May 2026 23:55:39 +0530
+Subject: Fix for enabling AutoConnect feature in cellular
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+
+---
+ source/CellularManager/Makefile.am            |   2 +-
+ source/CellularManager/cellular_hal.h         |  49 ++++++-
+ source/CellularManager/cellular_hal_mm_apis.c |  44 +++++-
+ source/CellularManager/cellular_hal_mm_apis.h |   3 +
+ .../cellularmgr_cellular_apis.c               | 113 ++++++++++++++-
+ .../cellularmgr_cellular_apis.h               |  14 ++
+ source/CellularManager/cellularmgr_sm.c       |  68 ++++++++-
+ source/CellularManager/cellularmgr_sm.h       |   7 +
+ .../include/dmsb_tr181_psm_definitions.h      |  23 +++
+ source/TR-181/middle_layer_src/Makefile.am    |   2 +-
+ .../middle_layer_src/cellularmgr_rbus_dml.c   | 132 +++++++++++++++++-
+ 11 files changed, 431 insertions(+), 26 deletions(-)
+
+diff --git a/source/CellularManager/Makefile.am b/source/CellularManager/Makefile.am
+index b0ebe58..6476f7d 100755
+--- a/source/CellularManager/Makefile.am
++++ b/source/CellularManager/Makefile.am
+@@ -46,7 +46,7 @@ if HYBRID_SUPPORT
+ cellularmanager_SOURCES += cellular_hal_device_abstraction.c cellular_hal_device_manager.c cellular_hal_rndis_apis.c cellular_hal_modem_apis.c
+ cellularmanager_CFLAGS += -DHYBRID_SUPPORT
+ else
+-cellularmanager_SOURCES += cellular_hal_qmi_apis.c cellular_hal_mm_apis.c
++cellularmanager_SOURCES += cellular_hal_qmi_apis.c cellular_hal_mm_apis.c cellular_hal_mm_apis_extn.c cellular_hal_extn.c cellularmgr_cellular_apis_extn.c cellularmgr_sm_extn.c
+ cellularmanager_CFLAGS += -DMM_SUPPORT
+ endif
+ cellularmanager_LDFLAGS = -lccsp_common -ldl $(SYSTEMD_LDFLAGS) -lrdkloggers -lsyscfg -lnanomsg -lsysevent -lwebconfig_framework -lsecure_wrapper -lmsgpackc -lcurl -ltrower-base64
+diff --git a/source/CellularManager/cellular_hal.h b/source/CellularManager/cellular_hal.h
+index 9bcb158..cb0dee9 100755
+--- a/source/CellularManager/cellular_hal.h
++++ b/source/CellularManager/cellular_hal.h
+@@ -57,6 +57,9 @@
+ 
+ #include <libqmi-glib.h>
+ 
++#ifdef CM_EXTN_SUPPORTED
++#include "cellular_hal_extn.h"
++#endif
+ /**********************************************************************
+                 STRUCTURE AND CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -155,9 +158,12 @@ typedef enum _CellularPrefAccessTechnology_t {
+ typedef enum _CellularPDPType_t
+ { 
+     CELLULAR_PDP_TYPE_IPV4         = 0,
+-    CELLULAR_PDP_TYPE_PPP, 
++    CELLULAR_PDP_TYPE_PPP,
+     CELLULAR_PDP_TYPE_IPV6,
+-    CELLULAR_PDP_TYPE_IPV4_OR_IPV6
++    CELLULAR_PDP_TYPE_IPV4_OR_IPV6,
++#ifdef CM_EXTN_SUPPORTED
++    CELLULAR_PDP_TYPE_INVALID
++#endif
+ 
+ }CellularPDPType_t;
+ 
+@@ -213,8 +219,35 @@ typedef enum _CellularRegistrationStatus_t
+ 
+ }CellularRegistrationStatus_t;
+ 
++#ifdef CM_EXTN_SUPPORTED
++/** List of APN Types */
++typedef enum _CellularApnType_t
++{
++    CELLULAR_APN_TYPE_NONE        = 0,
++    CELLULAR_APN_TYPE_INITIAL     = 1 << 0,
++    CELLULAR_APN_TYPE_DEFAULT     = 1 << 1,
++    CELLULAR_APN_TYPE_IMS         = 1 << 2,
++    CELLULAR_APN_TYPE_MMS         = 1 << 3,
++    CELLULAR_APN_TYPE_MANAGEMENT  = 1 << 4,
++    CELLULAR_APN_TYPE_VOICE       = 1 << 5,
++    CELLULAR_APN_TYPE_EMERGENCY   = 1 << 6,
++    CELLULAR_APN_TYPE_PRIVATE     = 1 << 7,
++    CELLULAR_APN_TYPE_PURCHASE    = 1 << 8,
++    CELLULAR_APN_TYPE_VIDEO_SHARE = 1 << 9,
++    CELLULAR_APN_TYPE_LOCAL       = 1 << 10,
++    CELLULAR_APN_TYPE_APP         = 1 << 11,
++    CELLULAR_APN_TYPE_XCAP        = 1 << 12,
++    CELLULAR_APN_TYPE_TETHERING   = 1 << 13,
++
++}CellularApnType_t;
++#endif
++
+ /** Interface Input */
+-typedef  struct                                     
++#ifdef CM_EXTN_SUPPORTED
++typedef  struct CellularProfileStruct
++#else
++typedef struct
++#endif
+ {
+     int                             ProfileID;
+     CellularProfileType_t           ProfileType;
+@@ -231,6 +264,10 @@ typedef  struct
+     unsigned char                   bIsNoRoaming;
+     unsigned char                   bIsAPNDisabled;
+     unsigned char                   bIsThisDefaultProfile;
++#ifdef CM_EXTN_SUPPORTED
++    CellularApnType_t               APNType;
++    CellularProfileStructExtn_t     stPrflCtxExtn;
++#endif
+ 
+ } CellularProfileStruct;
+ 
+@@ -323,7 +360,11 @@ typedef  struct
+ } CellularUICCSlotInfoStruct;
+ 
+ /** NAS */
+-typedef  struct                                     
++#ifdef CM_EXTN_SUPPORTED
++typedef  struct CellularSignalInfoStruct
++#else
++typedef struct
++#endif
+ {
+     int                         RSSI;
+     int                         RSRQ;
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 00874fa..305ea87 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -1296,13 +1296,16 @@ INT cellular_hal_mm_get_bearer_properties_list (CHAR *modemIndex, CellularProfil
+     GList *bearers = NULL, *list;
+     guint totalCount = 0, i = 0;
+     GError *error = NULL;
+-
++    GList *profiles= NULL;
++    GCancellable *cancellable = NULL;
++    MMModem3gppProfileManager *modem_3gpp_profile_manager = NULL;
+     ctx = g_new0 (Context, 1);
+     ctx->object = get_modem_context (modemIndex);
+     ctx->modem = mm_object_get_modem (ctx->object);
+     if (ctx->modem)
+     {
+         bearers = mm_modem_list_bearers_sync (ctx->modem, NULL, &error);
++        modem_3gpp_profile_manager = mm_object_get_modem_3gpp_profile_manager (ctx->object);
+         if (!bearers) {
+             CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get bearers at '%s': '%s'\n",
+                                     __FUNCTION__, mm_modem_get_path (ctx->modem), error ? error->message : "unknown error");
+@@ -1323,12 +1326,15 @@ INT cellular_hal_mm_get_bearer_properties_list (CHAR *modemIndex, CellularProfil
+                     if( mm_bearer_get_bearer_type (bearer) == BEARER_TYPE_DEFAULT )
+                         pfStruct[i].bIsThisDefaultProfile = TRUE;
+                     if( (value = mm_bearer_properties_get_apn (properties)) != NULL )
+-                        strncpy (pfStruct[i].APN, value, sizeof(pfStruct[i].APN)-1);
++                        strlcpy (pfStruct[i].APN, value, sizeof(pfStruct[i].APN));
+                     if( (value = mm_bearer_properties_get_user (properties)) != NULL )
+-                        strncpy (pfStruct[i].Username, value, sizeof(pfStruct[i].Username)-1);
++                        strlcpy (pfStruct[i].Username, value, sizeof(pfStruct[i].Username));
+                     if( (value = mm_bearer_properties_get_password (properties)) != NULL )
+-                        strncpy (pfStruct[i].Password, value, sizeof(pfStruct[i].Password)-1);
++                        strlcpy (pfStruct[i].Password, value, sizeof(pfStruct[i].Password));
+                     pfStruct[i].bIsAPNDisabled = (mm_bearer_get_connected (bearer) ? FALSE : TRUE);
++#ifdef CM_EXTN_SUPPORTED
++                    pfStruct[i].APNType = mm_bearer_properties_get_apn_type(properties);
++#endif
+                     ipFamily = mm_bearer_properties_get_ip_type (properties);
+                     if( ipFamily == BEARER_IP_FAMILY_IPV4 )
+                         pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV4;
+@@ -1338,8 +1344,25 @@ INT cellular_hal_mm_get_bearer_properties_list (CHAR *modemIndex, CellularProfil
+                         pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
+                     pfStruct[i].bIsNoRoaming = (mm_bearer_properties_get_allow_roaming(properties) ? FALSE : TRUE);
+                     bearPath = mm_bearer_get_path (bearer);
+-                    strncpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE-1);
++#if CM_EXTN_SUPPORTED
++                    strlcpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE);
++                    pfStruct[i].stPrflCtxExtn.bearerIndex = atoi(bearerIndex);
++                    if (modem_3gpp_profile_manager)
++                    {
++                        mm_modem_3gpp_profile_manager_list_sync (modem_3gpp_profile_manager,
++                                                     cancellable,
++                                                     &profiles,
++                                                     &error);
++                        MM3gppProfile *profile = MM_3GPP_PROFILE(profiles->data);
++                        if( profile )
++                        {
++                           pfStruct[i].ProfileID = mm_3gpp_profile_get_profile_id(profile);
++                        }
++                    }
++#else
++                    strlcpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE);
+                     pfStruct[i].ProfileID = atoi(bearerIndex);
++#endif
+                     g_clear_object (&properties);
+                 }
+             }
+@@ -1532,6 +1555,10 @@ INT cellular_hal_mm_create_bearer_properties (CHAR *index, CellularProfileStruct
+             bearPath = mm_bearer_get_path (bearer);
+             strncpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE-1);
+             pstProfileInput->ProfileID = atoi(bearerIndex);
++#ifdef CM_EXTN_SUPPORTED
++            pstProfileInput->stPrflCtxExtn.bearerIndex = atoi(bearerIndex);
++            CELLULAR_HAL_DBG_PRINT ("Created Bearer Index: %d\n", atoi(bearerIndex));
++#endif
+             profileStatus = DEVICE_PROFILE_STATUS_READY;
+             res = RETURN_OK;
+             g_clear_object (&bearer);
+@@ -1594,7 +1621,14 @@ INT cellular_hal_mm_delete_bearer(CHAR *modemIndex, CellularProfileStruct *pstPr
+         {
+             
+             if( pstProfileInput )
++#if CM_EXTN_SUPPORTED
++            {
++                snprintf(bearPath, sizeof(bearPath)-1, "%s%d", BEARER_PATH_PREFIX, pstProfileInput->stPrflCtxExtn.bearerIndex);
++                CELLULAR_HAL_DBG_PRINT ("Deleted BearerIndex = %d\n", pstProfileInput->stPrflCtxExtn.bearerIndex);
++            }
++#else
+                 snprintf(bearPath, sizeof(bearPath)-1, "%s%d", BEARER_PATH_PREFIX, pstProfileInput->ProfileID);
++#endif
+             else
+             {
+                 bearer_paths = (const gchar **) mm_modem_get_bearer_paths (ctx->modem);
+diff --git a/source/CellularManager/cellular_hal_mm_apis.h b/source/CellularManager/cellular_hal_mm_apis.h
+index 40ac3a0..2d20c09 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.h
++++ b/source/CellularManager/cellular_hal_mm_apis.h
+@@ -22,6 +22,9 @@
+ 
+ #include "cellular_hal.h"
+ #include "cellular_hal_utils.h"
++#ifdef CM_EXTN_SUPPORTED
++#include "cellular_hal_extn.h"
++#endif
+ /**********************************************************************
+                CONSTANT DEFINITIONS
+ **********************************************************************/
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 0d15562..feb01cc 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -430,12 +430,16 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+     /*
+      * Initialize Interface DML
+     */
++#ifdef CM_EXTN_SUPPORTED
++    CellularMgr_extn_GlobalDMsInitFromPSM(pstDmlCellular);
++#endif
+     pstDmlCellular->X_RDK_Enable                 = FALSE;
+     pstDmlCellular->X_RDK_Status                 = RDK_STATUS_DOWN;
+     pstDmlCellular->X_RDK_ControlInterfaceStatus = CONTROL_STATUS_CLOSED;
+     pstDmlCellular->X_RDK_DataInterfaceLink      = DATA_INTERFACE_LINK_RAW_IP;
+ 
+     pstDmlCellular->ulInterfaceNoEntries        = 1;
++
+     pstDmlCellular->pstInterfaceInfo = (PCELLULAR_INTERFACE_INFO)AnscAllocateMemory(sizeof(CELLULAR_INTERFACE_INFO) * pstDmlCellular->ulInterfaceNoEntries);
+     if ( pstDmlCellular->pstInterfaceInfo == NULL )
+     {
+@@ -511,7 +515,26 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+     stCtxInputStruct.stIfInput.PDPContextNumber   = CELLULAR_PDP_CONTEXT_UNKNOWN;
+     stCtxInputStruct.stIfInput.ProxyPort          = 0;
+     snprintf(stCtxInputStruct.stIfInput.Proxy, sizeof(stCtxInputStruct.stIfInput.Proxy), "%s", "");
++#ifdef CM_EXTN_SUPPORTED
++    int apindex[CELLULAR_APN_MAX_ENTRY], i;
++    memset(apindex, -1, sizeof(apindex));
++    //get the stored apn index value from db
++    CellularMgr_extn_GetIndex(apindex);
++    for(i = 0; i < CELLULAR_APN_MAX_ENTRY; i++)
++    {
++        if(apindex[i] == -1)
++        {
++            break;
++        }
++        CellularMgr_extn_InitializeContextApnProfile(&stCtxInputStruct, apindex[i]);
++        break;//Currently supporting for one  table entry
++    }
++#else
+     CellularMgr_InitializeContextDefaultProfile( &stCtxInputStruct );
++#endif
++#ifdef CM_EXTN_SUPPORTED
++    CellularMgr_extn_Init_Cellular_Interface(pstDmlCellular->pstInterfaceInfo);
++#endif
+ 
+     //HAL Init
+     cellular_hal_init( &stCtxInputStruct );
+@@ -797,6 +820,12 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+ 
+     if( RETURN_OK == cellular_hal_get_profile_list( &pstProfileOutput, &iProfileCount ) )
+     {
++#ifdef CM_EXTN_SUPPORTED
++        CellularProfileStruct *pstSmCtxProfile = NULL;
++        pstSmCtxProfile = get_sm_apctx_profile ();
++        pstProfileOutput->stPrflCtxExtn.bConnectBackHaul = pstSmCtxProfile->stPrflCtxExtn.bConnectBackHaul;
++        snprintf(pstProfileOutput->stPrflCtxExtn.Alias, sizeof(pstProfileOutput->stPrflCtxExtn.Alias), pstSmCtxProfile->stPrflCtxExtn.Alias);
++#endif
+         if( 0 < iProfileCount )
+         {
+             CELLULAR_INTERFACE_ACCESSPOINT_INFO  *pstAPInfo = NULL;
+@@ -815,14 +844,20 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+                     pstAPInfo[i].PDPContextNumber   = pstProfileOutput[i].PDPContextNumber;
+                     pstAPInfo[i].X_RDK_Default      = pstProfileOutput[i].bIsThisDefaultProfile;
+                     pstAPInfo[i].Enable             = ( pstProfileOutput[i].bIsAPNDisabled ) ?  FALSE : TRUE;
++#ifndef CM_EXTN_SUPPORTED
+                     snprintf(pstAPInfo[i].Alias, sizeof(pstAPInfo[i].Alias), pstProfileOutput[i].ProfileName);
++#endif
+                     snprintf(pstAPInfo[i].APN, sizeof(pstAPInfo[i].APN), pstProfileOutput[i].APN);
+                     snprintf(pstAPInfo[i].Username, sizeof(pstAPInfo[i].Username), pstProfileOutput[i].Username);
+                     snprintf(pstAPInfo[i].Password, sizeof(pstAPInfo[i].Password), pstProfileOutput[i].Password);
+                     pstAPInfo[i].X_RDK_ApnAuthentication  = pstProfileOutput[i].PDPAuthentication;
+                     pstAPInfo[i].X_RDK_PdpInterfaceConfig = CELLULAR_PDP_NETWORK_CONFIG_NAS;
+                     pstAPInfo[i].X_RDK_Roaming            = ( pstProfileOutput[i].bIsNoRoaming ) ? FALSE : TRUE;
+-
++#ifdef CM_EXTN_SUPPORTED
++                    pstAPInfo[i].APNType = pstProfileOutput[i].APNType;
++                    pstAPInfo[i].ConnectBackHaul = pstProfileOutput[i].stPrflCtxExtn.bConnectBackHaul;
++                    snprintf(pstAPInfo[i].Alias, sizeof(pstAPInfo[i].Alias), pstProfileOutput[i].stPrflCtxExtn.Alias);
++#endif
+                     if( CELLULAR_PDP_TYPE_IPV4 == pstProfileOutput[i].PDPType )
+                     {
+                         pstAPInfo[i].X_RDK_IpAddressFamily = INTERFACE_PROFILE_FAMILY_IPV4;
+@@ -835,7 +870,6 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+                     {
+                         pstAPInfo[i].X_RDK_IpAddressFamily = INTERFACE_PROFILE_FAMILY_IPV4_IPV6;
+                     }
+-
+                     CcspTraceDebug(("%s - Profile Name[%s] ProfileID[%d] APN[%s] IP[%d] User[%s] Password[%s] Auth[%d] APN Disabled[%d] Default[%d]\n",
+                                                             __FUNCTION__,
+                                                             pstAPInfo[i].Alias,
+@@ -847,6 +881,21 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+                                                             pstAPInfo[i].X_RDK_ApnAuthentication,
+                                                             pstAPInfo[i].Enable,
+                                                             pstAPInfo[i].X_RDK_Default));
++#ifdef CM_EXTN_SUPPORTED
++                    CcspTraceDebug(("%s - Profile Name[%s] ProfileID[%d] APN[%s] IP[%d] User[%s] Password[%s] Auth[%d] APN Disabled[%d] Default[%d] ApnType[%d] ConnectBackHaul[%d]\n",
++                                                            __FUNCTION__,
++                                                            pstAPInfo[i].Alias,
++                                                            pstAPInfo[i].ProfileIndex,
++                                                            pstAPInfo[i].APN,
++                                                            pstAPInfo[i].X_RDK_IpAddressFamily,
++                                                            pstAPInfo[i].Username,
++                                                            pstAPInfo[i].Password,
++                                                            pstAPInfo[i].X_RDK_ApnAuthentication,
++                                                            pstAPInfo[i].Enable,
++                                                            pstAPInfo[i].X_RDK_Default,
++                                                            pstAPInfo[i].APNType,
++                                                            pstAPInfo[i].ConnectBackHaul));
++#endif
+                 }
+             }
+ 
+@@ -884,6 +933,10 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+ 
+         return RETURN_OK;
+     }
++    else
++    {
++        return RETURN_ERROR;
++    }
+ 
+     return RETURN_OK;
+ }
+@@ -903,7 +956,9 @@ int CellularMgr_AccessPointCreateProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     stProfileInput.PDPAuthentication        = pstAPInfo->X_RDK_ApnAuthentication;
+     stProfileInput.PDPNetworkConfig         = pstAPInfo->X_RDK_PdpInterfaceConfig;
+     stProfileInput.bIsNoRoaming             = ( pstAPInfo->X_RDK_Roaming ) ? FALSE : TRUE;
+-
++#ifdef CM_EXTN_SUPPORTED
++    stProfileInput.stPrflCtxExtn.bConnectBackHaul = pstAPInfo->ConnectBackHaul;
++#endif
+     if( INTERFACE_PROFILE_FAMILY_IPV4 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4;
+@@ -922,11 +977,38 @@ int CellularMgr_AccessPointCreateProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     }
+ 
+     //Create Profile
++#ifdef CM_EXTN_SUPPORTED
++    if ( RETURN_OK != cellular_hal_extn_profile_create( &stProfileInput, NULL ) )
++#else
+     if ( RETURN_OK != cellular_hal_profile_create( &stProfileInput, NULL ) )
++#endif
+     {
+         CcspTraceError(("%s - Failed to create profile information\n", __FUNCTION__));
+         return RETURN_ERROR;
+     }
++#ifdef CM_EXTN_SUPPORTED
++    //save APN profile information to DB
++    if ( RETURN_OK != CellularMgr_extn_WriteAccessPointStructToPSM(pstAPInfo))
++    {
++        CcspTraceError(("%s - Failed to write APN profile information to PSM\n", __FUNCTION__));
++    }
++
++    char param_value[CELLULARMGR_PARAM_VALUE_LENGTH];
++    char param_name[CELLULARMGR_PARAM_VALUE_LENGTH];
++    int retPsmGet = CCSP_SUCCESS;
++    memset(param_value, 0, sizeof(param_value));
++
++    //Get previous previous index value from db
++    retPsmGet = CellularMgr_RdkBus_GetParamValuesFromDB(PSM_CELLULARMANAGER_ACCESSPOINT_INDEX, param_value, sizeof(param_value));
++    if (retPsmGet == CCSP_SUCCESS)
++    {
++        //string catinate new index value with previous index and saved to db
++       snprintf(param_name,sizeof(param_name), ",%u", pstAPInfo->PDPContextNumber);
++       strlcat(param_value, param_name, strlen(param_name));
++    }
++    //concatinated index values set to db
++    CellularMgr_RdkBus_SetParamValuesToDB(PSM_CELLULARMANAGER_ACCESSPOINT_INDEX, param_value);
++#endif
+ 
+     return RETURN_OK;
+ }
+@@ -946,7 +1028,9 @@ int CellularMgr_AccessPointDeleteProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     stProfileInput.PDPAuthentication        = pstAPInfo->X_RDK_ApnAuthentication;
+     stProfileInput.PDPNetworkConfig         = pstAPInfo->X_RDK_PdpInterfaceConfig;
+     stProfileInput.bIsNoRoaming             = ( pstAPInfo->X_RDK_Roaming ) ? FALSE : TRUE;
+-
++#ifdef CM_EXTN_SUPPORTED
++    stProfileInput.stPrflCtxExtn.bConnectBackHaul = pstAPInfo->ConnectBackHaul;
++#endif
+     if( INTERFACE_PROFILE_FAMILY_IPV4 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4;
+@@ -973,7 +1057,10 @@ int CellularMgr_AccessPointDeleteProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+ int CellularMgr_AccessPointModifyProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO pstAPInfo )
+ {
+     CellularProfileStruct stProfileInput = { 0 };
+-
++#ifdef CM_EXTN_SUPPORTED
++    CellularProfileStruct *pstSmCtxProfile = NULL;
++    pstSmCtxProfile = get_sm_apctx_profile ();
++#endif
+     stProfileInput.ProfileID                = pstAPInfo->ProfileIndex;
+     stProfileInput.PDPContextNumber         = pstAPInfo->PDPContextNumber;
+     stProfileInput.bIsThisDefaultProfile    = pstAPInfo->X_RDK_Default;
+@@ -985,7 +1072,10 @@ int CellularMgr_AccessPointModifyProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     stProfileInput.PDPAuthentication        = pstAPInfo->X_RDK_ApnAuthentication;
+     stProfileInput.PDPNetworkConfig         = pstAPInfo->X_RDK_PdpInterfaceConfig;
+     stProfileInput.bIsNoRoaming             = ( pstAPInfo->X_RDK_Roaming ) ? FALSE : TRUE;
+-
++#ifdef CM_EXTN_SUPPORTED
++    stProfileInput.stPrflCtxExtn.bConnectBackHaul        = pstAPInfo->ConnectBackHaul;
++    stProfileInput.stPrflCtxExtn.bearerIndex             = pstSmCtxProfile->stPrflCtxExtn.bearerIndex;
++#endif
+     if( INTERFACE_PROFILE_FAMILY_IPV4 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4;
+@@ -1000,12 +1090,21 @@ int CellularMgr_AccessPointModifyProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     }
+ 
+     //Modify Profile
++#ifdef CM_EXTN_SUPPORTED
++    if ( RETURN_OK != cellular_hal_extn_profile_modify( &stProfileInput, NULL ) )
++#else
+     if ( RETURN_OK != cellular_hal_profile_modify( &stProfileInput, NULL ) )
++#endif
+     {
+         CcspTraceError(("%s - Failed to modify profile information\n", __FUNCTION__));
+         return RETURN_ERROR;
+     }
+-
++#ifdef CM_EXTN_SUPPORTED
++    if ( RETURN_OK != CellularMgr_extn_WriteAccessPointStructToPSM(pstAPInfo))
++    {
++        CcspTraceError(("%s - Failed to write APN profile information to PSM\n", __FUNCTION__));
++    }
++#endif
+     return RETURN_OK;
+ }
+ 
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 9d4c6dd..060fc5c 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -30,6 +30,8 @@
+ #include "cellular_hal.h"
+ #include "cellularmgr_bus_utils.h"
+ 
++#include "cellularmgr_rbus_dml_extn.h"
++
+ /**********************************************************************
+                 STRUCTURE AND CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -52,6 +54,9 @@
+ #define CELLULAR_RADIO_ENV_POOR_THRESHOLD_LOW            (-115)
+ #define CELLULAR_ICCID_MAX_LENGTH                        (21)
+ #define PSM_WRITE_SUCCESS                                (100)
++#define CELLULAR_APN_MAX_ENTRY 8
++#define CELLULARMGR_PARAM_VALUE_LENGTH 64
++#define CELLULARMGR_PARAM_NAME_LENGTH  64
+ typedef enum _CELLULAR_RDK_STATUS
+ {
+    RDK_STATUS_DOWN = 1,
+@@ -168,6 +173,11 @@ _CELLULAR_INTERFACE_ACCESSPOINT_INFO
+     UINT                                  ProfileIndex;
+     UINT                                  PDPContextNumber;
+     BOOLEAN                               X_RDK_Roaming;
++#ifdef CM_EXTN_SUPPORTED
++    CHAR                                  IPAddress[64];
++    CellularApnType_t                     APNType;
++    BOOLEAN                               ConnectBackHaul;
++#endif
+ }
+ CELLULAR_INTERFACE_ACCESSPOINT_INFO,  *PCELLULAR_INTERFACE_ACCESSPOINT_INFO;
+ 
+@@ -372,6 +382,10 @@ _CELLULAR_DML_INFO
+     MODEM_INTERFACE_INFO                   ModemInterfaceInfo;
+     BOOLEAN                                X_RDK_Enable;
+     CELLULAR_RDK_STATUS                    X_RDK_Status;
++#ifdef CM_EXTN_SUPPORTED
++    BOOLEAN                                AutoConnect;
++    UINT                                   CurrentAPN;
++#endif
+     CHAR                                   X_RDK_Model[20];
+     CHAR                                   X_RDK_HardwareRevision[20];
+     CHAR                                   X_RDK_Vendor[20];
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 9b184a3..5d14dd7 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -23,6 +23,10 @@
+ #include "cellularmgr_cellular_apis.h"
+ #include "cellular_hal_qmi_apis.h"
+ 
++#ifdef CM_EXTN_SUPPORTED
++#include <semaphore.h>
++#endif
++
+ #if RBUS_BUILD_FLAG_ENABLE
+ #include "cellularmgr_rbus_events.h"
+ #endif
+@@ -115,6 +119,9 @@ static int iter=0;
+ static int max_wait = 0;
+ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
++#ifdef CM_EXTN_SUPPORTED
++sem_t connection_signal_sem; // This semaphore is posted whenever there is change in connection status as detected by the SM
++#endif
+ /**********************************************************************
+                 FUNCTION DEFINITION
+ **********************************************************************/
+@@ -271,7 +278,10 @@ int CellularMgrProfileStatusCBForSM(char *profile_name, CellularPDPType_t  PDPTy
+ }
+ 
+ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPReadyStatus_t ip_ready_status )
+-{   
++{
++#ifdef CM_EXTN_SUPPORTED
++    sem_post(&connection_signal_sem);
++#endif
+     char str_value[32];
+     char dns_buf[256] = {0};
+     char *pIpSource = NULL;
+@@ -703,7 +713,15 @@ static CellularPolicySmState_t TransitionRegistered( void )
+     gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus          = DEVICE_NETWORK_IP_NOT_READY;
+ 
+     //Request Device Profile Create
++#ifdef CM_EXTN_SUPPORTED
++    if (RETURN_OK != cellular_hal_extn_profile_create( &(gpstCellularPolicyCtrl->stContextProfile), CellularMgrProfileStatusCBForSM ))
++    {
++       CcspTraceInfo(("%s %d PROFILE CREATE FAILED!!\n", __FUNCTION__, __LINE__));/*Revert the Profile selection status - either APN is not valid or current APN is not yet set*/
++    }
++    cellular_hal_extn_set_signal_refresh_rate();
++#else
+     cellular_hal_profile_create( &(gpstCellularPolicyCtrl->stContextProfile), CellularMgrProfileStatusCBForSM );
++#endif
+ 
+     return CELLULAR_STATE_REGISTERED;
+ }
+@@ -1017,6 +1035,12 @@ static CellularPolicySmState_t StateDeregistered( void )
+         ( ( RETURN_OK == CellularMgr_GetActiveCardStatus( &enCardStatus ) ) &&
+           ( SIM_STATUS_VALID != enCardStatus ) ) )
+     {
++#ifdef CM_EXTN_SUPPORTED
++        if (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == TRUE)
++        {
++            gpstCellularPolicyCtrl->pCmIfData->Enable = TRUE;
++        }
++#endif
+         return CELLULAR_STATE_DEREGISTERED;
+     }
+ 
+@@ -1100,6 +1124,7 @@ static CellularPolicySmState_t StateRegistered( void )
+     }
+ 
+     if( ( DEVICE_PROFILE_STATUS_READY == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus ) &&
++        (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == TRUE) &&
+ #ifndef WAN_MANAGER_UNIFICATION_ENABLED
+         ( gpstCellularPolicyCtrl->pCmIfData->Upstream == TRUE ) &&
+ #endif
+@@ -1162,6 +1187,10 @@ static CellularPolicySmState_t StateConnected( void )
+     }
+     
+     if ( ( FALSE == gpstCellularPolicyCtrl->bRDKEnable ) ||
++#ifdef CM_EXTN_SUPPORTED
++         (DEVICE_PROFILE_STATUS_DELETED == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus) ||
++         /* move out of connected state if device profile is deleted .. user could have set APN to FALSE resulting in bearer deletion.*/
++#endif
+          ( DEVICE_SLOT_STATUS_NOT_READY       == gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus ) ||
+          ( gpstCellularPolicyCtrl->pCmIfData->Enable == FALSE ) ||
+ #ifndef WAN_MANAGER_UNIFICATION_ENABLED
+@@ -1188,6 +1217,11 @@ static CellularPolicySmState_t StateConnected( void )
+         return ( TransitionConnectedStopNetwork( ) );
+     }
+ 
++    if (DEVICE_PROFILE_STATUS_DELETED == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus)
++    {
++        CellularMgrSMSetCurrentState(CELLULAR_STATE_DEREGISTERED);
++    }
++
+     return CELLULAR_STATE_CONNECTED;
+ }
+ 
+@@ -1227,6 +1261,15 @@ static ANSC_STATUS CellularMgr_ControllerInit( CellularMgrSMInputStruct    *pstI
+         gpstCellularPolicyCtrl->bRDKEnable = pstInput->bModemEnable;
+         gpstCellularPolicyCtrl->pCmIfData  = pstInput->pCmIfData;
+         gpstCellularPolicyCtrl->pstDmlCellular = pstInput->pstDmlCellular;
++#ifdef CM_EXTN_SUPPORTED
++     /*Prevent SM from creating bearers when on bootup we don't want to bring up the connection.*/
++     if (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == FALSE)
++     {
++         gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus = DEVICE_PROFILE_STATUS_CONFIGURING;
++     }
++        /* Updating AP table with values from PSM to prevent cellular manager from crashing when setting AP table parameters through dmcli before doing a dm get */
++        CellularMgr_extn_AccessPointGetProfileList( &(gpstCellularPolicyCtrl->pstDmlCellular->pstAPInfo), (int*)&gpstCellularPolicyCtrl->pstDmlCellular->ulAccessPointNoOfEntries);
++#endif
+         retStatus = ANSC_STATUS_SUCCESS;
+     }
+ 
+@@ -1308,6 +1351,9 @@ CellularMgr_Start_State_Machine
+         CellularMgrSMInputStruct    *pstInput
+     )
+ {
++#ifdef CM_EXTN_SUPPORTED
++    sem_init(&connection_signal_sem, 0, 0);
++#endif
+     if ( pstInput == NULL )
+     {
+         CcspTraceError(("%s %d - invalid args\n", __FUNCTION__, __LINE__));
+@@ -1329,3 +1375,23 @@ CellularMgr_Start_State_Machine
+ 
+     return RETURN_OK;
+ }
++
++
++#ifdef CM_EXTN_SUPPORTED
++PCELLULAR_INTERFACE_ACCESSPOINT_INFO   get_sm_apctx_dml_profile()
++{
++    return (gpstCellularPolicyCtrl->pstDmlCellular->pstAPInfo);
++}
++
++CellularProfileStruct* get_sm_apctx_profile()
++{
++    return (&(gpstCellularPolicyCtrl->stContextProfile));
++}
++
++void set_device_profile_status(CellularDeviceProfileSelectionStatus_t val)
++{
++    CcspTraceDebug(("Current Modem State = %d, Profile Status = %d\n", gpstCellularPolicyCtrl->enCurrentSMState, gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus));
++    gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus =  DEVICE_PROFILE_STATUS_NOT_READY;
++}
++
++#endif
+diff --git a/source/CellularManager/cellularmgr_sm.h b/source/CellularManager/cellularmgr_sm.h
+index 2d1e920..441be06 100644
+--- a/source/CellularManager/cellularmgr_sm.h
++++ b/source/CellularManager/cellularmgr_sm.h
+@@ -76,5 +76,12 @@ int CellularMgrGetCurrentPDPContextStatusInformation( PCELLULAR_INTERFACE_CONTEX
+ int cellular_get_serving_info(int *registration_status, int *roaming_status,  int *attach_status);
+ 
+ int CellularMgrGetNetworkRegisteredService( CELLULAR_INTERFACE_REGISTERED_SERVICE_TYPE  *penRegisteredService );
++#ifdef CM_EXTN_SUPPORTED
++PCELLULAR_INTERFACE_ACCESSPOINT_INFO   get_sm_apctx_dml_profile(void);
++
++CellularProfileStruct* get_sm_apctx_profile(void);
++
++void set_device_profile_status(CellularDeviceProfileSelectionStatus_t val);
++#endif //CM_EXTN_SUPPORTED
+ 
+ #endif //_CELLULARMGR_SM_H_
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index 1abb265..c26e076 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -34,6 +34,29 @@
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_PASSWORD                "dmsb.cellularmanager.profile.default.password"
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_IS_NOROAMING            "dmsb.cellularmanager.profile.default.isnoroaming"
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_IS_APNDISABLED          "dmsb.cellularmanager.profile.default.isapndisabled"
++#ifdef CM_EXTN_SUPPORTED
++#define PSM_CELLULARMANAGER_DEFAULT_PROFILE_AUTOCONNECT             "dmsb.cellularmanager.profile.default.autoconnect"
++#define PSM_CELLULARMANAGER_DEFAULT_PROFILE_CURRENT_APN             "dmsb.cellularmanager.profile.default.currentapn"
++/**********************************************************************
+++                       AccessPoint Params
+++**********************************************************************/
++#define PSM_CELLULARMANAGER_ACCESSPOINT_ENTRYCOUNT                 "dmsb.cellularmanager.accessPointNoOfEntries"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_INDEX                      "dmsb.cellularmanager.accesspoint.index"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_PROFILEINDEX               "dmsb.cellularmanager.accesspoint.%d.profileIndex"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_ENABLE                     "dmsb.cellularmanager.accesspoint.%d.enable"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_DEFAULTPROFILE             "dmsb.cellularmanager.accesspoint.%d.defaultProfile"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_ALIAS                      "dmsb.cellularmanager.accesspoint.%d.alias"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_APN                        "dmsb.cellularmanager.accesspoint.%d.apn"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_APNAUTHENTICATION          "dmsb.cellularmanager.accesspoint.%d.apnAuthentication"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_USERNAME                   "dmsb.cellularmanager.accesspoint.%d.username"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_PASSWORD                   "dmsb.cellularmanager.accesspoint.%d.password"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_IPADDRESSFAMILY            "dmsb.cellularmanager.accesspoint.%d.ipAddressFamily"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_PDPINTERFACECONFIG         "dmsb.cellularmanager.accesspoint.%d.pdpInterfaceConfig"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_PDPCONTEXTNUMBER           "dmsb.cellularmanager.accesspoint.%d.pdpContextNumber"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_ROAMING                    "dmsb.cellularmanager.accesspoint.%d.roaming"
++#define PSM_CELLULARMANAGER_ACCESSPOINT_PROFILE_TYPE               "dmsb.cellularmanager.accesspoint.%d.profiletype"
++#define PSM_CELLULARMANAGER_INTERFACE_ALIAS                                       "dmsb.cellularmanager.interface.%d.alias"
++#endif
+ 
+ #endif
+ 
+diff --git a/source/TR-181/middle_layer_src/Makefile.am b/source/TR-181/middle_layer_src/Makefile.am
+index 9097dee..416ffc5 100644
+--- a/source/TR-181/middle_layer_src/Makefile.am
++++ b/source/TR-181/middle_layer_src/Makefile.am
+@@ -32,7 +32,7 @@ libcellularmanager_middle_layer_src_la_SOURCES =  cellularmgr_plugin_main.c  cel
+ libcellularmanager_middle_layer_src_la_LDFLAGS = -lccsp_common -lrdkloggers $(DBUS_LIBS) $(SYSTEMD_LDFLAGS) -lnanomsg -lsysevent -lmsgpackc -lcurl -lwebconfig_framework -ltrower-base64
+ 
+ libcellularmanager_middle_layer_src_la_CPPFLAGS += -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/rbus -I${PKG_CONFIG_SYSROOT_DIR}$(includedir)/rtmessage
+-libcellularmanager_middle_layer_src_la_SOURCES += cellularmgr_rbus_events.c cellularmgr_rbus_helpers.c cellularmgr_rbus_dml.c
++libcellularmanager_middle_layer_src_la_SOURCES += cellularmgr_rbus_events.c cellularmgr_rbus_helpers.c cellularmgr_rbus_dml.c cellularmgr_rbus_dml_extn.c
+ if HYBRID_SUPPORT
+ libcellularmanager_middle_layer_src_la_CFLAGS = -DHYBRID_SUPPORT
+ endif
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index cc6e8f4..9736954 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -56,15 +56,30 @@
+ #include "cellularmgr_global.h"
+ #include "cellularmgr_utils.h"
+ 
++#ifdef CM_EXTN_SUPPORTED
++#include "cellularmgr_rbus_dml_extn.h"
++#endif
++
+ #define  ARRAY_SZ(x) (sizeof(x) / sizeof((x)[0]))
+ 
+ extern PBACKEND_MANAGER_OBJECT               g_pBEManager;
+ extern CellularMGR_rbusSubListSt gRBUSSubListSt;
++#ifdef CM_EXTN_SUPPORTED
++#include <sysevent/sysevent.h>
++extern int sysevent_fd;
++extern token_t sysevent_token;
++#endif /* CM_EXTN_SUPPORTED */
+ 
+ rbusHandle_t gBusHandle = NULL;
+ char const gComponentID[] = "cellularmgr";
+ 
+ #define CELLULARMGR_INFACE_TABLE                 "Device.Cellular.Interface."
++#ifdef CM_EXTN_SUPPORTED
++//Cellular Interface is just a container holding interface properties.
++//Interface index maps to modem instances. Its value is set to 1 since there is only 1 modem in the system managed by CellularManager.
++#define CELLULARMGR_INFACE_INDEX_TABLE           "Device.Cellular.Interface.%d"
++#define GET_CELLULAR_IFACE_IDX 1
++#endif
+ #define CELLULARMGR_INFACE_CONTXTPROFILE_TABLE   "Device.Cellular.Interface.%d.X_RDK_ContextProfile."
+ #define CELLULARMGR_ACCESSPOINT_TABLE            "Device.Cellular.AccessPoint."
+ #define CELLULARMGR_UICC_TABLE                   "Device.Cellular.X_RDK_Uicc."
+@@ -570,7 +585,7 @@ rbusError_t Cellular_SetParamBoolValue_rbus(rbusHandle_t handle, rbusProperty_t
+     {
+         return RBUS_ERROR_INVALID_INPUT;
+     }
+-    
++
+     if(opts->commit)
+     {
+       return do_Cellular_Validate_Cellular_Commit_Cellular_Rollback(&context);
+@@ -800,6 +815,9 @@ static rbusError_t Cellular_Interface_GetParamStringValue_rbus(rbusHandle_t hand
+     }
+     else if(strcmp(context.name, "Alias") == 0)
+     {
++#ifdef CM_EXTN_SUPPORTED
++        CellularMgr_extn_Get_Interface_Alias(pstInterfaceInfo);
++#endif
+         rbusProperty_SetString(property, pstInterfaceInfo->Alias);
+     }
+     else if(strcmp(context.name, "Name") == 0)
+@@ -2809,14 +2827,34 @@ rbusError_t Cellular_AccessPoint_Synchronize_rbus(void* ctx)
+     }
+ 
+     ULONG AccessPointCurrentEntriesCount = pstDmlCellular->ulAccessPointNoOfEntries;
++
++    CellularProfileStruct                *pstProfileOutput = NULL;
++
++#ifdef CM_EXTN_SUPPORTED
++    if(PROFILE_GET_SUCCESS != CellularMgr_AccessPointGetProfileList( &(pstDmlCellular->pstAPInfo), (int*)&pstDmlCellular->ulAccessPointNoOfEntries))
++    {
++        CellularMgr_extn_AccessPointGetProfileList( &(pstDmlCellular->pstAPInfo), (int*)&pstDmlCellular->ulAccessPointNoOfEntries);
++    }
++#else
+     CellularMgr_AccessPointGetProfileList( &(pstDmlCellular->pstAPInfo), (int*)&pstDmlCellular->ulAccessPointNoOfEntries);
++#endif
+ 
+     if ( pstDmlCellular->pstAPInfo != NULL )
+     {
+         for(int j = 0; j < pstDmlCellular->ulAccessPointNoOfEntries; j++)
+         {
+             CELLULAR_INTERFACE_ACCESSPOINT_INFO  *pstAPInfo = &(pstDmlCellular->pstAPInfo[j]);
+-
++#ifdef CM_EXTN_SUPPORTED
++            if (Sample_RegisterRow(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber + 1, NULL, pstAPInfo) == RBUS_ERROR_SUCCESS)
++            {
++                CcspTraceInfo(("%s-%d : Add AccessPoint Table:Inst(%s%d) \n", __FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE,pstAPInfo->PDPContextNumber + 1));
++            }
++            else
++            {
++                CcspTraceInfo(("%s-%d : tableName(%s), Inst(%d) \n",__FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber + 1));
++                SetRowContext(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber + 1, NULL, pstAPInfo);
++            }
++#else
+             if (Sample_RegisterRow(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber, NULL, pstAPInfo) == RBUS_ERROR_SUCCESS)
+             {
+                 CcspTraceInfo(("%s-%d : Add AccessPoint Table:Inst(%s%d) \n", __FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE,pstAPInfo->PDPContextNumber));
+@@ -2826,6 +2864,7 @@ rbusError_t Cellular_AccessPoint_Synchronize_rbus(void* ctx)
+                 CcspTraceInfo(("%s-%d : tableName(%s), Inst(%d) \n",__FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber));
+                 SetRowContext(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber, NULL, pstAPInfo);
+             }
++#endif
+         }
+     }
+     return RBUS_ERROR_SUCCESS;
+@@ -2873,12 +2912,23 @@ static rbusError_t Cellular_AccessPoint_GetParamBoolValue_rbus(rbusHandle_t hand
+ {
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+-
++#ifdef CM_EXTN_SUPPORTED
++    PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = NULL;
++    pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++    if (pstAPInfo == NULL)
++    {
++        if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
++            return ret;
++        context = GetPropertyContext(property);
++        pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++    }
++#else
+     if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+         return ret;
+ 
+     context = GetPropertyContext(property);
+     PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++#endif
+ 
+     if (pstAPInfo == NULL)
+     {
+@@ -2897,6 +2947,12 @@ static rbusError_t Cellular_AccessPoint_GetParamBoolValue_rbus(rbusHandle_t hand
+     {
+         rbusProperty_SetBoolean(property, pstAPInfo->X_RDK_Roaming);
+     }
++#ifdef CM_EXTN_SUPPORTED
++    else if(strcmp(context.name,"ConnectBackHaul")==0)
++    {
++        rbusProperty_SetBoolean(property, pstAPInfo->ConnectBackHaul);
++    }
++#endif
+     else
+     {
+         return RBUS_ERROR_INVALID_INPUT;
+@@ -2909,12 +2965,23 @@ static rbusError_t Cellular_AccessPoint_GetParamUlongValue_rbus(rbusHandle_t han
+ {
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+-
++#ifdef CM_EXTN_SUPPORTED
++    PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = NULL;
++    pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++    if (pstAPInfo == NULL)
++    {
++        if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
++            return ret;
++        context = GetPropertyContext(property);
++        pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++    }
++#else
+     if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+         return ret;
+ 
+     context = GetPropertyContext(property);
+     PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++#endif
+     if (pstAPInfo == NULL)
+     {
+         return RBUS_ERROR_BUS_ERROR;
+@@ -2936,13 +3003,23 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+ {
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+-
++#ifdef CM_EXTN_SUPPORTED
++    PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = NULL;
++    pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++    if (pstAPInfo == NULL)
++    {
++        if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
++            return ret;
++        context = GetPropertyContext(property);
++        pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++    }
++#else
+     if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+         return ret;
+ 
+     context = GetPropertyContext(property);
+     PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
+-
++#endif
+     if (pstAPInfo == NULL)
+     {
+         return RBUS_ERROR_BUS_ERROR;
+@@ -2956,6 +3033,20 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+     {
+         rbusProperty_SetString(property, pstAPInfo->APN);
+     }
++#ifdef CM_EXTN_SUPPORTED
++    else if(strcmp(context.name, "Interface") == 0)
++    {
++        char paramName[32] = {0};
++        snprintf(paramName, sizeof(paramName), CELLULARMGR_INFACE_INDEX_TABLE, GET_CELLULAR_IFACE_IDX);
++        rbusProperty_SetString(property, paramName );
++    }
++    else if(strcmp(context.name, "IPv6Address") == 0)
++    {
++        memset(pstAPInfo->IPv6Address, 0, 128);
++        sysevent_get(sysevent_fd, sysevent_token, "cellular_wan_v6_ip",pstAPInfo->IPv6Address , sizeof(pstAPInfo->IPv6Address));
++        rbusProperty_SetString(property, pstAPInfo->IPv6Address);
++    }
++#endif
+     else if(strcmp(context.name, "X_RDK_ApnAuthentication") == 0)
+     {
+         if (pstAPInfo->X_RDK_ApnAuthentication == CELLULAR_PDP_AUTHENTICATION_PAP)
+@@ -2977,6 +3068,10 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+     }
+     else if(strcmp(context.name, "Password") == 0)
+     {
++#ifdef CM_EXTN_SUPPORTED
++        //password is not cached.
++        memset(pstAPInfo->Password, 0, sizeof(pstAPInfo->Password));
++#endif
+         rbusProperty_SetString(property, pstAPInfo->Password);
+     }
+     else if(strcmp(context.name, "X_RDK_IpAddressFamily") == 0)
+@@ -3086,6 +3181,9 @@ rbusError_t do_Cellular_AccessPoint_Validate_Cellular_AccessPoint_Commit_Cellula
+ 
+ rbusError_t Cellular_AccessPoint_SetParamBoolValue_rbus(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* opts)
+ {
++#ifdef CM_EXTN_SUPPORTED
++    return Cellular_AccessPoint_extn_SetParamBoolValue_rbus(handle, property, opts);
++#else
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+ 
+@@ -3144,10 +3242,14 @@ rbusError_t Cellular_AccessPoint_SetParamBoolValue_rbus(rbusHandle_t handle, rbu
+     }
+ 
+     return RBUS_ERROR_SUCCESS;
++#endif
+ }
+ 
+ rbusError_t Cellular_AccessPoint_SetParamStringValue_rbus(rbusHandle_t handle, rbusProperty_t property, rbusSetHandlerOptions_t* opts)
+ {
++#ifdef CM_EXTN_SUPPORTED
++    return Cellular_AccessPoint_extn_SetParamStringValue_rbus(handle, property, opts);
++#else
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+ 
+@@ -3246,6 +3348,7 @@ rbusError_t Cellular_AccessPoint_SetParamStringValue_rbus(rbusHandle_t handle, r
+       return do_Cellular_AccessPoint_Validate_Cellular_AccessPoint_Commit_Cellular_AccessPoint_Rollback(&context);
+     }
+ 
++#endif
+     return RBUS_ERROR_SUCCESS;
+ }
+ 
+@@ -3255,6 +3358,10 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+     static rbusDataElement_t dataElements[] = {
+         {"Device.Cellular.X_RDK_Enable", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamBoolValue_rbus, Cellular_SetParamBoolValue_rbus, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+         {"Device.Cellular.X_RDK_Status", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
++#ifdef CM_EXTN_SUPPORTED
++        {"Device.Cellular.CurrentAPN", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamUlongValue_rbus, Cellular_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AutoConnect", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++#endif
+         {"Device.Cellular.X_RDK_Model", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_HardwareRevision", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Vendor", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+@@ -3276,7 +3383,7 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Enable", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamBoolValue_rbus, Cellular_Interface_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}}, 
+         {"Device.Cellular.Interface.{i}.Status", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, NULL, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+-        {"Device.Cellular.Interface.{i}.Alias", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Alias", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, Cellular_Interface_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Name", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.LastChange", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.LowerLayers", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, Cellular_Interface_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+@@ -3395,11 +3502,22 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.AccessPoint.{i}.X_RDK_ProfileId", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.Alias", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.Apn", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++#ifdef CM_EXTN_SUPPORTED
++        {"Device.Cellular.AccessPoint.{i}.Interface", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, NULL, NULL, NULL, NULL ,NULL}},
++#endif
+         {"Device.Cellular.AccessPoint.{i}.X_RDK_ApnAuthentication", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.Username", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.Password", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_RDK_IpAddressFamily", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++#ifndef CM_EXTN_SUPPORTED
+         {"Device.Cellular.AccessPoint.{i}.X_RDK_PdpInterfaceConfig", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}}
++#else
++        {"Device.Cellular.AccessPoint.{i}.X_RDK_PdpInterfaceConfig", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_TMOBILE.IPAddress", RBUS_ELEMENT_TYPE_PROPERTY, {X_TMOBILE_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.IPv6Address", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_TMOBILE.Type", RBUS_ELEMENT_TYPE_PROPERTY, {X_TMOBILE_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.ConnectBackHaul", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamBoolValue_rbus, Cellular_AccessPoint_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}}
++#endif
+     };
+     rc = rbus_regDataElements(handle, ARRAY_SZ(dataElements), dataElements);
+     if(rc != RBUS_ERROR_SUCCESS)
+-- 
+2.34.1
+

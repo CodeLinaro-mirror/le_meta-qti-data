@@ -1183,6 +1183,8 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Recordname="dmsb.cellularmanager.accesspoint.1.roaming" type="astr" contentType="bool">TRUE</Record>
   <Recordname="dmsb.cellularmanager.accesspoint.1.enable" type="astr" contentType="bool">TRUE</Record>
   <Recordname="dmsb.cellularmanager.roamingenable" type="astr" contentType="bool">TRUE</Record>
+  <Record name="dmsb.cellularmanager.accesspoint.index" type="astr">0</Record>
+  <Record name="dmsb.cellularmanager.profile.default.currentapn" type="astr">1</Record>
   <Record name="eRT.com.cisco.spvtg.ccsp.tr181pa.Device.WiFi.X_RDK-CENTRAL_COM_ForceDisable" type="astr">0</Record>
   <Record name="eRT.com.cisco.spvtg.ccsp.tr181pa.Device.WiFi.Radio.3.FactoryResetSSID" type="astr">0</Record>
   <?ifdef GUEST_WIFI?>
