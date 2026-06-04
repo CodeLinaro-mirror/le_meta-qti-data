@@ -15,6 +15,7 @@ SRC_URI += " \
               file://00004-CcspPandM-DNSProxy-bringup.patch \
               file://00005-qti-ccsp-p-and-m_Cellular_v6_bringup.patch \
               file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
+              file://00007-qti-ccsp-p-and-m_fix-buffer-size.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
