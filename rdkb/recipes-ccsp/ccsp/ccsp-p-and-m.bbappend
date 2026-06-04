@@ -16,13 +16,14 @@ SRC_URI += " \
               file://00005-qti-ccsp-p-and-m_Cellular_v6_bringup.patch \
               file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
               file://00007-qti-ccsp-p-and-m_fix-buffer-size.patch \
+              file://00008-CcspPandM-Fix-nonnull-RfcJsonInit-null-filename.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
 
-CFLAGS_append += " -Wno-stringop-truncation -Wno-stringop-overflow -Wno-error=format-truncation= -Wno-error=unused-parameter -Wno-error=return-type -Wno-error=sign-compare -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=parentheses -Wno-error=unused-variable -Wno-error=int-to-pointer-cast -Wno-error=pointer-to-int-cast "
+CFLAGS_append += " -Wno-stringop-truncation -Wno-stringop-overflow -Wno-error=format-truncation= -Wno-error=unused-parameter -Wno-error=return-type -Wno-error=sign-compare -Wno-error=implicit-function-declaration -Wno-error=int-conversion -Wno-error=parentheses -Wno-error=unused-variable -Wno-error=int-to-pointer-cast -Wno-error=pointer-to-int-cast -Wno-error=format -Wno-error=unused-parameter -Wno-error=return-type -Wno-error=nonnull "
 CFLAGS_append += " \
     -I=${includedir}/utctx \
     -I=${includedir}/utapi \
