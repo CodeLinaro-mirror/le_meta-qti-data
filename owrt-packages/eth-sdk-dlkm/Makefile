@@ -12,8 +12,10 @@ else
   COMPILE_MODE :=debug
 endif
 
+DISTRO := owrt
+
 LOCAL_SRC := $(TOPDIR)/src/data-eth/drivers
-LOCAL_FILES_SRC := $(TOPDIR)/src/data-eth/files
+LOCAL_FILES_SRC := $(TOPDIR)/src/data-eth/files/$(BOARD)-$(DISTRO)
 ETH_ADDR :=lib/modules/ethernet
 
 include $(INCLUDE_DIR)/package.mk
@@ -62,8 +64,8 @@ define KernelPackage/$(PKG_NAME)/install
 	find "$(PKG_BUILD_DIR)" -type f -name '*.ko' -exec $(INSTALL_BIN) {} "$(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/" \;
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/owrt/eth-sdk-dlkm.init $(1)/etc/init.d
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/owrt/eth-sdk-dlkm  $(1)/etc/initscripts/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/eth-sdk-dlkm.init $(1)/etc/init.d
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/eth-sdk-dlkm  $(1)/etc/initscripts/
 endef
 
 $(eval $(call KernelPackage,$(PKG_NAME)))
