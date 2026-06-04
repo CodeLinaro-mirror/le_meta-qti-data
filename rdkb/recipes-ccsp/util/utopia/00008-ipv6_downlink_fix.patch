@@ -1,0 +1,42 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 5e40799ce081e92f1a3de3a3080c39c153de486c Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Fri, 29 May 2026 07:40:58 +0000
+Subject: [PATCH 3/3] support-ipv6_downlink_fix
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/firewall/firewall_ipv6.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/source/firewall/firewall_ipv6.c b/source/firewall/firewall_ipv6.c
+index 195a7f6..100098b 100644
+--- a/source/firewall/firewall_ipv6.c
++++ b/source/firewall/firewall_ipv6.c
+@@ -732,10 +732,16 @@ void do_ipv6_filter_table(FILE *fp){
+    }
+ 
+    do_openPorts(fp);
+-
+    fprintf(fp, "-A LOG_INPUT_DROP -m limit --limit 1/minute -j LOG --log-level %d --log-prefix \"UTOPIA: FW.IPv6 INPUT drop\"\n",syslog_level);
+    fprintf(fp, "-A LOG_FORWARD_DROP -m limit --limit 1/minute -j LOG --log-level %d --log-prefix \"UTOPIA: FW.IPv6 FORWARD drop\"\n",syslog_level);
+-   fprintf(fp, "-A LOG_INPUT_DROP -j DROP\n"); 
++#if defined(_PLATFORM_SDX_)
++   /* In SDX Low mode, skip IPv6 INPUT DROP so embedded downlink traffic is not blocked. */
++   if (strncasecmp(firewall_levelv6, "Low", strlen("Low")) != 0)
++      fprintf(fp, "-A LOG_INPUT_DROP -j DROP\n");
++#else
++   fprintf(fp, "-A LOG_INPUT_DROP -j DROP\n");
++#endif
++
+ #ifdef FEATURE_464XLAT
+     //464xlat remove the rule
+ #else
+-- 
+2.34.1
+

@@ -1,0 +1,180 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 81db93797706d028623310c28ead2d99f5068437 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Wed, 3 Jun 2026 16:02:24 +0000
+Subject: [PATCH] qti-ccsp-p-and-m_Cellular_v6_Extension_Support
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c | 154 ++++++++++++++++++
+ 1 file changed, 154 insertions(+)
+ create mode 100644 source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
+new file mode 100644
+index 0000000..060b97b
+--- /dev/null
++++ b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
+@@ -0,0 +1,154 @@
++/*
++*Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++*SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++#include "cosa_apis.h"
++#include "cosa_dhcpv6_apis.h"
++#include "cosa_dhcpv6_internal.h"
++#include "plugin_main_apis.h"
++#include "autoconf.h"
++#include "secure_wrapper.h"
++#include "safec_lib_common.h"
++#include "cosa_common_util.h"
++#include <ccsp_psm_helper.h>
++#include <sys/stat.h>
++#include "ipc_msg.h"
++extern token_t sysevent_token_global;
++extern int sysevent_fd_1;
++extern int send_dhcp_data_to_wanmanager (ipc_dhcpv6_data_t *dhcpv6_data);
++#ifdef PREFIX_SHARING_CELLULAR
++#define SYSEVENT_IPV4_MTU_SIZE             "cellular_wan_v4_mtu"
++#define SYSEVENT_FIELD_IPV6_DNS_SERVER     "wan6_ns"
++#define SYSEVENT_IPV6_MTU_SIZE             "cellular_wan_v6_mtu"
++/*===========================================================================
++  FUNCTION:  AssignIpv6Addr
++===========================================================================*/
++/*!
++    @brief
++    Assigns a global IPv6 address and prefix to the specified interface.
++    Also updates the interface MTU by comparing cellular IPv4 and IPv6 MTU
++    values from sysevents.
++    @param ifname: Name of the network interface (e.g., "eth0").
++    @param ipv6Addr: The IPv6 address string to be assigned.
++    @param prefix: Pointer to the prefix length integer.
++*/
++/*=========================================================================*/
++void AssignIpv6Addr(char* ifname, char* ipv6Addr, int* prefix)
++{
++    char mtu6_val[8], mtu_val[8];
++    int iMtu6Val=0, iMtuVal=0;
++    memset(mtu_val,0,sizeof(mtu_val));
++    memset(mtu6_val,0,sizeof(mtu6_val));
++    CcspTraceInfo(("%s : interface name=%s , ipv6 address=%s prefix=%d \n", __FUNCTION__, ifname,ipv6Addr,*prefix));
++    v_secure_system("ip -6 addr add %s/%d dev %s", ipv6Addr,*prefix,ifname);
++    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV4_MTU_SIZE, mtu_val, sizeof(mtu_val));
++    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
++    CcspTraceInfo(("%s : interface name=%s , ipv6 address=%s prefix=%d mtu_v6 =%s mtu =%s\n", __FUNCTION__, ifname,ipv6Addr,*prefix, mtu6_val, mtu_val));
++    if(strlen(mtu6_val) != 0)
++    {
++        /*the biggest value among the ipv4 and ipv6 MTU will be used to update the interface*/
++        iMtu6Val = atoi(mtu6_val);
++        iMtuVal = atoi(mtu_val);
++        if(iMtu6Val > iMtuVal)
++        {
++            v_secure_system("ip link set dev %s mtu %d", ifname,iMtu6Val);
++        }
++    }
++    v_secure_system("ifconfig %s up", ifname);
++}
++/*===========================================================================
++  FUNCTION:  DelIpv6Addr
++===========================================================================*/
++/*!
++    @brief
++    Removes the specified IPv6 address and prefix from the network interface.
++    @param ifname: Name of the network interface.
++    @param ipv6Addr: The IPv6 address string to be deleted.
++    @param prefix: Pointer to the prefix length integer.
++*/
++/*=========================================================================*/
++void DelIpv6Addr(char* ifname, char* ipv6Addr, int* prefix)
++{
++    CcspTraceInfo(("%s : interface name=%s , ipv6 address=%s prefix=%d \n", __FUNCTION__, ifname,ipv6Addr,*prefix));
++    v_secure_system("ip -6 addr del %s/%d dev %s", ipv6Addr,*prefix,ifname);
++}
++/*===========================================================================
++  FUNCTION:  SetV6Route
++===========================================================================*/
++/*!
++    @brief
++    Configures a default IPv6 route through the specified gateway address.
++    Checks for IPv6 MTU settings in sysevent and applies them to the route.
++    @param ifname: Interface name for the route.
++    @param route_addr: The gateway/next-hop IPv6 address.
++    @param metric_val: The metric value for the route (0 for default).
++*/
++/*=========================================================================*/
++void SetV6Route(char* ifname, char* route_addr, int metric_val)
++{
++    char mtu6_val[8];
++    int iMtu6Val=0;
++    memset(mtu6_val,0,sizeof(mtu6_val));
++    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
++    if(mtu6_val[0] != '\0' && strlen(mtu6_val) != 0)
++    {
++        iMtu6Val = atoi(mtu6_val);
++        if(iMtu6Val > 0)
++        {
++            CcspTraceInfo(("%s : interface name=%s ,route_addr=%s, metric_val=%d, ipv6_mtu_value %d\n", __FUNCTION__, ifname,route_addr,metric_val,iMtu6Val));
++            if ( 0 == metric_val )
++                v_secure_system("ip -6 route add default via %s dev %s mtu %d", route_addr,ifname,iMtu6Val);
++            else
++                v_secure_system("ip -6 route add default via %s dev %s metric %d mtu %d", route_addr,ifname,metric_val,iMtu6Val);
++        }
++    }
++    else
++    {
++        CcspTraceInfo(("%s : interface name=%s ,route_addr=%s, metric_val=%d\n", __FUNCTION__, ifname,route_addr,metric_val));
++        if ( 0 == metric_val )
++            v_secure_system("ip -6 route add default via %s dev %s ", route_addr,ifname);
++        else
++            v_secure_system("ip -6 route add default via %s dev %s metric %d", route_addr,ifname,metric_val);
++    }
++}
++/*===========================================================================
++  FUNCTION:  UnSetV6Route
++===========================================================================*/
++/*!
++    @brief
++    Deletes the previously configured default IPv6 route.
++    @param ifname: Interface name.
++    @param route_addr: The gateway IPv6 address.
++    @param metric_val: The metric value associated with the route.
++*/
++/*=========================================================================*/
++void UnSetV6Route(char* ifname, char* route_addr, int metric_val)
++{
++    char mtu6_val[8];
++    int iMtu6Val=0;
++    memset(mtu6_val,0,sizeof(mtu6_val));
++    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
++    if(mtu6_val[0] != '\0' && strlen(mtu6_val) != 0)
++    {
++        iMtu6Val = atoi(mtu6_val);
++        if(iMtu6Val > 0)
++        {
++            CcspTraceInfo(("%s : interface name=%s ,route_addr=%s, metric_val=%d, ipv6_mtu_value %d\n", __FUNCTION__, ifname,route_addr,metric_val,iMtu6Val));
++            if ( 0 == metric_val )
++                v_secure_system("ip -6 route del default via %s dev %s mtu %d", route_addr,ifname,iMtu6Val);
++            else
++                v_secure_system("ip -6 route del default via %s dev %s metric %d mtu %d", route_addr,ifname,metric_val,iMtu6Val);
++        }
++    }
++    else
++    {
++        CcspTraceInfo(("%s : interface name=%s ,route_addr=%s, metric_val=%d\n", __FUNCTION__, ifname,route_addr,metric_val));
++        if ( 0 == metric_val )
++            v_secure_system("ip -6 route del default via %s dev %s ", route_addr,ifname);
++        else
++            v_secure_system("ip -6 route del default via %s dev %s metric %d", route_addr,ifname,metric_val);
++    }
++}
++#endif //PREFIX_SHARING_CELLULAR
++
++
+-- 
+2.34.1
+
