@@ -159,46 +159,38 @@ index 02798cf..82e2eb5 100644
      {
          if (erouterIndex < g_EthernetIntNum)
 diff --git a/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h b/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h
-index 7f15fa4..377dc1d 100644
+index 7f15fa4..95c4ec8 100644
 --- a/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h
 +++ b/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_ext_arm.h
-@@ -40,13 +40,15 @@
- #define COSA_ETH_INT_SYSCFG_NAMESPACE "CosaEthInt"
- #define COSA_ETH_INT_ID_SYSCFG_NAMESPACE COSA_ETH_INT_SYSCFG_NAMESPACE"IDs"
-
-+
-+
- // Original Code Assumed Four Physical Ethernet Ports. Set to that for backwards compatibility.
- #if ! (defined (ETH_2_PORTS) || defined (ETH_3_PORTS) || defined (ETH_4_PORTS) || defined (ETH_5_PORTS) || defined (ETH_6_PORTS) || defined (ETH_8_PORTS))
- #define ETH_4_PORTS
- #endif
-
+@@ -52,8 +52,8 @@
+ #define SWITCH_PORT_3_NAME "eth4"
+ #define SWITCH_PORT_4_NAME "eth5"
+ #else
 -#define SWITCH_PORT_0_NAME "sw_1"
 -#define SWITCH_PORT_1_NAME "sw_2"
 +#define SWITCH_PORT_0_NAME "eth0"
 +#define SWITCH_PORT_1_NAME "eth1"
  #define SWITCH_PORT_2_NAME "sw_3"
  #define SWITCH_PORT_3_NAME "sw_4"
-
-@@ -66,12 +68,17 @@
+ #endif
+@@ -74,12 +74,16 @@
  #define BRLAN_ETHERNET_IFNAME "brlan0"
-
+ 
  #if defined(_COSA_INTEL_USG_ARM_) || defined(_COSA_BCM_ARM_) || defined(_COSA_BCM_MIPS_)
 -#define WAN_ETHERNET_IFNAME "erouter0"
 +#define WAN_ETHERNET_IFNAME "eth0"
  #else
  #define WAN_ETHERNET_IFNAME "wan0"
  #endif
-
+ 
 -#define DMSB_ETH_IF_NAME_DFT_WanBridging            "lbr0"
 +#if defined _PLATFORM_SDX_
 +#define DMSB_ETH_IF_NAME_DFT_WanBridging            "brlan0"
 +#else
-+ #define DMSB_ETH_IF_NAME_DFT_WanBridging            "lbr0"
-+ #endif
-+
++#define DMSB_ETH_IF_NAME_DFT_WanBridging            "lbr0"
++#endif
  #define DMSB_ETH_IF_NAME_DFT_WanRouting             WAN_ETHERNET_IFNAME
-
+ 
  #include "cosa_ethernet_apis.h"
 diff --git a/source/TR-181/include/cosa_ethernet_apis.h b/source/TR-181/include/cosa_ethernet_apis.h
 index 1ea34c7..b7b50b5 100644
@@ -423,4 +415,3 @@ index 9961260..8d9008f 100644
 
 --
 2.34.1
-
