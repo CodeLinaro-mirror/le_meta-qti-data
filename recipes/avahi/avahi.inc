@@ -18,6 +18,9 @@ INC_PR = "r12"
 
 DEPENDS = "expat libcap libdaemon dbus glib-2.0 glib-2.0-native"
 
+COMPATIBLE_MACHINE:qcm2290-mtp = "null"
+COMPATIBLE_MACHINE:qcm4325-mtp = "null"
+
 SRC_URI = "https://github.com/lathiat/avahi/releases/download/v${PV}/avahi-${PV}.tar.gz \
           file://00avahi-autoipd \
           file://99avahi-autoipd \

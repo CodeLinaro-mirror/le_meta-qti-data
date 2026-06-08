@@ -41,6 +41,9 @@ RDEPENDS:packagegroup-qti-data-modem:qcm4325-mtp = " \
 RDEPENDS:packagegroup-qti-data-modem:kera = " \
     data-oss \
     data-devicetree \
+    qps615 \
+    ethtool \
+    iperf3 \
     "
 RDEPENDS:packagegroup-qti-data:append:kalama = "aquantia ethtool qps615 qps615-firmware"
 RDEPENDS:packagegroup-qti-data:remove:kalama = "datarmnet"
