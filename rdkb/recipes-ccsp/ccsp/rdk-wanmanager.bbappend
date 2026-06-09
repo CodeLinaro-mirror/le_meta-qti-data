@@ -17,6 +17,7 @@ SRC_URI += " \
     file://00003-qti-WanManager_DNSProxy_bringup.patch \
     file://00004-qti-WanManager_v6_bringup_support.patch \
     file://00005-qti-WanManager_sysevent_get_wanifname.patch \
+    file://00006-qti-WanManager_cellular_v6address_stabilize.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
