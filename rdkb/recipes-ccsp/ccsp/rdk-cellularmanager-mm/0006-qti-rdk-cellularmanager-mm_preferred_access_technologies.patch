@@ -1,0 +1,238 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From d4e1a6976b84458e4e0196f87eec45cc27d52617 Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Wed, 10 Jun 2026 18:26:37 +0530
+Subject: Fix for PreferredAccessTechnology
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+
+---
+ source/CellularManager/cellular_hal.c         |  5 +++
+ source/CellularManager/cellular_hal_mm_apis.c | 40 +++++++++++++++----
+ source/CellularManager/cellular_hal_mm_apis.h |  6 +++
+ .../CellularManager/cellularmgr_bus_utils.c   | 28 +++++++++++++
+ .../CellularManager/cellularmgr_bus_utils.h   |  2 +-
+ source/CellularManager/cellularmgr_sm.c       |  8 +++-
+ .../include/dmsb_tr181_psm_definitions.h      |  2 +
+ .../middle_layer_src/cellularmgr_rbus_dml.c   |  8 ++++
+ 8 files changed, 88 insertions(+), 11 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.c b/source/CellularManager/cellular_hal.c
+index b69923a..bf2a8bf 100755
+--- a/source/CellularManager/cellular_hal.c
++++ b/source/CellularManager/cellular_hal.c
+@@ -610,6 +610,11 @@ int cellular_hal_set_modem_preferred_radio_technology( char *preferred_rat )
+     {
+         return RETURN_ERROR;
+     }
++#elif defined CM_EXTN_SUPPORTED
++    if( RETURN_OK != cellular_hal_extn_mm_set_preferred_radio_technology(NULL, preferred_rat) )
++    {
++        return RETURN_ERROR;
++    }
+ #endif
+ 
+     return RETURN_OK;
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 305ea87..c8eeebf 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -964,16 +964,36 @@ INT cellular_hal_mm_get_prefered_access_technologies (CHAR *index, CHAR *accessT
+         {
+             mm_modem_get_current_modes (ctx->modem, &allowed, &preferred);
+             if( preferred & MODEM_MODE_2G )
++            {
+                 len += snprintf(buf+len, sizeof(buf)-len, "%s", MM_MODE_2G);
++            }
+ 
+             if( preferred & MODEM_MODE_3G )
+-                len += snprintf(buf+len, sizeof(buf)-len, ",%s", MM_MODE_3G);
++            {
++                if(len != 0)
++                {
++                    len += snprintf(buf+len, sizeof(buf)-len, ",");
++                }
++                len += snprintf(buf+len, sizeof(buf)-len, "%s", MM_MODE_3G);
++            }
+ 
+             if( preferred & MODEM_MODE_4G )
+-                len += snprintf(buf+len, sizeof(buf)-len, ",%s", MM_MODE_4G);
++            {
++                if(len != 0)
++                {
++                    len += snprintf(buf+len, sizeof(buf)-len, ",");
++                }
++                len += snprintf(buf+len, sizeof(buf)-len, "%s", MM_MODE_4G);
++            }
+ 
+             if( preferred & MODEM_MODE_5G )
+-                len += snprintf(buf+len, sizeof(buf)-len, ",%s", MM_MODE_5G);
++            {
++                if(len != 0)
++                {
++                    len += snprintf(buf+len, sizeof(buf)-len, ",");
++                }
++                len += snprintf(buf+len, sizeof(buf)-len, "%s", MM_MODE_5G);
++            }
+ 
+             if(len)
+             {
+@@ -1001,15 +1021,19 @@ INT cellular_hal_mm_get_current_access_technology (CHAR *index, CHAR *accessTech
+         {
+             modemAccessTech = mm_modem_get_access_technologies(ctx->modem);
+             if( modemAccessTech <= MODEM_ACCESS_TECHNOLOGY_EDGE )
+-                strcpy(accessTech, MM_MODE_2G);
++                strlcpy(accessTech, MM_MODE_2G, sizeof(accessTech));
+             else if( modemAccessTech <= MODEM_ACCESS_TECHNOLOGY_EVDOB && modemAccessTech > MODEM_ACCESS_TECHNOLOGY_EDGE )
+-                strcpy(accessTech, MM_MODE_3G);
++                strlcpy(accessTech, MM_MODE_3G, sizeof(accessTech));
+             else if( modemAccessTech == MODEM_ACCESS_TECHNOLOGY_LTE )
+-                strcpy(accessTech, MM_MODE_4G);
++                strlcpy(accessTech, MM_MODE_4G, sizeof(accessTech));
+             else if( modemAccessTech == MODEM_ACCESS_TECHNOLOGY_5GNR )
+-                strcpy(accessTech, MM_MODE_5G); 
++                strlcpy(accessTech, MM_MODE_5G, sizeof(accessTech));
++#ifdef CM_EXTN_SUPPORTED
++            else if( modemAccessTech == MODEM_ACCESS_TECHNOLOGY_LTE + MODEM_ACCESS_TECHNOLOGY_5GNR )
++                strlcpy(accessTech, MM_MODE_NRNSA, sizeof(accessTech));
++#endif
+             res = RETURN_OK;
+-        }
++}
+     }
+ 
+     context_free(ctx);
+diff --git a/source/CellularManager/cellular_hal_mm_apis.h b/source/CellularManager/cellular_hal_mm_apis.h
+index 2d20c09..fe2a8f4 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.h
++++ b/source/CellularManager/cellular_hal_mm_apis.h
+@@ -78,8 +78,14 @@
+ #endif
+ 
+ #define IDX_SIZE 8
++#ifndef CM_EXTN_SUPPORTED
+ #define MM_MODE_2G "GSM"
+ #define MM_MODE_3G "UMTS"
++#else
++#define MM_MODE_2G "GPRS,EDGE"
++#define MM_MODE_3G "UMTS,HSPA"
++#define MM_MODE_NRNSA "NRNSA"
++#endif
+ #define MM_MODE_4G "LTE"
+ #define MM_MODE_5G "NR"
+ /****************************************************************
+diff --git a/source/CellularManager/cellularmgr_bus_utils.c b/source/CellularManager/cellularmgr_bus_utils.c
+index 9a97313..b2ebbcd 100755
+--- a/source/CellularManager/cellularmgr_bus_utils.c
++++ b/source/CellularManager/cellularmgr_bus_utils.c
+@@ -222,3 +222,31 @@ int CellularMgr_RdkBus_SetParamValuesToDB( char *pParamName, char *pParamVal )
+ 
+     return retPsmSet;
+ }
++/* CellularMgr_RdkBus_DelParamValuesFromDB */
++/**
++* @description - This API Delete Accesspoint param values from DB.
++*
++* @param[in] -  pParamName : parameters name
++* @param[out] - None
++*
++* @retval status of the operation
++* return  CCSP_SUCCESS - if operation is success.
++*/
++int CellularMgr_RdkBus_DelParamValuesFromDB( char *pParamName )
++{
++    int     retPsmSet  = CCSP_SUCCESS;
++
++    /* Input Validation */
++    if( ( NULL == pParamName) )
++    {
++        CcspTraceError(("%s Invalid Input Parameters\n",__FUNCTION__));
++        return CCSP_FAILURE;
++    }
++
++    retPsmSet = PSM_Del_Record(bus_handle, g_Subsystem, pParamName);
++    if (retPsmSet != CCSP_SUCCESS)
++    {
++        CcspTraceError(("%s Failed to Delete %s psm record\n", __FUNCTION__, pParamName));
++    }
++    return retPsmSet;
++}
+diff --git a/source/CellularManager/cellularmgr_bus_utils.h b/source/CellularManager/cellularmgr_bus_utils.h
+index 438cbbb..0a51621 100755
+--- a/source/CellularManager/cellularmgr_bus_utils.h
++++ b/source/CellularManager/cellularmgr_bus_utils.h
+@@ -55,5 +55,5 @@ int CellularMgr_RdkBus_SetParamValue ( char *pComponentName, char *pComponentPat
+ 
+ int CellularMgr_RdkBus_SetParamValuesToDB( char *pParamName, char *pParamVal );
+ int CellularMgr_RdkBus_GetParamValuesFromDB( char *pParamName, char *pReturnVal, int returnValLength );
+-
++int CellularMgr_RdkBus_DelParamValuesFromDB( char *pParamName );
+ #endif
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index c7c5832..de62497 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -31,7 +31,6 @@
+ #if RBUS_BUILD_FLAG_ENABLE
+ #include "cellularmgr_rbus_events.h"
+ #endif
+-
+ /**********************************************************************
+                 CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -963,8 +962,13 @@ static CellularPolicySmState_t StateDown( void )
+     if( TRUE == cellular_hal_IsModemDevicePresent( ) )
+     {
+         gpstCellularPolicyCtrl->enDeviceDetectionStatus = DEVICE_DETECTED;
+-    }
++#ifdef CM_EXTN_SUPPORTED
+ 
++            /*PRAT is not persistent in modem. Hence,. setting it from CM on modem bringup*/
++            CellularMgr_extn_SetInitVal(CELLULAR_INIT_PARAM_PRAT,
++                gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->PreferredAccessTechnologies);
++#endif
++    }
+     if( DEVICE_DETECTED == gpstCellularPolicyCtrl->enDeviceDetectionStatus )
+     {
+          return(TransitionDeactivated( ));
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index c26e076..7ede6cf 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -56,6 +56,8 @@
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_ROAMING                    "dmsb.cellularmanager.accesspoint.%d.roaming"
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_PROFILE_TYPE               "dmsb.cellularmanager.accesspoint.%d.profiletype"
+ #define PSM_CELLULARMANAGER_INTERFACE_ALIAS                                       "dmsb.cellularmanager.interface.%d.alias"
++#define PSM_CELLULARMANAGER_INTERFACE_PRAT                         "dmsb.cellularmanager.interface.%d.prat"
++
+ #endif
+ 
+ #endif
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index d7ec225..377f96d 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -1158,9 +1158,17 @@ rbusError_t Cellular_Interface_SetParamStringValue_rbus(rbusHandle_t handle, rbu
+         if(verr != RBUS_VALUE_ERROR_SUCCESS)
+             return RBUS_ERROR_INVALID_INPUT;
+ 
++#ifdef CM_EXTN_SUPPORTED
++        if (RETURN_OK ==  CellularMgr_extn_SetModemPreferredRadioTechnology( val))
++#else
+         if (RETURN_OK ==  CellularMgr_SetModemPreferredRadioTechnology( val))
++#endif
+         {
+             AnscCopyString(pstInterfaceInfo->PreferredAccessTechnologies, val);
++#ifdef CM_EXTN_SUPPORTED
++            CellularMgr_extn_SetSingleIndexValueToPsm(context.fullName, PSM_CELLULARMANAGER_INTERFACE_PRAT, val);
++#endif //CM_EXTN_SUPPORTED
++
+         }
+ 	else 
+             return RBUS_ERROR_INVALID_INPUT;
+-- 
+2.34.1
+
