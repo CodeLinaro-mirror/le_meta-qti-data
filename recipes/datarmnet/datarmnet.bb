@@ -10,7 +10,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 PR = "r0"
 
-DEPENDS = "virtual/kernel"
+DEPENDS = "virtual/kernel rmnetbam"
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://datarmnet/core/"
