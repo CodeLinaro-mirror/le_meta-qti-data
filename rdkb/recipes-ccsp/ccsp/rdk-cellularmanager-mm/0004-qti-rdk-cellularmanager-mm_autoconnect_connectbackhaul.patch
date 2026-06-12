@@ -1010,9 +1010,9 @@ index cc6e8f4..9736954 100755
          {"Device.Cellular.AccessPoint.{i}.X_RDK_PdpInterfaceConfig", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}}
 +#else
 +        {"Device.Cellular.AccessPoint.{i}.X_RDK_PdpInterfaceConfig", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, Cellular_AccessPoint_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
-+        {"Device.Cellular.AccessPoint.{i}.X_TMOBILE.IPAddress", RBUS_ELEMENT_TYPE_PROPERTY, {X_TMOBILE_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.IPAddress", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
 +        {"Device.Cellular.AccessPoint.{i}.IPv6Address", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
-+        {"Device.Cellular.AccessPoint.{i}.X_TMOBILE.Type", RBUS_ELEMENT_TYPE_PROPERTY, {X_TMOBILE_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.Type", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
 +        {"Device.Cellular.AccessPoint.{i}.ConnectBackHaul", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamBoolValue_rbus, Cellular_AccessPoint_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}}
 +#endif
      };
