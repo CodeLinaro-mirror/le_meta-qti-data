@@ -3,22 +3,22 @@ and is provided under the following license:
 
 Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 SPDX-License-Identifier: BSD-3-Clause-Clear
-From f25f6569390ab8f35476936a9f9ede56e127d074 Mon Sep 17 00:00:00 2001
+From caee408c2f8ec16b966a021fa154acfe3b79c521 Mon Sep 17 00:00:00 2001
 From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
-Date: Sun, 10 May 2026 08:25:33 +0000
-Subject: [PATCH 1/3] 23q1 consolidation patch
+Date: Fri, 12 Jun 2026 07:55:30 +0000
+Subject: Fix WAN Manager interface mapping for qmapmux
 Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
 ---
- source/CellularManager/cellular_hal_mm_apis.c | 18 ++++++---
- .../cellularmgr_cellular_apis.c               | 38 +++++++++++++++++--
- .../cellularmgr_cellular_apis.h               |  1 +
- source/CellularManager/cellularmgr_sm.c       | 21 +++++++++-
- 4 files changed, 67 insertions(+), 11 deletions(-)
+ source/CellularManager/cellular_hal_mm_apis.c | 15 +++++---
+ .../cellularmgr_cellular_apis.c               | 34 +++++++++++++++++--
+ .../cellularmgr_cellular_apis.h               |  3 +-
+ source/CellularManager/cellularmgr_sm.c       | 18 ++++++++--
+ 4 files changed, 58 insertions(+), 12 deletions(-)
 
-Index: git/source/CellularManager/cellular_hal_mm_apis.c
-===================================================================
---- git.orig/source/CellularManager/cellular_hal_mm_apis.c
-+++ git/source/CellularManager/cellular_hal_mm_apis.c
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index a35582f..a033eec 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
 @@ -33,9 +33,14 @@
  #define MODEM_PATH_PREFIX   "/org/freedesktop/ModemManager1/Modem/"
  #define SIM_PATH_PREFIX   "/org/freedesktop/ModemManager1/SIM/"
@@ -36,7 +36,7 @@ Index: git/source/CellularManager/cellular_hal_mm_apis.c
  typedef struct {
      MMObject *object;
      MMModem *modem;
-@@ -673,7 +678,7 @@ static void cellular_hal_mm_get_modem_po
+@@ -673,7 +678,7 @@ static void cellular_hal_mm_get_modem_port (MMModem *modem)
              {
                  if( ports[i].type == MM_MODEM_PORT_TYPE_NET )
                  {
@@ -45,7 +45,7 @@ Index: git/source/CellularManager/cellular_hal_mm_apis.c
                      break;
                  }
              }
-@@ -1115,13 +1120,13 @@ INT cellular_hal_mm_get_sim_data (CHAR *
+@@ -1115,13 +1120,13 @@ INT cellular_hal_mm_get_sim_data (CHAR *index, INT type, CHAR *data)
              case SIM_ICCID:
              {
                  if( (value = mm_sim_get_identifier (ctx->sim)) != NULL )
@@ -61,11 +61,11 @@ Index: git/source/CellularManager/cellular_hal_mm_apis.c
                  break;
              }
              default:
-Index: git/source/CellularManager/cellularmgr_cellular_apis.c
-===================================================================
---- git.orig/source/CellularManager/cellularmgr_cellular_apis.c
-+++ git/source/CellularManager/cellularmgr_cellular_apis.c
-@@ -590,8 +590,8 @@ int CellularMgrGetLTEIfaceIndex ( char *
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index d1ea14f..83071f8 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -590,8 +590,8 @@ int CellularMgrGetLTEIfaceIndex ( char *wan_ifname )
              CcspTraceError(("%s %d - Unable to fetch %s.\n", __FUNCTION__, __LINE__, paramName));
              return -1;
          }
@@ -76,7 +76,7 @@ Index: git/source/CellularManager/cellularmgr_cellular_apis.c
          {
  #ifdef HYBRID_SUPPORT
              AnscCopyString(interfaceArray[interfaceArraySize].interfaceName, wan_ifname);
-@@ -611,6 +611,9 @@ int CellularMgrUpdatePhyStatus ( char *w
+@@ -611,6 +611,9 @@ int CellularMgrUpdatePhyStatus ( char *wan_ifname, CellularDeviceOpenStatus_t de
      char paramName[256];
      char paramValue[256];
      
@@ -86,7 +86,7 @@ Index: git/source/CellularManager/cellularmgr_cellular_apis.c
      index = CellularMgrGetLTEIfaceIndex(wan_ifname);
  
      if( -1 == index )
-@@ -618,6 +621,7 @@ int CellularMgrUpdatePhyStatus ( char *w
+@@ -618,6 +621,7 @@ int CellularMgrUpdatePhyStatus ( char *wan_ifname, CellularDeviceOpenStatus_t de
          return RETURN_ERROR;
      }
  
@@ -94,25 +94,7 @@ Index: git/source/CellularManager/cellularmgr_cellular_apis.c
      memset( paramName, 0, sizeof(paramName) );
      memset( paramValue, 0, sizeof(paramValue) );
  
-@@ -627,6 +631,7 @@ int CellularMgrUpdatePhyStatus ( char *w
-         // Set Phy.Path
-         snprintf( paramName, sizeof(paramName), DML_IFTABLE_IFACE_PHY_PATH, index);
-         snprintf( paramValue, sizeof(paramValue), DML_LTE_IFACE_PATH);
-+        snprintf( paramValue, sizeof(paramValue) - 1, wan_ifname);
- 
-         if ( CellularMgr_RdkBus_SetParamValue( WAN_COMPONENT_NAME, WAN_DBUS_PATH, paramName, paramValue, ccsp_string, true) != RETURN_OK )
-         {
-@@ -675,9 +680,7 @@ int CellularMgrUpdateIfname ( char *wan_
-         return RETURN_ERROR;
-     }
- 
--
-     index = CellularMgrGetLTEIfaceIndex(wan_ifname);
--
-     if( -1 == index )
-     {
-         return RETURN_ERROR;
-@@ -753,7 +756,12 @@ int CellularMgrUpdateLinkStatus ( char *
+@@ -747,7 +751,12 @@ int CellularMgrUpdateLinkStatus ( char *wan_ifname, char *status )
      char paramName[256];
      char paramValue[256];
  
@@ -126,7 +108,7 @@ Index: git/source/CellularManager/cellularmgr_cellular_apis.c
      
      if( -1 == index )
      {
-@@ -776,6 +784,7 @@ int CellularMgrUpdateLinkStatus ( char *
+@@ -770,6 +779,7 @@ int CellularMgrUpdateLinkStatus ( char *wan_ifname, char *status )
      memset( paramValue, 0, sizeof(paramValue) );
  
      snprintf( paramName, sizeof(paramName), DML_IFTABLE_IFACE_LINK_STATUS, index);
@@ -134,7 +116,7 @@ Index: git/source/CellularManager/cellularmgr_cellular_apis.c
      snprintf( paramValue, sizeof(paramValue) - 1, status);
  
      if ( CellularMgr_RdkBus_SetParamValue( WAN_COMPONENT_NAME, WAN_DBUS_PATH, paramName, paramValue, ccsp_string, true) != RETURN_OK )
-@@ -1632,6 +1641,24 @@ int CellularMgr_GetDataInterface(char *p
+@@ -1626,6 +1636,24 @@ int CellularMgr_GetDataInterface(char *pDataInterface)
  {
      return( cellular_hal_get_data_interface( pDataInterface ) );
  }
@@ -159,10 +141,10 @@ Index: git/source/CellularManager/cellularmgr_cellular_apis.c
  CELLULAR_RDK_DEVICETYPE CellularMgr_GetModemDeviceType()
  {
      return cellular_hal_get_modem_device_type();
-Index: git/source/CellularManager/cellularmgr_cellular_apis.h
-===================================================================
---- git.orig/source/CellularManager/cellularmgr_cellular_apis.h
-+++ git/source/CellularManager/cellularmgr_cellular_apis.h
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index ff15918..9d4c6dd 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
 @@ -50,9 +50,8 @@
  #define CELLULAR_RADIO_ENV_FAIR_THRESHOLD_LOW            (-105)
  #define CELLULAR_RADIO_ENV_POOR_THRESHOLD_HIGH           (-105)
@@ -174,11 +156,11 @@ Index: git/source/CellularManager/cellularmgr_cellular_apis.h
  typedef enum _CELLULAR_RDK_STATUS
  {
     RDK_STATUS_DOWN = 1,
-Index: git/source/CellularManager/cellularmgr_sm.c
-===================================================================
---- git.orig/source/CellularManager/cellularmgr_sm.c
-+++ git/source/CellularManager/cellularmgr_sm.c
-@@ -387,6 +387,21 @@ int CellularMgrIPReadyCBForSM( CellularI
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 8e419c4..884e78d 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -387,6 +387,21 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
          CcspTraceInfo(("%s %d: Failed to set LinkStatus in Interface table\n", __FUNCTION__, __LINE__));
      }
  #endif
@@ -200,7 +182,7 @@ Index: git/source/CellularManager/cellularmgr_sm.c
  #if defined(WAN_MANAGER_UNIFICATION_ENABLED)
      if( (pIpSource != NULL) && strncmp(pIpSource, DML_PARAM_VALUE_IPSOURCE_DHCP, strlen(DML_PARAM_VALUE_IPSOURCE_DHCP)) )
      {
-@@ -1203,12 +1218,11 @@ static ANSC_STATUS CellularMgr_Controlle
+@@ -1203,12 +1218,11 @@ static ANSC_STATUS CellularMgr_ControllerInit( CellularMgrSMInputStruct    *pstI
          gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
          gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress        = FALSE;
          gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus        = FALSE;
@@ -214,3 +196,6 @@ Index: git/source/CellularManager/cellularmgr_sm.c
          retStatus = ANSC_STATUS_SUCCESS;
      }
  
+-- 
+2.34.1
+
