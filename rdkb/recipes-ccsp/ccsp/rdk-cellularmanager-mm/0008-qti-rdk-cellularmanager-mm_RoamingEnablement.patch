@@ -1,0 +1,55 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 8b1a68d3518ad753455af624b338e9251b0d3526 Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Fri, 12 Jun 2026 15:17:03 +0530
+Subject: Enablement of RoamingEnabled DM in rdk-cellularmanager-mm
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_cellular_apis.h    | 1 +
+ source/TR-181/include/dmsb_tr181_psm_definitions.h    | 1 +
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c | 1 +
+ 3 files changed, 3 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 812a4f5..ecf70f5 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -385,6 +385,7 @@ _CELLULAR_DML_INFO
+     CELLULAR_RDK_STATUS                    X_RDK_Status;
+ #ifdef CM_EXTN_SUPPORTED
+     CELLULAR_DML_INFO_EXTN                 stCellularDmlInfoExtn;
++    BOOLEAN                                RoamingEnabled;
+ #endif
+     CHAR                                   X_RDK_Model[20];
+     CHAR                                   X_RDK_HardwareRevision[20];
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index 7ede6cf..65590a1 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -34,6 +34,7 @@
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_PASSWORD                "dmsb.cellularmanager.profile.default.password"
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_IS_NOROAMING            "dmsb.cellularmanager.profile.default.isnoroaming"
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_IS_APNDISABLED          "dmsb.cellularmanager.profile.default.isapndisabled"
++#define PSM_CELLULARMANAGER_DEFAULT_PROFILE_ROAMINGENABLED          "dmsb.cellularmanager.roamingenable"
+ #ifdef CM_EXTN_SUPPORTED
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_AUTOCONNECT             "dmsb.cellularmanager.profile.default.autoconnect"
+ #define PSM_CELLULARMANAGER_DEFAULT_PROFILE_CURRENT_APN             "dmsb.cellularmanager.profile.default.currentapn"
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 6ac0a08..861e479 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3370,6 +3370,7 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.X_QCOM.CurrentAPN", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamUlongValue_rbus, Cellular_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_QCOM.AutoConnect", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif
++        {"Device.Cellular.RoamingEnabled", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Model", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_HardwareRevision", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Vendor", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+-- 
+2.34.1
+
