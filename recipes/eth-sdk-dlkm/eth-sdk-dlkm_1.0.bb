@@ -25,9 +25,11 @@ RDEPENDS:${PN} += "kernel-module-ipam-${KERNEL_VERSION}"
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI  = "file://data-eth/drivers"
 SRC_URI += "file://data-eth/files/rdkb"
+SRC_URI += "file://data-eth/cli"
 
 S = "${WORKDIR}/data-eth/drivers"
 RDKB_FILES_DIR = "${WORKDIR}/data-eth/files/rdkb"
+ETH_CLI_DIR    = "${WORKDIR}/data-eth/cli"
 
 IPA_SYSROOT = "${WORKDIR}/recipe-sysroot/usr/include/ipa"
 IPA_CFLAGS  = "-I${IPA_SYSROOT} -I${IPA_SYSROOT}/linux -I${IPA_SYSROOT}/uapi"
@@ -102,6 +104,10 @@ do_install() {
 		install -m 0644 ${RDKB_FILES_DIR}/eth-sdk-dlkm.service \
 			-D ${D}${systemd_unitdir}/system/eth-sdk-dlkm.service
 	fi
+
+	# Install eth-qos CLI tool
+	install -d ${D}${sbindir}
+	install -m 0755 ${ETH_CLI_DIR}/eth-qos ${D}${sbindir}/eth-qos
 }
 
 # qperf class adds do_copy_kernel_module() after do_module_signing().
@@ -115,6 +121,7 @@ FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/"
 FILES:${PN} += "${systemd_unitdir}/system/*.service"
 #file created by 'inherit module' bbclass
 FILES:${PN} += "${sysconfdir}/modules-load.d"
+FILES:${PN} += "${sbindir}/eth-qos"
 
 do_remove[noexec] = "1"
 # vim: syntax=bitbake
