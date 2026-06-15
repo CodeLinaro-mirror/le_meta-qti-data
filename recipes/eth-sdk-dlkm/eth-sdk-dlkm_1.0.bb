@@ -110,6 +110,10 @@ do_install() {
 	# Install eth-qos CLI tool
 	install -d ${D}${sbindir}
 	install -m 0755 ${ETH_CLI_DIR}/eth-qos ${D}${sbindir}/eth-qos
+	install -m 0755 ${ETH_CLI_DIR}/eth-cfg ${D}${sbindir}/eth-cfg
+
+	install -d ${D}${sysconfdir}/data/eth
+	install -m 0755 ${ETH_CLI_DIR}/set_eth_perf ${D}${sysconfdir}/data/eth/set_eth_perf
 }
 
 # qperf class adds do_copy_kernel_module() after do_module_signing().
@@ -124,6 +128,8 @@ FILES:${PN} += "${systemd_unitdir}/system/*.service"
 #file created by 'inherit module' bbclass
 FILES:${PN} += "${sysconfdir}/modules-load.d"
 FILES:${PN} += "${sbindir}/eth-qos"
+FILES:${PN} += "${sbindir}/eth-cfg"
+FILES:${PN} += "${sysconfdir}/data/eth/set_eth_perf"
 
 do_remove[noexec] = "1"
 # vim: syntax=bitbake
