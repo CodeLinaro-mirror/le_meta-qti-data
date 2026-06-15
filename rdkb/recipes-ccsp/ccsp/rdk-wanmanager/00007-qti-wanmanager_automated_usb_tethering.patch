@@ -1,0 +1,217 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e6a3f01a4c794061725f6640e47d900ca5902caa Mon Sep 17 00:00:00 2001
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Fri, 19 Jun 2026 14:35:45 +0000
+Subject: [PATCH] Automated USB tethering
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+---
+ source/WanManager/Makefile.am              |   2 +-
+ source/WanManager/usb_tether_interface.c   | 115 +++++++++++++++++++++
+ source/WanManager/usb_tether_interface.h   |   9 ++
+ source/WanManager/wanmgr_network_monitor.c |  15 ++-
+ 4 files changed, 138 insertions(+), 3 deletions(-)
+ create mode 100644 source/WanManager/usb_tether_interface.c
+ create mode 100644 source/WanManager/usb_tether_interface.h
+
+diff --git a/source/WanManager/Makefile.am b/source/WanManager/Makefile.am
+index 9f922b6..2194efd 100644
+--- a/source/WanManager/Makefile.am
++++ b/source/WanManager/Makefile.am
+@@ -31,7 +31,7 @@ wanmanager_CPPFLAGS = -I$(top_srcdir)/source/TR-181/middle_layer_src \
+ wanmanager_CFLAGS = -DFEATURE_SUPPORT_RDKLOG $(SYSTEMD_CFLAGS)
+ wanmanager_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+ 
+-wanmanager_SOURCES = wanmgr_webconfig_apis.c wanmgr_webconfig.c wanmgr_main.c  wanmgr_ssp_action.c wanmgr_ssp_messagebus_interface.c wanmgr_core.c wanmgr_controller.c wanmgr_data.c wanmgr_sysevents.c wanmgr_interface_sm.c wanmgr_utils.c wanmgr_net_utils.c wanmgr_dhcpv4_apis.c wanmgr_dhcpv6_apis.c wanmgr_ipc.c wanmgr_dhcpv4_internal.c wanmgr_dhcpv6_internal.c wanmgr_policy_auto_impl.c dm_pack_datamodel.c wanmgr_wan_failover.c wanmgr_policy_parallel_scan_impl.c wanmgr_dhcp_legacy_apis.c wanmgr_interface_apis.c wanmgr_telemetry.c wanmgr_t2_telemetry.c wanmgr_network_monitor.c wanmgr_mape.c
++wanmanager_SOURCES = wanmgr_webconfig_apis.c wanmgr_webconfig.c wanmgr_main.c  wanmgr_ssp_action.c wanmgr_ssp_messagebus_interface.c wanmgr_core.c wanmgr_controller.c wanmgr_data.c wanmgr_sysevents.c wanmgr_interface_sm.c wanmgr_utils.c wanmgr_net_utils.c wanmgr_dhcpv4_apis.c wanmgr_dhcpv6_apis.c wanmgr_ipc.c wanmgr_dhcpv4_internal.c wanmgr_dhcpv6_internal.c wanmgr_policy_auto_impl.c dm_pack_datamodel.c wanmgr_wan_failover.c wanmgr_policy_parallel_scan_impl.c wanmgr_dhcp_legacy_apis.c wanmgr_interface_apis.c wanmgr_telemetry.c wanmgr_t2_telemetry.c wanmgr_network_monitor.c wanmgr_mape.c usb_tether_interface.c
+ wanmanager_LDADD = $(wanmanager_DEPENDENCIES) -lccsp_common -lrdkloggers $(SYSTEMD_LDFLAGS) -lhal_platform -lapi_dhcpv4c -lnanomsg -lwebconfig_framework -lmsgpackc  -lprivilege -lrbus -lsecure_wrapper
+ 
+ 
+diff --git a/source/WanManager/usb_tether_interface.c b/source/WanManager/usb_tether_interface.c
+new file mode 100644
+index 0000000..b20003a
+--- /dev/null
++++ b/source/WanManager/usb_tether_interface.c
+@@ -0,0 +1,115 @@
++/*Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++*SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++#include <string.h>
++#include <stdlib.h>
++#include <stdio.h>
++#include "usb_tether_interface.h"
++
++/* Get the USB tether interface (rndis0/ecm0) */
++int check_usb_interface(char *command, char *result)
++{
++    FILE *fp = NULL;
++    char output[128];
++    char *pos = NULL, *retval = NULL;
++    if((NULL == command) || (NULL == result))
++    {
++        fprintf(stderr, "[%s:%d] param NULL \n", __FUNCTION__,__LINE__);
++        return -1;
++    }
++    memset(output,0,sizeof(output));
++    fp = popen(command, "r");
++    if(NULL == fp)
++    {
++        fprintf(stderr, "[%s:%d] popen failed \n", __FUNCTION__,__LINE__);
++        return -1;
++    }
++    retval = fgets(output, sizeof(output)-1, fp);
++    pclose(fp);
++    if (NULL == retval)
++    {
++        return -1;
++    }
++    if (NULL != (pos=strchr(output, '\n')) )
++    {
++        *pos = '\0';
++    }
++    strlcpy(result,output,strlen(output)+1);
++    return 0;
++}
++
++/* Add USB tether interface to bridge and assign default ip */
++void bringup_usb_tether_interface()
++{
++    int ret = -1;
++    char rndis_iface[10];
++    char ecm_iface[10];
++
++    memset(rndis_iface, 0, sizeof(rndis_iface));
++    memset(ecm_iface, 0, sizeof(ecm_iface));
++
++    ret = check_usb_interface(" ifconfig -a |grep rndis0 |awk '{print $1}' ",rndis_iface);
++    if (0 != ret)
++    {
++        fprintf(stderr, "[%s:%d] check_usb_interface fails for rndis0\n", __FUNCTION__,__LINE__);
++    }
++    ret = check_usb_interface(" ifconfig -a |grep ecm0 |awk '{print $1}' ",ecm_iface);
++    if (0 != ret)
++    {
++        fprintf(stderr, "[%s:%d] check_usb_interface fails for ecm0\n", __FUNCTION__,__LINE__);
++    }
++
++    if ((strlen(rndis_iface) == 0) && (strlen(ecm_iface) == 0))
++    {
++        fprintf(stderr, "[%s:%d] not usb tethering interface\n", __FUNCTION__,__LINE__);
++        return;
++    }
++
++    if (strlen(rndis_iface) != 0)
++     {
++        system("brctl addif brlan0 rndis0");
++        system("ifconfig rndis0 169.254.1.30");
++    }
++
++    if (strlen(ecm_iface) != 0)
++    {
++        system("brctl addif brlan0 ecm0");
++        system("ifconfig ecm0 169.254.1.40");
++    }
++}
++
++/* Remove USB tether interface */
++void teardown_usb_tether_interface()
++{
++    int ret = -1;
++    char rndis_iface[10];
++    char ecm_iface[10];
++    memset(rndis_iface, 0, sizeof(rndis_iface));
++    memset(ecm_iface, 0, sizeof(ecm_iface));
++    ret = check_usb_interface(" ifconfig |grep rndis0 |awk '{print $1}' ",rndis_iface);
++    if (0 != ret)
++    {
++        fprintf(stderr, "[%s:%d] check_usb_interface fails for rndis0\n", __FUNCTION__,__LINE__);
++    }
++    ret = check_usb_interface(" ifconfig |grep ecm0 |awk '{print $1}' ",ecm_iface);
++    if (0 != ret)
++    {
++        fprintf(stderr, "[%s:%d]  check_usb_interface fails for ecm0\n", __FUNCTION__,__LINE__);
++    }
++
++    if ((strlen(rndis_iface) == 0) && (strlen(ecm_iface) == 0))
++    {
++        fprintf(stderr, "[%s:%d] not usb tethering interface\n", __FUNCTION__,__LINE__);
++        return;
++    }
++
++    if (strlen(rndis_iface) != 0)
++    {
++        system("ip link set rndis0 down");
++    }
++
++    if (strlen(ecm_iface) != 0)
++    {
++        system("ip link set ecm0 down");
++    }
++}
+diff --git a/source/WanManager/usb_tether_interface.h b/source/WanManager/usb_tether_interface.h
+new file mode 100644
+index 0000000..92494f2
+--- /dev/null
++++ b/source/WanManager/usb_tether_interface.h
+@@ -0,0 +1,9 @@
++/*Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++*SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++#ifndef _USB_TETHER_INTERFACE_H_
++#define _USB_TETHER_INTERFACE_H_
++int check_usb_interface(char *command, char *result);
++void bringup_usb_tether_interface();
++void teardown_usb_tether_interface();
++#endif /* _USB_TETHER_INTERFACE_H_ */
+diff --git a/source/WanManager/wanmgr_network_monitor.c b/source/WanManager/wanmgr_network_monitor.c
+index 83a5962..845eabc 100644
+--- a/source/WanManager/wanmgr_network_monitor.c
++++ b/source/WanManager/wanmgr_network_monitor.c
+@@ -31,6 +31,7 @@
+ #include <sysevent/sysevent.h>
+ #include "secure_wrapper.h"
+ #include "wanmgr_dhcpv6_apis.h"
++#include "usb_tether_interface.h"
+ 
+ /* ---- Global Variables ------------------------------------ */
+ int sysevent_nwm_fd = -1;
+@@ -322,7 +323,7 @@ static ANSC_STATUS NetMonitor_InitNetlinkRouteMonitorFd()
+ 
+     memset(&addr, 0, sizeof(addr));
+     addr.nl_family = AF_NETLINK;
+-    addr.nl_groups = RTMGRP_IPV6_ROUTE | RTMGRP_IPV6_IFADDR;
++    addr.nl_groups = RTMGRP_IPV6_ROUTE | RTMGRP_IPV6_IFADDR | RTMGRP_LINK;
+     if (0 > bind(netlinkRouteMonitorFd, (struct sockaddr *) &addr, sizeof(addr)))
+     {
+         CcspTraceError(("%s Failed to bind netlink socket: %s\n", __FUNCTION__, strerror(errno)));
+@@ -453,6 +454,16 @@ static void NetMonitor_ProcessNetlinkRouteMonitorFd()
+                     parse_addrattr(nl_msgHdr);
+                     break;
+                 }
++            case RTM_NEWLINK:
++                 {
++                     bringup_usb_tether_interface();
++                 }
++                break;
++            case RTM_DELLINK:
++                 {
++                     teardown_usb_tether_interface();
++                 }
++                break;
+             default:
+                 break;
+         }
+@@ -540,4 +551,4 @@ ANSC_STATUS WanMgr_StartNetWorkMonitor( void )
+     }
+ 
+     return retStatus ;
+-}
+\ No newline at end of file
++}
+-- 
+2.34.1
+
