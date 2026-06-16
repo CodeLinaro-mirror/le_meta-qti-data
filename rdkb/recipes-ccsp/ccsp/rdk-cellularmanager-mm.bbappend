@@ -22,6 +22,7 @@ SRC_URI += " \
     file://0015-qti-rdk-cellularmanager-mm_ipv6_prefix_delegation.patch \
     file://0016-qti-rdk-cellularmanager-mm_modem_SSR_handling.patch \
     file://0017-qti-rdk-cellularmanager-mm_roaming.patch \
+    file://0018-qti-rdk-cellularmanager-mm_address_reconf.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"

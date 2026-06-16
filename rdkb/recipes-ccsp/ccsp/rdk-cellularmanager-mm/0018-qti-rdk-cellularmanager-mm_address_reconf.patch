@@ -1,0 +1,57 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 4a8679898e78c9092cccb56a2845192964dc2542 Mon Sep 17 00:00:00 2001
+From: HuaWen CHEN <huawenc@qti.qualcomm.com>
+Date: Tue, 16 Jun 2026 18:30:40 +0800
+Subject: [PATCH] Add address reconfiguration support via MM bearer
+ g-properties-changed signal
+
+Subscribe to ModemManager bearer property changes after connect; on
+Ip4Config/Ip6Config change fire the address-reconf-update sysevent.
+Clear the bearer subscription on modem disconnect.
+
+Change-Id: I7dffe4abb18c6182d27f599ae1d2e574f6da179c
+Signed-off-by: HuaWen CHEN <huawenc@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal_mm_apis.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 63e15f4..7b3bb6a 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -29,6 +29,9 @@
+ #include "libmm-glib.h"
+ #include "cellular_hal_mm_apis.h"
+ #include "mm-unlock-retries.h"
++#ifdef CM_EXTN_SUPPORTED
++#include "cellular_hal_mm_apis_extn.h"
++#endif
+
+ #define MODEM_PATH_PREFIX   "/org/freedesktop/ModemManager1/Modem/"
+ #define SIM_PATH_PREFIX   "/org/freedesktop/ModemManager1/SIM/"
+@@ -522,5 +525,8 @@ state_changed (MMModem                  *modem,
+              }
+         }
++#ifdef CM_EXTN_SUPPORTED
++        cellular_hal_mm_extn_clear_connected_bearer();
++#endif
+
+         if( old_state == MODEM_STATE_CONNECTED )
+         {
+@@ -2250,5 +2256,10 @@ static void cellular_hal_mm_callBack_bearer_info (MMModem *modem)
+                 g_clear_object (&properties);
+             }
++
++#ifdef CM_EXTN_SUPPORTED
++            /* Extension owns bearer tracking and IP config change handling. */
++            cellular_hal_mm_extn_subscribe_bearer_ip_config(found);
++#endif
+             g_object_unref(found);
+         }
+
+--
+2.34.1

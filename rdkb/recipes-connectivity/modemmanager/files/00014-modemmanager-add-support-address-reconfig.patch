@@ -1,0 +1,670 @@
+From 70c64b06527a54e46081b325887c8b27f88dc371 Mon Sep 17 00:00:00 2001
+From: HuaWen CHEN <huawenc@qti.qualcomm.com>
+Date: Tue, 16 Jun 2026 17:37:58 +0800
+Subject: [PATCH] Port: modemmanager add support address reconfig
+
+Port of sdx85 change eaccf1367876a844d49f3340209e1c68dff8156b
+(0010-modemmanager-add-support-address-reconfig.patch).
+
+Adds bearer reconfiguration system: when QMI WDS extended IP config
+indication fires (DNS/MTU/domain-name change) or packet-service-status
+indicates reconfiguration_required==TRUE while connected, MM queries
+current settings and updates D-Bus ip4/ip6_config properties live
+without disconnecting the bearer.
+
+Key additions:
+- mm_base_bearer_update_ip_config() to push new IP config to D-Bus
+- ReconfigurationContext + RECONFIG_STEP state machine in mm-bearer-qmi
+- ipv4/ipv6_reconfiguration_ongoing guard flags to prevent re-entrancy
+- packet_service_status_indication_cb restructured as switch to handle
+  CONNECTED+reconfiguration_required case alongside DISCONNECTED
+
+Change-Id: I2f49ab3266108b7d5e0482f86dd00a9ed1d43752
+
+Signed-off-by: HuaWen CHEN <huawenc@qti.qualcomm.com>
+---
+ src/mm-base-bearer.c |  28 +++
+ src/mm-base-bearer.h |   4 +
+ src/mm-bearer-qmi.c  | 495 +++++++++++++++++++++++++++++++++++++++----
+ src/mm-bearer-qmi.h  |  18 ++
+ 4 files changed, 502 insertions(+), 43 deletions(-)
+
+diff --git a/src/mm-base-bearer.c b/src/mm-base-bearer.c
+index 23aba2bc..c6b57da1 100644
+--- a/src/mm-base-bearer.c
++++ b/src/mm-base-bearer.c
+@@ -513,6 +513,34 @@ bearer_run_dispatcher_scripts (MMBaseBearer *self,
+ 
+ /*****************************************************************************/
+ 
++void
++mm_base_bearer_update_ip_config (MMBaseBearer     *self,
++                                 MMBearerIpConfig *ipv4_config,
++                                 MMBearerIpConfig *ipv6_config)
++{
++    /*
++     * Set the new IP config properties.
++     * The org.freedesktop.DBus.Properties.PropertiesChanged signal is emitted
++     * automatically by the GDBus library when these properties are changed.
++     */
++    if (ipv4_config)
++    {
++        GVariant* ipv4_dict = mm_bearer_ip_config_get_dictionary (ipv4_config);
++        mm_obj_dbg (self, "mm_base_bearer_update_ip_config: get ipv4_dict: %x", ipv4_dict);
++        mm_gdbus_bearer_set_ip4_config (
++            MM_GDBUS_BEARER (self),
++            ipv4_dict);
++    }
++    if (ipv6_config)
++    {
++        GVariant* ipv6_dict = mm_bearer_ip_config_get_dictionary (ipv6_config);
++        mm_obj_dbg (self, "mm_base_bearer_update_ip_config: get ipv6_dict: %x", ipv6_dict);
++        mm_gdbus_bearer_set_ip6_config (
++            MM_GDBUS_BEARER (self),
++            ipv6_dict);
++    }
++}
++
+ static void
+ bearer_reset_interface_status (MMBaseBearer *self)
+ {
+diff --git a/src/mm-base-bearer.h b/src/mm-base-bearer.h
+index 336b4442..96cb52b9 100644
+--- a/src/mm-base-bearer.h
++++ b/src/mm-base-bearer.h
+@@ -219,6 +219,10 @@ void mm_base_bearer_report_connection_status_detailed (MMBaseBearer
+                                                        MMBearerConnectionStatus  status,
+                                                        const GError             *connection_error);
+ 
++void mm_base_bearer_update_ip_config (MMBaseBearer     *self,
++                                      MMBearerIpConfig *ipv4_config,
++                                      MMBearerIpConfig *ipv6_config);
++
+ /* When unknown, just pass NULL */
+ #define mm_base_bearer_report_connection_status(self, status) mm_base_bearer_report_connection_status_detailed (self, status, NULL)
+ 
+diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
+index 779656ef..f05d27fc 100644
+--- a/src/mm-bearer-qmi.c
++++ b/src/mm-bearer-qmi.c
+@@ -66,6 +66,8 @@ struct _MMBearerQmiPrivate {
+     guint   mux_id;
+     guint32 packet_data_handle_ipv4;
+     guint32 packet_data_handle_ipv6;
++    gboolean ipv4_reconfiguration_ongoing;
++    gboolean ipv6_reconfiguration_ongoing;
+ 
+     GList *pco_list;
+ 
+@@ -472,6 +474,8 @@ static void cleanup_event_report_unsolicited_events (MMBearerQmi *self,
+                                                      QmiClientWds *client,
+                                                      guint *indication_id);
+ 
++static void handle_reconfiguration_required (MMBearerQmi *self, QmiClientWds *client);
++
+ typedef enum {
+     CONNECT_STEP_FIRST,
+     CONNECT_STEP_LOAD_PROFILE_SETTINGS,
+@@ -702,14 +706,30 @@ extended_ip_config_indication_received (QmiClientWds                           *
+ {
+     QmiWdsRequestedSettings mask;
+     g_autofree gchar *mask_str = NULL;
++    MMBearerStatus bearer_status;
+ 
+     if (!qmi_indication_wds_extended_ip_config_output_get_changed_ip_configuration (output, &mask, NULL))
+         return;
+ 
+     mask_str = qmi_wds_requested_settings_build_string_from_mask (mask);
+     mm_obj_dbg (self, "received extended ip type mask %s",  mask_str);
++
++    bearer_status = mm_base_bearer_get_status (MM_BASE_BEARER (self));
++
++    if (bearer_status != MM_BEARER_STATUS_CONNECTED) {
++        mm_obj_dbg(self, "ignoring extended ip config indication, bearer not connected");
++        return;
++    }
++
+     if (mask & QMI_WDS_REQUESTED_SETTINGS_OPERATOR_RESERVED_PCO)
+         fetch_pco_data_from_modem (client, self);
++
++    if (mask & (QMI_WDS_REQUESTED_SETTINGS_DNS_ADDRESS |
++                QMI_WDS_REQUESTED_SETTINGS_MTU |
++                QMI_WDS_REQUESTED_SETTINGS_DOMAIN_NAME_LIST)) {
++        mm_obj_info(self, "bearer reconfiguration required due to extended IP config change, updating settings");
++        handle_reconfiguration_required(self, client);
++    }
+ }
+ /*****************************************************************************/
+ 
+@@ -1369,6 +1389,371 @@ build_start_network_input (ConnectContext *ctx)
+     return input;
+ }
+ 
++/*****************************************************************************/
++/*  NEW: Bearer Reconfiguration System */
++
++static void
++reconfiguration_context_free (ReconfigurationContext *ctx)
++{
++    if (!ctx)
++        return;
++
++    if (ctx->client)
++    {
++        mm_obj_dbg (NULL, "clear client object %p", ctx->client);
++        g_clear_object (&ctx->client);
++    }
++    if (ctx->self)
++    {
++        mm_obj_dbg (NULL, "clear self object %p", ctx->self);
++        g_clear_object (&ctx->self);
++    }
++    if (ctx->new_ip_config)
++    {
++        mm_obj_dbg (NULL, "clear new_ip_config object %p", ctx->new_ip_config);
++        g_clear_object (&ctx->new_ip_config);
++    }
++    mm_obj_dbg (NULL, "clear ctx object %x", ctx);
++    g_free (ctx);
++}
++
++
++static void reconfiguration_step (GTask *task);
++
++static void
++reconfiguration_complete_cb (GObject      *source,
++                           GAsyncResult *res,
++                           gpointer      user_data)
++{
++    MMBearerQmi *self = MM_BEARER_QMI (source);
++    GError      *error = NULL;
++
++    if (!g_task_propagate_boolean (G_TASK (res), &error)) {
++        mm_obj_warn (self, "bearer reconfiguration failed: %s", error->message);
++        g_error_free (error);
++    } else {
++        mm_obj_dbg (self, "bearer reconfiguration completed successfully");
++    }
++    if (self->priv->ipv4_reconfiguration_ongoing) {
++        self->priv->ipv4_reconfiguration_ongoing = FALSE;
++    }
++    if (self->priv->ipv6_reconfiguration_ongoing) {
++        self->priv->ipv6_reconfiguration_ongoing = FALSE;
++    }
++    g_object_unref(res);
++}
++
++
++static void
++update_bearer_configuration(GTask *task)
++{
++    ReconfigurationContext *ctx;
++    MMBearerQmi           *self;
++    MMBearerIpConfig      *final_ipv4_config = NULL;
++    MMBearerIpConfig      *final_ipv6_config = NULL;
++    const gchar           *interface;
++    gint                   profile_id;
++    gboolean               multiplexed;
++
++    ctx = g_task_get_task_data(task);
++    self = ctx->self;
++
++    /* Get current bearer configuration from D-Bus properties */
++    interface = mm_gdbus_bearer_get_interface(MM_GDBUS_BEARER(self));
++    profile_id = mm_gdbus_bearer_get_profile_id(MM_GDBUS_BEARER(self));
++    multiplexed = mm_gdbus_bearer_get_multiplexed(MM_GDBUS_BEARER(self));
++    mm_obj_dbg(self, "Updating bearer configuration for interface '%s' (profile %d, multiplexed %s)",
++               interface, profile_id, multiplexed ? "yes" : "no");
++
++    if (ctx->is_ipv4) {
++        /* IPv4 reconfig: new config is ipv4, keep current ipv6 */
++        final_ipv4_config = g_object_ref (ctx->new_ip_config);
++    } else {
++        /* IPv6 reconfig: new config is ipv6, keep current ipv4 */
++        final_ipv6_config = g_object_ref (ctx->new_ip_config);
++    }
++
++    if (final_ipv4_config)
++        mm_obj_dbg(self, "New IPv4 config: address %s/%u, gateway %s, mtu %u",
++                   mm_bearer_ip_config_get_address(final_ipv4_config) ? mm_bearer_ip_config_get_address(final_ipv4_config) : "n/a",
++                   mm_bearer_ip_config_get_prefix(final_ipv4_config),
++                   mm_bearer_ip_config_get_gateway(final_ipv4_config) ? mm_bearer_ip_config_get_gateway(final_ipv4_config) : "n/a",
++                   mm_bearer_ip_config_get_mtu(final_ipv4_config));
++    if (final_ipv6_config)
++        mm_obj_dbg(self, "New IPv6 config: address %s/%u, gateway %s, mtu %u",
++                   mm_bearer_ip_config_get_address(final_ipv6_config) ? mm_bearer_ip_config_get_address(final_ipv6_config) : "n/a",
++                   mm_bearer_ip_config_get_prefix(final_ipv6_config),
++                   mm_bearer_ip_config_get_gateway(final_ipv6_config) ? mm_bearer_ip_config_get_gateway(final_ipv6_config) : "n/a",
++                   mm_bearer_ip_config_get_mtu(final_ipv6_config));
++
++    /* Use the new function to only update IP configuration */
++    mm_obj_dbg(MM_BASE_BEARER(self), " mm_base_bearer_update_ip_config");
++    mm_base_bearer_update_ip_config(MM_BASE_BEARER(self),
++                                         final_ipv4_config,
++                                         final_ipv6_config);
++
++    mm_obj_info(self, "%s bearer configuration updated successfully",
++               ctx->is_ipv4 ? "IPv4" : "IPv6");
++
++    ctx->step++;
++
++    if(final_ipv4_config)
++        g_object_unref(final_ipv4_config);
++    if(final_ipv6_config)
++        g_object_unref(final_ipv6_config);
++
++    reconfiguration_step(task);
++}
++
++static gboolean
++dns_arrays_equal (const gchar **dns1, const gchar **dns2)
++{
++    guint i;
++
++    if (!dns1 && !dns2)
++        return TRUE;
++    if (!dns1 || !dns2)
++        return FALSE;
++
++    for (i = 0; dns1[i] && dns2[i]; i++) {
++        if (g_strcmp0 (dns1[i], dns2[i]) != 0)
++            return FALSE;
++    }
++
++    /* Check if both arrays have the same length */
++    return (dns1[i] == NULL && dns2[i] == NULL);
++}
++
++static gboolean
++compare_ip_configs (MMBearerIpConfig *config1, MMBearerIpConfig *config2)
++{
++    const gchar *addr1, *addr2;
++    const gchar **dns1, **dns2;
++    guint prefix1, prefix2;
++    guint mtu1, mtu2;
++
++    if (!config1 && !config2)
++        return FALSE;
++    if (!config1 || !config2)
++        return TRUE;
++
++    /* Compare IP addresses */
++    addr1 = mm_bearer_ip_config_get_address (config1);
++    addr2 = mm_bearer_ip_config_get_address (config2);
++    if (g_strcmp0 (addr1, addr2) != 0)
++        return TRUE;
++
++    /* Compare prefixes */
++    prefix1 = mm_bearer_ip_config_get_prefix (config1);
++    prefix2 = mm_bearer_ip_config_get_prefix (config2);
++    if (prefix1 != prefix2)
++        return TRUE;
++
++    /* Compare DNS servers */
++    dns1 = mm_bearer_ip_config_get_dns (config1);
++    dns2 = mm_bearer_ip_config_get_dns (config2);
++    if (!dns_arrays_equal (dns1, dns2))
++        return TRUE;
++
++    /* Compare MTU */
++    mtu1 = mm_bearer_ip_config_get_mtu (config1);
++    mtu2 = mm_bearer_ip_config_get_mtu (config2);
++    if (mtu1 != mtu2)
++        return TRUE;
++
++    return FALSE; /* No changes detected */
++}
++
++static void
++get_current_settings_for_reconfiguration_ready (QmiClientWds *client,
++                                              GAsyncResult *res,
++                                              GTask        *task)
++{
++    ReconfigurationContext *ctx;
++    MMBearerQmi           *self;
++    GError                *error = NULL;
++    QmiMessageWdsGetCurrentSettingsOutput *output;
++    MMBearerIpConfig      *new_config = NULL;
++    MMBearerIpConfig      *current_config = NULL;
++    guint32 mtu = 0;
++
++    ctx = g_task_get_task_data (task);
++    self = ctx->self;
++
++    output = qmi_client_wds_get_current_settings_finish (client, res, &error);
++    if (!output || !qmi_message_wds_get_current_settings_output_get_result (output, &error)) {
++        mm_obj_warn (self, "failed to get current settings for reconfiguration: %s",
++                   error->message);
++        g_task_return_error (task, error);
++        if (output)
++            qmi_message_wds_get_current_settings_output_unref (output);
++        return;
++    }
++
++    if (!qmi_message_wds_get_current_settings_output_get_mtu (output, &mtu, &error)) {
++        mm_obj_dbg (self, "       MTU: failed (%s)", error->message);
++        g_clear_error (&error);
++    }
++
++    /* Parse the new configuration based on IP family */
++    if (ctx->is_ipv4) {
++        GVariant *ipv4_dict;
++        new_config = get_ipv4_config (self, MM_BEARER_IP_METHOD_STATIC, output, mtu);
++        ipv4_dict = mm_gdbus_bearer_get_ip4_config (MM_GDBUS_BEARER (self));
++        if (ipv4_dict) {
++            mm_obj_dbg(self, "GObject ipv4_dict: %p[%s] ", ipv4_dict, g_variant_get_type_string(ipv4_dict));
++            current_config = mm_bearer_ip_config_new_from_dictionary (ipv4_dict, NULL);
++        }
++    } else {
++        GVariant *ipv6_dict;
++        new_config = get_ipv6_config (self, MM_BEARER_IP_METHOD_STATIC, output, mtu);
++        ipv6_dict = mm_gdbus_bearer_get_ip6_config (MM_GDBUS_BEARER (self));
++        if (ipv6_dict) {
++            mm_obj_dbg(self, "GObject ipv6_dict: %p[%s] ", ipv6_dict, g_variant_get_type_string(ipv6_dict));
++            current_config = mm_bearer_ip_config_new_from_dictionary (ipv6_dict, NULL);
++        }
++    }
++
++    /* Compare configurations to see if update is needed */
++    if (!new_config) {
++        mm_obj_warn (self, "Cannot get new ip config, aborting reconfiguration");
++        ctx->config_updated = FALSE;
++    } else {
++        ctx->config_updated = compare_ip_configs (current_config, new_config);
++        if (ctx->config_updated) {
++            mm_obj_info (self, "%s configuration changed, update required",
++                       ctx->is_ipv4 ? "IPv4" : "IPv6");
++            /* Steal the reference to new_config */
++            ctx->new_ip_config = g_steal_pointer (&new_config);
++        } else {
++            mm_obj_dbg (self, "no %s configuration changes detected",
++                      ctx->is_ipv4 ? "IPv4" : "IPv6");
++        }
++    }
++
++    /* Cleanup */
++    g_clear_object (&new_config);
++    g_clear_object (&current_config);
++    qmi_message_wds_get_current_settings_output_unref (output);
++
++    /* Move to next step */
++    ctx->step++;
++    reconfiguration_step (task);
++}
++
++static void
++get_current_settings_for_reconfiguration (GTask        *task,
++                                        QmiClientWds *client,
++                                        gboolean      is_ipv4)
++{
++    QmiMessageWdsGetCurrentSettingsInput *input;
++    QmiWdsRequestedSettings               requested;
++
++    requested = QMI_WDS_REQUESTED_SETTINGS_DNS_ADDRESS |
++                QMI_WDS_REQUESTED_SETTINGS_GRANTED_QOS |
++                QMI_WDS_REQUESTED_SETTINGS_IP_ADDRESS |
++                QMI_WDS_REQUESTED_SETTINGS_GATEWAY_INFO |
++                QMI_WDS_REQUESTED_SETTINGS_MTU |
++                QMI_WDS_REQUESTED_SETTINGS_DOMAIN_NAME_LIST |
++                QMI_WDS_REQUESTED_SETTINGS_IP_FAMILY |
++                QMI_WDS_REQUESTED_SETTINGS_OPERATOR_RESERVED_PCO;
++
++    input = qmi_message_wds_get_current_settings_input_new ();
++    qmi_message_wds_get_current_settings_input_set_requested_settings (input, requested, NULL);
++
++    qmi_client_wds_get_current_settings (client, input, 10, NULL,
++                                       (GAsyncReadyCallback) get_current_settings_for_reconfiguration_ready,
++                                       task);
++    qmi_message_wds_get_current_settings_input_unref (input);
++}
++
++static void
++reconfiguration_step (GTask *task)
++{
++    ReconfigurationContext *ctx;
++    MMBearerQmi           *self;
++
++    ctx = g_task_get_task_data (task);
++    self = ctx->self;
++
++    switch (ctx->step) {
++        case RECONFIG_STEP_FIRST:
++            ctx->step++;
++            /* fall through */
++
++        case RECONFIG_STEP_GET_CURRENT_SETTINGS:
++            mm_obj_dbg (self, "reconfiguration step: getting current %s settings",
++                      ctx->is_ipv4 ? "IPv4" : "IPv6");
++            get_current_settings_for_reconfiguration (task, ctx->client, ctx->is_ipv4);
++            return;
++
++        case RECONFIG_STEP_UPDATE_BEARER_CONFIG:
++            if (!ctx->config_updated) {
++                mm_obj_dbg(self, "no configuration changes detected, skipping update");
++                ctx->step = RECONFIG_STEP_LAST;
++                reconfiguration_step(task);
++                return;
++            }
++            mm_obj_dbg (self, "reconfiguration step: updating bearer configuration");
++            update_bearer_configuration (task);
++            return;
++
++        case RECONFIG_STEP_LAST:
++            mm_obj_info (self, "%s bearer reconfiguration completed",
++                       ctx->is_ipv4 ? "IPv4" : "IPv6");
++            g_task_return_boolean (task, TRUE);
++            return;
++
++        default:
++            g_assert_not_reached ();
++    }
++}
++
++static void
++handle_reconfiguration_required (MMBearerQmi  *self,
++                               QmiClientWds *client)
++{
++    ReconfigurationContext *ctx;
++    GTask                  *task;
++    gboolean               is_ipv4;
++
++    /* ✅ NEW: Identify which IP family triggered the reconfiguration */
++    is_ipv4 = (client == self->priv->client_ipv4);
++    if (is_ipv4) {
++        if (self->priv->ipv4_reconfiguration_ongoing) {
++            mm_obj_warn(self, "IPv4 reconfiguration already ongoing, skipping");
++            return;
++        }
++        self->priv->ipv4_reconfiguration_ongoing = TRUE;
++    } else {
++        if (self->priv->ipv6_reconfiguration_ongoing) {
++            mm_obj_warn(self, "IPv6 reconfiguration already ongoing, skipping");
++            return;
++        }
++        self->priv->ipv6_reconfiguration_ongoing = TRUE;
++    }
++
++    mm_obj_info (self, "handling %s bearer reconfiguration request",
++                is_ipv4 ? "IPv4" : "IPv6");
++
++    ctx = g_new0 (ReconfigurationContext, 1);
++    ctx->self = g_object_ref (self);
++    ctx->client = g_object_ref (client);
++    ctx->step = RECONFIG_STEP_FIRST;
++    ctx->is_ipv4 = is_ipv4;  /* ✅ NEW: Store IP family information */
++    ctx->new_ip_config = NULL;
++
++    task = g_task_new (self, NULL,
++                     (GAsyncReadyCallback) reconfiguration_complete_cb,
++                     NULL);
++    mm_obj_info (self, "create new task %x", task);
++
++    g_task_set_task_data (task, ctx, (GDestroyNotify) reconfiguration_context_free);
++
++    reconfiguration_step (task);
++}
++/*****************************************************************************/
++
+ static void
+ packet_service_status_indication_cb (QmiClientWds *client,
+                                      QmiIndicationWdsPacketServiceStatusOutput *output,
+@@ -1376,61 +1761,85 @@ packet_service_status_indication_cb (QmiClientWds *client,
+ {
+     QmiWdsConnectionStatus connection_status;
+     MMBearerStatus         bearer_status;
++    gboolean               reconfiguration_required = FALSE;  /* NEW */
+ 
+     if (!qmi_indication_wds_packet_service_status_output_get_connection_status (
+             output,
+             &connection_status,
+-            NULL,
++            &reconfiguration_required,  /* NEW: Capture reconfiguration flag */
+             NULL))
+         return;
+ 
+     bearer_status = mm_base_bearer_get_status (MM_BASE_BEARER (self));
+-    if (connection_status == QMI_WDS_CONNECTION_STATUS_DISCONNECTED &&
+-        bearer_status != MM_BEARER_STATUS_DISCONNECTED &&
+-        bearer_status != MM_BEARER_STATUS_DISCONNECTING) {
+-        QmiWdsCallEndReason            cer;
+-        QmiWdsVerboseCallEndReasonType verbose_cer_type;
+-        gint16                         verbose_cer_reason;
+-        g_autoptr(GError)              connection_error = NULL;
+-
+-        if (qmi_indication_wds_packet_service_status_output_get_verbose_call_end_reason (
+-                output,
+-                &verbose_cer_type,
+-                &verbose_cer_reason,
+-                NULL)) {
+-            const gchar *verbose_cer_type_str;
+-            const gchar *verbose_cer_reason_str;
+-
+-            verbose_cer_type_str = qmi_wds_verbose_call_end_reason_type_get_string (verbose_cer_type);
+-            verbose_cer_reason_str = qmi_wds_verbose_call_end_reason_get_string (verbose_cer_type, verbose_cer_reason);
+-            mm_obj_info (self, "verbose call end reason (%u,%d): [%s] %s",
+-                         verbose_cer_type,
+-                         verbose_cer_reason,
+-                         verbose_cer_type_str,
+-                         verbose_cer_reason_str);
+-
+-            /* If we have a 3GPP verbose call end reason, we try to build an error
+-             * with the exact error code and message */
+-            if (verbose_cer_type == QMI_WDS_VERBOSE_CALL_END_REASON_TYPE_3GPP)
+-                connection_error = qmi_mobile_equipment_error_from_verbose_call_end_reason_3gpp ((QmiWdsVerboseCallEndReason3gpp)verbose_cer_reason, self);
+-            else
+-                connection_error = g_error_new (MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_UNKNOWN,
+-                                                "Call failed: %s error: %s", verbose_cer_type_str, verbose_cer_reason_str);
+-        } else if  (qmi_indication_wds_packet_service_status_output_get_call_end_reason (
++
++    mm_obj_dbg (self, "received packet service status indication: %s (reconfiguration_required: %s)",
++                qmi_wds_connection_status_get_string (connection_status),
++                reconfiguration_required ? "yes" : "no");
++
++    switch (connection_status) {
++        case QMI_WDS_CONNECTION_STATUS_DISCONNECTED:
++            if (bearer_status != MM_BEARER_STATUS_DISCONNECTED &&
++                bearer_status != MM_BEARER_STATUS_DISCONNECTING) {
++                QmiWdsCallEndReason            cer;
++                QmiWdsVerboseCallEndReasonType verbose_cer_type;
++                gint16                         verbose_cer_reason;
++                g_autoptr(GError)              connection_error = NULL;
++
++                if (qmi_indication_wds_packet_service_status_output_get_verbose_call_end_reason (
+                         output,
+-                        &cer,
++                        &verbose_cer_type,
++                        &verbose_cer_reason,
+                         NULL)) {
+-            const gchar *cer_str;
+-
+-            cer_str = qmi_wds_call_end_reason_get_string (cer);
+-            mm_obj_info (self, "call end reason (%u): %s", cer, cer_str);
++                    const gchar *verbose_cer_type_str;
++                    const gchar *verbose_cer_reason_str;
++
++                    verbose_cer_type_str = qmi_wds_verbose_call_end_reason_type_get_string (verbose_cer_type);
++                    verbose_cer_reason_str = qmi_wds_verbose_call_end_reason_get_string (verbose_cer_type, verbose_cer_reason);
++                    mm_obj_info (self, "verbose call end reason (%u,%d): [%s] %s",
++                                verbose_cer_type,
++                                verbose_cer_reason,
++                                verbose_cer_type_str,
++                                verbose_cer_reason_str);
++
++                    /* If we have a 3GPP verbose call end reason, we try to build an error
++                     * with the exact error code and message */
++                    if (verbose_cer_type == QMI_WDS_VERBOSE_CALL_END_REASON_TYPE_3GPP)
++                        connection_error = qmi_mobile_equipment_error_from_verbose_call_end_reason_3gpp ((QmiWdsVerboseCallEndReason3gpp)verbose_cer_reason, self);
++                    else
++                        connection_error = g_error_new (MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_UNKNOWN,
++                                                        "Call failed: %s error: %s", verbose_cer_type_str, verbose_cer_reason_str);
++                } else if  (qmi_indication_wds_packet_service_status_output_get_call_end_reason (
++                                output,
++                                &cer,
++                                NULL)) {
++                    const gchar *cer_str;
++
++                    cer_str = qmi_wds_call_end_reason_get_string (cer);
++                    mm_obj_info (self, "call end reason (%u): %s", cer, cer_str);
++
++                    connection_error = g_error_new (MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_UNKNOWN,
++                                                    "Call failed: %s", cer_str);
++                } else
++                    connection_error = g_error_new_literal (MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_UNKNOWN, "Call failed");
++
++                mm_base_bearer_report_connection_status_detailed (MM_BASE_BEARER (self), MM_BEARER_CONNECTION_STATUS_DISCONNECTED, connection_error);
++            }
++            break;
+ 
+-            connection_error = g_error_new (MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_UNKNOWN,
+-                                            "Call failed: %s", cer_str);
+-        } else
+-            connection_error = g_error_new_literal (MM_MOBILE_EQUIPMENT_ERROR, MM_MOBILE_EQUIPMENT_ERROR_UNKNOWN, "Call failed");
++        case QMI_WDS_CONNECTION_STATUS_CONNECTED:
++            if (reconfiguration_required && bearer_status == MM_BEARER_STATUS_CONNECTED) {
++                /* NEW: Handle reconfiguration while connected */
++                mm_obj_info (self, "bearer reconfiguration required while connected, updating settings");
++                handle_reconfiguration_required (self, client);
++            } else {
++                mm_obj_dbg (self, "bearer connection confirmed");
++            }
++            break;
+ 
+-        mm_base_bearer_report_connection_status_detailed (MM_BASE_BEARER (self), MM_BEARER_CONNECTION_STATUS_DISCONNECTED, connection_error);
++        default:
++            mm_obj_dbg (self, "unhandled connection status: %s",
++                        qmi_wds_connection_status_get_string (connection_status));
++            break;
+     }
+ }
+ 
+diff --git a/src/mm-bearer-qmi.h b/src/mm-bearer-qmi.h
+index d75773f5..cbe1cd0d 100644
+--- a/src/mm-bearer-qmi.h
++++ b/src/mm-bearer-qmi.h
+@@ -38,6 +38,24 @@ typedef struct _MMBearerQmi MMBearerQmi;
+ typedef struct _MMBearerQmiClass MMBearerQmiClass;
+ typedef struct _MMBearerQmiPrivate MMBearerQmiPrivate;
+ 
++/* NEW: Reconfiguration step enumeration */
++typedef enum {
++    RECONFIG_STEP_FIRST,
++    RECONFIG_STEP_GET_CURRENT_SETTINGS,
++    RECONFIG_STEP_UPDATE_BEARER_CONFIG,
++    RECONFIG_STEP_LAST
++} ReconfigStep;
++
++/* NEW: Reconfiguration context structure */
++typedef struct {
++    MMBearerQmi         *self;
++    QmiClientWds        *client;
++    ReconfigStep         step;
++    gboolean             is_ipv4;           /* Identifies which IP family */
++    MMBearerIpConfig    *new_ip_config;     /* Single IP config for the triggered family */
++    gboolean             config_updated;    /* Single flag for the specific IP family */
++} ReconfigurationContext;
++
+ struct _MMBearerQmi {
+     MMBaseBearer parent;
+     MMBearerQmiPrivate *priv;
+-- 
+2.34.1

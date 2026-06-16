@@ -1,0 +1,187 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From c634df574a7168737dbe69326fc3d18a3dbd3ba6 Mon Sep 17 00:00:00 2001
+From: HuaWen CHEN <huawenc@qti.qualcomm.com>
+Date: Fri, 3 Jul 2026 13:12:51 +0800
+Subject: [PATCH] Changes for Address Reconf
+
+Change-Id: I43e8b2b346aba5a26b54e3299b889cb171c629e5
+Signed-off-by: Agna Shaju P <agnashaj@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_dhcpv4_apis.c  | 34 ++++++++++++++++++++-----
+ source/WanManager/wanmgr_dhcpv6_apis.c  |  4 ++-
+ source/WanManager/wanmgr_interface_sm.c | 18 +++++++++++++
+ source/WanManager/wanmgr_net_utils.c    | 13 +++++++---
+ 4 files changed, 58 insertions(+), 11 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_dhcpv4_apis.c b/source/WanManager/wanmgr_dhcpv4_apis.c
+index 3835681..66b2e28 100644
+--- a/source/WanManager/wanmgr_dhcpv4_apis.c
++++ b/source/WanManager/wanmgr_dhcpv4_apis.c
+@@ -240,8 +240,32 @@ ANSC_STATUS wanmgr_handle_dhcpv4_event_data(DML_VIRTUAL_IFACE* pVirtIf)
+             return ANSC_STATUS_FAILURE;
+         }
+ 
+-        snprintf(cmdStr, sizeof(cmdStr), "ifconfig %s %s netmask %s broadcast %s mtu %u",
+-                pVirtIf->IP.Ipv4Data.ifname, pVirtIf->IP.Ipv4Data.ip, pVirtIf->IP.Ipv4Data.mask, bCastStr, pVirtIf->IP.Ipv4Data.mtuSize);
++        if (strstr(pVirtIf->IP.Ipv4Data.ifname, "qmapmux") != NULL)
++        {
++            char mtu_v6[32] = {0};
++            int if_MTU_Val_V6 = -1;
++            int mtu_to_use = (int)pVirtIf->IP.Ipv4Data.mtuSize;
++
++            if (sysevent_get(sysevent_fd, sysevent_token, "cellular_wan_v6_mtu", mtu_v6, sizeof(mtu_v6)) != 0)
++            {
++                CcspTraceError(("%s %d Failed to get cellular_wan_v6_mtu from sysevent \n", __FUNCTION__, __LINE__));
++            }
++            if (mtu_v6[0] != '\0')
++            {
++                if_MTU_Val_V6 = atoi(mtu_v6);
++                if (if_MTU_Val_V6 > (int)pVirtIf->IP.Ipv4Data.mtuSize)
++                {
++                    mtu_to_use = if_MTU_Val_V6;
++                }
++            }
++            snprintf(cmdStr, sizeof(cmdStr), "ifconfig %s %s netmask %s broadcast %s mtu %d",
++                    pVirtIf->IP.Ipv4Data.ifname, pVirtIf->IP.Ipv4Data.ip, pVirtIf->IP.Ipv4Data.mask, bCastStr, mtu_to_use);
++        }
++        else
++        {
++            snprintf(cmdStr, sizeof(cmdStr), "ifconfig %s %s netmask %s broadcast %s mtu %u",
++                    pVirtIf->IP.Ipv4Data.ifname, pVirtIf->IP.Ipv4Data.ip, pVirtIf->IP.Ipv4Data.mask, bCastStr, pVirtIf->IP.Ipv4Data.mtuSize);
++        }
+         CcspTraceInfo(("%s %d -  IP configuration = %s \n", __FUNCTION__, __LINE__, cmdStr));
+         WanManager_DoSystemAction("setupIPv4:", cmdStr);
+ 
+@@ -404,11 +428,9 @@ void WanMgr_UpdateIpFromCellularMgr (WanMgr_IfaceSM_Controller_t* pWanIfaceCtrl)
+ 
+                 memset( acTmpReturnValue, 0, sizeof( acTmpReturnValue ) );
+                 memset( acTmpQueryParam, 0, sizeof( acTmpQueryParam ) );
+-                snprintf( acTmpQueryParam, sizeof(acTmpQueryParam ),"%s%s", pIfaceData->BaseInterface, CELLULARMGR_MTU_SIZE);
+-
+-                if ( ANSC_STATUS_FAILURE == WanMgr_RdkBus_GetParamValues( CELLULARMGR_COMPONENT_NAME, CELLULARMGR_DBUS_PATH, acTmpQueryParam, acTmpReturnValue ) )
++                if(sysevent_get(sysevent_fd, sysevent_token, "cellular_wan_v4_mtu", acTmpReturnValue, sizeof(acTmpReturnValue)) != 0)
+                 {
+-                    CcspTraceError(("%s %d Failed to get param value for paramname %s \n", __FUNCTION__, __LINE__, acTmpQueryParam));
++                    CcspTraceError(("%s %d Failed to get cellular_wan_v4_mtu from sysevent\n", __FUNCTION__, __LINE__));
+                     return;
+                 }
+                 if (acTmpReturnValue[0] != '\0')
+diff --git a/source/WanManager/wanmgr_dhcpv6_apis.c b/source/WanManager/wanmgr_dhcpv6_apis.c
+index c7993f9..f2a5a1d 100644
+--- a/source/WanManager/wanmgr_dhcpv6_apis.c
++++ b/source/WanManager/wanmgr_dhcpv6_apis.c
+@@ -1626,8 +1626,10 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_data(DML_VIRTUAL_IFACE * pVirtIf)
+                    pNewIpcMsg->dnsAssigned, pNewIpcMsg->nameserver, pNewIpcMsg->nameserver1, pNewIpcMsg->aftrAssigned, pNewIpcMsg->aftr, pNewIpcMsg->isExpired));
+ 
+     WANMGR_IPV6_DATA Ipv6DataNew; // Holds the new lease from the IPC message
++    char address_reconf[32] = {0};
+     memset(&Ipv6DataNew, 0, sizeof(Ipv6DataNew));
+     wanmgr_dchpv6_get_ipc_msg_info(&(Ipv6DataNew), pNewIpcMsg);
++    sysevent_get(sysevent_fd, sysevent_token, "address-reconf-update", address_reconf, sizeof(address_reconf));
+ 
+     /*Check lease expiry*/
+     if (pNewIpcMsg->isExpired)
+@@ -1858,7 +1860,7 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_data(DML_VIRTUAL_IFACE * pVirtIf)
+                 ((strlen(Ipv6DataNew.pdIfAddress) > 0) && (strcmp(Ipv6DataNew.pdIfAddress, pDhcp6cInfoCur->pdIfAddress))) ||
+                 ((strlen(Ipv6DataNew.sitePrefix) > 0) && (strcmp(Ipv6DataNew.sitePrefix, pDhcp6cInfoCur->sitePrefix)))||
+                 strcmp(Ipv6DataNew.nameserver, pDhcp6cInfoCur->nameserver) ||
+-                strcmp(Ipv6DataNew.nameserver1, pDhcp6cInfoCur->nameserver1))
++                strcmp(Ipv6DataNew.nameserver1, pDhcp6cInfoCur->nameserver1) || (strcmp(address_reconf, "true") == 0))
+         {
+             CcspTraceInfo(("IPv6 configuration has been changed \n"));
+             pVirtIf->IP.Ipv6Changed = TRUE;
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index 579430e..2add210 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -1655,6 +1655,10 @@ static int wan_tearDownIPv6(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+     char previousPrefix_vldtime[BUFLEN_48] = {0};
+     char previousPrefix_prdtime[BUFLEN_48] = {0};
+     char ippt_enable[8]={0};
++    char address_reconf[32] = {0};
++    sysevent_get(sysevent_fd, sysevent_token, "address-reconf-update", address_reconf, sizeof(address_reconf));
++    if (strcmp(address_reconf, "false") == 0)
++    {
+     /* set ipv6 down sysevent notification. */
+     sysevent_get(sysevent_fd, sysevent_token, SYSEVENT_FIELD_IPV6_PREFIX, previousPrefix, sizeof(previousPrefix));
+     sysevent_get(sysevent_fd, sysevent_token, SYSEVENT_FIELD_IPV6_PREFIXVLTIME, previousPrefix_vldtime, sizeof(previousPrefix_vldtime));
+@@ -1670,6 +1674,7 @@ static int wan_tearDownIPv6(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_IPV6_CONNECTION_STATE, WAN_STATUS_DOWN, 0);
+     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_GLOBAL_IPV6_PREFIX_SET, "", 0);
+     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_FIREWALL_RESTART, NULL, 0);
++    }
+ 
+ //RBUS_WAN_IP
+ #if defined (RBUS_WAN_IP)
+@@ -1717,6 +1722,17 @@ static int wan_tearDownIPv6(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+     return ret;
+ }
+ 
++static void WanMgr_ClearAddressReconfUpdate(void)
++{
++    char address_reconf[32] = {0};
++
++    sysevent_get(sysevent_fd, sysevent_token, "address-reconf-update", address_reconf, sizeof(address_reconf));
++    if (strcmp(address_reconf, "true") == 0)
++    {
++        sysevent_set(sysevent_fd, sysevent_token, "address-reconf-update", "false", 0);
++    }
++}
++
+ #ifdef FEATURE_IPOE_HEALTH_CHECK
+ static ANSC_STATUS WanMgr_IfaceSM_IHC_Init(WanMgr_IfaceSM_Controller_t* pWanIfaceCtrl)
+ {
+@@ -3918,6 +3934,7 @@ static eWanState_t wan_state_ipv6_leased(WanMgr_IfaceSM_Controller_t* pWanIfaceC
+                 {
+                     WanMgr_SendMsgTo_ConnectivityCheck(pWanIfaceCtrl, CONNECTION_MSG_IPV6 , TRUE);
+                     p_VirtIf->IP.Ipv6Changed = FALSE;
++                    WanMgr_ClearAddressReconfUpdate();
+                     CcspTraceInfo(("%s %d - Successfully updated IPv6 configure Changes for %s Interface \n",
+                                     __FUNCTION__, __LINE__, p_VirtIf->Name));
+                 }
+@@ -4065,6 +4082,7 @@ static eWanState_t wan_state_dual_stack_active(WanMgr_IfaceSM_Controller_t* pWan
+                 {
+                     WanMgr_SendMsgTo_ConnectivityCheck(pWanIfaceCtrl, CONNECTION_MSG_IPV6 , TRUE);
+                     p_VirtIf->IP.Ipv6Changed = FALSE;
++                    WanMgr_ClearAddressReconfUpdate();
+                     CcspTraceInfo(("%s %d - Successfully updated IPv6 configure Changes for %s Interface \n",
+                                 __FUNCTION__, __LINE__, p_VirtIf->Name));
+                 }
+diff --git a/source/WanManager/wanmgr_net_utils.c b/source/WanManager/wanmgr_net_utils.c
+index bb6440c..d13e3a2 100644
+--- a/source/WanManager/wanmgr_net_utils.c
++++ b/source/WanManager/wanmgr_net_utils.c
+@@ -334,6 +334,7 @@ int WanManager_Ipv6PrefixUtil(char *ifname, Ipv6OperType opr, int preflft, int v
+     char prefixAddr[BUFLEN_48] = {0};
+     char IfaceName[BUFLEN_16] = {0};
+     int BridgeMode = 0;
++    char address_reconf[32] = {0};
+ 
+     memset(prefix, 0, sizeof(prefix));
+     sysevent_get(sysevent_fd, sysevent_token, SYSEVENT_FIELD_IPV6_PREFIX, prefix, sizeof(prefix));
+@@ -401,10 +402,14 @@ int WanManager_Ipv6PrefixUtil(char *ifname, Ipv6OperType opr, int preflft, int v
+                 CcspTraceInfo(("%s-%d: Successfully del addr and route from Interface %s, prefix=%s, prefixAddr=%s \n",
+        	                               __FUNCTION__, __LINE__, IfaceName, prefix, prefixAddr));
+ 
+-                memset(cmdLine, 0, sizeof(cmdLine));
+-                snprintf(cmdLine, sizeof(cmdLine), "ip -6 route delete default");
+-                if (WanManager_DoSystemActionWithStatus("ip -6 route delete default", cmdLine) != 0)
+-                    CcspTraceError(("failed to run cmd: %s", cmdLine));
++                sysevent_get(sysevent_fd, sysevent_token, "address-reconf-update", address_reconf, sizeof(address_reconf));
++                if (strcmp(address_reconf, "false") == 0) //Default rule added by PandM shouldn't be deleted after Address reconfig.
++                {
++                    memset(cmdLine, 0, sizeof(cmdLine));
++                    snprintf(cmdLine, sizeof(cmdLine), "ip -6 route delete default");
++                    if (WanManager_DoSystemActionWithStatus("ip -6 route delete default", cmdLine) != 0)
++                        CcspTraceError(("failed to run cmd: %s", cmdLine));
++                }
+ 
+             }
+             else
+-- 
+2.34.1
