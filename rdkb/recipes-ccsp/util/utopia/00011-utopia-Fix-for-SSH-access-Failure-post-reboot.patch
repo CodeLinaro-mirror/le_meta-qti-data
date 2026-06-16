@@ -1,0 +1,29 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 64e5f5b8a83dfc53585d0d23db80ecc8cedf07ce Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Mon, 15 Jun 2026 12:24:51 +0000
+Subject: [PATCH] Fix SSH access failure after reboot
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/service_lan.sh | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+Index: git/source/scripts/init/service.d/service_lan.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_lan.sh
++++ git/source/scripts/init/service.d/service_lan.sh
+@@ -403,6 +403,10 @@ do_start()
+    restart_necessary_functions
+ 
+    ulog lan status "lan interface up"
++   lan_ssh=$(syscfg get mgmt_lan_sshaccess)
++   if [ "$lan_ssh" == "1" ] ; then
++        sh /etc/utopia/service.d/service_sshd.sh sshd-start
++   fi
+ }
+ 
+ #--------------------------------------------------------------
