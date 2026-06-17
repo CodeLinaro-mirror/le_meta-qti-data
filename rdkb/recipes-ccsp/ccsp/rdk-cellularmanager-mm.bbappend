@@ -13,6 +13,7 @@ SRC_URI += " \
     file://0006-qti-rdk-cellularmanager-mm_preferred_access_technologies.patch \
     file://0007-qti-rdk-cellularmanager-mm_XQCOM_rename.patch \
     file://0008-qti-rdk-cellularmanager-mm_RoamingEnablement.patch \
+    file://0009-qti-rdk-cellularmanager-mm_MultiAPN.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
