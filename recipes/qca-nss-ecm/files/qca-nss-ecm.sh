@@ -158,6 +158,9 @@ post_start() {
 	echo 0 > /proc/sys/net/ecm/ecm_db/ipv4_route_handle
 	echo 0 > /proc/sys/net/ecm/ecm_db/ipv6_route_handle
 
+	# Enable conn limit
+	echo 1 > /proc/sys/net/ecm/front_end_conn_limit
+
 	echo "post_start"
 
 }
