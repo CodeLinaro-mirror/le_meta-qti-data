@@ -1,0 +1,456 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d94b9a763103274afe8268a80dee26707ba49f85 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Tue, 23 Jun 2026 05:53:35 +0000
+Subject: [PATCH] IPPT changes for Utopia: This patch implements IP Pass-through (IPPT) functionality within the Utopia framework, supporting both NAT and non-NAT operation modes. It updates firewall logic to bypass standard restrictions and modifies DHCP services to propagate WAN IP and DNS settings directly to designated LAN clients
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/firewall/firewall.c                    |  45 +++++--
+ .../dhcp_server_functions.sh                  |  96 +++++++++++++--
+ source/scripts/init/service.d/service_lan.sh  | 112 +++++++++++++++---
+ 3 files changed, 214 insertions(+), 39 deletions(-)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -369,7 +369,9 @@ NOT_DEF:
+ #define XLAT_IF "xlat"
+ #define XLAT_IP "192.0.0.1"
+ #endif
+-
++#define AUTO_IP_FOR_IPPT    "169.254.1.50"
++#define IPPT_MODE_WITH_NAT         1
++#define IPPT_MODE_WITHOUT_NAT      2
+ 
+ #if defined(RDKB_EXTENDER_ENABLED)
+ char cellular_ifname[32];
+@@ -5686,8 +5688,12 @@ static int do_lan2self_by_wanip(FILE *fi
+ #if defined (MULTILAN_FEATURE)
+    do_multinet_lan2self_by_wanip(filter_fp);
+ #endif
+-
+-   fprintf(filter_fp, "-A lan2self_by_wanip -d %s -j RETURN\n", current_wan_ipaddr); //eRouter address doesn't have any restrictions
++   char ippt_enable[8] = {0};
++   syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
++   if (strcmp(ippt_enable, "false") == 0)
++   {
++      fprintf(filter_fp, "-A lan2self_by_wanip -d %s -j RETURN\n", current_wan_ipaddr); //eRouter address doesn't have any restrictions
++   }
+ #ifdef CISCO_CONFIG_TRUE_STATIC_IP
+    if(isWanStaticIPReady){
+          int i;
+@@ -9822,7 +9828,9 @@ static void do_lan2wan_disable(FILE *fil
+      if (isMAPTReady)
+          return ;
+ #endif
+-    if(!isNatReady){
++    char ippt_enable[8] = {0};
++    syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
++    if((!isNatReady) && (strcmp(ippt_enable, "false") == 0)) {
+          fprintf(filter_fp, "-A lan2wan_disable -s %s/%s -o %s -j DROP\n", lan_ipaddr, lan_netmask, current_wan_ifname);
+ 
+ #if defined (MULTILAN_FEATURE)
+@@ -9885,7 +9893,9 @@ static int do_lan2wan_misc(FILE *filter_
+    /*
+     * if the wan is currently unavailable, then drop any packets from lan to wan
+     */ 
+-   if (!isWanReady) {
++   char ippt_enable[8] = {0};
++   syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
++   if ((!isWanReady) && (strcmp(ippt_enable, "false") == 0)) {
+       fprintf(filter_fp, "-I lan2wan_misc 1 -o %s -j DROP\n", current_wan_ifname);
+    }
+    char mtu[26];
+@@ -10411,7 +10421,9 @@ static int do_wan2lan_disabled(FILE *fp)
+       /*
+       * if the wan is currently unavailable, then drop any packets from wan to lan
+       */
+-      if (!isNatReady ) {
++      char ippt_enable[8] = {0};
++      syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
++      if ((!isNatReady ) && (strcmp(ippt_enable, "false") == 0)) {
+          fprintf(fp, "-A wan2lan_disabled -i %s -d %s/%s -j DROP\n", current_wan_ifname, lan_ipaddr, lan_netmask);
+ 
+    #if defined (MULTILAN_FEATURE)
+@@ -12045,6 +12057,19 @@ static int prepare_subtables(FILE *raw_f
+    fprintf(nat_fp, "-A POSTROUTING -o %s -j postrouting_tolan\n", lan_ifname);
+    prepare_multinet_postrouting_nat(nat_fp);
+    fprintf(nat_fp, "-A POSTROUTING -j postrouting_plugins\n");
++   char ippt_enable[8] = {0};
++   char tmpBuf[8] = {0};
++   char wanStatus[8]={0};
++   int ippt_mode=0;
++   syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
++   syscfg_get( NULL, "IPPT_Mode", tmpBuf, sizeof(tmpBuf));
++   sysevent_get(sysevent_fd, sysevent_token, "wan-status", wanStatus, sizeof(wanStatus));
++   ippt_mode = _ansc_atoi(tmpBuf);
++   //SNAT rule for IPPT with NAT
++   if ((strcmp(ippt_enable, "true") == 0) && (ippt_mode == IPPT_MODE_WITH_NAT) && (strstr(current_wan_ifname,"qmapmux")!=NULL) && (strcmp(wanStatus,"started") == 0))
++   {
++       fprintf(nat_fp, "-A POSTROUTING -o %s -j SNAT --to-source %s\n",current_wan_ifname,current_wan_ipaddr);
++   }
+ #if defined (_HUB4_PRODUCT_REQ_) || defined (_RDKB_GLOBAL_PRODUCT_REQ_) 
+ #if defined (HUB4_BFD_FEATURE_ENABLED) || defined (IHC_FEATURE_ENABLED)
+ #if defined (_RDKB_GLOBAL_PRODUCT_REQ_)
+@@ -12315,8 +12340,13 @@ static int prepare_subtables(FILE *raw_f
+            fprintf(filter_fp, "-A INPUT -i %s -p icmp -m icmp --icmp-type 8 -j DROP\n",current_wan_ifname);
+            fprintf(filter_fp, "-A INPUT -i brlan0 -d %s -p icmp -m icmp --icmp-type 8 -j DROP\n",current_wan_ipaddr);
+        }
+-       #endif       
+-      fprintf(filter_fp, "-A INPUT -p tcp -i lo -s %s -d %s -j ACCEPT\n", current_wan_ipaddr, current_wan_ipaddr);
++       #endif
++      char ippt_enable[8] = {0};
++      syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
++      if (strcmp(ippt_enable, "false") == 0)
++      {
++         fprintf(filter_fp, "-A INPUT -p tcp -i lo -s %s -d %s -j ACCEPT\n", current_wan_ipaddr, current_wan_ipaddr);
++      }
+    }
+    // since some protocols have a different ip address for the connection to the isp, and the wan
+    // accept loopback to isp
+@@ -12325,7 +12355,8 @@ static int prepare_subtables(FILE *raw_f
+     sysevent_get(sysevent_fd, sysevent_token, "ipv4_wan_ipaddr", isp_connection, sizeof(isp_connection));
+     if ('\0' != isp_connection[0] &&
+         0 != strcmp("0.0.0.0", isp_connection) &&
+-        0 != strcmp(isp_connection, current_wan_ipaddr)) {
++        0 != strcmp(isp_connection, current_wan_ipaddr)&&
++        0 != strcmp(AUTO_IP_FOR_IPPT, isp_connection)) {
+       fprintf(filter_fp, "-A INPUT -p tcp -i lo -s %s -d %s -j ACCEPT\n", isp_connection, isp_connection);
+    }
+ 
+Index: git/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
++++ git/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+@@ -38,17 +38,17 @@ source /lib/rdk/t2Shared_api.sh
+ source /etc/waninfo.sh
+ 
+ DHCP_CONF=/etc/dnsmasq.conf
+-DHCP_STATIC_HOSTS_FILE=/etc/dhcp_static_hosts
++DHCP_STATIC_HOSTS_FILE=/tmp/dhcp_static_hosts
+ DHCP_OPTIONS_FILE=/var/volatile/dhcp_options
+ SelfHealSupport=`sysevent get SelfhelpWANConnectionDiagSupport`
+ LANIPV6Support=`sysevent get LANIPv6GUASupport`
+ if [ "$BOX_TYPE" = "HUB4" ] || [ "$BOX_TYPE" = "SR300" ] || [ "$BOX_TYPE" = "SE501" ] || [ "$BOX_TYPE" = "SR213" ] || [ "$SelfHealSupport" = "true" ]; then
+ LOCAL_DHCP_CONF=/tmp/dnsmasq.conf
+-LOCAL_DHCP_STATIC_HOSTS_FILE=/tmp/dhcp_static_hosts
++LOCAL_DHCP_STATIC_HOSTS_FILE=/tmp/dhcp_static_hosts.$$
+ LOCAL_DHCP_OPTIONS_FILE=/tmp/dhcp_options
+ else
+ LOCAL_DHCP_CONF=/tmp/dnsmasq.conf$$
+-LOCAL_DHCP_STATIC_HOSTS_FILE=/tmp/dhcp_static_hosts$$
++LOCAL_DHCP_STATIC_HOSTS_FILE=/tmp/dhcp_static_hosts.$$
+ LOCAL_DHCP_OPTIONS_FILE=/tmp/dhcp_options$$
+ fi
+ RESOLV_CONF=/etc/resolv.conf
+@@ -63,7 +63,13 @@ DEFAULT_CONF_DIR="/var/volatile"
+ STATIC_URLS_FILE="/etc/static_urls"
+ STATIC_DNS_URLS_FILE="/etc/static_dns_urls"
+ DEFAULT_FILE="/etc/utopia/system_defaults"
+-
++IPPT_WITH_NAT=1
++IPPT_WITHOUT_NAT=2
++IPPT_CLIENTTYPE_USB=1
++IPPT_CLIENTTYPE_ETH0=2
++IPPT_CLIENTTYPE_ETH1=3
++IPPT_CLIENTTYPE_WLAN=4
++IPPT_CLIENTTYPE_ANY=5
+ # Variables needed for captive portal mode : end
+ 
+ DHCP_SLOW_START_1_FILE=/etc/cron/cron.everyminute/dhcp_slow_start.sh
+@@ -269,14 +275,18 @@ calculate_dhcp_range () {
+             	echo "DHCP_SERVER: Last octet of start IP is character"
+              	isStartIpValid=0
+            	else
+-            	if [ "$START_ADDR_LAST_OCTET" -gt "254" ]
+-             	then
+-                	echo "DHCP_SERVER: Last octet of start ip is greater than 254"
+-                 	isStartIpValid=0
++                wan_ip=`sysevent get cellular_wan_v4_ip`
++                SYSEVENT_wan_interface=$(sysevent get current_wan_ifname | grep qmapmux )
++                IPPT_Enable=`syscfg get IPPT_Enable`
++                IPPT_Mode=`syscfg get IPPT_Mode`
++                if [ "$START_ADDR_LAST_OCTET" -gt "254" ]
++                then
++                        echo "DHCP_SERVER: Last octet of start ip is greater than 254"
++                         isStartIpValid=0
+              	elif [ "$START_ADDR_LAST_OCTET" -lt "2" ]
+              	then
+ 			 	 	echo "DHCP_SERVER: Last octet of start ip is less than 2"
+-                 	isStartIpValid=0
++                         isStartIpValid=0
+              	elif [ "$START_SUBNET" != "$LAN_SUBNET" ]
+              	then
+                 	echo "DHCP_SERVER: DHCP Start Address:$DHCP_START is not in the LAN SUBNET:$LAN_SUBNET"
+@@ -395,6 +405,10 @@ calculate_dhcp_range () {
+ # Prepare the dhcp server static hosts/ip file
+ #--------------------------------------------------------------
+ prepare_dhcp_conf_static_hosts() {
++    IPPT_HOST_LINE=`syscfg get ippt_dhcp_static_host_1`
++    if [ "$(syscfg get IPPT_Enable)" = "true" ] && [ -n "$IPPT_HOST_LINE" ]; then
++        echo "$IPPT_HOST_LINE,$DHCP_LEASE_TIME" >> $LOCAL_DHCP_STATIC_HOSTS_FILE
++    else
+    NUM_STATIC_HOSTS=`syscfg get dhcp_num_static_hosts`
+    echo -n > $LOCAL_DHCP_STATIC_HOSTS_FILE
+ 
+@@ -416,6 +430,7 @@ prepare_dhcp_conf_static_hosts() {
+          echo "$HOST_LINE,$DHCP_LEASE_TIME" >> $LOCAL_DHCP_STATIC_HOSTS_FILE
+       fi
+    done
++   fi
+    cat $LOCAL_DHCP_STATIC_HOSTS_FILE > $DHCP_STATIC_HOSTS_FILE
+    rm -f $LOCAL_DHCP_STATIC_HOSTS_FILE
+ }
+@@ -624,7 +639,32 @@ prepare_dhcp_options_wan_dns()
+          fi
+       fi
+    fi
+-
++   # Propagate LAN IP
++      IPPT_Enable=`syscfg get IPPT_Enable`
++      IPPT_Mode=`syscfg get IPPT_Mode`
++      SYSEVENT_wan_interface=$(sysevent get current_wan_ifname | grep qmapmux )
++      if [ -n "$SYSEVENT_wan_interface" ] && [ "$IPPT_Enable" = "true" ] && [ "$IPPT_Mode" == "$IPPT_WITHOUT_NAT" ]; then
++      NS1=` sysevent get cellular_wan_v4_dns1 `
++      NS2=` sysevent get cellular_wan_v4_dns2 `
++      if [ -n "$NS1" ] ; then
++         if [ -z "$DHCP_OPTION_STR" ] ; then
++             DHCP_OPTION_STR="option:dns-server, "$NS1","$NS2
++             echo "$DHCP_OPTION_STR -1"
++         else
++             DHCP_OPTION_STR=$DHCP_OPTION_STR","$NS2
++             echo "$DHCP_OPTION_STR -2"
++         fi
++       fi
++      else
++      NS=` syscfg get lan_ipaddr `
++      if [ -n "$NS" ] ; then
++         if [ -z "$DHCP_OPTION_STR" ] ; then
++            DHCP_OPTION_STR="option:dns-server, "$NS
++         else
++            DHCP_OPTION_STR=$DHCP_OPTION_STR","$NS
++         fi
++      fi
++   fi
+    echo "$DHCP_OPTION_STR" >> $LOCAL_DHCP_OPTIONS_FILE
+    cat $LOCAL_DHCP_OPTIONS_FILE > $DHCP_OPTIONS_FILE
+    rm -f $LOCAL_DHCP_OPTIONS_FILE
+@@ -1126,6 +1166,19 @@ fi
+    if [ "dns_only" != "$3" ] ; then
+       my_array=()
+       prepare_dhcp_conf_static_hosts
++      #to toggle clients when static IP is set.
++      static_host_count=`syscfg get dhcp_num_static_hosts`
++      ippt_enable=`syscfg get IPPT_Enable`
++      if [ "$ippt_enable" = "false" ] && [ "$static_host_count" != "0" ]; then
++         CMD1=`brctl show | grep -c eth0`
++         CMD2=`brctl show | grep -c eth1`
++         if ([ "$CMD1" = "1" ]); then
++            ethtool -r eth0
++        fi
++         if ([ "$CMD2" = "1" ]); then
++            ethtool -r eth1
++         fi
++      fi
+       #Triggers Wi-Fi client toggling during DHCP config preparation, ensuring wireless clients are refreshed/reconnected when DHCP is reconfigured
+       toggling_wifi_clients
+       #prepare_dhcp_options
+@@ -1152,9 +1205,26 @@ fi
+       echo "interface=$LAN_IFNAME" >> $LOCAL_DHCP_CONF
+ 	  if [ $DHCP_LEASE_TIME == -1 ]; then
+ 	      echo "$PREFIX""dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,$LAN_NETMASK,infinite" >> $LOCAL_DHCP_CONF
+-	  else
+-  	      echo "$PREFIX""dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,$LAN_NETMASK,$DHCP_LEASE_TIME" >> $LOCAL_DHCP_CONF
+-	  fi
++          else
++              IPPT_Mode=`syscfg get IPPT_Mode`
++              IPPT_Enable=`syscfg get IPPT_Enable`
++              IPPT_ClientType=`syscfg get IPPT_ClientType`
++              WAN_STATUS=`sysevent get wan-status`
++              SYSEVENT_wan_interface=$(sysevent get current_wan_ifname | grep qmapmux )
++              if [ "$IPPT_Enable" == "true" ] && [ -n "$SYSEVENT_wan_interface" ] && [ "$WAN_STATUS" == "started" ]; then
++                  SYSEVT_wan_ip=`sysevent get cellular_wan_v4_ip`
++                  #IPPT with NAT mode and client type is not ANY updating dhcp in dnsmasq.conf
++                  if [ "$IPPT_Mode" = "$IPPT_WITH_NAT" ] && [ "$IPPT_ClientType" != "$IPPT_CLIENTTYPE_ANY" ]; then
++                      echo "$PREFIX""dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,$LAN_NETMASK,$DHCP_LEASE_TIME" >> $LOCAL_DHCP_CONF
++                  fi
++                  #IPPT enabled updating dhcp with cellular IP in dnsmasq.conf
++                  if [ -n "$SYSEVT_wan_ip" ]; then
++                       echo "$PREFIX""dhcp-range=$SYSEVT_wan_ip,$SYSEVT_wan_ip,$LAN_NETMASK,$DHCP_LEASE_TIME" >> $LOCAL_DHCP_CONF
++                  fi
++              else
++                  echo "$PREFIX""dhcp-range=$DHCP_START_ADDR,$DHCP_END_ADDR,$LAN_NETMASK,$DHCP_LEASE_TIME" >> $LOCAL_DHCP_CONF
++              fi
++          fi
+ 	  if [ "1" = "$NAMESERVERENABLED" ]; then
+ 		  DHCP_OPTION_FOR_LAN=`get_dhcp_option_for_brlan0`
+ 		  echo "$PREFIX""$DHCP_OPTION_FOR_LAN" >> $LOCAL_DHCP_CONF
+Index: git/source/scripts/init/service.d/service_lan.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_lan.sh
++++ git/source/scripts/init/service.d/service_lan.sh
+@@ -43,6 +43,14 @@ source /etc/utopia/service.d/event_handl
+ #source /etc/utopia/service.d/brcm_ethernet_helper.sh
+ source /lib/rdk/t2Shared_api.sh
+ 
++IPPT_WITH_NAT=1
++IPPT_WITHOUT_NAT=2
++IPPT_CLIENTTYPE_USB=1
++IPPT_CLIENTTYPE_ETH0=2
++IPPT_CLIENTTYPE_ETH1=3
++IPPT_CLIENTTYPE_WLAN=4
++IPPT_CLIENTTYPE_ANY=5
++
+ SERVICE_NAME="lan"
+ 
+ subnet() {
+@@ -382,7 +390,7 @@ do_start()
+    echo 1 > /proc/sys/net/ipv6/conf/"$SYSCFG_lan_ifname"/autoconf
+    echo 1 > /proc/sys/net/ipv6/conf/"$SYSCFG_lan_ifname"/disable_ipv6
+    echo 0 > /proc/sys/net/ipv6/conf/"$SYSCFG_lan_ifname"/disable_ipv6
+-
++   ip -6 addr add "$SYSEVT_lan_ipaddr_v6"/"$SYSEVT_lan_prefix_v6" dev "$SYSCFG_lan_ifname" valid_lft forever preferred_lft forever
+    # For USGv2 Only: setup policy routing for packet to LAN interface (from eRouter WAN Interface IP address)
+    SUBNET=`subnet "$SYSCFG_lan_ipaddr" "$SYSCFG_lan_netmask"`
+    MASKBITS=`mask2cidr "$SYSCFG_lan_netmask"`
+@@ -641,6 +649,12 @@ lan_create () {
+     brctl addbr "$SYSCFG_lan_ifname"
+     brctl setfd "$SYSCFG_lan_ifname" 0
+     brctl stp "$SYSCFG_lan_ifname" off
++    # Assigning brlan0 MAC with eth1 MAC address
++    # Check here for assigning brlan0 unique MAC address allocation in the future
++    if [ "$SYSCFG_lan_ifname" == "brlan0" ]; then
++        address=$(cat /sys/class/net/eth1/address)
++        ifconfig brlan0 hw ether $address
++    fi
+     IFS=, read -r -a a <<< "$LAN_IFNAMES"
+     # enslave interfaces to the bridge
+     for loop in "${a[@]}"
+@@ -742,7 +756,30 @@ service_start ()
+ #   echo "lan service start called" > /dev/console
+ #song:   register_docsis_handler
+    wait_till_end_state ${SERVICE_NAME}
+-
++   IPPT_Enable=`syscfg get IPPT_Enable`
++   IPPT_Mode=`syscfg get IPPT_Mode`
++   SYSEVT_gateway_ip=`sysevent get cellular_wan_v4_gw`
++   SYSEVENT_wan_status=`sysevent get wan-status`
++   SYSEVENT_wan_interface=$(sysevent get current_wan_ifname | grep qmapmux )
++   SYSEVT_wan_ip=`sysevent get cellular_wan_v4_ip`
++   IPPT_MAC=`syscfg get IPPT_HostMac`
++   IPPT_Hostname=`syscfg get IPPT_Hostname`
++   IPPT_ClientType=`syscfg get IPPT_ClientType`
++   DHCP_NUM_STATIC_HOST=$(syscfg get dhcp_num_static_hosts)
++   if [ "$IPPT_Enable" = "true" ] && [ -n "$SYSEVENT_wan_interface" ] ; then
++      if [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_USB" ] ; then
++         dhcp_static_host="$IPPT_Hostname,$SYSEVT_wan_ip"
++         syscfg set ippt_dhcp_static_host_1 "$dhcp_static_host"
++      elif [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_ETH0" ] || [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_ETH1" ] || [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_WLAN" ] ; then
++         dhcp_static_host="$IPPT_MAC,$SYSEVT_wan_ip"
++         syscfg set ippt_dhcp_static_host_1 "$dhcp_static_host"
++      fi
++      #IPPT Mode as without NAT
++      if [ -n "$SYSEVT_gateway_ip" ] && [ "$SYSEVENT_wan_status" == "started" ]; then
++          ip addr add $SYSEVT_gateway_ip brd 255.255.255.255 dev brlan0
++      fi
++      syscfg commit
++   fi
+    CcspHome_Security=`sysevent get HomeSecuritySupport`
+    STATUS=`sysevent get ${SERVICE_NAME}-status`
+    if [ "started" != "$STATUS" ] ; then
+@@ -865,7 +902,20 @@ case "$1" in
+       ;;
+    "${SERVICE_NAME}-restart")
+       #Clears the DHCP lease file on restart so all clients get fresh IP assignments
+-      rm -rf /nvram/dnsmasq.leases
++      IPPT_Enable=`syscfg get IPPT_Enable`
++      IPPT_Mode=`syscfg get IPPT_Mode`
++      IPPT_ClientType=`syscfg get IPPT_ClientType`
++      if [ "$IPPT_Enable" = "false" ] || ([ "$IPPT_Enable" = "true" ] && [ "$IPPT_Mode" = "$IPPT_WITHOUT_NAT" ]) || ([ "$IPPT_Enable" = "true" ] && [ "$IPPT_Mode" = "$IPPT_WITH_NAT" ] && [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_ANY" ]); then
++         rm -rf /nvram/dnsmasq.leases
++      else
++         #To remove public IP from dnsmasq leases for IPPT with NAT type as ETH,WiFI,USB.
++         cellular_ip=`sysevent get cellular_wan_v4_ip`
++         dnsmasq_ip=`cat /nvram/dnsmasq.leases | grep $cellular_ip | awk '{print$3}'`
++         dnsmasq_mac=`cat /nvram/dnsmasq.leases | grep $cellular_ip | awk '{print$2}'`
++         if [ -n "$dnsmasq_ip" ] &&  [ -n "$dnsmasq_mac" ]; then
++             dhcp_release brlan0 $dnsmasq_ip $dnsmasq_mac
++         fi
++      fi
+       echo "service_init : setting lan-restarting to 1"
+       sysevent set lan-restarting 1
+       service_stop
+@@ -876,27 +926,53 @@ case "$1" in
+       if [ "$BOX_TYPE" = "echo" ];then
+          CMD1=`brctl show | grep -c eth0`
+          CMD2=`brctl show | grep -c eth1`
++         if [ "$IPPT_Enable" = "true" ] && [ "$IPPT_Mode" = "$IPPT_WITH_NAT" ] && [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_ETH0" ]; then
++            ethtool -r eth0
++          elif [ "$IPPT_Enable" = "true" ] && [ "$IPPT_Mode" = "$IPPT_WITH_NAT" ] && [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_ETH1" ]; then
++            ethtool -r eth1
++      elif [ "$IPPT_Enable" = "true" ] && [ "$IPPT_Mode" = "$IPPT_WITH_NAT" ] && [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_USB" ]; then
++           checkrndis=`ifconfig -a |grep rndis0`
++           checkecm=`ifconfig -a |grep ecm0`
++           if [ ! -z "$checkrndis" ] ||  [ ! -z "$checkecm" ]; then
++              RESTART_USB=`nohup /sbin/start_usb restart </dev/null >/dev/null 2>&1`
++              $RESTART_USB
++              sleep 1
++              if [ ! -z "$checkrndis" ]; then
++                 ifconfig rndis0 169.254.1.30
++              fi
++              if [ ! -z "$checkecm" ] ; then
++                 ifconfig ecm0 169.254.1.40
++              fi
++           fi
++       else
+          if ([ "$CMD1" = "1" ]); then
+             ethtool -r eth0
+          fi
+          if ([ "$CMD2" = "1" ]); then
+             ethtool -r eth1
++        fi
++         checkrndis=`ifconfig -a |grep rndis0`
++         checkecm=`ifconfig -a |grep ecm0`
++         if [ ! -z "$checkrndis" ] ||  [ ! -z "$checkecm" ]; then
++            RESTART_USB=`nohup /sbin/start_usb restart </dev/null >/dev/null 2>&1`
++            $RESTART_USB
++            sleep 1
++            if [ ! -z "$checkrndis" ]; then
++               ifconfig rndis0 169.254.1.30
++            fi
++            if [ ! -z "$checkecm" ] ; then
++               ifconfig ecm0 169.254.1.40
++            fi
+          fi
+-         wifiInterfaces=("wifi0" "wifi1" "wifi2")
+-         for token in "${wifiInterfaces[@]}"; do
+-            isDisabled=`syscfg get wireless.$token.disabled`
+-
+-            if [ "$isDisabled" != "1" ]; then  # Check if interface is enabled
+-               interfaces=$(grep -rl "$token" /sys/class/net/ath*/parent | awk -F/ '{print $(NF-1)}')
+-
+-               if [ -n "$interfaces" ]; then
+-                     for ath in $interfaces; do
+-                        ip link set "$ath" down  # Bring down interface completely
+-                        ip link set "$ath" up    # Bring interface up
+-                     done
+-              fi  # end of ath interfaces check
+-            fi  # end of isDisabled check
+-         done
++         toggling_wifi_clients
++      fi
++      fi
++      SYSEVT_wan_ip=`sysevent get cellular_wan_v4_ip`
++      SYSEVENT_wan_interface=$(sysevent get current_wan_ifname | grep qmapmux )
++      SYSEVENT_wan_status=`sysevent get wan-status`
++      #IPPT with NAT mode adding cellular IP to ip route rule
++      if [ "$IPPT_Enable" = "true" ] && [ -n "$SYSEVT_wan_ip" ] && [ -n "$SYSEVENT_wan_interface" ] && [ "$SYSEVENT_wan_status" == "started" ]; then
++          ip route add  $(sysevent get cellular_wan_v4_ip) dev brlan0
+       fi
+       ;;
+    docsis-initialized)
