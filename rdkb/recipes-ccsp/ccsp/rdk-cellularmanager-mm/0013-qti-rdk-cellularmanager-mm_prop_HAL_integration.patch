@@ -1,0 +1,50 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From eacf3740439c592921da999ec72acbb79600760d Mon Sep 17 00:00:00 2001
+From: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+Date: Wed, 1 Jul 2026 09:38:57 +0000
+Subject: Initialization of hal cellular qmi
+Signed-off-by: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.c b/source/CellularManager/cellular_hal.c
+index 46b6e15..1506bbc 100755
+--- a/source/CellularManager/cellular_hal.c
++++ b/source/CellularManager/cellular_hal.c
+@@ -30,7 +30,9 @@
+ #elif defined HYBRID_SUPPORT
+ #include "cellular_hal_device_manager.h"
+ #endif
+-
++#ifdef CM_PROP_SUPPORTED
++#include "cellular_hal_qmi.h"
++#endif
+ /**********************************************************************
+                 CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -81,7 +83,16 @@ cellular_hal_init
+ #elif defined HYBRID_SUPPORT
+     cellular_hal_device_init( pstCtxInputStruct );
+ #endif
+-
++#ifdef CM_PROP_SUPPORTED
++    if(RETURN_HAL_SUCCESS == cellular_hal_prop_init())
++    {
++        CELLULAR_HAL_DBG_PRINT("%s %d - cellular_hal_prop_init success!\n", __FUNCTION__, __LINE__);
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT("%s %d cellular_hal_prop_init failed!\n", __FUNCTION__, __LINE__);
++    }
++#endif
+     CELLULAR_HAL_DBG_PRINT("%s - Cellular HAL Initialize Done\n", __FUNCTION__);
+ 
+     return RETURN_OK;
+-- 
+2.34.1
+
