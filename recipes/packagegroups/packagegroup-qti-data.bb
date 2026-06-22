@@ -42,7 +42,6 @@ RDEPENDS:packagegroup-qti-data-modem:kera = " \
     data-oss \
     data-devicetree \
     qps615 \
-    qca-nss-phy \
     ethtool \
     iperf3 \
     "
