@@ -26,6 +26,7 @@ SRC_URI = "git://git.codelinaro.org/clo/rdkb/mobile-broadband/libqmi.git;protoco
 
 SRC_URI_append += " \
     file://00002-qmi_retry_mechanism_for_eagain_failure.patch \
+    file://00001-support_for_xlat.patch \
 "
 PACKAGECONFIG ??= "udev qrtr"
 PACKAGECONFIG[qrtr] = "-Dqrtr=true,-Dqrtr=false,libqrtr-glib"
