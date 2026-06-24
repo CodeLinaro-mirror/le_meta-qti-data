@@ -31,6 +31,7 @@ SRC_URI_append += " \
     file://00008-ModemManager_service_dependency_update.patch \
     file://00009-ModemManager_timer_optimization.patch \
     file://00011-Add_modem_ready_dependency_in_service.patch \
+    file://00012-ModemManager_qmi_ready_check.patch \
 "
 
 S = "${WORKDIR}/git"

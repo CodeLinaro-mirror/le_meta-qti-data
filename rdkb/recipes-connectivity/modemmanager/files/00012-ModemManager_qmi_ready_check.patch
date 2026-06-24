@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Tue, 24 Jun 2026 00:00:00 +0000
+Subject: Wait for QMI readiness before starting ModemManager
+
+Poll QMI via qmicli up to 15 times with 2-second intervals before
+launching ModemManager, exiting early on success or with an error
+if QMI is not ready after the timeout.
+
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+---
+ data/ModemManager.service.in | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/data/ModemManager.service.in b/data/ModemManager.service.in
+index df6692b..a3c1d2e 100644
+--- a/data/ModemManager.service.in
++++ b/data/ModemManager.service.in
+@@ -8,5 +8,12 @@ [Service]
+ Type=dbus
+ BusName=org.freedesktop.ModemManager1
+-ExecStart=@sbindir@/ModemManager --log-file=/rdklogs/logs/mmlog.txt --log-level=INFO --log-timestamps --log-relative-timestamps
++ExecStartPre=/bin/sh -c '\
++  for i in $(seq 1 15); do \
++    qmicli -d qrtr://3 --dms-get-operating-mode >/dev/null 2>&1 && exit 0; \
++    sleep 2; \
++  done; \
++  echo "QMI not ready after timeout"; \
++  exit 1'
++ExecStart=@sbindir@/ModemManager --log-file=/rdklogs/logs/mmlog.txt --log-level=DEBUG --log-timestamps --log-relative-timestamps
+ StandardError=null
+ Restart=always
+-- 
+2.34.1
