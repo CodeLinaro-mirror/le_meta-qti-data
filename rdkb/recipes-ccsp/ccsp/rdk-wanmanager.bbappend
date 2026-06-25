@@ -19,6 +19,7 @@ SRC_URI += " \
     file://00005-qti-WanManager_sysevent_get_wanifname.patch \
     file://00006-qti-WanManager_cellular_v6address_stabilize.patch \
     file://00007-qti-wanmanager_automated_usb_tethering.patch \
+    file://00008-IPPT-changes-for-wan-manager.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
