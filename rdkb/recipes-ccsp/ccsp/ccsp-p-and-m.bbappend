@@ -17,6 +17,7 @@ SRC_URI += " \
               file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
               file://00007-qti-ccsp-p-and-m_fix-buffer-size.patch \
               file://00008-CcspPandM-Fix-nonnull-RfcJsonInit-null-filename.patch \
+              file://00009-USB-DM.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
