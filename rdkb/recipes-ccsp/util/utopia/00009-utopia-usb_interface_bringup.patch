@@ -1,0 +1,75 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 094285166a143f2a730715274427677c5895405f Mon Sep 17 00:00:00 2001
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Tue, 16 Jun 2026 12:26:40 +0000
+Subject: [PATCH] Automated usb tethering
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/service_lan.sh | 24 ++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+Index: git/source/scripts/init/service.d/service_lan.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_lan.sh
++++ git/source/scripts/init/service.d/service_lan.sh
+@@ -42,6 +42,7 @@ source /etc/utopia/service.d/event_handl
+ #source /etc/utopia/service.d/service_lan/lan_hooks.sh
+ #source /etc/utopia/service.d/brcm_ethernet_helper.sh
+ source /lib/rdk/t2Shared_api.sh
++source /etc/utopia/service.d/usb_tether_interface.sh
+ 
+ SERVICE_NAME="lan"
+ 
+@@ -332,6 +333,7 @@ do_start()
+ #song:      echo "nameserver $SYSCFG_lan_ipaddr" >> /etc/resolv.conf
+ #song:   fi
+    bringup_ethernet_interfaces
++   bringup_usb_tether_interface
+    bringup_wireless_interfaces
+    
+ #song:   brctl addbr $SYSCFG_lan_ifname
+@@ -634,6 +636,8 @@ lan_create () {
+       enslave_a_interface "$loop" "$SYSCFG_lan_ifname"
+     done
+ 
++    attach_usb_tether_interfaces
++
+     # For USGv2 Only: setup policy routing for packet from LAN interface
+     ip rule add iif "$SYSCFG_lan_ifname" lookup erouter
+     
+Index: git/source/scripts/init/service.d/usb_tether_interface.sh
+===================================================================
+--- /dev/null
++++ git/source/scripts/init/service.d/usb_tether_interface.sh
+@@ -0,0 +1,27 @@
++#!/bin/sh
++# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++# SPDX-License-Identifier: BSD-3-Clause-Clear
++
++bringup_usb_tether_interface() {
++   checkrndis=$(ifconfig -a |grep rndis0)
++   if [ ! -z "$checkrndis" ] ; then
++      ifconfig rndis0 169.254.1.30
++   fi
++
++   checkecm=$(ifconfig -a |grep ecm0)
++   if [ ! -z "$checkecm" ] ; then
++      ifconfig ecm0 169.254.1.40
++   fi
++}
++
++attach_usb_tether_interfaces() {
++   checkrndis=$(ifconfig -a |grep rndis0)
++   if [ ! -z "$checkrndis" ] ; then
++      brctl addif $SYSCFG_lan_ifname rndis0
++   fi
++
++   checkecm=$(ifconfig -a |grep ecm0)
++   if [ ! -z "$checkecm" ] ; then
++      brctl addif $SYSCFG_lan_ifname ecm0
++   fi
++}

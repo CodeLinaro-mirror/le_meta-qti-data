@@ -11,4 +11,5 @@ SRC_URI:append = " \
     file://00006-qti-utopia_zebra_fix.patch \
     file://00007-qti-utopia-eth1_ipv6_enable.patch\
     file://00008-ipv6_downlink_fix.patch \
+    file://00009-utopia-usb_interface_bringup.patch \
 "
