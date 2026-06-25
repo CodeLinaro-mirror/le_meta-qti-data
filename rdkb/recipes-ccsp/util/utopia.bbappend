@@ -2,6 +2,7 @@ require rdkb/recipes-ccsp/ccsp/ccsp_common.inc
 FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
 
 SRC_URI:append = " \
+    file://service_sshd_qti.sh \
     file://system_defaults \
     file://00001-qti-utopia_brlan0_bring_up.patch \
     file://00002-ethlan_utopia.patch \
@@ -12,4 +13,10 @@ SRC_URI:append = " \
     file://00007-qti-utopia-eth1_ipv6_enable.patch\
     file://00008-ipv6_downlink_fix.patch \
     file://00009-utopia-usb_interface_bringup.patch \
+    file://00010-utopia-ssh-gateway-IPv4.patch \
+    file://00011-utopia-Fix-for-SSH-access-Failure-post-reboot.patch \
 "
+do_install:append() {
+    install -m 0755 ${WORKDIR}/service_sshd_qti.sh \
+        ${D}/etc/utopia/service.d/service_sshd_qti.sh
+}
