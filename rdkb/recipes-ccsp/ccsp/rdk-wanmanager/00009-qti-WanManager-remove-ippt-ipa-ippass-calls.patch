@@ -1,0 +1,106 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 5d138554ba87535fd574cbac0f7da07ddfa85b95 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Thu, 25 Jun 2026 12:31:14 +0000
+Subject: [PATCH] Removal of IPA command execution during IPPT
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 69 -------------------------
+ 1 file changed, 69 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index 66e5bff..7628453 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -674,70 +674,6 @@ static ANSC_STATUS WanManager_ConfigureMarking(WanMgr_IfaceSM_Controller_t* pWan
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
+-static int execute_ipa(int mode, IPPT_CLIENTTYPE client_type, char* mac, char* wan_ifname_val)
+-{
+-    int nat_mode = 0;
+-    char dev_type[8]={0};
+-
+-    if (wan_ifname_val == NULL)
+-    {
+-        return RETURN_ERR;
+-    }
+-
+-    if (mode == IPPT_MODE_WITHOUT_NAT)
+-        nat_mode = 1;
+-
+-    switch (client_type)
+-    {
+-        case IPPT_CLIENTTYPE_USB:
+-        {
+-            strlcpy(dev_type, "usb", sizeof(dev_type));
+-            break;
+-        }
+-        case IPPT_CLIENTTYPE_ETH0:
+-        {
+-           strlcpy(dev_type, "eth0", sizeof(dev_type));
+-           break;
+-        }
+-        case IPPT_CLIENTTYPE_ETH1:
+-        {
+-           strlcpy(dev_type, "eth1", sizeof(dev_type));
+-           break;
+-        }
+-        case IPPT_CLIENTTYPE_WLAN:
+-        {
+-           strlcpy(dev_type, "wifi", sizeof(dev_type));
+-           break;
+-        }
+-        case IPPT_CLIENTTYPE_ANY:
+-        {
+-           strlcpy(dev_type, "any", sizeof(dev_type));
+-           break;
+-        }
+-        default:
+-           return RETURN_ERR;
+-    }
+-
+-    if (((client_type == IPPT_CLIENTTYPE_ETH0) || (client_type == IPPT_CLIENTTYPE_ETH1) || (client_type == IPPT_CLIENTTYPE_WLAN)) && (mac != NULL))
+-    {
+-        if (v_secure_system("ipa ippass enable dev_type %s vlan 0 mac %s skip_nat %d default_pdn 1 dev_name %s", dev_type, mac, nat_mode, wan_ifname_val) == 0)
+-        {
+-               CcspTraceWarning(("%s %d - executed ipa command ipa ippass enable dev_type %s vlan 0 mac %s skip_nat %d default_pdn 1 dev_name %s \n", __FUNCTION__, __LINE__, dev_type, mac, nat_mode, wan_ifname_val));
+-               return RETURN_OK;
+-        }
+-    }
+-    else
+-    {
+-        if (v_secure_system("ipa ippass enable dev_type %s vlan 0 mac 00:00:00:00:00:00 skip_nat %d default_pdn 1 dev_name %s", dev_type, nat_mode, wan_ifname_val) == 0)
+-        {
+-               CcspTraceWarning(("%s %d - executed ipa command ipa ippass enable dev_type %s vlan 0 mac 00:00:00:00:00:00 skip_nat %d default_pdn 1 dev_name %s \n", __FUNCTION__, __LINE__, dev_type, nat_mode, wan_ifname_val));
+-               return RETURN_OK;
+-        }
+-    }
+-
+-    return RETURN_ERR;
+-}
+-
+ /*********************************************************************************/
+ /**************************** ACTIONS ********************************************/
+ /*********************************************************************************/
+@@ -1492,11 +1428,6 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+ 
+     if ((strcmp(ippt_enable,"true") == 0) && (strstr(p_VirtIf->IP.Ipv4Data.ifname,"qmapmux")!=NULL) && (strcmp(ippt_transition,"1") != 0))
+     {
+-       if(execute_ipa(mode, client_type, mac, p_VirtIf->IP.Ipv4Data.ifname) != RETURN_OK)
+-       {
+-           CcspTraceError(("%s %d - Failed to execute ipa command", __FUNCTION__, __LINE__));
+-           ret = RETURN_ERR;
+-       }
+        if(!syscfg_get( NULL, "ippt_auto_ip", ippt_auto_ip, sizeof(ippt_auto_ip)))
+        {
+            snprintf(cmdStr, sizeof(cmdStr), "ifconfig %s %s", p_VirtIf->IP.Ipv4Data.ifname, ippt_auto_ip);
+-- 
+2.34.1
+
