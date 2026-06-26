@@ -1,0 +1,34 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 41968d18e55ec73be31a7e548ce8d610214864cf Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Thu, 18 Jun 2026 10:45:30 +0530
+Subject: Enablement of DM Stats.BytesSent and Stats.BytesReceived
+
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 03fcd8b..7675051 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3621,7 +3621,10 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.X_RDK_Statistics.PacketsReceivedDrop", RBUS_ELEMENT_TYPE_PROPERTY, {X_RDK_Statistics_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.X_RDK_Statistics.UpStreamMaxBitRate", RBUS_ELEMENT_TYPE_PROPERTY, {X_RDK_Statistics_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.X_RDK_Statistics.DownStreamMaxBitRate", RBUS_ELEMENT_TYPE_PROPERTY, {X_RDK_Statistics_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+-
++#ifdef CM_EXTN_SUPPORTED
++        {"Device.Cellular.Interface.{i}.Stats.BytesSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Stats.BytesReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#endif
+         {"Device.Cellular.X_RDK_UiccNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.Enable", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetParamBoolValue_rbus, UiccSlot_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+-- 
+2.34.1
+
