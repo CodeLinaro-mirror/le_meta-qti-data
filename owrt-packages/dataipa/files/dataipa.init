@@ -1,30 +1,49 @@
 #!/bin/sh /etc/rc.common
 
-#Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 #SPDX-License-Identifier: BSD-3-Clause-Clear
 
 
 START=03
 STOP=96
 
+IPA_DEV_TIMEOUT=10
+
+wait_for_devnode() {
+        local node="$1"
+        local timeout="${2:-$IPA_DEV_TIMEOUT}"
+
+        while [ "$timeout" -gt 0 ]; do
+                [ -e "$node" ] && return 0
+                sleep 1
+                timeout=$((timeout - 1))
+        done
+
+        logger -t dataipa.init "timeout waiting for $node"
+        return 1
+}
+
+set_devnode_perm() {
+        local node="$1"
+        local mode="$2"
+
+        if wait_for_devnode "$node"; then
+                chmod "$mode" "$node"
+                chown -h radio:radio "$node"
+        fi
+}
+
 start() {
-	/etc/initscripts/start_dataipa_le start
+        /etc/initscripts/start_dataipa_le start
 
-	chmod 666 /dev/wwan_ioctl
-	chmod 666 /dev/ipa
-	chmod 660 /dev/ipaNatTable
-	chmod 666 /dev/ipa_adpl
-	chmod 666 /dev/ipa_odl_ctl
-	chmod 660 /dev/ipaIpv6CTTable
-
-	chown -h radio:radio /dev/wwan_ioctl
-	chown -h radio:radio /dev/ipa
-	chown -h radio:radio /dev/ipaNatTable
-	chown -h radio:radio /dev/ipa_adpl
-	chown -h radio:radio /dev/ipa_odl_ctl
-	chown -h radio:radio /dev/ipaIpv6CTTable
+        set_devnode_perm /dev/wwan_ioctl 666
+        set_devnode_perm /dev/ipa 666
+        set_devnode_perm /dev/ipaNatTable 660
+        set_devnode_perm /dev/ipa_adpl 666
+        set_devnode_perm /dev/ipa_odl_ctl 666
+        set_devnode_perm /dev/ipaIpv6CTTable 660
 }
 
 stop() {
-	echo "Stopping dataipa Instance"
+        echo "Stopping dataipa Instance"
 }
