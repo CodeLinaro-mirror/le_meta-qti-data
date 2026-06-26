@@ -20,6 +20,8 @@ SRC_URI:append:kera   = " file://data-eth/drivers/qps615/src/"
 KERNEL_VERSION = "${@get_kernelversion_file("${STAGING_KERNEL_BUILDDIR}")}"
 S = "${WORKDIR}/src/data-eth/drivers/qps615/src"
 
+do_compile[lockfiles] = "${TMPDIR}/kernel-ext-module.lock"
+
 do_compile:kalama() {
     cd ${WORKSPACE}/kernel-${PREFERRED_VERSION_linux-msm}/kernel_platform  && \
     BUILD_CONFIG=${KERNEL_BUILD_CONFIG} \
