@@ -1,0 +1,202 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From f56aa52ac9038a1b2f5d780ca99c27663fc95d5f Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Thu, 25 Jun 2026 17:19:47 +0530
+Subject: Fix data call issue while PRAT switch
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal_mm_apis.c | 97 +++++++++++++++++--
+ source/CellularManager/cellularmgr_sm.c       |  7 +-
+ 2 files changed, 93 insertions(+), 11 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 8f3fcb6..0e0346d 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -61,6 +61,10 @@ gulong state_id = 0;
+ GHashTable *hashTable;
+ DEVICE_INFO deviceInfo;
+ static GMainLoop* loop = NULL;
++#ifdef CM_EXTN_SUPPORTED
++extern state_chg_sem;
++extern mm_sm_sync_sem;
++#endif //CM_EXTN_SUPPORTED
+ 
+ CellularNetworkCBStruct *networkStatusCB = NULL;
+ CellularDeviceContextCBStruct *deviceStatusCB = NULL;
+@@ -426,12 +430,25 @@ state_changed (MMModem                  *modem,
+                ModemState              old_state,
+                ModemState              new_state)
+ {
+-    CHAR *modemPath = mm_modem_get_path (modem);
++#ifdef CM_EXTN_SUPPORTED
++    sem_wait(&state_chg_sem);
++    int signal_SM = 0;//flag to indicate that State Machine should be signalled to process Modem Manager event
++#endif //CM_EXTN_SUPPORTED
++
++    CHAR* modemPath = NULL;
+     gulong stateId = 0;
+-    CELLULAR_HAL_DBG_PRINT ("\t%s: State changed, '%s' --> '%s'\n",
++    modemPath = mm_modem_get_path (modem);
++    if(NULL != modemPath)
++    {
++        CELLULAR_HAL_DBG_PRINT ("\t%s: State changed, '%s' --> '%s'\n",
+                             modemPath,
+                             mm_modem_state_get_string (old_state),
+                             mm_modem_state_get_string (new_state));
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT ("\t%s:%d Modem Path identified as NULL!\n",__func__, __LINE__);
++    }
+ 
+     if( new_state < old_state )
+     {
+@@ -445,36 +462,77 @@ state_changed (MMModem                  *modem,
+             {
+                 deviceStatusCB->device_open_status_cb( deviceInfo.deviceName, deviceInfo.wanInterfaceName, DEVICE_OPEN_STATUS_NOT_READY, CELLULAR_MODEM_SET_OFFLINE );
+                 deviceStatusCB->device_remove_status_cb( deviceInfo.deviceName, DEVICE_REMOVED );
++#ifdef CM_EXTN_SUPPORTED
++                //set flag to signal state machine when deviceStatusCB is invoked
++                signal_SM = 1;
++#endif //CM_EXTN_SUPPORTED
+             }
+             if( slot_status_cb )
++            {
+                 slot_status_cb( "unknown", "unknown", -1, DEVICE_SLOT_STATUS_NOT_READY );
++#ifdef CM_EXTN_SUPPORTED
++                //set flag to signal state machine when slot_status_cb is invoked
++                signal_SM = 1;
++#endif //CM_EXTN_SUPPORTED
++            }
+             if( profileStatusCb )
++            {
+                 profileStatusCb( "unknown", CELLULAR_NETWORK_IP_FAMILY_UNKNOWN, DEVICE_PROFILE_STATUS_NOT_READY );
++#ifdef CM_EXTN_SUPPORTED
++                //set flag to signal state machine when profileStatusCb is invoked
++                signal_SM = 1;
++#endif //CM_EXTN_SUPPORTED
++            }
+         }
+         
+         if( new_state == MODEM_STATE_ENABLED )
+         {
+             if( deviceStatusCB )
++            {
+                 deviceStatusCB->device_open_status_cb( deviceInfo.deviceName, deviceInfo.wanInterfaceName, DEVICE_OPEN_STATUS_NOT_READY, CELLULAR_MODEM_SET_OFFLINE );
++#ifdef CM_EXTN_SUPPORTED
++                CELLULAR_HAL_DBG_PRINT ("%s:%d Modem Enabled state_change - DEVICE_OPEN_STATUS_NOT_READY, CELLULAR_MODEM_SET_OFFLINE\n",__func__, __LINE__);
++                //set flag to signal state machine when device_open_status_cb is invoked
++                signal_SM = 1;
++#endif //CM_EXTN_SUPPORTED
++            }
+             
+             if( slot_status_cb )
+-                slot_status_cb( "unknown", "unknown", -1, DEVICE_SLOT_STATUS_NOT_READY );    
+-        }
++            {
++                slot_status_cb( "unknown", "unknown", -1, DEVICE_SLOT_STATUS_NOT_READY );
++#ifdef CM_EXTN_SUPPORTED
++                CELLULAR_HAL_DBG_PRINT ("%s:%d Modem Enabled state_change - DEVICE_SLOT_STATUS_NOT_READY\n",__func__, __LINE__);
++                //set flag to signal state machine when slot_status_cb is invoked
++                signal_SM = 1;
++#endif //CM_EXTN_SUPPORTED
++            }
++         }
+ 
+-        if( new_state == MODEM_STATE_REGISTERED )
++        if(new_state < MODEM_STATE_CONNECTED)
+         {
+-            if( networkStatusCB )
+-            {
++             if( networkStatusCB )
++             {
+                 networkStatusCB->packet_service_status_cb("unknown", CELLULAR_NETWORK_IP_FAMILY_IPV4, DEVICE_NETWORK_STATUS_DISCONNECTED);
+                 networkStatusCB->packet_service_status_cb("unknown", CELLULAR_NETWORK_IP_FAMILY_IPV6, DEVICE_NETWORK_STATUS_DISCONNECTED);
+-            }
++#ifdef CM_EXTN_SUPPORTED
++                //set flag to signal state machine when networkStatusCB is invoked
++                signal_SM = 1;
++                CELLULAR_HAL_DBG_PRINT ("%s:%d Modem state less than Connected state_change - DEVICE_NETWORK_STATUS_DISCONNECTED\n",__func__, __LINE__);
++#endif //CM_EXTN_SUPPORTED
++             }
+         }
+ 
+         if( old_state == MODEM_STATE_CONNECTED )
+         {
+             CellularIPStruct ipStruct = {0};
+             if( networkStatusCB )
++            {
+                 networkStatusCB->device_network_ip_ready_cb(&ipStruct, DEVICE_NETWORK_IP_NOT_READY);
++#ifdef CM_EXTN_SUPPORTED
++                //set flag to signal state machine when networkStatusCB is invoked
++                signal_SM = 1;
++#endif //CM_EXTN_SUPPORTED
++            }
+         }
+     }
+ 
+@@ -483,17 +541,36 @@ state_changed (MMModem                  *modem,
+         if( new_state == MODEM_STATE_REGISTERED )
+         {
+             if( slot_status_cb )
++            {
+                 slot_status_cb( "slot1", "logical_slot1", 1, DEVICE_SLOT_STATUS_READY );
++#ifdef CM_EXTN_SUPPORTED
++                //set flag to signal state machine when slot_status_cb is invoked
++                signal_SM = 1;
++                CELLULAR_HAL_DBG_PRINT ("%s:%d New State Registered state_change - DEVICE_SLOT_STATUS_READY\n",__func__, __LINE__);
++#endif //CM_EXTN_SUPPORTED
++            }
+         }
+         else if( new_state == MODEM_STATE_CONNECTED )
+         {
+-            if( networkStatusCB != NULL )
++            if( (networkStatusCB != NULL) && (NULL != modem) )
+             {
+                 cellular_hal_mm_callBack_bearer_info(modem);
++#ifdef CM_EXTN_SUPPORTED
++                //set flag to signal state machine when bearer_cb is invoked
++                signal_SM = 1;
++#endif //CM_EXTN_SUPPORTED
+             }
+         }
+     }
+-    
++#ifdef CM_EXTN_SUPPORTED
++    if (signal_SM == 1)
++    {
++        sem_post(&mm_sm_sync_sem);//signal the SM for async event
++        signal_SM = 0;
++    }
++    mmState = new_state;
++    sem_post(&state_chg_sem);
++#endif //CM_EXTN_SUPPORTED
+ }
+ 
+ static void
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 7c55baa..30fd1a2 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -1022,7 +1022,12 @@ static CellularPolicySmState_t StateDeactivated( void )
+          TransitionDeregistered( ) ;
+     }
+ 
+-    if ( gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus == DEVICE_SLOT_STATUS_SELECTING)
++#ifndef CM_EXTN_SUPPORTED
++    if (( gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus == DEVICE_SLOT_STATUS_SELECTING))
++#else
++    if (( gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus == DEVICE_SLOT_STATUS_SELECTING)
++        || ( gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus == DEVICE_SLOT_STATUS_READY))
++#endif //CM_EXTN_SUPPORTED
+     {
+         //simply move the state to DE-REGISTERED without waiting for slot status. In Deregister state wait for slot & attach
+         CcspTraceInfo(("%s %d - State changed to CELLULAR_STATE_DEREGISTERED \n", __FUNCTION__, __LINE__));
+-- 
+2.34.1
+
