@@ -9,16 +9,16 @@ DEPENDS += " glib-2.0 "
 CFLAGS_append += " -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat "
 CFLAGS_append = " ${@bb.utils.contains('DISTRO_FEATURES', 'syslog-ng', ' -D_SYSLOG_NG ', '', d)}"
 SRC_URI += " \
-              file://00001-CcspPandM-23Q1_Port.patch \
-              file://00002-CcspPandM-vendor.patch \
-              file://00003-fix-iana-addr-null-deref.patch \
-              file://00004-CcspPandM-DNSProxy-bringup.patch \
+              file://00001-qti-ccsp-p-and-m_23Q1_Port.patch \
+              file://00002-qti-ccsp-p-and-m_vendor.patch \
+              file://00003-qti-ccsp-p-and-m_fix-iana-addr-null-deref.patch \
+              file://00004-qti-ccsp-p-and-m_DNSProxy-bringup.patch \
               file://00005-qti-ccsp-p-and-m_Cellular_v6_bringup.patch \
               file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
               file://00007-qti-ccsp-p-and-m_fix-buffer-size.patch \
-              file://00008-CcspPandM-Fix-nonnull-RfcJsonInit-null-filename.patch \
-              file://00009-USB-DM.patch \
-              file://00010-IPPT-changes-for-PAM.patch \
+              file://00008-qti-ccsp-p-and-m_Fix-nonnull-RfcJsonInit-null-filename.patch \
+              file://00009-qti-ccsp-p-and-m_USB-DM.patch \
+              file://00010-qti-ccsp-p-and-m_IPPT-changes.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
