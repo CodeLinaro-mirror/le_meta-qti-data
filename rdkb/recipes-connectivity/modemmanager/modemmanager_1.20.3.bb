@@ -33,6 +33,7 @@ SRC_URI_append += " \
     file://00010-loopback-modemmanager.patch \
     file://00011-Add_modem_ready_dependency_in_service.patch \
     file://00012-ModemManager_qmi_ready_check.patch \
+    file://00013-IPv4_Fix_for_xlat.patch \
 "
 
 S = "${WORKDIR}/git"
