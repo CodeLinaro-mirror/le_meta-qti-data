@@ -18,7 +18,7 @@ TimeoutStopSec=20
 ExecStopPost=/bin/sh -c 'rm /var/run/data/monitor/ipacmd.pid'
 User=radio
 Group=radio
-SupplementaryGroups=diag inet dlt
+SupplementaryGroups=diag inet
 AmbientCapabilities=CAP_NET_ADMIN
 CapabilityBoundingSet=CAP_NET_ADMIN
 
