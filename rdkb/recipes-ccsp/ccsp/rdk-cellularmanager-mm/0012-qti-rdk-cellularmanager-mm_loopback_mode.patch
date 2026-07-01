@@ -1,0 +1,165 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From f3c627aaa15f7519eb55dde799258eca015649a2 Mon Sep 17 00:00:00 2001
+From: HuaWen CHEN <huawenc@qti.qualcomm.com>
+Date: Fri, 12 Jun 2026 23:52:13 +0800
+Subject: [PATCH] Apply recipe patch:
+ 0006-qti-rdk-cellularmanager-mm_loopback_mode.patch
+
+Change-Id: Id05d8d433cad6ca909276e74b845f82308857c1d
+Signed-off-by: HuaWen CHEN <huawenc@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_sm.c | 66 ++++++++++++++++++++-----
+ 1 file changed, 54 insertions(+), 12 deletions(-)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index c7c5832..12a6b04 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -87,7 +87,8 @@ typedef  struct
+     CellularNetworkPacketStatus_t             enNetworkIPv6PacketServiceStatus;
+     unsigned char                             bIPv6WaitingForPacketStatus;
+     PCELLULAR_INTERFACE_INFO                  pCmIfData;
+-    PCELLULAR_DML_INFO                        pstDmlCellular; 
++    PCELLULAR_DML_INFO                        pstDmlCellular;
++    unsigned char                             bIsLoopbackMode;
+ 
+ } CellularMgrPolicyCtrlSMStruct;
+ 
+@@ -245,7 +246,14 @@ int CellularMgrDeviceRegistrationStatusCBForSM( CellularDeviceNASStatus_t device
+     if( (gpstCellularPolicyCtrl->enDeviceNASRegisterStatus == DEVICE_NAS_STATUS_REGISTERED )
+          && (device_registration_status == DEVICE_NAS_STATUS_NOT_REGISTERED))
+     {
+-        gpstCellularPolicyCtrl->enDeviceNASRegisterStatus = DEVICE_NAS_STATUS_REGISTERING;
++        if( gpstCellularPolicyCtrl->bIsLoopbackMode )
++        {
++            CcspTraceInfo(("%s - Loopback mode: suppressing registration loss event\n", __FUNCTION__));
++        }
++        else
++        {
++            gpstCellularPolicyCtrl->enDeviceNASRegisterStatus = DEVICE_NAS_STATUS_REGISTERING;
++        }
+     }
+     else
+         gpstCellularPolicyCtrl->enDeviceNASRegisterStatus = device_registration_status;
+@@ -275,6 +283,11 @@ int CellularMgrProfileStatusCBForSM(char *profile_name, CellularPDPType_t  PDPTy
+     snprintf(gpstCellularPolicyCtrl->acChoosedProfileName, sizeof(gpstCellularPolicyCtrl->acChoosedProfileName), "%s", profile_name);
+     gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus = profile_status;
+     gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile    = PDPType;
++    gpstCellularPolicyCtrl->bIsLoopbackMode = (strncmp(gpstCellularPolicyCtrl->stContextProfile.APN, "loopback", sizeof("loopback") - 1) == 0);
++    if( gpstCellularPolicyCtrl->bIsLoopbackMode )
++    {
++        CcspTraceInfo(("%s - Loopback mode detected (APN='%s'), registration check will be bypassed\n", __FUNCTION__, gpstCellularPolicyCtrl->stContextProfile.APN));
++    }
+ 
+     return RETURN_OK;
+ }
+@@ -619,6 +632,7 @@ static CellularPolicySmState_t TransitionDown( void )
+     gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus        = DEVICE_SLOT_STATUS_NOT_READY;
+     gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
+     gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
++    gpstCellularPolicyCtrl->bIsLoopbackMode                    = FALSE;
+ 
+     //PhyStatus should be down
+     CcspTraceInfo(("%s - Updating physical status to DOWN for this '%s' interface\n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
+@@ -1036,7 +1050,25 @@ static CellularPolicySmState_t StateDeregistered( void )
+         return ( TransitionDeactivated( ) );
+     }
+ 
+-    //Continue if it is selecting valid SIM   
++    /* Loopback APN never registers on a real network — bypass SIM/NAS checks entirely
++     * and go straight to bearer creation so the SM can proceed to REGISTERED state. */
++    if( ( gpstCellularPolicyCtrl->pCmIfData->Enable == TRUE ) &&
++        ( strncmp(gpstCellularPolicyCtrl->stContextProfile.APN, "loopback",
++                  sizeof("loopback") - 1) == 0 ) )
++    {
++        CcspTraceInfo(("%s %d - Loopback APN: bypassing NAS registration, transitioning to REGISTERED\n",
++                       __FUNCTION__, __LINE__));
++        gpstCellularPolicyCtrl->bIsLoopbackMode = TRUE;
++        CellularMgrSMSetCurrentState(CELLULAR_STATE_REGISTERED);
++        if( DEVICE_PROFILE_STATUS_NOT_READY ==
++                gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus )
++        {
++            TransitionRegistered();
++        }
++        return CELLULAR_STATE_REGISTERED;
++    }
++
++    //Continue if it is selecting valid SIM
+     if( ( DEVICE_SLOT_STATUS_SELECTING == gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus ) ||
+         ( DEVICE_NAS_STATUS_REGISTERING == gpstCellularPolicyCtrl->enDeviceNASRegisterStatus ) ||
+         ( gpstCellularPolicyCtrl->pCmIfData->Enable == FALSE ) ||
+@@ -1097,17 +1129,19 @@ static CellularPolicySmState_t StateRegistered( void )
+         return ( TransitionDeactivated( ) );
+     }
+ 
+-    if( ( DEVICE_SLOT_STATUS_NOT_READY == gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus ) ||
+-        ( ( RETURN_OK == CellularMgr_GetActiveCardStatus( &enCardStatus ) ) &&
+-          ( SIM_STATUS_VALID != enCardStatus ) ) ||
+-        ( gpstCellularPolicyCtrl->pCmIfData->Enable == FALSE ) )
++    if( !gpstCellularPolicyCtrl->bIsLoopbackMode &&
++        ( ( DEVICE_SLOT_STATUS_NOT_READY == gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus ) ||
++          ( ( RETURN_OK == CellularMgr_GetActiveCardStatus( &enCardStatus ) ) &&
++            ( SIM_STATUS_VALID != enCardStatus ) ) ||
++          ( gpstCellularPolicyCtrl->pCmIfData->Enable == FALSE ) ) )
+     {
+         gpstCellularPolicyCtrl->enDeviceNASRegisterStatus = DEVICE_NAS_STATUS_NOT_REGISTERED;
+         CellularMgrSMSetCurrentState(CELLULAR_STATE_DEREGISTERED);
+         return CELLULAR_STATE_DEREGISTERED;
+     }
+ 
+-    if(DEVICE_NAS_STATUS_REGISTERED != gpstCellularPolicyCtrl->enDeviceNASRegisterStatus )
++    if( !gpstCellularPolicyCtrl->bIsLoopbackMode &&
++        DEVICE_NAS_STATUS_REGISTERED != gpstCellularPolicyCtrl->enDeviceNASRegisterStatus )
+     {
+         CcspTraceInfo(("%s %d - State changed to CELLULAR_STATE_DEREGISTERED as deregistered \n", __FUNCTION__, __LINE__));
+         gpstCellularPolicyCtrl->enDeviceNASRegisterStatus = DEVICE_NAS_STATUS_REGISTERING;
+@@ -1115,7 +1149,8 @@ static CellularPolicySmState_t StateRegistered( void )
+         return CELLULAR_STATE_DEREGISTERED;
+     }
+ 
+-    if(( DEVICE_NAS_STATUS_REGISTERED == gpstCellularPolicyCtrl->enDeviceNASRegisterStatus ) &&
++    if( ( ( DEVICE_NAS_STATUS_REGISTERED == gpstCellularPolicyCtrl->enDeviceNASRegisterStatus ) ||
++           gpstCellularPolicyCtrl->bIsLoopbackMode ) &&
+        ( DEVICE_PROFILE_STATUS_NOT_READY == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus ) )
+     {
+         TransitionRegistered();
+@@ -1134,11 +1169,16 @@ static CellularPolicySmState_t StateRegistered( void )
+     if( ( DEVICE_PROFILE_STATUS_READY == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus ) &&
+         (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == TRUE) &&
+ #ifndef WAN_MANAGER_UNIFICATION_ENABLED
+-        ( gpstCellularPolicyCtrl->pCmIfData->Upstream == TRUE ) &&
++        ( gpstCellularPolicyCtrl->bIsLoopbackMode || gpstCellularPolicyCtrl->pCmIfData->Upstream == TRUE ) &&
+ #endif
+         ( ( DEVICE_NETWORK_STATUS_CONNECTED != gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus ) &&
+           ( DEVICE_NETWORK_STATUS_CONNECTED != gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus ) ) )
+     {
++        if( gpstCellularPolicyCtrl->bIsLoopbackMode )
++        {
++            CcspTraceInfo(("%s %d - Loopback mode: bypassing Upstream check, starting network\n", __FUNCTION__, __LINE__));
++            return ( TransitionRegisteredStartNetwork() );
++        }
+         while ( iter < max_wait)
+         {
+             sleep(1);
+@@ -1199,10 +1239,12 @@ static CellularPolicySmState_t StateConnected( void )
+          (DEVICE_PROFILE_STATUS_DELETED == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus) ||
+          /* move out of connected state if device profile is deleted .. user could have set APN to FALSE resulting in bearer deletion.*/
+ #endif
+-         ( DEVICE_SLOT_STATUS_NOT_READY       == gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus ) ||
++         ( DEVICE_SLOT_STATUS_NOT_READY       == gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus &&
++           !gpstCellularPolicyCtrl->bIsLoopbackMode ) ||
+          ( gpstCellularPolicyCtrl->pCmIfData->Enable == FALSE ) ||
+ #ifndef WAN_MANAGER_UNIFICATION_ENABLED
+-         ( gpstCellularPolicyCtrl->pCmIfData->Upstream == FALSE ) ||
++         ( gpstCellularPolicyCtrl->pCmIfData->Upstream == FALSE &&
++           !gpstCellularPolicyCtrl->bIsLoopbackMode ) ||
+ #endif
+          ( ( CELLULAR_PDP_TYPE_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) &&
+            ( DEVICE_NETWORK_STATUS_DISCONNECTED == gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus ) ) || 
+-- 
+2.34.1
+

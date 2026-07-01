@@ -1,0 +1,157 @@
+From: Alekhya Tumma <talekhya@qti.qualcomm.com>
+Date: Thu, 29 May 2025 00:00:00 +0000
+Subject: [PATCH] ModemManager: add loopback bearer support for pinn_rdkb_au366
+
+Add loopback bearer support across three ModemManager source files.
+A loopback bearer is identified by APN="loopback" and uses a
+modem-internal data path that does not require 3GPP network registration.
+
+Changes by file:
+
+src/mm-iface-modem-simple.c (Phase 2 - connect):
+  - Bypass 3GPP/CDMA registration step in connection_step() when
+    APN is "loopback".  Skip directly to CONNECTION_STEP_BEARER so
+    the connect flow proceeds without waiting for network registration.
+
+src/mm-base-bearer.c (Phase 1 - registration guard):
+  - In modem_3gpp_registration_state_changed(), skip registration
+    enforcement for loopback bearers.  Cancel any pending deferred
+    unregistration timer and return immediately so the loopback bearer
+    stays connected regardless of 3GPP registration state.
+
+src/mm-bearer-qmi.c (Phases 3/4 - QMI bearer):
+  - Phase 3 (connect): Detect loopback bearer by APN name and set
+    loopback_mode flag.
+  - Phase 4 (report_connection_status): Suppress forced disconnection
+    triggered by the deferred 3GPP unregistration timer while a
+    loopback call is active.
+
+All changes are guarded by APN/loopback_mode checks so that normal
+(non-loopback) bearers are completely unaffected.
+
+Signed-off-by: Alekhya Tumma <talekhya@qti.qualcomm.com>
+---
+ src/mm-base-bearer.c        |  10 +++
+ src/mm-bearer-qmi.c         |  33 ++++++++++++++++++++++++++++++++++++
+ src/mm-iface-modem-simple.c |  22 +++++++++
+ 3 files changed, 65 insertions(+)
+
+diff --git a/src/mm-iface-modem-simple.c b/src/mm-iface-modem-simple.c
+index d4490f23..b097ade4 100644
+--- a/src/mm-iface-modem-simple.c
++++ b/src/mm-iface-modem-simple.c
+@@ -605,6 +605,28 @@ connection_step (ConnectionContext *ctx)
+     case CONNECTION_STEP_REGISTER:
+         mm_obj_info (ctx->self, "simple connect state (%d/%d): register",
+                      ctx->step, CONNECTION_STEP_LAST);
++
++        /* [LOOPBACK HOOK - Phase 2]
++         * Bypass 3GPP/CDMA registration for loopback data calls.
++         * Loopback bearers use APN="loopback" and are modem-internal;
++         * they do not require network registration.  Skip directly to
++         * CONNECTION_STEP_BEARER (ctx->step++). */
++        {
++            const gchar *apn;
++
++            apn = mm_simple_connect_properties_get_apn (ctx->properties);
++            if (g_strcmp0 (apn, "loopback") == 0) {
++                mm_obj_info (ctx->self,
++                             "simple connect state (%d/%d): register -- "
++                             "BYPASSED for loopback APN",
++                             ctx->step, CONNECTION_STEP_LAST);
++                ctx->step++;
++                ctx->step++;
++                connection_step (ctx);
++                return;
++            }
++        }
++
+         if (mm_iface_modem_is_3gpp (MM_IFACE_MODEM (ctx->self)) ||
+             mm_iface_modem_is_cdma (MM_IFACE_MODEM (ctx->self))) {
+             /* 3GPP or CDMA registration */
+diff --git a/src/mm-base-bearer.c b/src/mm-base-bearer.c
+index 64a19a97..893286cb 100644
+--- a/src/mm-base-bearer.c
++++ b/src/mm-base-bearer.c
+@@ -687,6 +687,16 @@ modem_3gpp_registration_state_changed (MMIfaceModem3gpp *modem,
+         g_assert_not_reached ();
+     }
+
++    /* [LOOPBACK HOOK] Skip registration enforcement for loopback bearers.
++     * Loopback data calls are modem-internal and do not require network
++     * registration. Allow connect/stay-connected regardless of reg state. */
++    const gchar *apn;
++    apn = mm_bearer_properties_get_apn (self);
++    if (g_strcmp0 (apn, "loopback") == 0) {
++        reset_deferred_unregistration (self);
++        return;
++    }
++
+     /* If no reason to disconnect, or if it's a mixed CDMA+LTE modem without a CDMA reason,
+      * just don't do anything. */
+     if (self->priv->reason_3gpp == CONNECTION_FORBIDDEN_REASON_NONE ||
+diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
+--- a/src/mm-bearer-qmi.c
++++ b/src/mm-bearer-qmi.c
+@@ -68,6 +68,11 @@
+     guint32 packet_data_handle_ipv6;
+
+     GList *pco_list;
++
++
++    /* [LOOPBACK HOOK] Loopback mode flag (Phase 3 of loopback call flow).
++     * loopback_mode : set TRUE in _connect() when bearer APN == "loopback". */
++    gboolean loopback_mode;
+ };
+
+ /*****************************************************************************/
+@@ -539,6 +544,8 @@
+     GError           *error_ipv6;
+     guint             extended_ipv4_config_change_id;
+     guint             extended_ipv6_config_change_id;
++    /* [LOOPBACK HOOK] TRUE when bearer APN == "loopback" */
++    gboolean          loopback_mode;
+ } ConnectContext;
+
+ /* When using the WDS service, we may not only want to have explicit different
+@@ -2593,6 +2600,15 @@
+                            g_object_ref (operation_cancellable),
+                            g_object_unref);
+
++    /* [LOOPBACK HOOK - Phase 3] Detect loopback bearer by APN name.
++     * When APN == "loopback", set loopback_mode on both the context and the
++     * bearer private data. */
++    if (g_strcmp0 (ctx->apn, "loopback") == 0) {
++        ctx->loopback_mode        = TRUE;
++        self->priv->loopback_mode = TRUE;
++        mm_obj_info (self, "loopback bearer: loopback mode detected (APN='loopback')");
++    }
++
+     /* Run! */
+     mm_obj_dbg (self, "launching connection with QMI port (%s) and data port (%s) (multiplex %s)",
+                 mm_port_get_device (MM_PORT (ctx->qmi)),
+@@ -2914,6 +2930,22 @@
+ {
+     MMBearerQmi *self = MM_BEARER_QMI (_self);
+
++    /* [LOOPBACK HOOK - Phase 4]
++     * Suppress forced disconnection triggered by the deferred 3GPP
++     * unregistration timer (mm-base-bearer.c:deferred_3gpp_unregistration_cb)
++     * while a loopback call is intentionally active.
++     *
++     * The loopback data path is modem-internal and does NOT depend on
++     * network registration state.  Returning early here preserves the
++     * loopback bearer connection when the modem loses 3GPP registration. */
++    if (self->priv->loopback_mode &&
++        status == MM_BEARER_CONNECTION_STATUS_DISCONNECTED) {
++        mm_obj_dbg (_self,
++                    "loopback bearer: suppressing forced disconnect "
++                    "(loopback active, 3GPP registration state irrelevant)");
++        return;
++    }
++
+     if (status == MM_BEARER_CONNECTION_STATUS_DISCONNECTED) {
+         /* Cancel any ongoing connection attempt */
+         g_cancellable_cancel (self->priv->ongoing_connect_network_cancellable);
+--
+2.17.1
