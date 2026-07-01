@@ -40,8 +40,10 @@ endif
 define Build/Compile
   if [ "$(BOARD)" = "echo" ]; then \
       $(KERNEL_MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+      $(KERNEL_MAKE) -C "$(LINUX_DIR)" M="$(PKG_BUILD_DIR)/stats_mgr" KBUILD_EXTRA_SYMBOLS="$(PKG_BUILD_DIR)/Module.symvers" modules; \
   else \
       $(MAKE) -C "$(LINUX_DIR)" $(MAKE_OPTS) modules; \
+      $(MAKE) -C "$(LINUX_DIR)" M="$(PKG_BUILD_DIR)/stats_mgr" KBUILD_EXTRA_SYMBOLS="$(PKG_BUILD_DIR)/Module.symvers" modules; \
   fi
 endef
 
@@ -55,6 +57,10 @@ define Build/InstallDev
 	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/linux/* $(STAGING_DIR)/usr/include/linux
 	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/ipa_qmi_service_v01.h $(STAGING_DIR)/usr/include/linux
 	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/rmnet_ipa_fd_ioctl.h $(STAGING_DIR)/usr/include/linux
+	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/ipa_stats_client.h $(STAGING_DIR)/usr/include/linux
+	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/ipa_stats_genl.h $(STAGING_DIR)/usr/include/linux
+	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/uapi/linux
+	$(CP) $(LOCAL_SRC)/drivers/platform/msm/include/uapi/linux/ipa_stats_genl.h $(STAGING_DIR)/usr/include/uapi/linux
 	$(INSTALL_DIR) $(STAGING_DIR)/usr/include/ipa_test_module
 	$(CP) $(LOCAL_SRC)/drivers/platform/msm/ipa/ipa_test_module/* $(STAGING_DIR)/usr/include/ipa_test_module/
 endef
@@ -69,6 +75,7 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(1)/lib/modules/ipa/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko $(1)/lib/modules/ipa/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko $(1)/lib/modules/ipa/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/stats_mgr/ipa_stats.ko $(1)/lib/modules/ipa/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_DIR) $(1)/etc/initscripts/
 	$(INSTALL_BIN) ./files/dataipa.init $(1)/etc/init.d
@@ -84,6 +91,7 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipam.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipanetm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/stats_mgr/ipa_stats.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 endef
 
 $(eval $(call KernelPackage,$(PKG_NAME)))

@@ -32,6 +32,7 @@ RPROVIDES:${PN} += "kernel-module-*-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-ipanetm-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-gsim-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-ipam-${KERNEL_VERSION}"
+RPROVIDES:${PN} += "kernel-module-ipa-stats-${KERNEL_VERSION}"
 
 EXTRA_OEMAKE += "DATAIPADRVTOP=${DATAIPADRVTOP}"
 EXTRA_OEMAKE += "KERNEL_SRC=${STAGING_KERNEL_DIR}"
@@ -45,7 +46,15 @@ IPA_PLATFORM = "${@'rdkb' if d.getVar('BASEMACHINE') == 'echo' else ''}"
 
 do_compile() {
 	cd ${S}
-	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} modules
+	# Build main IPA modules first. ipam.ko calls ipa_stats_process_tuple_* which are
+	# exported by ipa_stats.ko (not yet built), so suppress modpost symbol errors —
+	# these symbols are resolved at runtime when ipa_stats.ko loads before ipam.ko.
+	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} \
+		KBUILD_MODPOST_WARN=1 modules
+	# Build ipa_stats.ko with ipam's Module.symvers so it can import ipam symbols
+	# (ipa_be_query_tuple_stats, etc.)
+	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S}/stats_mgr \
+		KBUILD_EXTRA_SYMBOLS=${S}/Module.symvers modules
 }
 do_install() {
    install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
@@ -64,6 +73,17 @@ do_install() {
 		${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${module_path}/${module}
      install -m 0644  ${module_path}/${module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
    done
+
+   # Stats manager generic-netlink kernel module
+   stats_module="${UNPACKDIR}/dataipa/stats_mgr/ipa_stats.ko"
+   cp ${stats_module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
+   # Strip debug symbols
+   ${STRIP} --strip-debug ${stats_module}
+   #Signing and installing the stats manager module
+   LD_LIBRARY_PATH=${WORKSPACE}/kernel/kernel_platform/prebuilts/kernel-build-tools/linux-x86/lib64/ \
+   ${STAGING_KERNEL_BUILDDIR}/scripts/sign-file sha1 ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.pem \
+   ${STAGING_KERNEL_BUILDDIR}/certs/signing_key.x509 ${stats_module}
+   install -m 0644 ${stats_module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
 
    install -d ${D}${sysconfdir}/initscripts/
    install -m 0555 ${UNPACKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
