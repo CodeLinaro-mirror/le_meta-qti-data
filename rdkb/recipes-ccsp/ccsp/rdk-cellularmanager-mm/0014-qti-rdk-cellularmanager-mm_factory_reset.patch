@@ -1,0 +1,153 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From d394956803cd19cb266b77a428692bef04f9ac7b Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Wed, 8 Jul 2026 11:30:56 +0530
+Subject: Cellular manager implementation for factory reset
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.c         |  4 ++
+ source/CellularManager/cellular_hal_mm_apis.c | 41 ++++++++++++++++---
+ .../cellularmgr_cellular_apis.c               | 26 ++++++++++++
+ 3 files changed, 66 insertions(+), 5 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.c b/source/CellularManager/cellular_hal.c
+index 1506bbc..8a8f08e 100755
+--- a/source/CellularManager/cellular_hal.c
++++ b/source/CellularManager/cellular_hal.c
+@@ -668,6 +668,10 @@ int cellular_hal_modem_factory_reset( void )
+     }
+ #endif
+ 
++#if defined(MM_SUPPORT) && defined(CM_EXTN_SUPPORTED)
++    cellular_hal_extn_mm_remove_bearer();
++#endif
++
+     return RETURN_OK;
+ }
+ 
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index b591536..57596cd 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -40,6 +40,8 @@
+ #define CELLULAR_ICCID_MAX_LENGTH                        21
+ #define CELLULAR_IMSI_MAX_LENGTH                         16
+ #define CELLULAR_OPERATOR_NAME_MAX_LENGTH                32
++#define LOOP_MAX_RETRIES                                 10
++#define LOOP_RETRY_DELAY                            1000000
+ #endif
+ guint mm_watch_id;
+ typedef struct {
+@@ -64,6 +66,7 @@ static GMainLoop* loop = NULL;
+ #ifdef CM_EXTN_SUPPORTED
+ extern state_chg_sem;
+ extern mm_sm_sync_sem;
++pthread_mutex_t hashTableMutex = PTHREAD_MUTEX_INITIALIZER;
+ #endif //CM_EXTN_SUPPORTED
+ 
+ CellularNetworkCBStruct *networkStatusCB = NULL;
+@@ -615,6 +618,11 @@ static gpointer gmainloop(gpointer data)
+             break;
+         else
+             sleep(1);
++
++        if (error) {
++            g_error_free (error);
++            error = NULL;
++        }
+     } while ( 1 );
+ 
+     do
+@@ -626,13 +634,36 @@ static gpointer gmainloop(gpointer data)
+             sleep(1);
+     } while ( 1 );
+ 
++#ifdef CM_EXTN_SUPPORTED
++    pthread_mutex_lock(&hashTableMutex);
++    hashTable = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
++    pthread_mutex_unlock(&hashTableMutex);
++#else
+     hashTable = g_hash_table_new(g_str_hash, g_str_equal);
+-    
+-    g_mutex_init(&manager_mutex);
++#endif
++
+     GMainContext* loop_context = (GMainContext*) data;
+-    GMainLoop* loop = g_main_loop_new (loop_context, FALSE);
+-    g_main_context_push_thread_default(loop_context);
+-    g_main_loop_run (loop);
++    for(int retry = 1 ; retry <= LOOP_MAX_RETRIES ; retry++)
++    {
++        loop = g_main_loop_new (loop_context, FALSE);
++        if(NULL != loop)
++        {
++            g_main_context_push_thread_default(loop_context);
++            g_main_loop_run (loop);
++            CELLULAR_HAL_DBG_PRINT("%s:%d - Releasing g-loop resources\n", __FUNCTION__, __LINE__);
++            g_main_loop_unref(loop);
++            loop = NULL;
++            break;
++        }
++
++        if(LOOP_MAX_RETRIES == retry)
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - ERROR : Failed max loop retries,reboot required. !!\n" ,__FUNCTION__);
++            break;
++        }
++
++       usleep(LOOP_RETRY_DELAY);
++    }
+ }
+ 
+ void cellular_hal_mm_main_loop_init(void)
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index ee8fa44..72c1953 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -1205,6 +1205,30 @@ void* CellularMgr_FactoryResetThread(void* arg)
+     if ( RETURN_OK == cellular_hal_modem_factory_reset() )
+     {
+         CcspTraceInfo (("%s : Resetting Cellular to factory default settings\n", __FUNCTION__));
++#ifdef CM_EXTN_SUPPORTED
++
++        char *pReloadconfig = "com.cisco.spvtg.ccsp.psm.ReloadConfig";
++        char *pParamVal = "TRUE";
++
++        // Deleting all cellular PSM records
++        if(RETURN_OK == CellularMgr_extn_DelFactoryResetParamValuesFromDB())
++        {
++            // Reseting PSM records to default values
++            if( CCSP_SUCCESS == CellularMgr_RdkBus_SetParamValuesToDB( pReloadconfig, pParamVal ))
++            {
++                CcspTraceInfo (("%s : Reseting Cellular DB to default settings\n", __FUNCTION__));
++            }
++            else
++            {
++                CcspTraceInfo (("%s : Failed to Reset DB to default settings, error returning\n", __FUNCTION__));
++            }
++        }
++        else
++        {
++                CcspTraceInfo (("%s : Failed to remove current configuration from DB, error returning\n", __FUNCTION__));
++        }
++
++#endif
+ 
+         // cellular_hal_modem_reset HAL Function
+         if ( RETURN_OK == cellular_hal_modem_reset() )
+@@ -1215,6 +1239,8 @@ void* CellularMgr_FactoryResetThread(void* arg)
+         {
+             CcspTraceError(("%s : returns error returning.\n", __FUNCTION__));
+         }
++        // Need to free HAL resources before factory reset
++        cellular_hal_resource_release();
+         //Restarting the Cellular after HAL configuration
+         exit(0);
+     }
+-- 
+2.34.1
+
