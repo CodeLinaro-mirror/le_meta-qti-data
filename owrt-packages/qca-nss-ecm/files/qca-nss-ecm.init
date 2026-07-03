@@ -73,8 +73,17 @@ load_ecm() {
 
 unload_ecm() {
 
-	[ -w /proc/sys/net/bridge/bridge-nf-call-ip6tables ] && sysctl -w net.bridge.bridge-nf-call-ip6tables=0
-	[ -w /proc/sys/net/bridge/bridge-nf-call-iptables ]  && sysctl -w net.bridge.bridge-nf-call-iptables=0
+	[ -w /proc/sys/net/bridge/bridge-nf-call-ip6tables ] && {
+        sysctl -w net.bridge.bridge-nf-call-ip6tables=0
+        sed -i '/^net\.bridge\.bridge-nf-call-ip6tables=/d' /etc/sysctl.d/qca-nss-ecm.conf
+        echo 'net.bridge.bridge-nf-call-ip6tables=0' >> /etc/sysctl.d/qca-nss-ecm.conf
+    }
+
+    [ -w /proc/sys/net/bridge/bridge-nf-call-iptables ] && {
+        sysctl -w net.bridge.bridge-nf-call-iptables=0
+        sed -i '/^net\.bridge\.bridge-nf-call-iptables=/d' /etc/sysctl.d/qca-nss-ecm.conf
+        echo 'net.bridge.bridge-nf-call-iptables=0' >> /etc/sysctl.d/qca-nss-ecm.conf
+    }
 
 	if [ -d /sys/module/ecm ]; then
 		#
@@ -107,8 +116,17 @@ unload_ecm_sdx_pcc() {
 pre_start() {
 	#Pre-Start Commands
 
-	[ -w /proc/sys/net/bridge/bridge-nf-call-ip6tables ] && sysctl -w net.bridge.bridge-nf-call-ip6tables=1
-	[ -w /proc/sys/net/bridge/bridge-nf-call-iptables ]  && sysctl -w net.bridge.bridge-nf-call-iptables=1
+	[ -w /proc/sys/net/bridge/bridge-nf-call-ip6tables ] && {
+        sysctl -w net.bridge.bridge-nf-call-ip6tables=1
+        sed -i '/^net\.bridge\.bridge-nf-call-ip6tables=/d' /etc/sysctl.d/qca-nss-ecm.conf
+        echo 'net.bridge.bridge-nf-call-ip6tables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
+    }
+
+    [ -w /proc/sys/net/bridge/bridge-nf-call-iptables ] && {
+        sysctl -w net.bridge.bridge-nf-call-iptables=1
+        sed -i '/^net\.bridge\.bridge-nf-call-iptables=/d' /etc/sysctl.d/qca-nss-ecm.conf
+        echo 'net.bridge.bridge-nf-call-iptables=1' >> /etc/sysctl.d/qca-nss-ecm.conf
+    }
 
 	#Disable ipa hw offload for eth
 	#[ -f  /sys/class/net/eth0/suspend_ipa_offload ] && echo 1 > /sys/class/net/eth0/suspend_ipa_offload
