@@ -16,6 +16,7 @@ SRC_URI:append = " \
     file://00010-utopia-ssh-gateway-IPv4.patch \
     file://00011-utopia-Fix-for-SSH-access-Failure-post-reboot.patch \
     file://00012-utopia-IPPT-bringup.patch \
+    file://00013-utopia-factory-reset-changes.patch \
 "
 do_install:append() {
     install -m 0755 ${WORKDIR}/service_sshd_qti.sh \

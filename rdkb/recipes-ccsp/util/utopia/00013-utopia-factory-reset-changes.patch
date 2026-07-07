@@ -1,0 +1,44 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 2c9c9c84908103ae4952fc95b011faaf2e61c538 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Thu, 2 Jul 2026 06:06:04 +0000
+Subject: [PATCH] utopia-factory-reset-changes
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/scripts/init/system/utopia_init.sh | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/source/scripts/init/system/utopia_init.sh b/source/scripts/init/system/utopia_init.sh
+index 4c7ddbd..231665f 100755
+--- a/source/scripts/init/system/utopia_init.sh
++++ b/source/scripts/init/system/utopia_init.sh
+@@ -125,7 +125,6 @@ PSM_TMP_XML_CONFIG_FILE_NAME="$SYSCFG_MOUNT/bbhm_tmp_cfg.xml"
+ PSM_DEF_XML_CONFIG_FILE_NAME="/usr/ccsp/config/bbhm_def_cfg.xml"
+ XDNS_DNSMASQ_SERVERS_CONFIG_FILE_NAME="$SYSCFG_MOUNT/dnsmasq_servers.conf"
+ FACTORY_RESET_REASON=false
+-
+ HOTSPOT_BLOB="/nvram/hotspot_blob"
+ #Disabling HOTSPOT_JSON variable
+ #HOTSPOT_JSON="/nvram/hotspot.json"
+@@ -314,6 +313,12 @@ fi
+ SYSCFG_FR_VAL="`syscfg get $FACTORY_RESET_KEY`"
+ 
+ if [ "$FACTORY_RESET_RGWIFI" = "$SYSCFG_FR_VAL" ]; then
++   if [ "$BOX_TYPE" = "echo" ];then
++       rm -rf $PSM_CUR_XML_CONFIG_FILE_NAME
++       rm -rf /nvram/bbhm_bak_cfg.xml
++       rm -rf /data/vendor/ramdump/*
++       rm -f /nvram/hostapd*
++   fi
+    echo_t "[utopia][init] Performing factory reset"
+ 
+ SYSCFG_PARTNER_FR="`syscfg get PartnerID_FR`"
+-- 
+2.34.1
+

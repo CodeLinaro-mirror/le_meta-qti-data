@@ -20,6 +20,7 @@ SRC_URI += " \
               file://00009-qti-ccsp-p-and-m_USB-DM.patch \
               file://00010-qti-ccsp-p-and-m_IPPT-changes.patch \
               file://00011-qti-ccsp-p-and-m_Fix-ipv6-dm-population.patch \
+              file://00012-qti-ccsp-p-and-m_changes_for_factory_reset.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
