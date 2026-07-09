@@ -1,0 +1,84 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 6d905f83df0a90e3660d5192cd4d4ec1f66575bb Mon Sep 17 00:00:00 2001
+From: Amal P Mathews <amalmath@qti.qualcomm.com>
+Date: Thu, 9 Jul 2026 09:57:05 +0000
+Subject: DM implementation of IPv6 prefix delegation
+Signed-off-by: Amal P Mathews <amalmath@qti.qualcomm.com>
+---
+ .../CellularManager/cellularmgr_cellular_apis.c   |  6 ++++++
+ source/CellularManager/cellularmgr_sm.c           | 15 +++++++++++++++
+ .../middle_layer_src/cellularmgr_rbus_dml.c       |  4 ++++
+ 3 files changed, 25 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index ee8fa44..92d3440 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -813,6 +813,9 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+         CellularProfileStruct *pstSmCtxProfile = NULL;
+         pstSmCtxProfile = get_sm_apctx_profile ();
+         pstProfileOutput->stPrflCtxExtn.bConnectBackHaul = pstSmCtxProfile->stPrflCtxExtn.bConnectBackHaul;
++#ifdef CM_PROP_SUPPORTED
++        pstProfileOutput->stPrflCtxExtn.bEnablePrefixDelegation = pstSmCtxProfile->stPrflCtxExtn.bEnablePrefixDelegation;
++#endif
+         snprintf(pstProfileOutput->stPrflCtxExtn.Alias, sizeof(pstProfileOutput->stPrflCtxExtn.Alias), pstSmCtxProfile->stPrflCtxExtn.Alias);
+ #endif
+         if( 0 < iProfileCount )
+@@ -845,6 +848,9 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+ #ifdef CM_EXTN_SUPPORTED
+                     pstAPInfo[i].APNType = pstProfileOutput[i].APNType;
+                     pstAPInfo[i].stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul = pstProfileOutput[i].stPrflCtxExtn.bConnectBackHaul;
++#ifdef CM_PROP_SUPPORTED
++                    pstAPInfo[i].stCellularAccessPointInfoExtn.stIPv6Info.enablePrefixDelegation = pstProfileOutput[i].stPrflCtxExtn.bEnablePrefixDelegation;
++#endif
+                     snprintf(pstAPInfo[i].Alias, sizeof(pstAPInfo[i].Alias), pstProfileOutput[i].stPrflCtxExtn.Alias);
+ #endif
+                     if( CELLULAR_PDP_TYPE_IPV4 == pstProfileOutput[i].PDPType )
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 7371ac9..3acaa07 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -1406,6 +1406,21 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+         if (policy_sm_state_old != policy_sm_state) // This is just to add log
+         {
+             CcspTraceInfo(("%s %d - New state: %d ,Previous state :%d  \n", __FUNCTION__, __LINE__,policy_sm_state,policy_sm_state_old));
++
++#if defined(CM_EXTN_SUPPORTED) && defined(CM_PROP_SUPPORTED)
++            if (policy_sm_state == CELLULAR_STATE_CONNECTED)
++            {
++                if(gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bEnablePrefixDelegation == TRUE)
++                {
++                    CellularMgr_extn_GetIpv6Prefix();
++                }
++                else
++                {
++                    CcspTraceInfo(("%s: Prefix Delegation not enabled \n", __FUNCTION__));
++                }
++            }
++#endif // CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
++
+             policy_sm_state_old = policy_sm_state;
+             CellularMgrSMCheckAndSetWWANConnectionStatus( policy_sm_state );
+ #ifdef CM_EXTN_SUPPORTED
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 7675051..36b2af8 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3673,6 +3673,10 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.AccessPoint.{i}.IPv6Address", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.Type", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.ConnectBackHaul", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamBoolValue_rbus, Cellular_AccessPoint_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++#endif
++#ifdef CM_PROP_SUPPORTED
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.IPv6.EnablePrefixDelegation", RBUS_ELEMENT_TYPE_PROPERTY, {IPv6_GetParamBoolValue_rbus, IPv6_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.IPv6.Ipv6Prefix", RBUS_ELEMENT_TYPE_PROPERTY, {IPv6_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #endif
+     };
+     rc = rbus_regDataElements(handle, ARRAY_SZ(dataElements), dataElements);
+-- 
+2.34.1
+
