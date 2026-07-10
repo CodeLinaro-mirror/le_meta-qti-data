@@ -21,6 +21,7 @@ SRC_URI += " \
     file://00007-qti-wanmanager_automated_usb_tethering.patch \
     file://00008-IPPT-changes-for-wan-manager.patch \
     file://00009-qti-WanManager-remove-ippt-ipa-ippass-calls.patch \
+    file://00010-qti-Wanmanager-AddressReconf-brlan0-old-ipv6-not-deleting.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
