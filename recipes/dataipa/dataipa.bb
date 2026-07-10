@@ -39,6 +39,10 @@ EXTRA_OEMAKE += "KERNEL_SRC=${STAGING_KERNEL_DIR}"
 IPA_PLATFORM = "${@'rdkb' if d.getVar('BASEMACHINE') == 'echo' else ''}"
 
 #TARGET_VARIANT= "${@bb.utils.contains('KERNEL_VARIANT', 'perf_', 'perf_defconfig', 'debug_defconfig', d)}"
+#do_configure() {
+#    cp ${UNPACKDIR}/kobj/Makefile ${S}/
+#}
+
 do_compile() {
 	cd ${S}
 	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} modules
@@ -63,9 +67,6 @@ do_install() {
 
    install -d ${D}${sysconfdir}/initscripts/
    install -m 0555 ${UNPACKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
-   install -d ${D}${sysconfdir}/data/ipa_be/
-   install -d ${D}${nonarch_base_libdir}/firmware/ipa_be/
-   install -m 0555 ${UNPACKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
    sed -i 's|@IPA_PLATFORM@|${IPA_PLATFORM}|g' ${D}${sysconfdir}/initscripts/start_dataipa_le
    install -d ${D}${systemd_unitdir}/system/
    install -m 0644 ${UNPACKDIR}/dataipa.service -D ${D}${systemd_unitdir}/system/dataipa.service
@@ -74,6 +75,10 @@ do_install() {
    install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
    ln -sf ${systemd_unitdir}/system/dataipa.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
+   install -d ${D}${sysconfdir}/data/ipa_be/
+   install -m 0444 ${UNPACKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
+   install -d ${D}${nonarch_base_libdir}/firmware/ipa_be
+   ln -sf ${sysconfdir}/data/ipa_be/ipa_ini_file.ini ${D}${nonarch_base_libdir}/firmware/ipa_be/ipa_ini_file.ini
 
     # This copy of the headers contains both the kernel and unsanitized UAPI.
     # This is intended for use by other kernel modules.
