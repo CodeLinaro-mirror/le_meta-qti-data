@@ -1,7 +1,9 @@
-From b15c87a0473aacdb04a601784793de7fec1cbb31 Mon Sep 17 00:00:00 2001
-From: Paras Singh Jain<parassin@codeaurora.org>
-Date: Thu, 7 Jan 2021 00:02:05 +0530
+From 3d54c17e8609af2c756483a72dbcb87dbf26bc8b Mon Sep 17 00:00:00 2001
+From: Dheeraj Kumar <quic_dhekum@quicinc.com>
+Date: Thu, 12 Jan 2023 17:37:53 +0530
 Subject: [PATCH] iproute2 makefile patch
+
+From: Paras Singh Jain<parassin@codeaurora.org>
 signed-off: Paras Singh Jain<parassin@codeaurora.org>
 
 ---
@@ -9,18 +11,15 @@ signed-off: Paras Singh Jain<parassin@codeaurora.org>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/Makefile b/Makefile
-index 0b79b1f..ec4cffa 100644
+index 8a17d61..4dfb399 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -15,7 +15,7 @@ endif
+@@ -16,7 +16,7 @@ endif
+ 
  PREFIX?=/usr
- LIBDIR?=$(PREFIX)/lib
  SBINDIR?=/sbin
 -CONFDIR?=/etc/iproute2
 +CONFDIR?=/etc/data/iproute2
  NETNS_RUN_DIR?=/var/run/netns
  NETNS_ETC_DIR?=/etc/netns
  DATADIR?=$(PREFIX)/share
--- 
-2.29.0
-

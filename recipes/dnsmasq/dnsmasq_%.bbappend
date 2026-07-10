@@ -16,11 +16,10 @@ EXTRA_OEMAKE = "CC='${CC}' \
                 LDFLAGS='${TARGET_LDFLAGS}'"
 
 do_install:append () {
-        install -d ${D}${sysconfdir}/data/
-        install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
-        chown -R root:root ${D}${sysconfdir}/data/dnsmasq.conf
-        # symlink dnsmasq.conf under /etc
-        ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
+        install -m 644 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}
+        chown -R root:root ${D}${sysconfdir}/dnsmasq.conf
+        # symlink dnsmasq.conf under /etc -> not required after shifting conf file to /etc
+        # ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
 
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}/etc/initscripts
@@ -42,14 +41,14 @@ do_install:append () {
         rm -f ${D}${systemd_unitdir}/system/dnsmasq.service
         rm -f ${D}${sysconfdir}/systemd/resolved.conf.d/*
         rm -d ${D}${sysconfdir}/systemd/resolved.conf.d
-        # Add static dnsmasq parameters in /etc/data/dnsmasq.conf
-        echo "except-interface=lo" >> ${D}${sysconfdir}/data/dnsmasq.conf
-        echo "bind-interfaces" >> ${D}${sysconfdir}/data/dnsmasq.conf
-        echo "dhcp-hostsfile=/etc/data/dhcp_hosts" >> ${D}${sysconfdir}/data/dnsmasq.conf
-        echo "dhcp-script=/bin/dnsmasq_script.sh" >> ${D}${sysconfdir}/data/dnsmasq.conf
+        # Add static dnsmasq parameters in /etc/dnsmasq.conf
+        echo "except-interface=lo" >> ${D}${sysconfdir}/dnsmasq.conf
+        echo "bind-interfaces" >> ${D}${sysconfdir}/dnsmasq.conf
+        echo "dhcp-hostsfile=/etc/data/dhcp_hosts" >> ${D}${sysconfdir}/dnsmasq.conf
+        echo "dhcp-script=/bin/dnsmasq_script.sh" >> ${D}${sysconfdir}/dnsmasq.conf
 }
 
-CONFFILES:${PN} = "${sysconfdir}/data/dnsmasq.conf"
-FILES:${PN} += "${sysconfdir}/data/dnsmasq.conf"
+CONFFILES:${PN} = "${sysconfdir}/dnsmasq.conf"
+FILES:${PN} += "${sysconfdir}/dnsmasq.conf"
 FILES:${PN} += "${systemd_unitdir}/system/*"
 SYSTEMD_SERVICE:${PN} = ""
