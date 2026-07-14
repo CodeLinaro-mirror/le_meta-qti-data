@@ -14,6 +14,9 @@
 #   - CONFIG_NF_NAT + helpers           : NAT engine and protocol helpers (FTP/SIP/TFTP etc.)
 #   - CONFIG_NETFILTER_XT_TARGET_CONNMARK : connmark iptables target
 #   - CONFIG_NETFILTER_XT_TARGET_CT     : CT iptables target for explicit conntrack control
+#   - CONFIG_NF_TABLES                  : nftables framework (required by qosmgrd nftables module)
+#   - CONFIG_NF_TABLES_IPV4             : nftables IPv4 support (ip table family)
+#   - CONFIG_NFT_NAT                    : nftables NAT support (masquerade/SNAT rules)
 
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
