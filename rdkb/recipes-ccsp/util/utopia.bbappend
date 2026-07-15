@@ -29,6 +29,7 @@ SRC_URI:append = " \
     file://00024-utopia-6brd.patch \
     file://00029-qti-utopia-dhcpv6-stateless.patch \
     file://00025-utopia-service-igd-miniupnpd-echo-support.patch \
+    file://00016-qti-utopia-packet-stats-changes.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \

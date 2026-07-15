@@ -1,0 +1,1351 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 04a6d73630770befb29e3fe6171375c55422d7c7 Mon Sep 17 00:00:00 2001
+From: mbadusha <mbadusha@qti.qualcomm.com>
+Date: Fri, 17 Jul 2026 09:32:40 +0000
+Subject: [PATCH] [Description] : Adds WANStats objects under Hosts.Host.{i} and XHosts.XHost.{i} with BytesSent and BytesReceived counters.
+Implements LM-lite backend aggregation logic and DML/plugin registrations to expose per-client WAN traffic statistics.
+[RCA/Root Cause Analysis]:
+Per-client WAN byte counters were not available in LM-lite data model, so host-level packet statistics were missing.
+Stats collection needed unified handling across tracked IPv4/IPv6 client entries and runtime host-table lookups.
+
+Signed-off-by: mbadusha <mbadusha@qti.qualcomm.com>
+---
+ config/LMLite.XML           |  47 ++-
+ source/lm/cosa_hosts_dml.c  | 189 ++++++++++++
+ source/lm/cosa_hosts_dml.h  |  47 +++
+ source/lm/cosa_xhosts_dml.c | 197 +++++++++++-
+ source/lm/cosa_xhosts_dml.h |  40 +++
+ source/lm/lm_main.c         | 591 +++++++++++++++++++++++++++++++++++-
+ source/lm/lm_main.h         |   4 +-
+ source/lm/plugin_main.c     |   9 +
+ 8 files changed, 1120 insertions(+), 4 deletions(-)
+
+Index: git/config/LMLite.XML
+===================================================================
+--- git.orig/config/LMLite.XML
++++ git/config/LMLite.XML
+@@ -336,6 +336,28 @@
+                 </parameter>
+               </parameters>
+             </object>
++            <object>
++              <name>WANStats</name>
++              <objectType>object</objectType>
++              <functions>
++                <func_GetParamStringValue>Host_WANStats_GetParamStringValue</func_GetParamStringValue>
++                <func_Validate>Host_WANStats_Validate</func_Validate>
++                <func_Commit>Host_WANStats_Commit</func_Commit>
++                <func_Rollback>Host_WANStats_Rollback</func_Rollback>
++              </functions>
++              <parameters>
++                <parameter>
++                  <name>BytesSent</name>
++                  <type>string</type>
++                  <syntax>string</syntax>
++                </parameter>
++                <parameter>
++                  <name>BytesReceived</name>
++                  <type>string</type>
++                  <syntax>string</syntax>
++                </parameter>
++              </parameters>
++            </object>
+           </objects>
+         </object>
+       </objects>
+@@ -510,7 +532,29 @@
+                   <syntax>string</syntax>
+                 </parameter>
+               </parameters>
+-            </object>
++            </object>              <!-- ← correct close of previous sub-object -->
++            <object>               <!-- ← WANStats at same level as siblings -->
++              <name>WANStats</name>
++              <objectType>object</objectType>
++              <functions>
++                <func_GetParamUlongValue>XHost_WANStats_GetParamUlongValue</func_GetParamUlongValue>
++                <func_Validate>XHost_WANStats_Validate</func_Validate>
++                <func_Commit>XHost_WANStats_Commit</func_Commit>
++                <func_Rollback>XHost_WANStats_Rollback</func_Rollback>
++              </functions>
++              <parameters>
++                <parameter>
++                  <name>BytesSent</name>
++                  <type>unsignedInt</type>
++                  <syntax>uint32</syntax>
++                </parameter>
++                <parameter>
++                  <name>BytesReceived</name>
++                  <type>unsignedInt</type>
++                  <syntax>uint32</syntax>
++                </parameter>
++              </parameters>
++            </object>              <!-- ← consistent spaces, NO TAB here -->
+           </objects>
+         </object>
+       </objects>
+Index: git/source/lm/cosa_hosts_dml.c
+===================================================================
+--- git.orig/source/lm/cosa_hosts_dml.c
++++ git/source/lm/cosa_hosts_dml.c
+@@ -83,6 +83,7 @@ extern pthread_mutex_t LmHostObjectMutex
+ extern int g_Client_Poll_interval;
+ //#define TIME_NO_NEGATIVE(x) ((long)(x) < 0 ? 0 : (x))
+ #define COSA_DML_USERS_USER_ACCESS_INTERVAL     10
++#define MAX_QUERY 256
+ 
+ /***********************************************************************
+  IMPORTANT NOTE:
+@@ -2541,4 +2542,228 @@ Host_IPv6Address_GetParamStringValue
+ 
+     return GetParamStringValue_common (pValue, pUlSize, value, rc, &LmHostObjectMutex);
+ }
++ULONG
++Host_WANStats_GetParamStringValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        char*                       pValue,
++        ULONG*                      pUlSize
++    )
++{
++    PLmObjectHost pHost = (PLmObjectHost)hInsContext;
++     bool is_tx_stat = false;
++     uint64_t total_bytes = 0;
++     char buf[64] = {0};
++     int len;
++
++    if (!pHost || !ParamName || !pValue || !pUlSize)
++    {
++        CcspTraceError(("[%s:%d] Invalid input parameters\n", __FUNCTION__, __LINE__));
++        return -1;
++    }
++    if (strcmp(ParamName, "BytesSent") == 0)
++    {
++       is_tx_stat = true;
++    }
++    else if (strcmp(ParamName, "BytesReceived") != 0)
++    {
++        return -1;
++    }
++
++    // Get the 64-bit stats
++    total_bytes = GetTotalStatBytes(
++                      pHost->pStringParaValue[LM_HOST_IPAddressId],
++                      pHost->pStringParaValue[LM_HOST_PhysAddressId],
++                      is_tx_stat);
++
++    // Convert 64-bit integer to decimal string
++    len = snprintf(buf, sizeof(buf), "%llu", (unsigned long long)total_bytes);
++    if (len < 0 || len >= (int)sizeof(buf))
++    {
++        CcspTraceError(("[%s:%d] snprintf failed for %s\n", __FUNCTION__, __LINE__, ParamName));
++        return -1;
++    }
++
++    // Check buffer size provided by caller
++    if (*pUlSize < (ULONG)(len + 1))
++    {
++        // Tell caller how much is needed (include null terminator)
++        *pUlSize = len + 1;
++        return 1;
++    }
++    // Copy to output buffer
++    AnscCopyString(pValue, buf);
++    return 0;
++}
++/***********************************************************************
++
++ APIs for Object:
++
++    Hosts.Host.{i}.WANStats.
++
++    *  Host_WANStats_GetParamUlongValue
++    *  Host_WANStats_Validate
++    *  Host_WANStats_Commit
++    *  Host_WANStats_Rollback
++
++***********************************************************************/
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Host_WANStats_GetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG*                      puLong
++            );
++    description:
++
++        This function is called to retrieve ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                ULONG*                      puLong
++                The buffer of returned ULONG value;
++
++    return:     TRUE if succeeded.
++**********************************************************************/
++BOOL
++Host_WANStats_GetParamUlongValue
++(
++    ANSC_HANDLE                 hInsContext,
++    char*                       ParamName,
++    ULONG*                      puLong
++)
++{
++    bool is_tx_stat = false;
++    PLmObjectHost pHost = (PLmObjectHost) hInsContext;
++
++    if (strcmp(ParamName, "BytesSent") == 0)
++    {
++        is_tx_stat = true;
++    }
++    else if (strcmp(ParamName, "BytesReceived") != 0)
++    {
++        return FALSE;
++    }
++    *puLong = GetTotalStatBytes(pHost->pStringParaValue[LM_HOST_IPAddressId],pHost->pStringParaValue[LM_HOST_PhysAddressId], is_tx_stat);
++    return TRUE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        Host_WANStats_Commit
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
+++**********************************************************************/
++ULONG
++Host_WANStats_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Host_WANStats_Validate
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       pReturnParamName,
++                ULONG*                      puLength
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       pReturnParamName,
++                The buffer (128 bytes) of parameter name if there's a validation.
++
++                ULONG*                      puLength
++                The output length of the param name.
++
++    return:     TRUE if there's no validation.
+++**********************************************************************/
++BOOL
++Host_WANStats_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    UNREFERENCED_PARAMETER(pReturnParamName);
++    UNREFERENCED_PARAMETER(puLength);
++    return TRUE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        Host_WANStats_Rollback
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to roll back the update whenever there's a
++        validation found.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
+++**********************************************************************/
++ULONG
++Host_WANStats_Rollback
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    return ANSC_STATUS_SUCCESS;
++}
+ 
+Index: git/source/lm/cosa_hosts_dml.h
+===================================================================
+--- git.orig/source/lm/cosa_hosts_dml.h
++++ git/source/lm/cosa_hosts_dml.h
+@@ -395,5 +395,52 @@ Host_IPv6Address_GetParamStringValue
+         ULONG*                      pUlSize
+     );
+ 
++/***********************************************************************
++
++ APIs for Object:
++
++    Hosts.Host.{i}.WANStatus.
++
++    *  Host_WANStats_GetParamUlongValue
++    *  Host_WANStats_Validate
++    *  Host_WANStats_Commit
++    *  Host_WANStats_Rollback
++
++***********************************************************************/
++BOOL
++Host_WANStats_GetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG*                      puLong
++    );
++
++ULONG
++Host_WANStats_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    );
++
++BOOL
++Host_WANStats_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    );
++
++ULONG
++Host_WANStats_Rollback
++    (
++        ANSC_HANDLE                 hInsContext
++    );
++ULONG
++Host_WANStats_GetParamStringValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        char*                       pValue,
++        ULONG*                      pUlSize
++    );
+ 
+ #endif
+Index: git/source/lm/cosa_xhosts_dml.c
+===================================================================
+--- git.orig/source/lm/cosa_xhosts_dml.c
++++ git/source/lm/cosa_xhosts_dml.c
+@@ -75,7 +75,8 @@ extern ULONG XHostsUpdateTime;
+ extern pthread_mutex_t XLmHostObjectMutex;
+ 
+ #define COSA_DML_USERS_USER_ACCESS_INTERVAL     10
+-
++#define MAX_QUERY 256
++#define ADDR_SIZE 50
+ /***********************************************************************
+  IMPORTANT NOTE:
+ 
+@@ -1094,6 +1095,190 @@ XHost_IPv6Address_GetEntryCount
+ 	return count;
+ }
+ 
++/***********************************************************************
++
++ APIs for Object:
++
++    XHosts.XHost.{i}.WANStats.
++
++    *  XHost_WANStats_GetParamUlongValue
++    *  XHost_WANStats_Validate
++    *  XHost_WANStats_Commit
++    *  XHost_WANStats_Rollback
++
++***********************************************************************/
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        XHost_WANStats_GetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG*                      puLong
++            );
++
++
++
++    description:
++
++        This function is called to retrieve ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                ULONG*                      puLong
++                The buffer of returned ULONG value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++XHost_WANStats_GetParamUlongValue
++(
++    ANSC_HANDLE                 hInsContext,
++    char*                       ParamName,
++    ULONG*                      puLong
++)
++{
++    PLmObjectHost pHost = (PLmObjectHost) hInsContext;
++    if(pHost == NULL)
++    {
++        CcspTraceError(("[%s:%d] Received inout as null\n",__FUNCTION__,__LINE__));
++        return FALSE;
++    }
++
++    char IPAddress[ADDR_SIZE] = {0};
++    getIPAddress(pHost->pStringParaValue[LM_HOST_PhysAddressId], IPAddress);
++    pHost->pStringParaValue[LM_HOST_IPAddressId] = IPAddress;
++
++    bool is_tx_stat = false;
++    if (strcmp(ParamName, "BytesSent") == 0)
++    {
++        is_tx_stat = true;
++    }
++    else if (strcmp(ParamName, "BytesReceived") != 0)
++    {
++        return FALSE;
++    }
++    *puLong = GetTotalStatBytes(pHost->pStringParaValue[LM_HOST_IPAddressId],pHost->pStringParaValue[LM_HOST_PhysAddressId],is_tx_stat);
++    return TRUE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        XHost_WANStats_Commit
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG
++XHost_WANStats_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        XHost_WANStats_Validate
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       pReturnParamName,
++                ULONG*                      puLength
++            );
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       pReturnParamName,
++                The buffer (128 bytes) of parameter name if there's a validation.
++
++                ULONG*                      puLength
++                The output length of the param name.
++
++    return:     TRUE if there's no validation.
++
++**********************************************************************/
++BOOL
++XHost_WANStats_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    UNREFERENCED_PARAMETER(pReturnParamName);
++    UNREFERENCED_PARAMETER(puLength);
++    return TRUE;
++}
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        XHost_WANStats_Rollback
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to roll back the update whenever there's a
++        validation found.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG
++XHost_WANStats_Rollback
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    return ANSC_STATUS_SUCCESS;
++}
++
+ /**********************************************************************  
+ 
+     caller:     owner of this object 
+Index: git/source/lm/cosa_xhosts_dml.h
+===================================================================
+--- git.orig/source/lm/cosa_xhosts_dml.h
++++ git/source/lm/cosa_xhosts_dml.h
+@@ -232,3 +232,43 @@ XHost_IPv6Address_GetParamStringValue
+         char*                       pValue,
+         ULONG*                      pUlSize
+     );
++/***********************************************************************
++
++ APIs for Object:
++
++    XHosts.XHost.{i}.WANStatus.
++
++    *  XHost_WANStats_GetParamUlongValue
++    *  XHost_WANStats_Validate
++    *  XHost_WANStats_Commit
++    *  XHost_WANStats_Rollback
++
++***********************************************************************/
++BOOL
++XHost_WANStats_GetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG*                      puLong
++    );
++
++ULONG
++XHost_WANStats_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    );
++
++BOOL
++XHost_WANStats_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    );
++
++ULONG
++XHost_WANStats_Rollback
++    (
++        ANSC_HANDLE                 hInsContext
++    );
++
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -160,6 +160,13 @@
+ #define DNSMASQ_FILE                    "/nvram/dnsmasq.leases"
+ #define ACTION_FLAG_ADD                 (1)
+ #define ACTION_FLAG_DEL                 (2)
++#define PKT_STATS_V4_CLIENTS "/tmp/ipv4_stats.txt"
++#define PKT_STATS_V6_CLIENTS "/tmp/ipv6_stats.txt"
++#define IFACE_SIZE 20
++#define BFR_SIZE 80
++#define COMMAND_SIZE 200
++#define IPTABLES_AWK_STATS " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$9,$10,$13}'"
++#define IP6TABLES_AWK_STATS " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$8,$9,$12}'"
+ 
+ typedef enum {
+     CLIENT_STATE_OFFLINE,
+@@ -255,7 +262,6 @@ static pthread_cond_t LmNotifyCond = PTH
+ static pthread_t NotifyIPMonitorThread;
+ static bool worker_thread_running = false;
+ 
+-
+ #define IP_RETRY_INTERVAL              10
+ #define IP_MAX_RETRIES             6
+ /***********************************************************************
+@@ -362,7 +368,10 @@ static void Send_MoCA_Host_Sync_Req(void
+ #endif
+ 
+ static char *_CloneString (const char *src);
+-
++static bool isMacAddrAvailable(char *file, char *mac);
++uint64_t getIPv6StatBytes(char *mac, bool is_tx_stat);
++static ANSC_STATUS isIPv4ClientPresent(char *addr, int *found);
++uint64_t readIpv6StatsFile(char *mac, bool is_tx_stat);
+ #ifdef USE_NOTIFY_COMPONENT
+ 
+ extern ANSC_HANDLE bus_handle;
+@@ -5126,3 +5135,616 @@ void readPresenceFromSyscfg(BOOL * pPres
+         *pPresenceEnabled = FALSE;
+     }
+ }
++
++ /*
++  * get client type from the mac to print in WANStats and dmesg
++  * input : mac - mac address of the client to be checked
++  * input : mac_found_ipv4 - if mac available if /tmp/ipv4_stats.txt
++  * input : mac_found_ipv6 - if mac available if /tmp/ipv6_stats.txt
++  * output : client_type - ethernet/usb/wlan
++  * return value : true if client type available otherwise false
++  */
++static bool getClientType(char *mac,bool mac_found_ipv4,bool mac_found_ipv6,char *client_type)
++{
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    char *iface = NULL, *ptr;
++    char *ifname;
++    FILE *fp = NULL;
++
++    if (NULL == mac || NULL == client_type)
++    {
++        CcspTraceError(("[%s:%d] input params NULL\n ",__FUNCTION__,__LINE__));
++        return false;
++    }
++
++    if (true == mac_found_ipv4)
++    {
++        fp = fopen(PKT_STATS_V4_CLIENTS, "r");
++    }
++    else if (true == mac_found_ipv6)
++    {
++        fp = fopen(PKT_STATS_V6_CLIENTS, "r");
++    }
++    else
++    {
++        CcspTraceError(("[%s:%d] mac not available in stats files\n ",__FUNCTION__,__LINE__));
++        return false;
++     }
++    if (NULL == fp)
++    {
++        CcspTraceError(("[%s:%d] fopen failed, error (%d) (%s)\n ",__FUNCTION__,__LINE__,errno,strerror(errno)));
++        return false;
++    }
++
++    line = (char *) malloc(BFR_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        CcspTraceError(("[%s:%d] malloc failed\n ",__FUNCTION__,__LINE__));
++        fclose(fp);
++        fp = NULL;
++        return false;
++    }
++
++     while ((nread = getline(&line, &len, fp)) != -1)
++     {
++        if (strlen(line) <= 0)
++        {
++            CcspTraceError(("[%s:%d] getline failed\n ",__FUNCTION__,__LINE__));
++            fclose(fp);
++            fp = NULL;
++            if (line)
++            {
++                free(line);
++                line = NULL;
++            }
++            return false;
++        }
++        line[strlen(line) - 1] = '\0';
++        if (strcasestr(line, mac))
++        {
++            iface = strtok_r(line, " ", &ptr);
++            ifname = strstr(iface, "=");
++            if ((0 == strcmp(ifname+1,"eth0")) || (0 == strcmp(ifname+1,"eth1")) || (0 == strcmp(ifname+1,"eth1s1")))
++                strlcpy(client_type, "Ethernet", IFACE_SIZE);
++            else if ((0 == strcmp(ifname+1,"rndis0")) || (0 == strcmp(ifname+1,"ecm0")))
++                strlcpy(client_type, "USB", IFACE_SIZE);
++            else if ((0 == strcmp(ifname+1,"ath0")) || (0 == strcmp(ifname+1,"ath1")) || (0 == strcmp(ifname+1,"ath16")))
++                strlcpy(client_type, "WLAN", IFACE_SIZE);
++#ifdef GUEST_WIFI
++            else if ((0 == strcmp(ifname+1,"ath2")) || (0 == strcmp(ifname+1,"ath3")) || (0 == strcmp(ifname+1,"ath14")) || (0 == strcmp(ifname+1,"ath15")))
++                strlcpy(client_type, "WLAN", IFACE_SIZE);
++#endif
++            else
++            {
++                CcspTraceError(("[%s:%d] client_type not available for iface (%s)\n",__FUNCTION__,__LINE__,ifname+1));
++                fclose(fp);
++                fp = NULL;
++                if (line)
++                {
++                    free(line);
++                    line = NULL;
++                }
++                return false;
++            }
++            break;
++        }
++    }
++    fclose(fp);
++    fp = NULL;
++    if (line)
++    {
++       free(line);
++       line = NULL;
++    }
++return true;
++}
++/*
++  * Get interface name corresponding to mac address
++  * input : mac - mac addr of client
++  * output : ifname - corresponding interface
++  * return value : 0 - success, -1 - failure
++*/
++ANSC_STATUS getInterfaceFromMac(char *mac, char *ifname)
++{
++    ssize_t nread;
++    size_t length = 0;
++    bool found_mac = false;
++    char *line = NULL;
++    char cmd[BFR_SIZE]= {0};
++    char iface_name[BFR_SIZE] = {0};
++    char *ifname_temp, *mac_addr_temp, *saveptr;
++    FILE *bridge_fp = NULL;
++
++    if (NULL == mac || NULL == ifname)
++    {
++        CcspTraceError(("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    snprintf(cmd ,sizeof(cmd), "bridge fdb show | grep -v permanent | grep -i 'master brlan0'");
++    bridge_fp = popen(cmd,"r");
++    if (NULL == bridge_fp)
++    {
++        CcspTraceError(("[%s:%d] popen failed\n",__FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++    line = (char *)malloc(BFR_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        CcspTraceError(("[%s:%d] malloc failed\n",__FUNCTION__,__LINE__));
++        pclose(bridge_fp);
++        bridge_fp = NULL;
++        return ANSC_STATUS_FAILURE;
++    }
++
++    while ((nread = getline(&line, &length, bridge_fp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        mac_addr_temp = strtok_r(line, " ", &saveptr);
++        strtok_r(NULL, " ", &saveptr);
++        ifname_temp = strtok_r(NULL, " ", &saveptr);
++        if (0 == strcasecmp(mac_addr_temp, mac))
++        {
++            strlcpy(iface_name, ifname_temp, sizeof(iface_name));
++            found_mac = true;
++            break;
++        }
++    }
++    pclose(bridge_fp);
++    bridge_fp = NULL;
++    if (line)
++    {
++        free(line);
++        line = NULL;
++    }
++    if (true != found_mac)
++    {
++        CcspTraceError(("[%s:%d] mac address not matched\n",__FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++    else
++    {
++        if (0 == strcmp(iface_name, "eth0"))
++            strlcpy(ifname, "eth", (strlen(iface_name)+1));
++        if (0 == strcmp(iface_name, "eth1") || (0 == strcmp(iface_name, "eth1s1")) )
++            strlcpy(ifname, "eth1", (strlen(iface_name)+1));
++        if ((0 == strcmp(iface_name, "rndis0")) || (0 == strcmp(iface_name, "ecm0")))
++            strlcpy(ifname, "usb", (strlen(iface_name)+1));
++        if ((0 == strcmp(iface_name, "ath0")) || (0 == strcmp(iface_name, "ath1"))|| (0 == strcmp(iface_name, "ath16")))
++            strlcpy(ifname, "wlan", (strlen(iface_name)+1));
++#ifdef GUEST_WIFI
++        if ((0 == strcmp(iface_name, "ath2")) || (0 == strcmp(iface_name, "ath3")) || (0 == strcmp(iface_name, "ath14")) || (0 == strcmp(iface_name, "ath15")))
++            strlcpy(ifname, "wlan", (strlen(iface_name)+1));
++#endif
++    }
++    return ANSC_STATUS_SUCCESS;
++}
++
++ /*
++  * Get stats byte from iptables for ipv4 address
++  * input : ipv4addr - ip of client
++  * is_tx_stat : true - TX stat, otherwise RX stat
++  * return value : stats byte from iptables
++  */
++uint64_t getIPv4StatBytes(char *ipv4addr, bool is_tx_stat)
++{
++    uint64_t stat_bytes = 0;
++    ssize_t nread;
++    size_t length = 0;
++    unsigned int mark_val = 0;
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]={0};
++    char *stringline = NULL;
++    char *bytes=NULL, *mark=NULL,*ptr;
++    FILE *fp = NULL;
++
++    if (NULL == ipv4addr)
++    {
++        CcspTraceError(("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    snprintf(cmd, COMMAND_SIZE,"iptables -t mangle -L TRAFFIC_ACCT -n -v -x  --line-numbers -w 2");
++    strlcat(cmd, IPTABLES_AWK_STATS, COMMAND_SIZE);
++    snprintf(tmp, COMMAND_SIZE, " | grep -i %s", ipv4addr);
++    strlcat(cmd, tmp, COMMAND_SIZE);
++
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        CcspTraceError(("[%s:%d] popen failed\n",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    stringline = (char *)malloc(BFR_SIZE * sizeof(char));
++    if (NULL == stringline)
++    {
++        CcspTraceError(("[%s:%d] malloc failed\n",__FUNCTION__,__LINE__));
++        pclose(fp);
++        fp = NULL;
++        return 0;
++    }
++    while ((nread = getline(&stringline, &length, fp)) != -1)
++    {
++        stringline[strlen(stringline) - 1] = '\0';
++        strtok_r(stringline, ",", &ptr);
++        bytes = strtok_r(NULL, ",", &ptr);
++        strtok_r(NULL, ",", &ptr);
++        strtok_r(NULL, ",", &ptr);
++        mark = strtok_r(NULL, ",", &ptr);
++
++        if ((NULL == mark) || (NULL == bytes))
++        {
++            CcspTraceError(("[%s:%d] mark or bytes are NULL\n",__FUNCTION__,__LINE__));
++            pclose(fp);
++            fp = NULL;
++            if (NULL != stringline)
++            {
++                free(stringline);
++	        stringline = NULL;
++            }
++            return 0;
++        }
++        mark_val = strtoull(mark,&ptr,16);
++        if (false == is_tx_stat)
++        {
++            if (mark_val%2 == 0)
++            {
++                stat_bytes = strtoull(bytes,&ptr,10);
++                break;
++            }
++        }
++        else
++        {
++            if (mark_val%2 != 0)
++            {
++                stat_bytes = strtoull(bytes,&ptr,10);
++                break;
++            }
++        }
++    }
++    pclose(fp);
++    fp = NULL;
++    if (NULL != stringline)
++    {
++        free(stringline);
++        stringline = NULL;
++    }
++    return stat_bytes;
++}
++
++uint64_t readIpv4StatsFile(char* ip, bool is_tx_stat)
++{
++    FILE* file = NULL;
++    uint64_t value = 0;
++    char command[COMMAND_SIZE] = {0};
++    char buffer[256] = {0};
++    CcspTraceError(("[%s:%d] Entered \n ",__FUNCTION__,__LINE__));
++    if (is_tx_stat)
++    {
++        snprintf(command, COMMAND_SIZE, "cat %s | grep %s | awk '{sub(/TX=/,\"\"); print $4}' | sort -nr | head -1", PKT_STATS_V4_CLIENTS, ip);
++        file = popen(command, "r");
++    }
++    else
++    {
++        snprintf(command, COMMAND_SIZE, "cat %s | grep %s | awk '{sub(/RX=/,\"\"); print $5}' | sort -nr | head -1", PKT_STATS_V4_CLIENTS, ip);
++        file = popen(command, "r");
++    }
++    if (file == NULL)
++    {
++        CcspTraceError(("[%s:%d] failed to open pipe \n",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    fgets(buffer, sizeof(buffer), file);
++    pclose(file);
++    // Parse the value from the buffer
++    value = strtoull(buffer, NULL, 10);
++    if (value == 0)
++    {
++        CcspTraceError(("[%s:%d] Either Failed to parse value/ TX or RX will be zero\n ",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    CcspTraceError(("[%s:%d] Value read from ipv4_stats file is %lu \n ",__FUNCTION__,__LINE__,value));
++    return value;
++}
++
++/*
++  * Get total stat byte from iptables, IPA
++  * input : ip - ip of client
++  * mac - mac address of client
++  * is_tx_stat : true - TX stat, otherwise RX stat
++  * return value : total byte of a client
++  */
++uint64_t GetTotalStatBytes(char *ip, char *mac, bool is_tx_stat)
++{
++    //int ret = -1;
++    ANSC_STATUS ret = ANSC_STATUS_FAILURE;
++    int client_found = 0;
++    uint64_t total_stat_bytes = 0, ipv4_stat_bytes = 0, ipv6_stat_bytes = 0;
++    char client_type[IFACE_SIZE] = {0};
++    bool mac_found_ipv4 = false;
++    bool mac_found_ipv6 = false;
++    bool retval = false;
++
++    if (NULL == ip || NULL == mac)
++    {
++        CcspTraceError(("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__));
++        return 0;
++    }
++
++    mac_found_ipv6 = isMacAddrAvailable(PKT_STATS_V6_CLIENTS, mac);
++    mac_found_ipv4 = isMacAddrAvailable(PKT_STATS_V4_CLIENTS, mac);
++    ret = isIPv4ClientPresent(ip,&client_found);
++    if ((ANSC_STATUS_SUCCESS == ret) && (0 != client_found))
++    {
++        ipv4_stat_bytes = getIPv4StatBytes(ip, is_tx_stat) + readIpv4StatsFile(ip, is_tx_stat);
++    }
++    else
++    {
++        CcspTraceError(("[%s:%d] addr (%s) not available in ipv4 stats file\n",__FUNCTION__,__LINE__,ip));
++    }
++
++    if (true == mac_found_ipv6)
++    {
++         ipv6_stat_bytes = getIPv6StatBytes(mac, is_tx_stat) + readIpv6StatsFile(mac, is_tx_stat);
++    }
++    else
++    {
++        CcspTraceError(("[%s:%d] mac (%s) not available in ipv6 stats file\n",__FUNCTION__,__LINE__,mac));
++    }
++
++    retval = getClientType(mac,mac_found_ipv4,mac_found_ipv6,client_type);
++    if (true != retval)
++    {
++        CcspTraceError(("[%s:%d] client_type not available for mac (%s)\n",__FUNCTION__,__LINE__,mac));
++        return 0;
++    }
++
++    total_stat_bytes = ipv4_stat_bytes + ipv6_stat_bytes;
++    CcspTraceInfo(("[%s:%d] %s STATS OF %s with MAC:%s IPV4 (%lu) IPV6 (%lu) TOTAL (%lu)\n",__FUNCTION__,__LINE__,((1 == is_tx_stat)?"TX:":"RX:"),client_type,mac,ipv4_stat_bytes,ipv6_stat_bytes,total_stat_bytes));
++    v_secure_system("echo Connected %s client, MAC:%s %s iptables:%lu ipv6tables:%lu > /dev/kmsg ",client_type,mac,((1 == is_tx_stat)?"TX:":"RX:"),ipv4_stat_bytes,ipv6_stat_bytes);
++    return total_stat_bytes;
++}
++
++/*
++  * check if the client with mac is present in /tmp/ipv4_stats.txt
++  * or /tmp/ipv6_stats.txt
++  * input : file - file to be checked for mac address
++  * input : mac - mac address of the client to be checked
++  * output : client_type - ethernet/usb/wlan
++  * return value : true - if found, otherwise false
++  */
++static bool isMacAddrAvailable(char *file, char *mac)
++{
++    char cmd[COMMAND_SIZE]= {0};
++    FILE *fp = NULL;
++    bool mac_found = 0;
++
++    if ((NULL == file) || (NULL == mac))
++    {
++        CcspTraceError(("[%s:%d] input params NULL\n ",__FUNCTION__,__LINE__));
++        return false;
++    }
++
++    snprintf(cmd, COMMAND_SIZE, "cat %s | grep -iw %s", file, mac);
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        CcspTraceError(("[%s:%d] popen failed\n ",__FUNCTION__,__LINE__));
++        return false;
++    }
++
++    if(fgetc(fp) != EOF)
++    {
++        CcspTraceInfo(("[%s:%d] mac (%s) is present \n ",__FUNCTION__,__LINE__,mac));
++        mac_found = true;
++    }
++    else
++    {
++        mac_found = false;
++    }
++    pclose(fp);
++    fp = NULL;
++    return mac_found;
++}
++/*
++  * check if the client with ip is present in /tmp/ipv4_stats.txt
++  * input : addr - ip of the client to be checked
++  * output : if present 1, otherwise 0
++  * return value : 0 - success, -1 - failure
++  */
++static ANSC_STATUS isIPv4ClientPresent(char *addr, int *found)
++{
++    char cmd[COMMAND_SIZE]= {0};
++    FILE *fp = NULL;
++    if (NULL == addr || NULL == found)
++    {
++        CcspTraceError(("[%s:%d] input params NULL\n ",__FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++    snprintf(cmd, COMMAND_SIZE, "cat %s | grep -w %s", PKT_STATS_V4_CLIENTS,addr);
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        CcspTraceError(("[%s:%d] popen failed, error (%d) (%s)\n ",__FUNCTION__,__LINE__,errno,strerror(errno)));
++        return ANSC_STATUS_FAILURE;
++    }
++    if(fgetc(fp) != EOF)
++    {
++        CcspTraceInfo(("[%s:%d] addr (%s) is present \n ",__FUNCTION__,__LINE__,addr));
++        *found = 1;
++    }
++    else
++    {
++        *found = 0;
++    }
++    pclose(fp);
++    fp = NULL;
++    return ANSC_STATUS_SUCCESS;
++}
++
++ /*
++  * Get stats byte from ip6tables for ipv6 address
++  * input : mac - mac of client
++  * is_tx_stat : true - TX stat, otherwise RX stat
++  * return value : stats byte from ip6tables
++  */
++uint64_t getIPv6StatBytes(char *mac, bool is_tx_stat)
++{
++    uint64_t total_stat_bytes = 0, ipv6_stat_bytes = 0;
++    ssize_t nread;
++    size_t length = 0;
++    char *line = NULL;
++    char ipv6Addr[BFR_SIZE] = {0};
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]={0};
++    char stringline[COMMAND_SIZE]={0};
++    char *ipaddr = NULL, *macaddr = NULL, *ptr;
++    char *ipaddr_temp = NULL, *macaddr_temp = NULL;
++    char *bytes=NULL, *saveptr;
++    FILE *stat_fp = NULL;
++    FILE *cmd_fp = NULL;
++
++    if (NULL == mac)
++    {
++        CcspTraceError(("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    stat_fp = fopen("/tmp/ipv6_stats.txt","r");
++    if (NULL == stat_fp)
++    {
++        CcspTraceError(("[%s:%d] fopen failed\n",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    line = (char *) malloc(COMMAND_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        CcspTraceError(("[%s:%d] malloc failed\n",__FUNCTION__,__LINE__));
++        fclose(stat_fp);
++        stat_fp = NULL;
++        return 0;
++    }
++
++    while ((nread = getline(&line, &length, stat_fp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        ipv6_stat_bytes = 0;
++        strtok_r(line, " ", &ptr);
++        ipaddr_temp = strtok_r(NULL, " ", &ptr);
++        macaddr_temp = strtok_r(NULL, " ", &ptr);
++        if (NULL == ipaddr_temp || NULL == macaddr_temp)
++        {
++            CcspTraceError(("[%s:%d] strtok_r failed\n",__FUNCTION__,__LINE__));
++   continue;
++        }
++        ipaddr = strstr(ipaddr_temp,"=");
++        macaddr = strstr(macaddr_temp,"=");
++        if (NULL == ipaddr || NULL == macaddr)
++        {
++            CcspTraceError(("[%s:%d] getline failed\n",__FUNCTION__,__LINE__));
++            continue;
++        }
++        if (strlen(ipaddr+1) <= 0)
++        {
++            CcspTraceError(("[%s:%d] ip address not available\n",__FUNCTION__,__LINE__));
++            continue;
++         }
++        if (0 == strcasecmp(mac,macaddr+1))
++        {
++            strlcpy(ipv6Addr,ipaddr+1,sizeof(ipv6Addr));
++        }
++        else
++        {
++            CcspTraceError(("[%s:%d] no matching mac found\n",__FUNCTION__,__LINE__));
++            break;
++        }
++        snprintf(cmd, COMMAND_SIZE,"ip6tables -t mangle -L TRAFFIC_ACCT -n -v -x  --line-numbers -w 2");
++        strlcat(cmd, IP6TABLES_AWK_STATS, COMMAND_SIZE);
++        if (false == is_tx_stat)
++        {
++            /*transmit bytes will be marked with 0x02*/
++            snprintf(tmp, COMMAND_SIZE, " | grep -w %s |grep -i 0x2", ipv6Addr);
++        }
++        else
++        {
++            /*receive bytes will be marked with 0x01*/
++            snprintf(tmp, COMMAND_SIZE, " | grep -w %s |grep -i 0x1", ipv6Addr);
++        }
++        strlcat(cmd, tmp, COMMAND_SIZE);
++        cmd_fp = popen(cmd,"r");
++        if (cmd_fp == NULL)
++        {
++            CcspTraceError(("[%s:%d] popen failed\n",__FUNCTION__,__LINE__));
++            continue;
++        }
++        if(NULL != fgets(stringline,sizeof(stringline)-1,cmd_fp))
++        {
++            if (strlen(stringline) > 0)
++            {
++                stringline[strlen(stringline) - 1] = '\0';
++            }
++            else
++            {
++                CcspTraceError(("[%s:%d] fgets failed\n",__FUNCTION__,__LINE__));
++                pclose(cmd_fp);
++                cmd_fp = NULL;
++                continue;
++            }
++            strtok_r(stringline, ",", &saveptr);
++            bytes = strtok_r(NULL, ",", &saveptr);
++            if (NULL == bytes)
++            {
++                pclose(cmd_fp);
++                cmd_fp = NULL;
++                continue;
++            }
++            ipv6_stat_bytes = strtoull(bytes,&ptr,10);
++        }
++        pclose(cmd_fp);
++        cmd_fp = NULL;
++        total_stat_bytes += ipv6_stat_bytes;
++    }
++    fclose(stat_fp);
++    stat_fp = NULL;
++    if (line)
++    {
++        free(line);
++        line = NULL;
++    }
++    return total_stat_bytes;
++}
++
++uint64_t readIpv6StatsFile(char* mac, bool is_tx_stat)
++{
++    FILE* file = NULL;
++    uint64_t value = 0;
++    char command[COMMAND_SIZE] = {0};
++    char buffer[256] = {0};
++    CcspTraceError(("[%s:%d] Entered \n ",__FUNCTION__,__LINE__));
++    if (is_tx_stat)
++    {
++        snprintf(command, COMMAND_SIZE, "cat %s | grep %s | awk '{sub(/TX=/,\"\"); print $4}' | sort -nr | head -1", PKT_STATS_V6_CLIENTS, mac);
++        file = popen(command, "r");
++    }
++    else
++    {
++        snprintf(command, COMMAND_SIZE, "cat %s | grep %s | awk '{sub(/RX=/,\"\"); print $5}' | sort -nr | head -1", PKT_STATS_V6_CLIENTS, mac);
++        file = popen(command, "r");
++    }
++    if (file == NULL)
++    {
++        CcspTraceError(("[%s:%d] failed to open pipe \n",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    fgets(buffer, sizeof(buffer), file);
++    pclose(file);
++    // Parse the value from the buffer
++    value = strtoull(buffer, NULL, 10);
++    if (value == 0)
++    {
++        CcspTraceError(("[%s:%d] Either Failed to parse value/ TX or RX will be zero\n ",__FUNCTION__,__LINE__));
++        return 0;
++    }
++    CcspTraceError(("[%s:%d] Value read from ipv6_stats file is %lu \n ",__FUNCTION__,__LINE__,value));
++    return value;
++}
+Index: git/source/lm/lm_main.h
+===================================================================
+--- git.orig/source/lm/lm_main.h
++++ git/source/lm/lm_main.h
+@@ -67,7 +67,7 @@
+ 
+ #include "lm_api.h"
+ #include "network_devices_interface.h"
+-
++#include <stdbool.h>
+ #define LM_HOST_POLLINGINTERVAL                 10 
+ 
+ #define LM_HOST_ActiveId                        0
+@@ -180,6 +180,8 @@ LmObjectHostPossibleDeviceTypeKeyWords,
+ 
+ #define LM_HOST_IPv6Address_IPAddressId     0
+ #define LM_HOST_IPv6Address_NumStringPara   1
++#define LM_HOST_WANStats_BytesSentId     0
++#define LM_HOST_WANStats_BytesReceivedId   1
+ 
+ #define LM_HOST_ARRAY_STEP                  20
+ #define  COSA_HOSTS_Extension1_Name                 "X_COMCAST-COM_LastChange"
+@@ -344,4 +346,5 @@ int XLM_get_online_device (void);
+ int XLM_get_host_info();
+ int XLM_get_online_device();
+ #endif
++uint64_t GetTotalStatBytes(char *ip, char *mac, bool is_tx_stat);
+ #endif
+Index: git/source/lm/plugin_main.c
+===================================================================
+--- git.orig/source/lm/plugin_main.c
++++ git/source/lm/plugin_main.c
+@@ -125,6 +125,10 @@ COSA_Init
+     pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Host_IPv6Address_GetParamIntValue",  Host_IPv6Address_GetParamIntValue);
+     pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Host_IPv6Address_GetParamUlongValue",  Host_IPv6Address_GetParamUlongValue);
+     pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Host_IPv6Address_GetParamStringValue",  Host_IPv6Address_GetParamStringValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Host_WANStats_GetParamStringValue",  Host_WANStats_GetParamStringValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Host_WANStats_Validate",Host_WANStats_Validate);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Host_WANStats_Commit",Host_WANStats_Commit);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Host_WANStats_Rollback", Host_WANStats_Rollback);
+ 
+ 	/*Register XHS data model apis*/
+ #if !defined (RESOURCE_OPTIMIZATION)
+@@ -149,6 +153,10 @@ COSA_Init
+     pPlugInfo->RegisterFunction(pPlugInfo->hContext, "XHost_IPv6Address_GetEntryCount",  XHost_IPv6Address_GetEntryCount);
+     pPlugInfo->RegisterFunction(pPlugInfo->hContext, "XHost_IPv6Address_GetEntry",  XHost_IPv6Address_GetEntry);
+     pPlugInfo->RegisterFunction(pPlugInfo->hContext, "XHost_IPv6Address_GetParamStringValue",  XHost_IPv6Address_GetParamStringValue);
++       pPlugInfo->RegisterFunction(pPlugInfo->hContext, "XHost_WANStats_GetParamUlongValue",  XHost_WANStats_GetParamUlongValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "XHost_WANStats_Validate",  XHost_WANStats_Validate);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "XHost_WANStats_Commit",  XHost_WANStats_Commit);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "XHost_WANStats_Rollback",  XHost_WANStats_Rollback);
+ #endif
+ 
+ #if defined (RDKB_EXTENDER_ENABLED)
