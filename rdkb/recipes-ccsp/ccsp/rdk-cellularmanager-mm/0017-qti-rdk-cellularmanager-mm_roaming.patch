@@ -1,0 +1,374 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From ba486cdb478d66a774837a1c15078edfcc99b8c0 Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Wed, 22 Jul 2026 19:17:00 +0530
+Subject: Support for roaming ON/OFF and RoamingStatus
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+---
+ .../cellularmgr_cellular_apis.c               |  52 ++++++
+ .../cellularmgr_cellular_apis.h               |   3 +
+ source/CellularManager/cellularmgr_sm.c       | 176 ++++++++++++++++++
+ .../middle_layer_src/cellularmgr_rbus_dml.c   |   3 +
+ 4 files changed, 234 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index efb4aec..7154195 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -65,6 +65,11 @@
+ #if RBUS_BUILD_FLAG_ENABLE
+ #include "cellularmgr_rbus_events.h"
+ #endif
++
++#ifdef CM_EXTN_SUPPORTED
++extern state_chg_sem;
++#endif //CM_EXTN_SUPPORTED
++
+ #ifdef HYBRID_SUPPORT
+ static PCELLULAR_DML_INFO             g_pstDmlCellular =  NULL;
+ #endif
+@@ -533,6 +538,53 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+     stStateMachineInput.pstDmlCellular = pstDmlCellular;
+     memcpy(&(stStateMachineInput.stContextProfile), &(stCtxInputStruct.stIfInput), sizeof(CellularProfileStruct));
+     CellularMgr_Start_State_Machine( &stStateMachineInput );
++#ifdef CM_EXTN_SUPPORTED
++    /* Take SM semaphore */
++    sem_wait(&state_chg_sem);
++    bool bGetRoamVal = 0;
++#ifdef CM_PROP_SUPPORTED
++    set_sm_roaming_init_value(pstDmlCellular->RoamingEnabled);
++    /* Always set to TRUE first
++     * Initial set to TRUE found to be working ok */
++    if(RETURN_OK == cellular_hal_prop_extn_set_roaming(TRUE))
++    {
++        CcspTraceInfo(("%s %d - Roaming first set on init to TRUE\n",__FUNCTION__,__LINE__));
++    }
++    else
++    {
++        CcspTraceError(("%s-%d : Failed to set roaming to TRUE on init\n", __FUNCTION__, __LINE__));
++    }
++    /* Must do a get after set.Otherwise, the next set is not effective */
++    if(RETURN_OK == cellular_hal_prop_extn_get_roaming(&bGetRoamVal))
++    {
++        CcspTraceInfo(("%s %d - Roaming get on init = %d\n",__FUNCTION__,__LINE__, bGetRoamVal));
++    }
++    else
++    {
++        CcspTraceError(("%s-%d : Failed to get roaming on init\n", __FUNCTION__, __LINE__));
++    }
++    /* On bootup set modem roaming to RoamingEnabled value */
++    if(RETURN_OK == cellular_hal_prop_extn_set_roaming(pstDmlCellular->RoamingEnabled))
++    {
++        CcspTraceInfo(("%s %d - Roaming set on init to %d\n",__FUNCTION__,__LINE__, pstDmlCellular->RoamingEnabled));
++    }
++    else
++    {
++        CcspTraceError(("%s-%d : Failed to set roaming on init to %d \n", __FUNCTION__, __LINE__, pstDmlCellular->RoamingEnabled));
++    }
++    /* Must do a get after set.Otherwise, the next set is not effective */
++    if(RETURN_OK == cellular_hal_prop_extn_get_roaming(&bGetRoamVal))
++    {
++        CcspTraceInfo(("%s %d - Roaming get on init = %d\n",__FUNCTION__,__LINE__, bGetRoamVal));
++    }
++    else
++    {
++        CcspTraceError(("%s-%d : Failed to get roaming on init\n", __FUNCTION__, __LINE__));
++    }
++
++#endif //CM_PROP_SUPPORTED
++    sem_post(&state_chg_sem);
++#endif //CM_EXTN_SUPPORTED
+ 
+ #if RBUS_BUILD_FLAG_ENABLE
+     //Initiate the thread for Cellular RBUS On-Interval case
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 2bd6db7..2cf1d64 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -384,7 +384,10 @@ _CELLULAR_DML_INFO
+     BOOLEAN                                X_RDK_Enable;
+     CELLULAR_RDK_STATUS                    X_RDK_Status;
+ #ifdef CM_EXTN_SUPPORTED
++    CELLULAR_INTERFACE_ROAMING_STATUS      RoamingStatus;
+     CELLULAR_DML_INFO_EXTN                 stCellularDmlInfoExtn;
++#endif
++#ifdef CM_PROP_SUPPORTED
+     BOOLEAN                                RoamingEnabled;
+ #endif
+     CHAR                                   X_RDK_Model[20];
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 9d6bf7b..326e20d 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -36,11 +36,24 @@
+ #include "cellular_hal_mm_apis.h"
+ void dump_state_variables();
+ 
++void set_sm_roaming_init_value(bool val);
++void set_sm_roaming_dynamic_value(bool val);
++bool IsRoamingStatusConverged();
+ #ifdef CM_PROP_SUPPORTED
+ extern struct timespec mmEnabledTime;
+ extern int sc_flag;
+ #endif //CM_PROP_SUPPORTED
+ #endif //CM_EXTN_SUPPORTED
++typedef enum
++{
++    ENABLED_AT_INIT,
++    DISABLED_AT_INIT,
++    ENABLE_TO_DISABLE_TRANSITION,
++    DISABLE_TO_ENABLE_TRANSITION,
++    ENABLED,
++    DISABLED
++}RoamingEnabled_t;
++extern ModemState mmState;
+ /**********************************************************************
+                 CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -95,6 +108,9 @@ typedef  struct
+     CellularIPStruct                          stIPv6Info;
+     CellularNetworkPacketStatus_t             enNetworkIPv6PacketServiceStatus;
+     unsigned char                             bIPv6WaitingForPacketStatus;
++#ifdef CM_EXTN_SUPPORTED
++    RoamingEnabled_t                          enRoamingEnabled;
++#endif //CM_EXTN_SUPPORTED
+     PCELLULAR_INTERFACE_INFO                  pCmIfData;
+     PCELLULAR_DML_INFO                        pstDmlCellular;
+     unsigned char                             bIsLoopbackMode;
+@@ -1046,6 +1062,12 @@ static CellularPolicySmState_t StateDeactivated( void )
+     {
+          TransitionDeregistered( ) ;
+     }
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    if (FALSE == IsRoamingStatusConverged())
++    {
++        return CELLULAR_STATE_DEACTIVATED;
++    }
++#endif
+ 
+ #ifndef CM_EXTN_SUPPORTED
+     if (( gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus == DEVICE_SLOT_STATUS_SELECTING))
+@@ -1091,6 +1113,12 @@ static CellularPolicySmState_t StateDeregistered( void )
+     {
+         return ( TransitionDeactivated( ) );
+     }
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    if (FALSE == IsRoamingStatusConverged())
++    {
++        return CELLULAR_STATE_DEREGISTERED;
++    }
++#endif
+ 
+     /* Loopback APN never registers on a real network — bypass SIM/NAS checks entirely
+      * and go straight to bearer creation so the SM can proceed to REGISTERED state. */
+@@ -1177,6 +1205,21 @@ static CellularPolicySmState_t StateRegistered( void )
+     {
+         return ( TransitionDeactivated( ) );
+     }
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    /* On disabling roaming in visitor network, wait until ther modem is offline (ie.. leaves registered state) */
++    if ( (gpstCellularPolicyCtrl->enRoamingEnabled == ENABLE_TO_DISABLE_TRANSITION))
++    {
++        CellularCurrentPlmnInfoStruct plmn_info;
++        cellular_hal_get_current_plmn_information(&plmn_info);
++        CcspTraceInfo((" %s %d - Disabling Roaming dynamic, mmState = %d, roaming enabled = %d \n", __FUNCTION__, __LINE__, mmState, plmn_info.roaming_enabled ));
++       if (plmn_info.roaming_enabled == TRUE)
++       {
++           if (mmState >= MODEM_STATE_REGISTERED)
++               return CELLULAR_STATE_REGISTERED;
++       }
++       gpstCellularPolicyCtrl->enRoamingEnabled = DISABLED;
++    }
++#endif
+ 
+     if( !gpstCellularPolicyCtrl->bIsLoopbackMode &&
+         ( ( DEVICE_SLOT_STATUS_NOT_READY == gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus ) ||
+@@ -1282,6 +1325,21 @@ static CellularPolicySmState_t StateConnected( void )
+     {        
+         return ( TransitionDeactivated( ) );
+     }
++#ifdef CM_EXTN_SUPPORTED
++    /* On disabling roaming in visitor network, wait until ther modem is offline (ie.. leaves registered state) */
++    if (gpstCellularPolicyCtrl->enRoamingEnabled == ENABLE_TO_DISABLE_TRANSITION)
++    {
++        CellularCurrentPlmnInfoStruct plmn_info;
++        cellular_hal_get_current_plmn_information(&plmn_info);
++        CcspTraceInfo((" %s %d - Disabling Roaming dynamic, mmState = %d, roaming enabled = %d \n", __FUNCTION__, __LINE__, mmState, plmn_info.roaming_enabled ));
++        if (plmn_info.roaming_enabled == TRUE)
++        {
++            if (mmState >= MODEM_STATE_REGISTERED)
++                return CELLULAR_STATE_CONNECTED;
++        }
++        gpstCellularPolicyCtrl->enRoamingEnabled = DISABLED;
++    }
++#endif
+     
+     if ( ( FALSE == gpstCellularPolicyCtrl->bRDKEnable ) ||
+ #ifdef CM_EXTN_SUPPORTED
+@@ -1368,6 +1426,9 @@ static ANSC_STATUS CellularMgr_ControllerInit( CellularMgrSMInputStruct    *pstI
+      }
+         /* Updating AP table with values from PSM to prevent cellular manager from crashing when setting AP table parameters through dmcli before doing a dm get */
+         CellularMgr_extn_GetAccessPoint_for_SM( &(gpstCellularPolicyCtrl->pstDmlCellular->pstAPInfo), (int*)&gpstCellularPolicyCtrl->pstDmlCellular->ulAccessPointNoOfEntries);
++#ifdef CM_PROP_SUPPORTED
++        set_sm_roaming_init_value(gpstCellularPolicyCtrl->pstDmlCellular->RoamingEnabled);
++#endif //CM_PROP_SUPPORTED
+ #endif
+         retStatus = ANSC_STATUS_SUCCESS;
+     }
+@@ -1576,6 +1637,7 @@ void dump_state_variables()
+                 \t\t NWIPv6PktServiceStatus  : %d\n \
+                 \t\t IPv6NWStartInProgress   : %d\n \
+                 \t\t IPv6WaitingForPktStatus : %d\n \
++                \t\t RoamingEnabledStatus    : %d\n \
+                 \t\t RDKEnable               : %d\n \
+                 \t\t pCmIfData->Enable       : %d\n",gpstCellularPolicyCtrl->enCurrentSMState,\
+                                                     gpstCellularPolicyCtrl->enDeviceDetectionStatus, \
+@@ -1593,11 +1655,125 @@ void dump_state_variables()
+                                                     gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus, \
+                                                     gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress, \
+                                                     gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus, \
++                                                    gpstCellularPolicyCtrl->enRoamingEnabled, \
+                                                     gpstCellularPolicyCtrl->bRDKEnable, \
+                                                     gpstCellularPolicyCtrl->pCmIfData->Enable ));
+ }
+ 
+ #endif //CM_EXTN_SUPPORTED
++/* set_sm_roaming_init_value function */
++/**
++* @description - This API sets roaming state variable during initialization from state machine
++*
++* @param[in] val - Boolean value
++* @param[out] None
++*
++* @retval None
++*
++*/
++void set_sm_roaming_init_value(bool val)
++{
++    if (val == TRUE)
++    {
++        gpstCellularPolicyCtrl->enRoamingEnabled = ENABLED_AT_INIT;
++    }
++    else
++    {
++        gpstCellularPolicyCtrl->enRoamingEnabled = DISABLED_AT_INIT;
++    }
++
++}
++
++/* set_sm_roaming_dynamic_value function */
++/**
++* @description - This API dynamically updates roaming state variable
++*
++* @param[in] val - Boolean value
++* @param[out] None
++*
++* @retval None
++*
++*/
++void set_sm_roaming_dynamic_value(bool val)
++{
++    if (val == TRUE)
++    {
++        gpstCellularPolicyCtrl->enRoamingEnabled = DISABLE_TO_ENABLE_TRANSITION;
++    }
++    else
++    {
++        gpstCellularPolicyCtrl->enRoamingEnabled = ENABLE_TO_DISABLE_TRANSITION;
++    }
++
++}
++
++/* IsRoamingStatusConverged function */
++/**
++* @description - This API checks for roaming state convergence
++*
++* @param[in] None
++* @param[out] None
++*
++* @retval True/False
++*
++*/
++bool IsRoamingStatusConverged()
++{
++    /* The device is now enabled at CM. Check for roaming state convergence
++     * Move SM forward only if modem state has moved to target state given the roaming state variable value.
++     * Enabled at init or transition to enabled -> wait till modem is online.
++     * Disabled at init -> wait until modem is enabled
++     * */
++    bool bGetRoamVal = 0;
++    if ((gpstCellularPolicyCtrl->enRoamingEnabled == ENABLED_AT_INIT) ||
++        (gpstCellularPolicyCtrl->enRoamingEnabled == DISABLE_TO_ENABLE_TRANSITION))
++    {
++        CcspTraceInfo(("%s %d - Enabling Roaming, mmState = %d \n", __FUNCTION__, __LINE__, mmState));
++        if (!(mmState >= MODEM_STATE_REGISTERED))
++        {
++            return FALSE;
++        }
++        if (gpstCellularPolicyCtrl->enRoamingEnabled == ENABLED_AT_INIT)
++        {
++#ifdef CM_PROP_SUPPORTED
++            /* Must do a get after set.Otherwise, the next set is not effective */
++            cellular_hal_prop_extn_get_roaming(&bGetRoamVal);
++#endif //CM_PROP_SUPPORTED
++            CcspTraceInfo((" %s %d - Roaming get on ENABLED_INIT completion = %d\n",__FUNCTION__,__LINE__, bGetRoamVal));
++        }
++        gpstCellularPolicyCtrl->enRoamingEnabled = ENABLED;
++    }
++    else if ( (gpstCellularPolicyCtrl->enRoamingEnabled == DISABLED_AT_INIT))
++    {
++        CcspTraceInfo((" %s %d - Disabling Roaming, mmState = %d \n", __FUNCTION__, __LINE__, mmState));
++        if (!(mmState >= MODEM_STATE_ENABLED))
++        {
++            return FALSE;
++        }
++        if (gpstCellularPolicyCtrl->enRoamingEnabled == DISABLED_AT_INIT)
++        {
++#ifdef CM_PROP_SUPPORTED
++            /* Must do a get after set. Otherwise, the next set is not effective */
++            cellular_hal_prop_extn_get_roaming(&bGetRoamVal);
++#endif //CM_PROP_SUPPORTED
++            CcspTraceInfo(("%s %d - Roaming get on DISABLED_INIT completion = %d\n",__FUNCTION__,__LINE__, bGetRoamVal));
++        }
++        gpstCellularPolicyCtrl->enRoamingEnabled = DISABLED;
++    }
++    else if ( (gpstCellularPolicyCtrl->enRoamingEnabled == ENABLE_TO_DISABLE_TRANSITION))
++    {
++        CellularCurrentPlmnInfoStruct plmn_info;
++        CcspTraceInfo((" %s %d - Disabling Roaming dynamic, mmState = %d \n", __FUNCTION__, __LINE__, mmState));
++        cellular_hal_get_current_plmn_information(&plmn_info);
++        if (!(mmState < MODEM_STATE_REGISTERED) && (plmn_info.roaming_enabled == TRUE))
++        {
++            return FALSE;
++        }
++        gpstCellularPolicyCtrl->enRoamingEnabled = DISABLED;
++    }
++    return TRUE;
++
++}
+ 
+ /* cellumanager_get_wanifname function */
+ /**
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 36b2af8..0a5ffa6 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3513,8 +3513,11 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.X_RDK_Status", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+ #ifdef CM_EXTN_SUPPORTED
+         {"Device.Cellular.X_QCOM.AutoConnect", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.RoamingStatus", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #endif
++#ifdef CM_PROP_SUPPORTED
+         {"Device.Cellular.RoamingEnabled", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++#endif
+         {"Device.Cellular.X_RDK_Model", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_HardwareRevision", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Vendor", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+-- 
+2.34.1
+
