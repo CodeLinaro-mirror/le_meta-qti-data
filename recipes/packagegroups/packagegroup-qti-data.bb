@@ -36,3 +36,4 @@ RDEPENDS:packagegroup-qti-data:remove:echo = "datarmnet-ext aquantia iproute2-tc
 # sa535m enables ECM, so data-ipa-cfg-mgr is not required
 RDEPENDS:packagegroup-qti-data:remove:sa535m = "data-ipa-cfg-mgr"
 RDEPENDS:packagegroup-qti-data:append:sa535m = " data-devicetree"
+RDEPENDS:packagegroup-qti-data:append:echo = " ipa-qos-hal"
