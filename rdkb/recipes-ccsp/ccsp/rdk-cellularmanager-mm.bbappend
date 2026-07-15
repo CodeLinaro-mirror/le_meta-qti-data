@@ -17,6 +17,7 @@ SRC_URI += " \
     file://0010-qti-rdk-cellularmanager-mm_stats.patch \
     file://0011-qti-rdk-cellularmanager-mm_fix-PRAT-switch.patch \
     file://0012-qti-rdk-cellularmanager-mm_loopback_mode.patch \
+    file://0013-qti-rdk-cellularmanager-mm_prop_HAL_integration.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
@@ -35,11 +36,15 @@ CFLAGS_append += " -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat "
 CFLAGS_remove = "-DINCLUDE_BREAKPAD"
 CFLAGS += "-DRBUS_BUILD_FLAG_ENABLE"
 
-PACKAGECONFIG_append = " cm_extn_support"
+PACKAGECONFIG_append = " cm_extn_support cm_prop_support"
 PACKAGECONFIG[cm_extn_support] = ""
 CFLAGS_append  += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_extn_support', ' -DCM_EXTN_SUPPORTED', '', d)}"
 
 LDFLAGS += " -lmm-glib -lpthread -lbsd -lrt"
+CFLAGS_append += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' -DCM_PROP_SUPPORTED', '', d)}"
+CFLAGS_append += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' -I${STAGING_INCDIR}/cellular-hal-qmi/', '', d)}"
+LDFLAGS_append += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' -lcellular_hal_qmi', '', d)}"
+DEPENDS += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' hal-cellular-qmi', '', d)}"
 LDFLAGS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', '-lqmi-glib -lqrtr-glib', '', d)}"
 LDFLAGS += " ${@bb.utils.contains('DISTRO_FEATURES', 'rdkb_cellular_manager', '-lqmi-glib -lqrtr-glib', '', d)}"
 
