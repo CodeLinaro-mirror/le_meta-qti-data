@@ -1,0 +1,220 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From f856c226b13330f8c347209206175f4dedb28ad7 Mon Sep 17 00:00:00 2001
+From: Sagar Kothawar <kothawar@qti.qualcomm.com>
+Date: Thu, 9 Jul 2026 18:06:55 +0000
+Subject: [PATCH] [Description]: Configure eth1 as WAN interface in ccsp-eth-agent for RDKB Echo Platform
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Sagar Kothawar <kothawar@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_ethernet_apis.c   | 67 ++++++++++++++++++++++++++++++++++++++++++++++---------------------
+ .../board_sbapi/cosa_ethernet_manager.c       |  2 +-
+ .../source-arm/cosa_ethernet_apis_arm.c       |  4 ++--
+ source/TR-181/include/cosa_ethernet_apis.h    |  2 +-
+ .../cosa_ethernet_interface_dml.c             |  2 +-
+ 5 files changed, 53 insertions(+), 24 deletions(-)
+
+Index: git/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+===================================================================
+--- git.orig/source/TR-181/board_sbapi/cosa_ethernet_apis.c
++++ git/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+@@ -218,6 +218,7 @@ token_t sysevent_token;
+ #define WFO_ENABLED     "/etc/WFO_enabled"
+ #define BUF_SIZE 100
+ 
++char WAN_IF_NAME_PRIMARY[20] = "eth0";
+ 
+ static int sysctl_iface_set(const char *path, const char *ifname, const char *content)
+ {
+@@ -1820,7 +1821,7 @@ ANSC_STATUS CosaDmlIfaceFinalize(char *p
+     else
+     {
+ 	/* CID 190051 Calling risky function fix */
+-	strlcpy(wanPhyName, "eth0", sizeof(wanPhyName));
++	strlcpy(wanPhyName, ETHWAN_DEF_INTF_NAME, sizeof(wanPhyName));
+     }
+ 
+     // Do wan interface bridge creation/deletion only if last detected wan and current detected wan interface are different.
+@@ -2011,10 +2012,15 @@ ANSC_STATUS EthwanEnableWithoutReboot(BO
+             CcspTraceInfo(("Failed to up the interface %s\n",WAN_IF_NAME_PRIMARY));
+         }
+         #else
+-        v_secure_system("ip link set %s down",WAN_IF_NAME_PRIMARY);
+-        v_secure_system("ip link set %s name %s",WAN_IF_NAME_PRIMARY,ETHWAN_DEF_INTF_NAME);
+-        v_secure_system("ip link set dummy-rf name %s",WAN_IF_NAME_PRIMARY);
+-        v_secure_system("ip link set %s up;ip link set %s up",ETHWAN_DEF_INTF_NAME,WAN_IF_NAME_PRIMARY);
++        	#ifdef _PLATFORM_SDX_
++		v_secure_system("ip link set %s down", WAN_IF_NAME_PRIMARY);
++		v_secure_system("ip link set %s up", WAN_IF_NAME_PRIMARY);
++        	#else
++        	v_secure_system("ip link set %s down",WAN_IF_NAME_PRIMARY);
++        	v_secure_system("ip link set %s name %s",WAN_IF_NAME_PRIMARY,ETHWAN_DEF_INTF_NAME);
++        	v_secure_system("ip link set dummy-rf name %s",WAN_IF_NAME_PRIMARY);
++        	v_secure_system("ip link set %s up;ip link set %s up",ETHWAN_DEF_INTF_NAME,WAN_IF_NAME_PRIMARY);
++        	#endif
+         #endif
+     } 
+ 
+@@ -2895,11 +2901,15 @@ CosaDmlEthWanSetEnable
+                CcspTraceInfo(("Failed to rename the interface dummy-rf with erouter0\n"));
+             }
+             #else
+-            v_secure_system("ifconfig eth0 down");
+-            // NOTE: Eventually ETHWAN_DEF_INTF_NAME should be replaced with GWP_GetEthWanInterfaceName()
+-            v_secure_system("ip link set eth0 name " ETHWAN_DEF_INTF_NAME);
+-            CcspTraceWarning(("****************value of command = ip link set eth0 name %s**********************\n", ETHWAN_DEF_INTF_NAME));
+-            v_secure_system("ip link set dummy-rf name eth0");
++            	#ifdef _PLATFORM_SDX_
++            	v_secure_system("ifconfig %s down", WAN_IF_NAME_PRIMARY);
++            	#else
++            	v_secure_system("ifconfig eth0 down");
++            	// NOTE: Eventually ETHWAN_DEF_INTF_NAME should be replaced with GWP_GetEthWanInterfaceName()
++            	v_secure_system("ip link set eth0 name " ETHWAN_DEF_INTF_NAME);
++            	CcspTraceWarning(("****************value of command = ip link set eth0 name %s**********************\n", ETHWAN_DEF_INTF_NAME));
++            	v_secure_system("ip link set dummy-rf name eth0");
++            	#endif
+             #endif
+             rc =  memset_s(command,sizeof(command),0,sizeof(command));
+             ERR_CHK(rc);
+@@ -2916,7 +2926,11 @@ CosaDmlEthWanSetEnable
+                CcspTraceInfo(("Failed to up the interface erouter0\n"));
+             }
+             #else
+-            v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" up;ifconfig eth0 up");
++            	#ifdef _PLATFORM_SDX_
++            	v_secure_system("ifconfig %s up", WAN_IF_NAME_PRIMARY);
++            	#else
++            	v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" up;ifconfig eth0 up");
++            	#endif
+             #endif
+             CcspTraceWarning(("****************value of command = ifconfig %s**********************\n", ETHWAN_DEF_INTF_NAME));
+         } 
+@@ -3087,7 +3101,7 @@ ANSC_STATUS EthWanBridgeInit(PCOSA_DATAM
+     }
+     else
+     {
+-        strlcpy(wanPhyName, "eth0", sizeof(wanPhyName));
++        strlcpy(wanPhyName, ETHWAN_DEF_INTF_NAME, sizeof(wanPhyName));
+     }
+ 
+ 	//Get the ethwan interface name from HAL
+@@ -3479,11 +3493,20 @@ CosaDmlEthInit(
+         CcspTraceInfo(("Failed to up the interface %s\n",wanPhyName));
+     }
+     #else
+-    v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" down");
+-    #ifdef WAN_FAILOVER_SUPPORTED
+-    v_secure_system("ip link set "ETHWAN_DEF_INTF_NAME" name %s",wanPhyName);
+-    #endif
+-    v_secure_system("ifconfig %s up",wanPhyName);
++    	#ifdef _PLATFORM_SDX_
++    	GWP_GetEthWanInterfaceName((unsigned char*)WAN_IF_NAME_PRIMARY, sizeof(WAN_IF_NAME_PRIMARY));
++    	v_secure_system("ifconfig %s down", WAN_IF_NAME_PRIMARY);
++    	v_secure_system("ifconfig %s up", WAN_IF_NAME_PRIMARY);
++
++    	#elif defined(WAN_FAILOVER_SUPPORTED)
++    	v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" down");
++    	v_secure_system("ip link set "ETHWAN_DEF_INTF_NAME" name %s",wanPhyName);
++    	v_secure_system("ifconfig %s up",wanPhyName);
++
++    	#else
++    	v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" down");
++    	v_secure_system("ifconfig %s up",wanPhyName);
++    	#endif
+     #endif
+     #endif
+ 
+@@ -3615,7 +3638,11 @@ ANSC_STATUS GetEthPhyInterfaceName(INT i
+             errno_t rc = -1;
+             int ind = -1;
+ 
++            #ifdef _PLATFORM_SDX_
++            rc = strcmp_s(WAN_IF_NAME_PRIMARY,strlen(WAN_IF_NAME_PRIMARY),ifname,&ind);
++            #else
+             rc = strcmp_s(ETHWAN_DEF_INTF_NAME,strlen(ETHWAN_DEF_INTF_NAME),ifname,&ind);
++            #endif
+             ERR_CHK(rc);
+             if (ind == 0)
+             {
+@@ -5322,8 +5349,12 @@ ANSC_STATUS CosaDmlEthSetPhyStatusForWan
+     syscfg_get(NULL, "last_erouter_mode", deviceMode, sizeof(deviceMode));
+     if (strcmp(deviceMode, IPV4_MODE) == 0)
+     {
+-      v_secure_system("echo 1 > /proc/sys/net/ipv6/conf/eth0/disable_ipv6");
+-      CcspTraceWarning(("%s %d Switching to Ipv4 only mode \n", __FUNCTION__, __LINE__));
++	#ifdef _PLATFORM_SDX_
++      	v_secure_system("echo 1 > /proc/sys/net/ipv6/conf/%s/disable_ipv6", WAN_IF_NAME_PRIMARY);
++      	#else
++      	v_secure_system("echo 1 > /proc/sys/net/ipv6/conf/eth0/disable_ipv6");
++      	#endif
++      	CcspTraceWarning(("%s %d Switching to Ipv4 only mode \n", __FUNCTION__, __LINE__));
+     }
+ // Phy path not needed to set in case of auto wan policy mode.
+ // it will be set in part of boot inform msg.
+Index: git/source/TR-181/board_sbapi/cosa_ethernet_manager.c
+===================================================================
+--- git.orig/source/TR-181/board_sbapi/cosa_ethernet_manager.c
++++ git/source/TR-181/board_sbapi/cosa_ethernet_manager.c
+@@ -416,7 +416,7 @@ static ethSmState_t Transition_EthWanLin
+ #if defined (FEATURE_RDKB_WAN_AGENT)
+     if (ANSC_STATUS_SUCCESS != CosaDmlEthSetWanStatusForWanAgent(pstInfo->Name, "Up"))
+ #elif defined(FEATURE_RDKB_WAN_MANAGER)
+-    if (ANSC_STATUS_SUCCESS != CosaDmlEthSetWanInterfaceNameForWanManager(pstInfo->Name, WAN_INTERFACE_NAME))
++    if (ANSC_STATUS_SUCCESS != CosaDmlEthSetWanInterfaceNameForWanManager(pstInfo->Name, WAN_IF_NAME_PRIMARY))
+     {
+         CcspTraceError(("%s Failed to set LinkUp to WAN\n", __FUNCTION__));
+     }
+Index: git/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_arm.c
+===================================================================
+--- git.orig/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_arm.c
++++ git/source/TR-181/board_sbapi/source-arm/cosa_ethernet_apis_arm.c
+@@ -387,7 +387,7 @@ CosaDmlEthInterfaceInit
+ #ifdef FEATURE_RDKB_XDSL_PPP_MANAGER
+     if (syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value)) == 0)
+     {
+-       strncpy(wanPhyName, out_value, sizeof(wanPhyName));
++       strlcpy(wanPhyName, out_value, sizeof(wanPhyName));
+        CcspTraceInfo(("%s %d - WanPhyName=%s \n", __FUNCTION__,__LINE__, wanPhyName));
+     }
+     else
+@@ -487,7 +487,7 @@ CosaDmlEthPortSetValues
+     UNREFERENCED_PARAMETER(hContext);
+     g_EthEntries[ulIndex].instanceNumber=ulInstanceNumber;
+     /* CID 281976 Copy into fixed size buffer fix */
+-    strncpy (g_EthEntries[ulIndex].Alias, pAlias, sizeof(g_EthEntries[ulIndex].Alias)-1);
++    strlcpy(g_EthEntries[ulIndex].Alias, pAlias, sizeof(g_EthEntries[ulIndex].Alias));
+     saveID(g_EthIntSInfo[ulIndex].Name, pAlias, ulInstanceNumber);
+ 
+     return ANSC_STATUS_SUCCESS;
+Index: git/source/TR-181/middle_layer_src/cosa_ethernet_interface_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_ethernet_interface_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_ethernet_interface_dml.c
+@@ -488,7 +488,7 @@ Interface_GetParamStringValue
+         char out_value[32] = {0};
+         if (syscfg_get(NULL, "wan_physical_ifname", out_value, sizeof(out_value)) == 0)
+         {
+-           strncpy(wanPhyName, out_value, sizeof(wanPhyName));
++           strlcpy(wanPhyName, out_value, sizeof(wanPhyName));
+            CcspTraceInfo(("%s %d - WanPhyName=%s \n", __FUNCTION__,__LINE__, wanPhyName));
+         }
+         else
+Index: git/source/TR-181/include/cosa_ethernet_apis.h
+===================================================================
+--- git.orig/source/TR-181/include/cosa_ethernet_apis.h
++++ git/source/TR-181/include/cosa_ethernet_apis.h
+@@ -154,7 +154,7 @@
+ 
+ #define WAN_BOOTINFORM_CUSTOMCONFIGPATH_PARAM_VALUE "Device.X_CISCO_COM_CableModem."
+ #define WAN_ENABLE_PARAM "Device.X_RDK_WanManager.Enable"
+-#define WAN_IF_NAME_PRIMARY "eth0"
++extern char WAN_IF_NAME_PRIMARY[20];
+ #define WAN_PHYPATH_VALUE "Device.X_RDKCENTRAL-COM_EthernetWAN."
+ #define WAN_CM_INTERFACE_INSTANCE_NUM      1
+ #define WAN_ETH_INTERFACE_INSTANCE_NUM     2
