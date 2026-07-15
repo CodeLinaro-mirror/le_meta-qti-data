@@ -1,0 +1,58 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 4cdaf39422a5e7d5ad06a42db04cd001cc945b8f Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Fri, 10 Jul 2026 04:17:52 +0000
+Subject: [PATCH] Fix for brlan0 old ipv6 not deleting
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index 579430e..774aff0 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -2575,7 +2575,6 @@ static eWanState_t wan_transition_ipv4_down(WanMgr_IfaceSM_Controller_t* pWanIfa
+     /* RDKB-46612 - Empty set caused the cujo firewall rules to currupt and led to IHC IDLE.
+     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_CURRENT_WAN_IFNAME, "", 0);*/
+ 
+-    p_VirtIf->Status = WAN_IFACE_STATUS_VALIDATING;
+     if (pWanIfaceCtrl->interfaceIdx != -1)
+     {
+         WanMgr_Publish_WanStatus(pWanIfaceCtrl->interfaceIdx, pWanIfaceCtrl->VirIfIdx);
+@@ -2853,8 +2852,6 @@ static eWanState_t wan_transition_ipv6_down(WanMgr_IfaceSM_Controller_t* pWanIfa
+     /* RDKB-46612 - Empty set caused the cujo firewall rules to currupt and led to IHC IDLE.
+     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_CURRENT_WAN_IFNAME, "", 0);*/
+ 
+-    p_VirtIf->Status = WAN_IFACE_STATUS_VALIDATING;
+-
+     if (pWanIfaceCtrl->interfaceIdx != -1)
+     {
+         WanMgr_Publish_WanStatus(pWanIfaceCtrl->interfaceIdx, pWanIfaceCtrl->VirIfIdx);
+@@ -2872,8 +2869,6 @@ static eWanState_t wan_transition_dual_stack_down(WanMgr_IfaceSM_Controller_t* p
+     DML_WAN_IFACE* pInterface = pWanIfaceCtrl->pIfaceData;
+     DML_VIRTUAL_IFACE* p_VirtIf = WanMgr_getVirtualIfaceById(pInterface->VirtIfList, pWanIfaceCtrl->VirIfIdx);
+ 
+-    p_VirtIf->Status = WAN_IFACE_STATUS_VALIDATING;
+-
+     if (pWanIfaceCtrl->interfaceIdx != -1)
+     {
+         WanMgr_Publish_WanStatus(pWanIfaceCtrl->interfaceIdx, pWanIfaceCtrl->VirIfIdx);
+@@ -2882,6 +2877,8 @@ static eWanState_t wan_transition_dual_stack_down(WanMgr_IfaceSM_Controller_t* p
+     wan_transition_ipv4_down(pWanIfaceCtrl);
+     wan_transition_ipv6_down(pWanIfaceCtrl);
+ 
++    p_VirtIf->Status = WAN_IFACE_STATUS_VALIDATING;
++
+     CcspTraceInfo(("%s %d - TRANSITION OBTAINING IP ADDRESSES\n", __FUNCTION__, __LINE__));
+     return WAN_STATE_OBTAINING_IP_ADDRESSES;
+ }
+-- 
+2.34.1
+
