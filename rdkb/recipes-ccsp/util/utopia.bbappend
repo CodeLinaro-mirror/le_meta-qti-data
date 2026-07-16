@@ -19,6 +19,7 @@ SRC_URI:append = " \
     file://00013-utopia-factory-reset-changes.patch \
     file://00014-qti-utopia-Legacy-IPv6-PD-prefix-client-management.patch \
     file://00015-utopia-lan-vlan-changes.patch \
+    file://00017-utopia-sip-alg-configuration.patch \
 "
 do_install:append() {
     install -m 0755 ${WORKDIR}/service_sshd_qti.sh \
