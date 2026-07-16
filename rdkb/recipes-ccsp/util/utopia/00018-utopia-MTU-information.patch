@@ -1,0 +1,52 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 8aef5a63e9082862cde8a5cfdbf1d3429721d5b0 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Thu, 16 Jul 2026 10:50:00 +0000
+Subject: [PATCH] Added DHCP option '26' in conf file. Which enables MTU information in Offer/ACK packet.
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ .../service_dhcp_server/dhcp_server_functions.sh  | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh b/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+index d252b7c..056be51 100755
+--- a/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
++++ b/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+@@ -820,6 +820,18 @@ UpdateDhcpConfChangeBasedOnEvent()
+        fi
+ }
+ 
++add_dhcp_option_mtu(){
++      MIN_IPV4_MTU=68
++      wan_ifname=`sysevent get current_wan_ifname`
++      mtu_event="ipv4_""$wan_ifname""_mtu"
++      ipv4_mtu=`sysevent get "$mtu_event"`
++      if [ -n "$ipv4_mtu" ] && [ "$ipv4_mtu" -ge "$MIN_IPV4_MTU" ]; then
++         echo "dhcp-option-force=26,$ipv4_mtu" >> $LOCAL_DHCP_CONF
++      else
++         echo_t "ipv4_mtu for current_wan_ifname is empty"
++      fi
++}
++
+ updateManageWifiBridgeDetails ()
+ {
+     ManageWiFiEnabled=$(syscfg get Manage_WiFi_Enabled)
+@@ -1198,7 +1210,8 @@ fi
+ 	   if [ "$LAN_STATUS" = "stopped" ] && [ $BRIDGE_MODE == 0 ]; then                
+ 		   echo_t "DHCP_SERVER : Starting lan-status"
+ 		   sysevent set lan-status started
+-	   fi                                                  
++          fi
++      add_dhcp_option_mtu
+    fi 
+    if [ "started" = "$CURRENT_LAN_STATE" ]; then
+       calculate_dhcp_range "$LAN_IPADDR" "$LAN_NETMASK"
+-- 
+2.34.1
+
