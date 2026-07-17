@@ -1,0 +1,194 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 812c4fe4ab3d8e20a7f8fdd5f89a84e95fb3a7d3 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Tue, 21 Jul 2026 04:41:19 +0000
+Subject: [PATCH] [Description]:Corrects wrong Layer1Interface reporting for USB-tethered clients seen as Ethernet in bridge/FDB paths.
+Adds runtime USB-interface and USB-client checks before assigning final host interfacetype.
+
+[RCA/Root Cause Analysis]:
+Driver/FDB path exposed USB clients through Ethernet-like interface names (ecm0/rndis0 under bridge context).
+LM-lite wrote Ethernet blindly, so DM values were incorrect for USB-connected hosts.
+
+[Fix Description]:
+Added checkForUSBInterface() and checkForUSBClient() helpers using ifconfig and bridge fdb show.
+Event handler now sets Layer1Interface to USB when MAC matches USB client; otherwise keeps Ethernet.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 134 +++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 132 insertions(+), 2 deletions(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index 8dd1f46..f6a991e 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -113,6 +113,8 @@
+ #define ARP_IPv6 0
+ #define DIBBLER_IPv6 1
+ #define BUFFER_SIZE 256
++#define ECM0_USB_INTERFACE "ecm0"
++#define RNDIS0_USB_INTERFACE "rndis0"
+ #include <pthread.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -2323,6 +2325,110 @@ void XHosts_SyncWifi()
+ 	
+ }
+ #endif
++/**********************************************************************
++
++    prototype:
++
++        int checkForUSBInterface(const char *interface);
++
++    description:
++
++        To check whether the USB interface is present
++
++    argument:   const char *interface
++                The input parameter that holds the usb interface
++
++
++    return:     1 : for success
++                0 : for failure
++
++**********************************************************************/
++static int checkForUSBInterface(const char *interface)
++{
++    char ifconfig_buffer[MAX_SIZE]={0};
++    FILE *fp;
++
++    if (strcmp(interface,"rndis0") == 0)
++        fp = popen("ifconfig | grep rndis0 |awk '{print $1}'", "r");
++    else if (strcmp(interface,"ecm0") == 0)
++        fp = popen("ifconfig | grep ecm0 |awk '{print $1}'", "r");
++    else
++        fp = NULL;
++
++    if (fp == NULL)
++    {
++        perror("Error running the command\n");
++        return 0;
++    }
++
++    while (fgets(ifconfig_buffer, sizeof(ifconfig_buffer), fp) != NULL)
++    {
++        if (strstr(ifconfig_buffer, interface) != NULL)
++        {
++            pclose(fp);
++            return 1;
++        }
++    }
++
++    pclose(fp);
++    return 0;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        int checkForUSBClient(char *fname, char *MacAddress);
++
++    description:
++
++        To check USB client availability.
++
++    argument:   char *fname
++                command to execute 'bridge fdb show'
++
++                char *MacAddress,
++                The output parameter which holds usb client mac address
++
++    return:     0 : for success
++                -1 : for failure
++
++**********************************************************************/
++static int checkForUSBClient(char *fname, char *MacAddress)
++{
++    FILE *fp = NULL;
++    char temp[MAX_SIZE_DNSMASQ_Q];
++    int find_result = 0;
++
++    if ((NULL == fname) || (NULL == MacAddress))
++    {
++        CcspTraceError(("%s:%d input param NULL \n",__FUNCTION__,__LINE__));
++        return -1;
++    }
++
++    fp=popen(fname,"r");
++    if (fp == NULL)
++    {
++        CcspTraceError(("%s:%d popen failed \n",__FUNCTION__,__LINE__));
++        return -1;
++   }
++    while (NULL != fgets(temp, MAX_SIZE_DNSMASQ_Q, fp))
++    {
++        /* Entries includes 'permanent' for interfaces not for clients */
++        if (NULL == strstr(temp, "permanent"))
++        {
++            strlcpy(MacAddress, temp, MACADDR_SIZE*sizeof(char));
++            CcspTraceError(("%s:%d usb client MacAddress is %s \n",__FUNCTION__,__LINE__,MacAddress));
++            find_result++;
++            break;
++        }
++    }
++    pclose(fp);
++    if (find_result == 0)
++        return -1;
++
++    return 0;
++}
+ 
+ static void *Event_HandlerThread(void *threadid)
+ {
+@@ -2361,7 +2467,7 @@ static void *Event_HandlerThread(void *threadid)
+         Eth_data EthHost;
+         char cmd[CMD_SIZE];
+         char MacAddress[MACADDR_SIZE];
+-
++        int ret = -1;
+         /* receive the message */
+         bytes_read = mq_receive(mq, buffer, MAX_SIZE, NULL);
+ 
+@@ -2420,7 +2526,31 @@ static void *Event_HandlerThread(void *threadid)
+             if(EthHost.Active)
+             {
+                 CcspTraceDebug(("%s-%d LM Ethernet client is active \n",__FUNCTION__,__LINE__));
+-                LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]), "Ethernet");
++                /* Driver identifies USB device as ethernet
++                 * so updating the device type as USB by
++                 * checking <bridge fdb show> table  */
++                if(checkForUSBInterface(RNDIS0_USB_INTERFACE))
++                   snprintf(cmd ,sizeof(cmd), "bridge fdb show | grep -w 'rndis0 master brlan0'");
++                else if(checkForUSBInterface(ECM0_USB_INTERFACE))
++                   snprintf(cmd ,sizeof(cmd), "bridge fdb show | grep -w 'ecm0 master brlan0'");
++                memset(MacAddress, '0', MACADDR_SIZE*sizeof(char));
++                ret = checkForUSBClient(cmd, MacAddress);
++                if (0 == ret)
++                {
++                    if (TRUE == AnscEqualString(pHost->pStringParaValue[LM_HOST_PhysAddressId], MacAddress, FALSE))
++                    {
++                        CcspTraceDebug(("%s:%d Layer1Interface is set to USB \n",__FUNCTION__,__LINE__));
++                        LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]), "USB");
++                    }
++                    else
++                    {
++                        LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]), "Ethernet");
++                    }
++                }
++                else
++                {
++                    LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]), "Ethernet");
++                }
+                 char vlan_id_list[5] = {0};
+                 syscfg_get(NULL, "lan_ethernet_virtual_ifnums", vlan_id_list, sizeof(vlan_id_list));
+                 if (vlan_id_list != NULL && vlan_id_list[0] != '\0') {
+-- 
+2.34.1
+

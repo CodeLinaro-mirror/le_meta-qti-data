@@ -1,0 +1,111 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 1fb5629b234714f99dc71a010571c88d24c6521a Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Wed, 15 Jul 2026 11:31:50 +0000
+Subject: [Description]:Fixes LM-lite crash paths during LAN IPv6 handling and improves IPv6 entry replacement behavior.
+Adds prefix validation and stronger NULL-safe writes for IPv6 list maintenance.
+
+[RCA/Root Cause Analysis]:IPv6 update flow could operate on non-matching/stale addresses and dereference chained pointers unsafely.Missing LAN prefix filtering allowed invalid replacements, increasing bad state and crash risk under churn.
+
+[Fix Description]:
+Reads lan_prefix and ignores IPv6 updates that do not match active LAN prefix criteria.
+Adds NULL checks before writing pCur, pCur->pNext, and pCur->pNext->pNext, preventing unsafe access.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 57 ++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 54 insertions(+), 3 deletions(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index f3a56a5..362e15c 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -1606,6 +1606,28 @@ static PLmObjectHostIPAddress Add_Update_IPv6Address (PLmObjectHost pHost, char
+                                return NULL;
+                        else
+                        {
++                               char ipv6_prefix[CMD_SIZE] = {0};
++                               char *prefix_temp = NULL, *ptr = NULL;
++                               int prefix_len =0;
++                               FILE *prefix = NULL;
++                               // To extract the prefix from sysevent lan_prefix and store in ipv6_prefix
++                               prefix = popen("sysevent get lan_prefix","r");
++                               if (prefix != NULL) {
++                                       if (fgets(ipv6_prefix, sizeof(ipv6_prefix), prefix) != NULL) {
++                                               prefix_temp = strtok_r(ipv6_prefix, "/", &ptr);
++                                               if (prefix_temp != NULL) {
++                                                       strlcpy(ipv6_prefix,prefix_temp,strlen(prefix_temp));
++                                                       prefix_len = strlen(ipv6_prefix);
++                                               }
++                                       }
++                                       pclose(prefix);
++                                       prefix = NULL;
++                                       ptr = NULL;
++                                       prefix_temp=NULL;
++                                       // Return if the ipAddress is not matching with IPv6 prefix
++                                       if((prefix_len > 0) && (strstr(ipAddress,ipv6_prefix) == NULL))
++                                               return pIpAddrList;
++                               }
+                                for(;pIpAddrList->pNext != NULL;pIpAddrList = pIpAddrList->pNext)
+                                {
+                                        if(strncmp(ipAddress,pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId],BUFFER_SIZE) == 0) /*Checks if ipaddress is already added to the list */
+@@ -1618,6 +1640,30 @@ static PLmObjectHostIPAddress Add_Update_IPv6Address (PLmObjectHost pHost, char
+                                                pCur=pIpAddrList->pNext;
+                                                break;
+                                        }
++                                       else if(strncmp(pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId],"fe80:",5)==0) /*update pCur if its link local address */
++                                                pCur=pIpAddrList->pNext;
++                                       else /* update host table entry if its not matching with ipv6_prefix or not present in ip nei */
++                                       {
++                                                pCur=pIpAddrList->pNext;
++                                                // IPv6 entry in host table prefix doesnot match with ipv6_prefix then break and update with ipAddress
++                                                if((prefix_len > 0) && (strstr(pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId],ipv6_prefix) == NULL))
++                                                       break;
++                                                memset(Command, 0, sizeof(Command));
++                                                snprintf(Command, sizeof(Command), "ip -6 nei | grep %s",pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId]);
++                                                ipnei_fp = popen(Command,"r");
++                                                // Check host table entry is present in ip nei
++                                                if (ipnei_fp != NULL)
++                                                {
++                                                        char ipv6_present[BUFFER_SIZE] ={0};
++                                                        if (fgets(ipv6_present, sizeof(ipv6_present), ipnei_fp) == NULL) {
++                                                                pclose(ipnei_fp);
++                                                                ipnei_fp = NULL;
++                                                                break;
++                                                        }
++                                                        pclose(ipnei_fp);
++                                                        ipnei_fp = NULL;
++                                                }
++                                        }
+                                }
+                        }
+ 		}
+@@ -1628,12 +1674,17 @@ static PLmObjectHostIPAddress Add_Update_IPv6Address (PLmObjectHost pHost, char
+ 	}
+         if(duplicateFound)
+                 return pIpAddrList; /* return here to avoid duplication IP updation to list */
+-	LanManager_CheckCloneCopy(&(pCur->pStringParaValue[LM_HOST_IPAddress_IPAddressId]), ipAddress);
++        if (NULL != pCur)
++                LanManager_CheckCloneCopy(&(pCur->pStringParaValue[LM_HOST_IPAddress_IPAddressId]), ipAddress);
+         if(OnlyLink)
+         {
+                 /* Makes index 3 and 4 empty if only Link Local Address is available */
+-                LanManager_CheckCloneCopy(&(pCur->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId])," ");
+-                LanManager_CheckCloneCopy(&(pCur->pNext->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId])," ");
++                if (NULL != pCur->pNext)
++                {
++                        LanManager_CheckCloneCopy(&(pCur->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId])," ");
++                        if (NULL != pCur->pNext->pNext)
++                                LanManager_CheckCloneCopy(&(pCur->pNext->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId])," ");
++                }
+         }
+         return pCur;
+ }
+-- 
+2.34.1
+

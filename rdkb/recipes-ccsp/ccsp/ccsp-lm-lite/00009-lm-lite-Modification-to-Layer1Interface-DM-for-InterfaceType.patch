@@ -1,0 +1,254 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 5777df7915a4906d5e95d5c2dc750df1817ccf20 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Fri, 17 Jul 2026 05:38:06 +0000
+Subject: [Description]:Introduces InterfaceType in Host DM and refines Layer1Interface resolution with Ethernet interface mapping/VLAN extraction.Also normalizes VLAN defaulting (-1) and updates host string/int parameter index layout accordingly.
+[RCA/Root Cause Analysis]:
+Prior model mixed physical interface naming and type semantics, and VLAN/interface reporting was inconsistent.
+Static/legacy assignment logic could misreport Ethernet sub-interfaces and lacked clean InterfaceType exposure.
+
+[Fix Description]:
+Added InterfaceType to XML, DML getter path, host structure, and string-parameter metadata indices.
+Added FDB parser (get_interface_from_fdb) to resolve base interface + VLAN ID and populate Host fields accurately.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ config/LMLite.XML          |  5 ++
+ source/lm/cosa_hosts_dml.c |  5 ++
+ source/lm/lm_main.c        | 97 +++++++++++++++++++++++++++++---------
+ source/lm/lm_main.h        |  9 ++--
+ 4 files changed, 89 insertions(+), 27 deletions(-)
+
+Index: git/config/LMLite.XML
+===================================================================
+--- git.orig/config/LMLite.XML
++++ git/config/LMLite.XML
+@@ -193,6 +193,11 @@
+               <syntax>string</syntax>
+             </parameter>
+             <parameter>
++              <name>InterfaceType</name>
++              <type>string</type>
++              <syntax>string</syntax>
++            </parameter>
++            <parameter>
+               <name>Layer3Interface</name>
+               <type>string</type>
+               <syntax>string</syntax>
+Index: git/source/lm/cosa_hosts_dml.c
+===================================================================
+--- git.orig/source/lm/cosa_hosts_dml.c
++++ git/source/lm/cosa_hosts_dml.c
+@@ -1517,6 +1517,11 @@ Host_GetParamStringValue
+         rc = 0;
+         value = pHost->Layer3Interface;
+     }
++    else if(strcmp (ParamName, "InterfaceType") == 0)
++    {
++        rc = 0;
++        value = pHost->InterfaceValue;
++    }
+     else
+     {
+         for (i = 0; i < LM_HOST_NumStringPara; i++)
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -224,6 +224,9 @@ Name_DM_t *g_pMoCAADList = NULL;
+ int g_DHCPv4ListNum = 0;
+ Name_DM_t *g_pDHCPv4List = NULL;
+ 
++int g_EthIfListNum = 0;
++Name_DM_t *g_pEthIfList = NULL;
++
+ static int firstFlg = 0;
+ #if !defined (RESOURCE_OPTIMIZATION)
+ static int xfirstFlg = 0;
+@@ -331,7 +334,7 @@ LmObjectHosts XlmHosts = {
+                                         "X_CISCO_COM_UPnPDevice", "X_CISCO_COM_HNAPDevice", "X_CISCO_COM_DNSRecords", "X_CISCO_COM_HardwareVendor",
+                                         "X_CISCO_COM_SoftwareVendor", "X_CISCO_COM_SerialNumbre", "X_CISCO_COM_DefinedDeviceType",
+                                         "X_CISCO_COM_DefinedHWVendor", "X_CISCO_COM_DefinedSWVendor", "AddressSource", "Comments",
+-                                        "X_RDKCENTRAL-COM_Parent", "X_RDKCENTRAL-COM_DeviceType", "X_RDKCENTRAL-COM_Layer1Interface"
++                                        "X_RDKCENTRAL-COM_Parent", "X_RDKCENTRAL-COM_DeviceType", "X_RDKCENTRAL-COM_Layer1Interface", "InterfaceType"
+ #ifdef VENDOR_CLASS_ID
+ , "VendorClassID"
+ #endif
+@@ -1154,7 +1157,7 @@ static PLmObjectHost Hosts_AddHost (int
+ 	    pHost->activityChangeTime  = time(NULL);
+ 	    pHost->iIntParaValue[LM_HOST_X_CISCO_COM_ActiveTimeId] = -1;
+ 	    pHost->iIntParaValue[LM_HOST_X_CISCO_COM_RSSIId] = -200;
+-            pHost->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID] = 0;
++            pHost->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID] = -1;
+ 
+ 		pHost->Layer3Interface = NULL;
+     pHost->bBoolParaValue[LM_HOST_PresenceActiveId] = FALSE;
+@@ -2590,7 +2593,7 @@ static void *Event_HandlerThread(void *t
+                 {
+                     if (TRUE == AnscEqualString(pHost->pStringParaValue[LM_HOST_PhysAddressId], MacAddress, FALSE))
+                     {
+-                        CcspTraceDebug(("%s:%d Layer1Interface is set to USB \n",__FUNCTION__,__LINE__));
++                        CcspTraceDebug(("%s:%d InterfaceType is set to USB \n",__FUNCTION__,__LINE__));
+                         LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]), "USB");
+                     }
+                     else
+@@ -2602,23 +2605,6 @@ static void *Event_HandlerThread(void *t
+                 {
+                     LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]), "Ethernet");
+                 }
+-                char vlan_id_list[5] = {0};
+-                syscfg_get(NULL, "lan_ethernet_virtual_ifnums", vlan_id_list, sizeof(vlan_id_list));
+-                if (vlan_id_list != NULL && vlan_id_list[0] != '\0') {
+-                        CcspTraceWarning(("%s:%d MAC address = %s \n",__FUNCTION__,__LINE__,MacAddress));
+-                        snprintf(cmd, sizeof(cmd), "bridge fdb show | grep -w 'master brlan0 permanent' | awk '$3 ~ /^eth[0-9]+.[0-9]+$/ {print $3}' | cut -d '.' -f 2");
+-                        FILE *fp = popen(cmd, "r");
+-                        if (fp != NULL) {
+-                            char vlan_id[5] = {0};
+-                            fscanf(fp, "%s", vlan_id);
+-                            pclose(fp);
+-                            if (vlan_id != NULL && vlan_id[0] != '\0') {
+-                                if (strstr(vlan_id_list, vlan_id) != NULL) {
+-                                    pHost->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID] = atoi(vlan_id);
+-                                }
+-                            }
+-                        }
+-                }
+                 if ( ! pHost->pStringParaValue[LM_HOST_IPAddressId] )
+                 {
+                     CcspTraceWarning(("RDKB_CONNECTED_CLIENTS: Client type is Ethernet, MacAddress is %s IPAddr is not updated in ARP\n",pHost->pStringParaValue[LM_HOST_PhysAddressId]));
+@@ -3749,11 +3735,59 @@ static void _get_dmbyname(int num, Name_
+ 	
+ }
+ 
++static int get_interface_from_fdb(const char *mac_addr, char *iface_out, size_t out_size, int *vlan_id_out)
++{
++    FILE *fp = NULL;
++    char line[256] = {0};
++   char cmd[256] = {0};
++    char *dev_ptr = NULL;
++    char *end = NULL;
++    char iface_full[64] = {0};
++
++    snprintf(cmd, sizeof(cmd), "bridge fdb show | grep -v permanent | grep -i \"%s\" | grep -i \"master brlan0\"", mac_addr);
++    fp = popen(cmd, "r");
++    if (!fp) {
++        perror("popen failed");
++        return -1;
++    }
++
++    while (fgets(line, sizeof(line), fp)) {
++        dev_ptr = strstr(line, "dev ");
++        if (dev_ptr) {
++            dev_ptr += 4;
++            end = strchr(dev_ptr, ' ');
++            if (end) {
++                size_t len = end - dev_ptr;
++                if (len < sizeof(iface_full)) {
++                    strlcpy(iface_full, dev_ptr, len);
++                    iface_full[len] = '\0';
++
++                    char *dot = strchr(iface_full, '.');
++                    if (dot && vlan_id_out) {
++                        *vlan_id_out = atoi(dot + 1);
++                        *dot = '\0';
++                    }
++
++                    if (strlen(iface_full) < out_size) {
++                        strlcpy(iface_out, iface_full, out_size);
++                        pclose(fp);
++                        return 0;
++                    }
++                }
++            }
++        }
++    }
++
++    pclose(fp);
++    return -1;
++}
++
+ int LM_get_host_info()
+ {
+ 
+ 	int i = 0;
+-	
++        char resolved_if[32] = {0};
++        int vlan_id = -1;
+ 
+ 	if(firstFlg == 0){
+         firstFlg = 1;
+@@ -3771,6 +3805,7 @@ int LM_get_host_info()
+ 	_init_DM_List(&g_MoCAADListNum, &g_pMoCAADList, "Device.MoCA.Interface.1.AssociatedDevice.", "MACAddress");
+ #endif
+ 	_init_DM_List(&g_DHCPv4ListNum, &g_pDHCPv4List, "Device.DHCPv4.Server.Pool.1.Client.", "Chaddr");
++        _init_DM_List(&g_EthIfListNum, &g_pEthIfList, "Device.Ethernet.Interface.", "Name");
+ 
+     CcspTraceDebug(("%s:%d, Acquiring LmHostObjectMutex\n",__FUNCTION__,__LINE__));
+ 	pthread_mutex_lock(&LmHostObjectMutex);
+@@ -3799,8 +3834,24 @@ int LM_get_host_info()
+ 		}
+ 		
+ 		
+-	}
+-
++                if (lmHosts.hostArray[i]->pStringParaValue[LM_HOST_Layer1InterfaceId] != NULL) {
++                     if (strstr(lmHosts.hostArray[i]->pStringParaValue[LM_HOST_Layer1InterfaceId], "Ethernet") != NULL) {
++                        const char *mac = lmHosts.hostArray[i]->pStringParaValue[LM_HOST_PhysAddressId];
++
++                        if (get_interface_from_fdb(mac, resolved_if, sizeof(resolved_if), &vlan_id) == 0) {
++                            _get_dmbyname(g_EthIfListNum,g_pEthIfList,&(lmHosts.hostArray[i]->pStringParaValue[LM_HOST_Layer1InterfaceId]),resolved_if);
++                            lmHosts.hostArray[i]->InterfaceValue = strdup("Ethernet");
++                            lmHosts.hostArray[i]->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID] = vlan_id;
++                        }
++                      } else if (strstr(lmHosts.hostArray[i]->pStringParaValue[LM_HOST_Layer1InterfaceId], "WiFi") != NULL ){
++                            lmHosts.hostArray[i]->InterfaceValue = strdup("WiFi");
++                            lmHosts.hostArray[i]->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID] = -1;
++                       }
++         else if (strstr(lmHosts.hostArray[i]->pStringParaValue[LM_HOST_Layer1InterfaceId], "USB") != NULL){
++             lmHosts.hostArray[i]->InterfaceValue = strdup("USB");
++         }
++                }
++       }
+ 	pthread_mutex_unlock(&LmHostObjectMutex);
+     CcspTraceDebug(("%s:%d, unlocked LmHostObjectMutex\n",__FUNCTION__,__LINE__));
+ 	return 0;
+Index: git/source/lm/lm_main.h
+===================================================================
+--- git.orig/source/lm/lm_main.h
++++ git/source/lm/lm_main.h
+@@ -78,7 +78,7 @@
+ #define LM_HOST_X_CISCO_COM_ActiveTimeId        0
+ #define LM_HOST_X_CISCO_COM_InactiveTimeId      1
+ #define LM_HOST_X_CISCO_COM_RSSIId              2
+-#define LM_HOST_X_CISCO_COM_VLANID              2
++#define LM_HOST_X_CISCO_COM_VLANID              3
+ #define LM_HOST_NumIntPara                      4
+ 
+ #define LM_HOST_X_CISCO_COM_DeviceTypeId        0
+@@ -166,10 +166,10 @@ LmObjectHostPossibleDeviceTypeKeyWords,
+ #define LM_HOST_X_RDKCENTRAL_COM_DeviceType             20
+ #define LM_HOST_X_RDKCENTRAL_COM_Layer1Interface        21
+ #ifdef VENDOR_CLASS_ID
+-#define LM_HOST_VendorClassID                           22
+-#define LM_HOST_NumStringPara                           23
++#define LM_HOST_VendorClassID                           23
++#define LM_HOST_NumStringPara                           24
+ #else
+-#define LM_HOST_NumStringPara                           22
++#define LM_HOST_NumStringPara                           23
+ #endif
+ #define LM_HOST_IPAddress_IPAddressId     0
+ #define LM_HOST_IPAddress_IPAddressSourceId     1
+@@ -256,6 +256,7 @@ _LmObjectHost
+ #endif	
+     BOOL    bTrueStaticIPClient;
+ 	char	*Layer3Interface;
++        char    *InterfaceValue;
+ 	char backupHostname[64];
+ 	BOOL bClientReady;
+ 

@@ -1,0 +1,55 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 577d2ab7b796a844885f984f7050c31604fe83c0 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Wed, 15 Jul 2026 11:44:58 +0000
+Subject: [Description]: Fixes crash caused by buffer size mismatch while reading Base MAC via platform HAL API.
+Makes MAC string copy/lowercase flow safer with explicit termination and bounded copy semantics.
+
+[RCA/Root Cause Analysis]: platform_hal_GetBaseMacAddress() expected a larger buffer than the previously allocated 32-byte stack buffer.
+Subsequent copy/transform operations risked overflow/truncation and non-terminated strings, leading to instability.
+
+[Fix Description]: Increased temporary MAC buffer to 256 bytes as required by HAL expectations.
+Replaced unsafe copy pattern with guarded strlcpy plus explicit null termination for fullDeviceMAC and deviceMAC.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/webpa_interface.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/source/lm/webpa_interface.c b/source/lm/webpa_interface.c
+index e5cf19a..35f967c 100644
+--- a/source/lm/webpa_interface.c
++++ b/source/lm/webpa_interface.c
+@@ -387,8 +387,8 @@ char * getDeviceMac()
+     CcspTraceInfo(("%s %d -  deviceMAC is - %s \n", __FUNCTION__,__LINE__, deviceMAC));
+     return deviceMAC;
+ #endif //_SKY_HUB_COMMON_PRODUCT_REQ_
+-
+-    char deviceMACStr[32] = {0};
++    /* platform_hal_GetBaseMacAddress requires >= 256-byte buffer */
++    char deviceMACStr[256] = {0};
+     if(!strlen(deviceMAC))
+     {
+         if(platform_hal_GetBaseMacAddress(deviceMACStr) != 0)
+@@ -396,8 +396,12 @@ char * getDeviceMac()
+             CcspTraceError(("%s Failed to get BaseMacAddress from HAL API\n",__FUNCTION__));
+             return NULL;
+         }
+-        strncpy(fullDeviceMAC, deviceMACStr, sizeof(fullDeviceMAC));
++        /* Ensure null termination before copy/lowercase */
++        deviceMACStr[sizeof(deviceMACStr) - 1] = '\0';
++        strlcpy(fullDeviceMAC, deviceMACStr, sizeof(fullDeviceMAC) - 1);
++        fullDeviceMAC[sizeof(fullDeviceMAC) - 1] = '\0';
+         AnscMacToLower(deviceMAC, deviceMACStr, sizeof(deviceMAC));
++        deviceMAC[sizeof(deviceMAC) - 1] = '\0';
+         CcspTraceInfo(("%s %d -  deviceMAC is - %s fullDeviceMAC %s\n", __FUNCTION__,__LINE__, deviceMAC, fullDeviceMAC));
+     }
+     return deviceMAC;
+-- 
+2.34.1
+

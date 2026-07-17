@@ -9,4 +9,11 @@ SRC_URI += " \
               file://00001-IPPT-changes-for-lm-lite.patch \
               file://00002-lm-lite-crash-fix.patch \
               file://00003-lm-lite-changes-for-LAN-VLAN.patch \
+              file://00005-lm-lite-host-entry-duplication-fix.patch \
+              file://00006-lm-lite-changes-for-showing-ip-nei-address.patch \
+              file://00007-lm-lite-Fix-for-layer1Interface-DM-showing-wrong-value.patch \
+              file://00008-lm-lite-fix-for-core-dump-due-to-LAN-client-IPv6.patch \
+              file://00009-lm-lite-Modification-to-Layer1Interface-DM-for-InterfaceType.patch \
+              file://00011-lm-lite-dnsmasq-leases-fix.patch \
+              file://00012-lm-lite-fix-for-crash-caused-by-buffer-size-mismatch.patch \
 "
