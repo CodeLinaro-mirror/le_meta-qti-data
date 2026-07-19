@@ -15,7 +15,7 @@ SRC_URI[sha256sum] = "8627ffd6b70df34c18c61c902f288474dc3e7919f788fbe409ee0016ed
 PV = "1.2.2+git${SRCPV}"
 SRCREV = "8991f0e93713ebf4da48ae4f23940ead42f64c8c"
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit meson pkgconfig gobject-introspection
 

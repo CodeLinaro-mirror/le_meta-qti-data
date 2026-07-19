@@ -10,4 +10,4 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += "file://qca-nss-ecm.cfg"
 
-KERNEL_CONFIG_FRAGMENTS:append = " ${WORKDIR}/qca-nss-ecm.cfg"
+KERNEL_CONFIG_FRAGMENTS:append = " ${UNPACKDIR}/qca-nss-ecm.cfg"

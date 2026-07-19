@@ -36,7 +36,7 @@ SRC_URI_append += " \
     file://00013-IPv4_Fix_for_xlat.patch \
 "
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 # strict, permissive
 MODEMMANAGER_POLKIT_TYPE ??= "permissive"
 PACKAGECONFIG ??= "vala qmi qrtr \

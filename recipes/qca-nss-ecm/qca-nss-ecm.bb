@@ -23,8 +23,9 @@ SRC_URI += "file://qca-nss-ecm-config"
 SRC_URI += "file://qca-nss-ecm.sysctl"
 SRC_URI += "file://ecm_dump.sh"
 
-S = "${WORKDIR}/qca-nss-ecm"
+S = "${UNPACKDIR}/qca-nss-ecm"
 
+EXTRA_CFLAGS += "-I${RECIPE_SYSROOT}/usr/include/ipa -I${RECIPE_SYSROOT}/usr/include/ipa/uapi"
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 
 # ECM feature flags passed as make variables to the kernel build system.
@@ -109,6 +110,7 @@ do_compile() {
                O=${STAGING_KERNEL_BUILDDIR} \
                KBUILD_EXTRA_SYMBOLS="${KBUILD_EXTRA_SYMBOLS} ${IPA_SYMVERS} ${SFE_SYMVERS}" \
                EXTRA_CFLAGS="${EXTRA_CFLAGS}" \
+               KCFLAGS="${EXTRA_CFLAGS}" \
                ${EXTRA_OEMAKE} \
                ${MAKE_TARGETS}
 }
@@ -146,28 +148,28 @@ do_install() {
 
     # Install sysctl config
     install -d ${D}${sysconfdir}/sysctl.d/
-    install -m 0644 ${WORKDIR}/qca-nss-ecm.sysctl ${D}${sysconfdir}/sysctl.d/qca-nss-ecm.conf
+    install -m 0644 ${UNPACKDIR}/qca-nss-ecm.sysctl ${D}${sysconfdir}/sysctl.d/qca-nss-ecm.conf
 
     # Install ECM config file (replaces OpenWRT UCI config)
     # Patch ECM_FRONT_END_SELECTION with the machine-specific default at build time.
     # The file is sourced by qca-nss-ecm.sh at runtime, so on-device edits take
     # effect immediately on the next service restart without any rebuild.
     install -d ${D}${sysconfdir}/qca-nss-ecm/
-    install -m 0644 ${WORKDIR}/qca-nss-ecm-config ${D}${sysconfdir}/qca-nss-ecm/config
+    install -m 0644 ${UNPACKDIR}/qca-nss-ecm-config ${D}${sysconfdir}/qca-nss-ecm/config
     sed -i "s|^ECM_FRONT_END_SELECTION=.*|ECM_FRONT_END_SELECTION=${ECM_FRONT_END_SELECTION}|" \
         ${D}${sysconfdir}/qca-nss-ecm/config
 
     # Install helper script (converted from OpenWRT init script)
     install -d ${D}${sbindir}/
-    install -m 0755 ${WORKDIR}/qca-nss-ecm.sh ${D}${sbindir}/qca-nss-ecm.sh
+    install -m 0755 ${UNPACKDIR}/qca-nss-ecm.sh ${D}${sbindir}/qca-nss-ecm.sh
 
     # Install utility script
     install -d ${D}${bindir}/
-    install -m 0755 ${WORKDIR}/ecm_dump.sh ${D}${bindir}/ecm_dump.sh
+    install -m 0755 ${UNPACKDIR}/ecm_dump.sh ${D}${bindir}/ecm_dump.sh
 
     # Install systemd service
     install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${WORKDIR}/qca-nss-ecm.service ${D}${systemd_unitdir}/system/qca-nss-ecm.service
+    install -m 0644 ${UNPACKDIR}/qca-nss-ecm.service ${D}${systemd_unitdir}/system/qca-nss-ecm.service
     install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
     ln -sf ${systemd_unitdir}/system/qca-nss-ecm.service \
            ${D}${systemd_unitdir}/system/local-fs.target.wants/qca-nss-ecm.service
@@ -186,3 +188,5 @@ SYSTEMD_SERVICE:${PN} = "qca-nss-ecm.service"
 RPROVIDES:${PN} += "kernel-module-ecm-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-ecm-sdx-pcc-${KERNEL_VERSION}"
 RPROVIDES:${PN} += "kernel-module-ecm-ae-select-${KERNEL_VERSION}"
+
+do_configure[noexec] = "1"

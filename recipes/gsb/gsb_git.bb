@@ -7,7 +7,7 @@ PR = "r0"
 
 FILESPATH =+ "${WORKSPACE}/data-kernel/drivers:"
 SRC_URI = "file://generic-sw-bridge"
-S = "${WORKDIR}/generic-sw-bridge/"
+S = "${UNPACKDIR}/generic-sw-bridge/"
 
 do_install() {
     module_do_install

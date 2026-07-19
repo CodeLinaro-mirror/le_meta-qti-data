@@ -15,4 +15,4 @@ EXTRA_OECONF = "--with-sanitized-headers=${STAGING_KERNEL_BUILDDIR}/usr/include 
 
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://data-oss"
-S = "${WORKDIR}/data-oss"
+S = "${UNPACKDIR}/data-oss"

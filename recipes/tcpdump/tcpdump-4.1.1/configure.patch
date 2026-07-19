@@ -1,3 +1,4 @@
+Upstream-Status: Inappropriate [platform specific]
 ---
  aclocal.m4   |    1 -
  configure.in |    1 +

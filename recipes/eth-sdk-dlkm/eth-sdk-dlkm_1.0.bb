@@ -29,13 +29,13 @@ SRC_URI  = "file://data-eth/drivers"
 SRC_URI += "file://data-eth/files/${BASEMACHINE}-${DISTRO}"
 SRC_URI += "file://data-eth/cli"
 
-S = "${WORKDIR}/data-eth/drivers"
-FILES_DIR = "${WORKDIR}/data-eth/files/${BASEMACHINE}-${DISTRO}"
-ETH_CLI_DIR    = "${WORKDIR}/data-eth/cli"
+S = "${UNPACKDIR}/data-eth/drivers"
+FILES_DIR = "${UNPACKDIR}/data-eth/files/${BASEMACHINE}-${DISTRO}"
+ETH_CLI_DIR    = "${UNPACKDIR}/data-eth/cli"
 
-IPA_SYSROOT = "${WORKDIR}/recipe-sysroot/usr/include/ipa"
+IPA_SYSROOT = "${RECIPE_SYSROOT}/usr/include/ipa"
 IPA_CFLAGS  = "-I${IPA_SYSROOT} -I${IPA_SYSROOT}/linux -I${IPA_SYSROOT}/uapi"
-IPA_SYMVERS = "${WORKDIR}/recipe-sysroot/usr/include/ipa/Module.symvers"
+IPA_SYMVERS = "${RECIPE_SYSROOT}/usr/include/ipa/Module.symvers"
 
 # -----------------------------------------------------------------------
 # do_configure – clean via the kernel build system (Kbuild has no targets)
@@ -60,8 +60,8 @@ do_compile() {
 		STRIP="${KERNEL_STRIP}" \
 		O=${STAGING_KERNEL_BUILDDIR} \
 		KBUILD_EXTRA_SYMBOLS="${IPA_SYMVERS}" \
-		BOARD="${BASEMACHINE}" \
-		"IPA_CFLAGS=${IPA_CFLAGS}"
+		BOARD="${BASEMACHINE}"  \
+		IPA_CFLAGS="${IPA_CFLAGS}"
 }
 
 # -----------------------------------------------------------------------

@@ -52,8 +52,8 @@ EXTRA_OECONF_append += " ${@bb.utils.contains('TDK_ENABLED', 'true', '--enable-t
 
 do_configure:prepend() {
 
-    cp ${WORKDIR}/RdkCellularManager-MM/CellularManager_extn/CellularManager/* ${S}/source/CellularManager/
-    cp ${WORKDIR}/RdkCellularManager-MM/CellularManager_extn/TR-181/middle_layer_src/* ${S}/source/TR-181/middle_layer_src/
+    cp ${UNPACKDIR}/RdkCellularManager-MM/CellularManager_extn/CellularManager/* ${S}/source/CellularManager/
+    cp ${UNPACKDIR}/RdkCellularManager-MM/CellularManager_extn/TR-181/middle_layer_src/* ${S}/source/TR-181/middle_layer_src/
     if ${@bb.utils.contains_any('DISTRO_FEATURES', 'WanFailOverSupportEnable rdkb_cellular_manager', 'true', 'false', d)}; then
         (${PYTHON} ${STAGING_BINDIR_NATIVE}/dm_pack_code_gen.py ${S}/config/RdkCellularManager.xml ${S}/source/CellularManager/dm_pack_datamodel.c)
     fi

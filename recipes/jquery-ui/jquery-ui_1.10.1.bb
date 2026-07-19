@@ -15,14 +15,14 @@ do_compile() {
 do_install() {
         install -m 0755 -d ${D}/WEBSERVER/www/js/
         install -m 0755 -d ${D}/WEBSERVER/www/js/images
-        install -m 0644 ${WORKDIR}/jquery-ui-${PV}.custom/js/jquery-ui-${PV}.custom.min.js ${D}/WEBSERVER/www/js/jquery-ui.js
-        install -m 0644 ${WORKDIR}/jquery-ui-${PV}.custom/css/smoothness/jquery-ui-${PV}.custom.css ${D}/WEBSERVER/www/js/jquery-ui.css
-        install -m 0644 ${WORKDIR}/jquery-ui-${PV}.custom/css/smoothness/images/ui-icons_888888_256x240.png ${D}/WEBSERVER/www/js/images/ui-icons_888888_256x240.png
+        install -m 0644 ${UNPACKDIR}/jquery-ui-${PV}.custom/js/jquery-ui-${PV}.custom.min.js ${D}/WEBSERVER/www/js/jquery-ui.js
+        install -m 0644 ${UNPACKDIR}/jquery-ui-${PV}.custom/css/smoothness/jquery-ui-${PV}.custom.css ${D}/WEBSERVER/www/js/jquery-ui.css
+        install -m 0644 ${UNPACKDIR}/jquery-ui-${PV}.custom/css/smoothness/images/ui-icons_888888_256x240.png ${D}/WEBSERVER/www/js/images/ui-icons_888888_256x240.png
 }
 
 SRC_URI = "http://jqueryui.com/resources/download/jquery-ui-${PV}.custom.zip"
 
-S = "${WORKDIR}/jquery-ui-${PV}.custom"
+S = "${UNPACKDIR}/jquery-ui-${PV}.custom"
 
 FILES_${PN} += "/WEBSERVER/www/js/jquery-ui.js"
 FILES_${PN} += "/WEBSERVER/www/js/jquery-ui.css"

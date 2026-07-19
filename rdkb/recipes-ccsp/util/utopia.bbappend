@@ -18,6 +18,6 @@ SRC_URI:append = " \
     file://00012-utopia-IPPT-bringup.patch \
 "
 do_install:append() {
-    install -m 0755 ${WORKDIR}/service_sshd_qti.sh \
+    install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
         ${D}/etc/utopia/service.d/service_sshd_qti.sh
 }

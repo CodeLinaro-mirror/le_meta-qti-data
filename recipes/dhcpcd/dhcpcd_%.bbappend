@@ -11,7 +11,7 @@ do_configure() {
 do_install:append(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
-   install -m 0644 ${WORKDIR}/dhcpcd@.service -D ${D}${systemd_unitdir}/system/dhcpcd@.service
+   install -m 0644 ${UNPACKDIR}/dhcpcd@.service -D ${D}${systemd_unitdir}/system/dhcpcd@.service
 fi
 }
 

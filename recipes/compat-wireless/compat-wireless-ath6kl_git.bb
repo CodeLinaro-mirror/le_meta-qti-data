@@ -10,7 +10,7 @@ do_configure() {
 }
 
 do_install:append() {
-    install -m 0755 ${WORKDIR}/ath6kl_ctrl_wlan -D ${D}${sysconfdir}/init.d/wlan
+    install -m 0755 ${UNPACKDIR}/ath6kl_ctrl_wlan -D ${D}${sysconfdir}/init.d/wlan
     install -m 0644 drivers/net/wireless/ath/ath6kl/wmi.h -D ${D}${includedir}/ath6kl/wmi.h
     echo "device=AR6004" > ${B}/wlan_config
     install -m 0644 ${B}/wlan_config -D ${D}${sysconfdir}/wlan_config

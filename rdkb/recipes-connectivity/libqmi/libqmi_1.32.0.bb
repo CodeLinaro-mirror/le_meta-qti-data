@@ -20,7 +20,7 @@ DEPENDS=" \
   libqrtr-glib \
 "
 FILES:${PN} += "/usr/share/bash-completion"
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 SRCREV = "d0973775d2bce93fb927ce7bc6c61385b146f54d"
 SRC_URI = "git://git.codelinaro.org/clo/rdkb/mobile-broadband/libqmi.git;protocol=https;branch=rdkb/qmi-1-32"
 

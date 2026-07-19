@@ -3,7 +3,7 @@ From: Paras Singh Jain<parassin@codeaurora.org>
 Date: Sun, 1 Aug 2021 16:22:54 +0530
 Subject: [PATCH] dhcp_release_fix_for_ippt
 signed-off: Paras Singh Jain<parassin@codeaurora.org>
-
+Upstream-Status: Inappropriate [platform specific]
 ---
  src/rfc2131.c | 14 +++++++++++++-
  1 file changed, 13 insertions(+), 1 deletion(-)

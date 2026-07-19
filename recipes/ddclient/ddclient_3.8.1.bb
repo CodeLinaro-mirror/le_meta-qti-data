@@ -12,7 +12,7 @@ SRC_URI[sha256sum] = "77a82668a53fdbed1e05ad6febe6dbefb093e3922afb20b993d4ad9ee8
 
 inherit autotools pkgconfig
 
-S = "${WORKDIR}/ddclient-${PV}"
+S = "${UNPACKDIR}/ddclient-${PV}"
 
 #All the DDClient development is on sourceforge.met
 PR = "r7"
@@ -40,7 +40,7 @@ do_install:append(){
    if [[ "${DISTRO_NAME}" =~ .*mdm.* ]] || [[ "${MACHINE_FEATURES}" =~ .*qti-sdx.* ]]; then
       if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}${systemd_unitdir}/system/
-         install -m 0664 ${WORKDIR}/ddclientd.service -D ${D}${systemd_unitdir}/system/ddclientd.service
+         install -m 0664 ${UNPACKDIR}/ddclientd.service -D ${D}${systemd_unitdir}/system/ddclientd.service
       fi
    fi
 }

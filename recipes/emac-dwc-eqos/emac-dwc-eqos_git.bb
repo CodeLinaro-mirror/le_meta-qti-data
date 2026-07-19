@@ -20,7 +20,7 @@ SRC_URI += "file://setup_avtp_routing_le"
 SRC_URI += "file://emac_dwc_eqos.service"
 SRC_URI += "file://setup_avtp_routing_le.service"
 
-S = "${WORKDIR}/data-kernel/drivers/emac-dwc-eqos/"
+S = "${UNPACKDIR}/data-kernel/drivers/emac-dwc-eqos/"
 
 EXTRA_OEMAKE += "LBITS=32"
 EXTRA_OEMAKE += "DWC_ETH_QOS_ENABLE_ETHTOOL=1"
@@ -30,12 +30,12 @@ do_install() {
     module_do_install
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         install -d ${D}${sysconfdir}/initscripts
-        install -m 0755 ${WORKDIR}/emac_dwc_eqos_start_stop_le ${D}${sysconfdir}/initscripts
-        install -m 0755 ${WORKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/initscripts
+        install -m 0755 ${UNPACKDIR}/emac_dwc_eqos_start_stop_le ${D}${sysconfdir}/initscripts
+        install -m 0755 ${UNPACKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/initscripts
     else
         install -d ${D}${sysconfdir}/init.d
-        install -m 0755 ${WORKDIR}/emac_dwc_eqos_start_stop_le ${D}${sysconfdir}/init.d
-        install -m 0755 ${WORKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/init.d
+        install -m 0755 ${UNPACKDIR}/emac_dwc_eqos_start_stop_le ${D}${sysconfdir}/init.d
+        install -m 0755 ${UNPACKDIR}/setup_avtp_routing_le ${D}${sysconfdir}/init.d
     fi
 }
 
@@ -46,7 +46,7 @@ if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/sockets.target.wants/
 
    #Emac Service
-   install -m 0644 ${WORKDIR}/emac_dwc_eqos.service -D ${D}${systemd_unitdir}/system/emac_dwc_eqos.service
+   install -m 0644 ${UNPACKDIR}/emac_dwc_eqos.service -D ${D}${systemd_unitdir}/system/emac_dwc_eqos.service
    # enable the service for multi-user.target
    ln -sf ${systemd_unitdir}/system/emac_dwc_eqos.service \
    ${D}${systemd_unitdir}/system/multi-user.target.wants/emac_dwc_eqos.service
@@ -54,7 +54,7 @@ if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    ${D}${systemd_unitdir}/system/sockets.target.wants/emac_dwc_eqos.service
 
    #setup_avtp_routing_le script
-   install -m 0644 ${WORKDIR}/setup_avtp_routing_le.service -D ${D}${systemd_unitdir}/system/setup_avtp_routing_le.service
+   install -m 0644 ${UNPACKDIR}/setup_avtp_routing_le.service -D ${D}${systemd_unitdir}/system/setup_avtp_routing_le.service
    # enable the service for multi-user.target
    ln -sf ${systemd_unitdir}/system/setup_avtp_routing_le.service \
    ${D}${systemd_unitdir}/system/multi-user.target.wants/setup_avtp_routing_le.service

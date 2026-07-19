@@ -21,7 +21,7 @@ FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
 SRC_URI  = "file://vendor/qcom/opensource/data-devicetree"
 SRC_URI += "file://Makefile"
 
-S = "${WORKDIR}/vendor/qcom/opensource/data-devicetree"
+S = "${UNPACKDIR}/vendor/qcom/opensource/data-devicetree"
 
 # Use kernel build dtc and staged kernel headers
 DTC = "${STAGING_BINDIR_NATIVE}/dtc"
@@ -29,7 +29,7 @@ KERNEL_INCLUDE = "${STAGING_KERNEL_DIR}/include"
 
 do_configure:prepend() {
     # Override upstream Makefile with Yocto-specific Makefile
-    install -m 0644 ${WORKDIR}/Makefile ${S}/Makefile
+    install -m 0644 ${UNPACKDIR}/Makefile ${S}/Makefile
 }
 
 EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"

@@ -24,6 +24,7 @@ the link to false and pass the NA interface mode onto the phylink
 framework.
 
 Signed-off-by: Amitha Sanka<asanka@qti.qualcomm.com>
+Upstream-Status: Inappropriate [platform specific]
 ---
  aquantia/aquantia_main.c | 25 ++++++++++++++++++++++---
  1 file changed, 22 insertions(+), 3 deletions(-)

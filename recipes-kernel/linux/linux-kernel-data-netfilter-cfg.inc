@@ -22,4 +22,4 @@ FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += "file://data-netfilter.cfg"
 
-KERNEL_CONFIG_FRAGMENTS:append = " ${WORKDIR}/data-netfilter.cfg"
+KERNEL_CONFIG_FRAGMENTS:append = " ${UNPACKDIR}/data-netfilter.cfg"

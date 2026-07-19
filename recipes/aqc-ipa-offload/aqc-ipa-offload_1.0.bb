@@ -1,6 +1,6 @@
 SUMMARY = "AQC IPA Offload"
 
-export AQO_OBJDIR = "${WORKDIR}/kobj"
+export AQO_OBJDIR = "${UNPACKDIR}/kobj"
 export AQO_SRCDIR = "${WORKSPACE}/data-kernel/drivers/aqc-ipa-offload"
 
 LICENSE = "GPLv2"
@@ -29,12 +29,12 @@ SYSTEMD_SERVICE_${PN} = "aqc-ipa-offload.service"
 
 do_install:append() {
 	install -m 0755 \
-		${WORKDIR}/aqc_gsi_stats -D ${D}${bindir}/aqc_gsi_stats
+		${UNPACKDIR}/aqc_gsi_stats -D ${D}${bindir}/aqc_gsi_stats
 
 	# Install unit files to systemd system directory and they will be
 	# packaged and enabled by the systemd class if 'systemd' feature
 	# is enabled in the distro.
-	install -m 0644 ${WORKDIR}/aqc-ipa-offload.service \
+	install -m 0644 ${UNPACKDIR}/aqc-ipa-offload.service \
 		-D ${D}${systemd_system_unitdir}/aqc-ipa-offload.service
 }
 

@@ -10,9 +10,13 @@ PR = "r0"
 
 TARGET_CC_ARCH += "${LDFLAGS}"
 
-SRC_URI = "  https://github.com/zeux/pugixml/archive/v${PV}.zip \
-    file://0001-pugixml-Modified-include-dir-and-lib-dir.patch \
+SRC_URI = " git://github.com/zeux/pugixml.git;protocol=https;branch=master \
+	    file://0001-pugixml-Modified-include-dir-and-lib-dir.patch \
 "
+
+SRCREV = "ee86beb30e4973f5feffe3ce63bfa4fbadf72f38"
+
+S = "${UNPACKDIR}/git"
 
 SRC_URI[md5sum] = "6c2a10fdb858d1c069a46f648cb8d4fa"
 SRC_URI[sha256sum] = "0dd4dc16e38bbc1c889d3a59660072450127bac7d19415f3cf5d5d6b25c58b35"
