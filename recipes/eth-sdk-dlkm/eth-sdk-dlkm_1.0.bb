@@ -51,6 +51,7 @@ do_configure() {
 # -----------------------------------------------------------------------
 do_compile() {
 	unset CFLAGS CPPFLAGS CXXFLAGS LDFLAGS
+	export IPA_SYSROOT="${IPA_SYSROOT}"
 	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} modules \
 		KERNEL_PATH=${STAGING_KERNEL_DIR} \
 		KERNEL_VERSION=${KERNEL_VERSION} \
