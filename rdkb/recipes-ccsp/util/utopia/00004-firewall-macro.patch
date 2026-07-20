@@ -1,0 +1,69 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 12dfe688de1b7a6354b133b42ead582e864adb9f Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Wed, 20 May 2026 05:40:44 +0000
+Subject: [PATCH] Added macros to support SDX platform
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+---
+ source/firewall/firewall.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 389620d..23541e9 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -5957,7 +5957,7 @@ int do_wan2self_attack(FILE *fp,char* wan_ip)
+    {
+       fprintf(fp, "-A SmurfAttack -p icmp -m icmp --icmp-type address-mask-request %s -j ULOG --ulog-prefix \"DoS Attack - Smurf Attack\" --ulog-cprange 50\n", logRateLimit);
+    }
+-#elif defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_)
++#elif defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_SDX_)
+    fprintf(fp, "-A SmurfAttack -p icmp -m icmp --icmp-type address-mask-request %s -j LOG --log-prefix \"DoS Attack - Smurf Attack\"\n", logRateLimit);
+ #elif defined(_COSA_BCM_ARM_) && (defined(_CBR_PRODUCT_REQ_) || defined(_XB6_PRODUCT_REQ_))  
+    fprintf(fp, "-A SmurfAttack -p icmp -m icmp --icmp-type address-mask-request %s -j NFLOG --nflog-group 2 --nflog-prefix \"DoS Attack - Smurf Attack\" --nflog-size 50\n", logRateLimit);
+@@ -5977,7 +5977,7 @@ int do_wan2self_attack(FILE *fp,char* wan_ip)
+    {
+       fprintf(fp, "-A ICMPSmurfAttack -p icmp -m icmp --icmp-type timestamp-request %s -j ULOG --ulog-prefix \"DoS Attack - Smurf Attack\" --ulog-cprange 50\n", logRateLimit);
+    }
+-#elif defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_)
++#elif defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_SDX_)
+    fprintf(fp, "-A ICMPSmurfAttack -p icmp -m icmp --icmp-type timestamp-request %s -j LOG --log-prefix \"DoS Attack - Smurf Attack\"\n", logRateLimit);
+ #elif defined(_COSA_BCM_ARM_) && (defined(_CBR_PRODUCT_REQ_) || defined(_XB6_PRODUCT_REQ_)) 
+    fprintf(fp, "-A ICMPSmurfAttack -p icmp -m icmp --icmp-type timestamp-request %s -j NFLOG --nflog-group 2 --nflog-prefix \"DoS Attack - Smurf Attack\" --nflog-size 50\n", logRateLimit);
+@@ -5999,7 +5999,7 @@ int do_wan2self_attack(FILE *fp,char* wan_ip)
+    {
+       fprintf(fp, "-A ICMPFlooding -p icmp %s -j ULOG --ulog-prefix \"DoS Attack - ICMP Flooding\" --ulog-cprange 50\n", logRateLimit);
+    }
+-#elif defined(_PLATFORM_RASPBERRYPI_) || defined (_PLATFORM_TURRIS_) ||  defined(_PLATFORM_BANANAPI_R4_)
++#elif defined(_PLATFORM_RASPBERRYPI_) || defined (_PLATFORM_TURRIS_) ||  defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_SDX_)
+    fprintf(fp, "-A ICMPFlooding -p icmp %s -j LOG --log-prefix \"DoS Attack - ICMP Flooding\"\n", logRateLimit);
+ #elif defined(_COSA_BCM_ARM_) && (defined(_CBR_PRODUCT_REQ_) || defined(_XB6_PRODUCT_REQ_)) 
+    fprintf(fp, "-A ICMPFlooding -p icmp %s -j NFLOG --nflog-group 2 --nflog-prefix \"DoS Attack - ICMP Flooding\" --nflog-size 50\n", logRateLimit);
+@@ -6021,7 +6021,7 @@ int do_wan2self_attack(FILE *fp,char* wan_ip)
+    {
+       fprintf(fp, "-A TCPSYNFlooding -p tcp --syn %s -j ULOG --ulog-prefix \"DoS Attack - TCP SYN Flooding\" --ulog-cprange 50\n", logRateLimit);
+    }
+-#elif defined(_PLATFORM_RASPBERRYPI_) || defined (_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_)
++#elif defined(_PLATFORM_RASPBERRYPI_) || defined (_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_SDX_)
+    fprintf(fp, "-A TCPSYNFlooding -p tcp --syn %s -j LOG --log-prefix \"DoS Attack - TCP SYN Flooding\"\n", logRateLimit);
+ #elif defined(_COSA_BCM_ARM_) && (defined(_CBR_PRODUCT_REQ_) || defined(_XB6_PRODUCT_REQ_)) 
+    fprintf(fp, "-A TCPSYNFlooding -p tcp --syn %s -j NFLOG --nflog-group 2 --nflog-prefix \"DoS Attack - TCP SYN Flooding\" --nflog-size 50\n", logRateLimit);
+@@ -6045,7 +6045,7 @@ int do_wan2self_attack(FILE *fp,char* wan_ip)
+        {
+          fprintf(fp, "-A LANDAttack -s %s %s -j ULOG --ulog-prefix \"DoS Attack - LAND Attack\" --ulog-cprange 50\n", wan_ip, logRateLimit);
+        }
+-#elif defined(_PLATFORM_RASPBERRYPI_) || defined (_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_)
++#elif defined(_PLATFORM_RASPBERRYPI_) || defined (_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_PLATFORM_SDX_)
+       fprintf(fp, "-A LANDAttack -s %s %s -j LOG --log-prefix \"DoS Attack - LAND Attack\"\n", wan_ip, logRateLimit);
+ #elif defined(_COSA_BCM_ARM_) && (defined(_CBR_PRODUCT_REQ_) || defined(_XB6_PRODUCT_REQ_)) 
+       fprintf(fp, "-A LANDAttack -s %s %s -j NFLOG --nflog-group 2 --nflog-prefix \"DoS Attack - LAND Attack\" --nflog-size 50\n", wan_ip, logRateLimit);
+-- 
+2.34.1
+

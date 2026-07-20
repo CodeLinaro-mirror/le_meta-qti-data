@@ -1,0 +1,43 @@
+From 0518d1ae95ce16d222de034ddb179aae2e4ef1da Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Wed, 27 May 2026 10:16:43 +0000
+Subject: Optimize ModemManager timer
+
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ src/mm-plugin-manager.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/mm-plugin-manager.c b/src/mm-plugin-manager.c
+index bd37b786..c2051ecd 100644
+--- a/src/mm-plugin-manager.c
++++ b/src/mm-plugin-manager.c
+@@ -884,7 +884,11 @@ device_context_complete (DeviceContext *device_context)
+     if (device_context->min_probing_time_id) {
+         mm_obj_dbg (self, "task %s: all port probings completed, but not reached min probing time yet",
+                     device_context->name);
+-        return;
++
++        /*Reset the minimum probing time upon completion of all port probing.
++         *Fix added for specific KPI optimization purpose and applicable for Qualcomm chip set only*/
++        g_source_remove (device_context->min_probing_time_id);
++        device_context->min_probing_time_id = 0;
+     }
+ 
+     /* If the context is completed less than 1500ms before the last port was exposed,
+@@ -892,7 +896,11 @@ device_context_complete (DeviceContext *device_context)
+     if (device_context->extra_probing_time_id) {
+         mm_obj_dbg (self, "task %s: all port probings completed, but not reached extra probing time yet",
+                     device_context->name);
+-        return;
++
++        /*Reset the extra probing time upon completion of all port probing.
++         *Fix added for specific KPI optimization purpose and applicable for Qualcomm chip set only*/
++        g_source_remove (device_context->extra_probing_time_id);
++        device_context->extra_probing_time_id = 0;
+     }
+ 
+     /* Steal the task from the context */
+-- 
+2.34.1
+

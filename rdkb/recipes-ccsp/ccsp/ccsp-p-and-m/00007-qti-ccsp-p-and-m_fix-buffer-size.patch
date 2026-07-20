@@ -1,0 +1,35 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 5983939a5d680ff13d853932263caeaa71461b92 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 4 Jun 2026 16:24:13 +0000
+Subject: [PATCH] Fix buffer overflow in NonRootSupport_GetParamStringValue
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+Index: git/source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_deviceinfo_dml.c
+@@ -23153,6 +23153,7 @@ NonRootSupport_GetParamStringValue
+   #define APPARMOR_BLOCKLIST_FILE "/opt/secure/Apparmor_blocklist"
+   #define APPARMOR_PROFILE_DIR "/etc/apparmor.d"
+   #define SIZE_LEN 32
++  #define FILE_MAX_SIZE 2048
+   char *buf = NULL;
+   FILE *fp = NULL;
+   size_t len = 0;
+@@ -23160,7 +23161,7 @@ NonRootSupport_GetParamStringValue
+   DIR *dir=NULL;
+   struct dirent *entry=NULL;
+   char tmp[64]={0};
+-  char files_name[MAX_SIZE]={0};
++  char files_name[FILE_MAX_SIZE]={0};
+   char *sptr=NULL;
+   /* check the parameter name and return the corresponding value */
+   if (strcmp(ParamName, "ApparmorBlocklist") == 0)

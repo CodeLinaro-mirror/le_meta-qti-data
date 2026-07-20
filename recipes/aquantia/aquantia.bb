@@ -7,11 +7,12 @@ PACKAGE_ARCH = "${MACHINE_ARCH}"
 SRCREV = "1a4467eb0faa2a9fae96d1a68c79f9ea77342436"
 SRC_URI = "git://git.codelinaro.org/clo/le/external/github.com/aquantia/linux-aqr-phy-only.git;protocol=https;branch=aquantia/main \
            file://kobj/Makefile \
-           file://aquantia.service"
-
+           file://aquantia.service \
+           file://0001-phy-aquantia-Ensure-correct-system-interface-status-.patch \
+           file://0002-phy-aquantia-Add-support-for-USX5G-mode.patch"
 
 inherit pkgconfig autotools deploy module linux-kernel-base
-S = "${WORKDIR}/git/aquantia"
+S = "${UNPACKDIR}/aquantia-1.0/aquantia"
 EXT_MODULES = "${@os.path.relpath("${S}", "${KERNEL_PLATFORM_PATH}")}"
 KERNEL_VERSION = "${@get_kernelversion_file("${STAGING_KERNEL_BUILDDIR}")}"
 do_configure[depends]   += "virtual/kernel:do_shared_workdir"
@@ -32,7 +33,7 @@ FILES:${PN} +="${systemd_unitdir}/system/local-fs.target.wants/aquantia.service"
 FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/aquantia.ko"
 IMAGE_INSTALL:append = " packagegroup-qti-telematics"
 do_configure() {
-	cp ${WORKDIR}/kobj/Makefile ${S}/
+	cp ${UNPACKDIR}/kobj/Makefile ${S}/
 }
 
 do_compile() {
@@ -54,7 +55,7 @@ do_install() {
 
 do_install:append() {
     install -d ${D}${systemd_unitdir}/system/
-    install -m 0644 ${WORKDIR}/aquantia.service -D ${D}${systemd_unitdir}/system/aquantia.service
+    install -m 0644 ${UNPACKDIR}/aquantia.service -D ${D}${systemd_unitdir}/system/aquantia.service
     install -d ${D}${systemd_unitdir}/system/local-fs.target.wants/
     ln -sf ${systemd_unitdir}/system/aquantia.service \
           ${D}${systemd_unitdir}/system/local-fs.target.wants/aquantia.service

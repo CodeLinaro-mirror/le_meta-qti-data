@@ -1,0 +1,77 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+ 
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Mon, 25 May 2026 14:48:21 +0000
+
+Subject: [PATCH] DNS Proxy Data Model bring up
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+@@ -155,7 +155,7 @@ PCHAR g_avahi_daemon_conf[] =
+     NULL
+ };
+ 
+-
++#define DNS_PROXY_ENABLE  "dns_proxy_enable"
+ #define FR_NONE 1
+ #define FR_WIFI (1<<1)
+ #define FR_ROUTER (1<<2)
+@@ -3198,7 +3198,9 @@ CosaDmlDcGetDNSProxyEnable
+         BOOLEAN                     *pFlag
+     )
+ {
++    char buf[5] = {0};
+     UNREFERENCED_PARAMETER(hContext);
++#ifndef _PLATFORM_SDX_
+     if ( detect_process("dnsproxy") == 0 )
+     {
+         *pFlag = FALSE;
+@@ -3207,7 +3209,19 @@ CosaDmlDcGetDNSProxyEnable
+     {
+         *pFlag = TRUE;
+     }
+-
++#else
++    if(!syscfg_get( NULL, DNS_PROXY_ENABLE, buf, sizeof(buf)))
++    {
++        if (strcmp(buf,"1") == 0)
++        {
++            *pFlag = TRUE;
++        }
++        else
++        {
++            *pFlag = FALSE;
++        }
++    }
++#endif
+     fprintf(stderr, "%s: dnsproxy is %s\n", __FUNCTION__, (*pFlag)==TRUE?"alive":"dead");
+     return ANSC_STATUS_SUCCESS;
+ }
+@@ -3220,6 +3234,7 @@ CosaDmlDcSetDNSProxyEnable
+     )
+ {
+     UNREFERENCED_PARAMETER(hContext);
++#ifndef _PLATFORM_SDX_
+     if (pFlag)
+     {
+         if ( detect_process("dnsproxy") == 0 )
+@@ -3231,6 +3246,13 @@ CosaDmlDcSetDNSProxyEnable
+     {
+         v_secure_system("killall dnsproxy");
+     }
++#else
++    syscfg_set_commit(NULL, DNS_PROXY_ENABLE, pFlag ? "1" : "0");
++    //Restarting for the changes to reflect
++    v_secure_system("sysevent set dhcp_server-restart");
++    v_secure_system("sysevent set zebra-restart");
++    v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
++#endif
+     return ANSC_STATUS_SUCCESS;
+ }
+ 

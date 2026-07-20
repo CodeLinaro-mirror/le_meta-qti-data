@@ -1,0 +1,40 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d8361a0d44a44456e51cc7478c22ce9589f47522 Mon Sep 17 00:00:00 2001
+From: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+Date: Fri, 10 Jul 2026 10:52:44 +0000
+Subject: [PATCH] lm-lite-crash-fix
+
+[Issue Description] : Host_SetIPAddress() dereferences pIP unconditionally without a NULL check, causing a SIGSEGV coredump in ccsp-lm-lite.
+
+[Fix Description] : Added a NULL check on pIP in Host_SetIPAddress, preventing the crash when the pointer is not yet initialized.
+
+Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index c823d98..69d0757 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -1169,8 +1169,10 @@ static PLmObjectHost Hosts_AddHost (int instanceNum)
+ 
+ static void Host_SetIPAddress (PLmObjectHostIPAddress pIP, int l3unReachableCnt, char *source)
+ {
+-    pIP->l3unReachableCnt = l3unReachableCnt;
+-    LM_SET_PSTRINGPARAVALUE(pIP->pStringParaValue[LM_HOST_IPAddress_IPAddressSourceId], source);
++    if (pIP != NULL) {
++        pIP->l3unReachableCnt = l3unReachableCnt;
++        LM_SET_PSTRINGPARAVALUE(pIP->pStringParaValue[LM_HOST_IPAddress_IPAddressSourceId], source);
++    }
+ }
+ 
+ void addHostsToPresenceTable(void)
+-- 
+2.34.1
+

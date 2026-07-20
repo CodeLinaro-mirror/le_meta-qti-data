@@ -1,0 +1,26 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 21 May 2026 03:45:00 +0000
+Subject: [PATCH] Fix NULL dereference in __find_iana_addr_info with input validation 
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_ip_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_ip_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_ip_apis.c
+@@ -1398,6 +1398,12 @@ int __find_iana_addr_info(char * ifname,
+     ipv6_addr_info_t * p_all_ai = NULL;
+     int v6addr_num = 0;
+     int found = 0;
++    //Fix NULL pointer dereference by validating input parameters
++    if (!ifname || !p_dml_v6addr || !p_v6_ai)
++    {
++        CcspTraceError(("__find_iana_addr_info: NULL parameter passed\n"));
++        return 0;
++    }
+ 
+     CosaUtilGetIpv6AddrInfo(ifname, &p_all_ai, &v6addr_num);
+ 

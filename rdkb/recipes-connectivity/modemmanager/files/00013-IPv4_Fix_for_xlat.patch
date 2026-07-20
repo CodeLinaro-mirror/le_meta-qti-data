@@ -1,0 +1,213 @@
+From 3c3b8b632e09b34728217185ea2624e17ebdefd9 Mon Sep 17 00:00:00 2001
+From: Deepa Mariam Jacob <deepjaco@qti.qualcomm.com>
+Date: Fri, 8 Mar 2024 13:31:44 +0530
+Subject: [PATCH] 00008-IPv4_Fix_for_xlat
+Signed-off-by: Deepa Mariam Jacob <deepjaco@qti.qualcomm.com>
+---
+ libmm-glib/mm-3gpp-profile.c | 65 ++++++++++++++++++++++++++++++++++++
+ libmm-glib/mm-3gpp-profile.h |  4 +++
+ src/mm-bearer-qmi.c          | 10 ++++++
+ src/mm-broadband-modem-qmi.c |  4 +++
+ 4 files changed, 83 insertions(+)
+
+diff --git a/libmm-glib/mm-3gpp-profile.c b/libmm-glib/mm-3gpp-profile.c
+index cc221825..bc31e88a 100644
+--- a/libmm-glib/mm-3gpp-profile.c
++++ b/libmm-glib/mm-3gpp-profile.c
+@@ -49,6 +49,7 @@ G_DEFINE_TYPE (MM3gppProfile, mm_3gpp_profile, G_TYPE_OBJECT)
+ #define PROPERTY_ENABLED                "profile-enabled"
+ #define PROPERTY_ROAMING_ALLOWANCE      "roaming-allowance"
+ #define PROPERTY_SOURCE                 "profile-source"
++#define PROPERTY_CLAT_ENABLED           "clat-enabled"
+ 
+ struct _MM3gppProfilePrivate {
+     gint                          profile_id;
+@@ -61,6 +62,8 @@ struct _MM3gppProfilePrivate {
+     gboolean                      enabled_set;
+     MMBearerRoamingAllowance      roaming_allowance;
+     MMBearerProfileSource         profile_source;
++    gboolean                      clat_enabled;
++    gboolean                      clat_enabled_set;
+ 
+     /* Optional authentication settings */
+     MMBearerAllowedAuth  allowed_auth;
+@@ -128,6 +131,10 @@ mm_3gpp_profile_cmp (MM3gppProfile         *a,
+     if (!(flags & MM_3GPP_PROFILE_CMP_FLAGS_NO_PROFILE_SOURCE) &&
+         (a->priv->profile_source != b->priv->profile_source))
+         return FALSE;
++    /*Checking for the clat support for the profile*/
++    if (!(flags & MM_3GPP_PROFILE_CMP_FLAGS_NO_CLAT_ENABLED) &&
++        ((a->priv->clat_enabled != b->priv->clat_enabled) || (a->priv->clat_enabled_set != b->priv->clat_enabled_set)))
++        return FALSE;
+ 
+     return TRUE;
+ }
+@@ -528,6 +535,45 @@ mm_3gpp_profile_get_enabled (MM3gppProfile *self)
+ 
+ /*****************************************************************************/
+ 
++/**
++ * mm_3gpp_profile_set_clat_enabled:
++ * @self: a #MM3gppProfile.
++ * @clat_enabled: boolean value.
++ *
++ * Sets the flag to indicate whether clat is enabled or disabled.
++ *
++ * Since: 1.20
++ */
++void
++mm_3gpp_profile_set_clat_enabled (MM3gppProfile *self,
++                                  gboolean      clat_enabled)
++{
++    g_return_if_fail (MM_IS_3GPP_PROFILE (self));
++
++    self->priv->clat_enabled_set = TRUE;
++    self->priv->clat_enabled = clat_enabled;
++}
++
++/**
++ * mm_3gpp_profile_get_clat_enabled:
++ * @self: a #MM3gppProfile.
++ *
++ * Checks whether the clat is enabled or disabled.
++ *
++ * Returns: %TRUE if clat is enabled, %FALSE otherwise.
++ *
++ * Since: 1.20
++ */
++gboolean
++mm_3gpp_profile_get_clat_enabled (MM3gppProfile *self)
++{
++    g_return_val_if_fail (MM_IS_3GPP_PROFILE (self), FALSE);
++
++    return self->priv->clat_enabled;
++}
++
++/*****************************************************************************/
++
+ /**
+  * mm_3gpp_profile_set_roaming_allowance:
+  * @self: a #MM3gppProfile.
+@@ -679,6 +725,11 @@ mm_3gpp_profile_get_dictionary (MM3gppProfile *self)
+                                PROPERTY_ENABLED,
+                                g_variant_new_boolean (self->priv->enabled));
+ 
++    if (self->priv->clat_enabled_set)
++        g_variant_builder_add (&builder,
++                               "{sv}",
++                               PROPERTY_CLAT_ENABLED,
++                               g_variant_new_boolean (self->priv->clat_enabled));
+ 
+     return g_variant_ref_sink (g_variant_builder_end (&builder));
+ }
+@@ -770,6 +821,16 @@ mm_3gpp_profile_consume_string (MM3gppProfile  *self,
+             return FALSE;
+         }
+         mm_3gpp_profile_set_profile_source (self, profile_source);
++    } else if (g_str_equal (key, PROPERTY_CLAT_ENABLED)) {
++        GError   *inner_error = NULL;
++        gboolean  clat_enabled;
++
++        clat_enabled = mm_common_get_boolean_from_string (value, &inner_error);
++        if (inner_error) {
++            g_propagate_error (error, inner_error);
++            return FALSE;
++        }
++        mm_3gpp_profile_set_clat_enabled (self, clat_enabled);
+     } else {
+         g_set_error (error,
+                      MM_CORE_ERROR,
+@@ -878,6 +939,10 @@ mm_3gpp_profile_consume_variant (MM3gppProfile  *self,
+         mm_3gpp_profile_set_profile_source (
+             self,
+             g_variant_get_uint32 (value));
++    else if (g_str_equal (key, PROPERTY_CLAT_ENABLED))
++        mm_3gpp_profile_set_clat_enabled (
++            self,
++            g_variant_get_boolean (value));
+     else {
+         /* Set error */
+         g_set_error (error,
+diff --git a/libmm-glib/mm-3gpp-profile.h b/libmm-glib/mm-3gpp-profile.h
+index 7b45b55e..e3e7291a 100644
+--- a/libmm-glib/mm-3gpp-profile.h
++++ b/libmm-glib/mm-3gpp-profile.h
+@@ -98,6 +98,8 @@ void mm_3gpp_profile_set_roaming_allowance      (MM3gppProfile                *s
+                                                  MMBearerRoamingAllowance      roaming_allowance);
+ void mm_3gpp_profile_set_profile_source         (MM3gppProfile                *self,
+                                                  MMBearerProfileSource         profile_source);
++void mm_3gpp_profile_set_clat_enabled           (MM3gppProfile                *self,
++                                                 gboolean                      clat_enabled);
+ 
+ gint                          mm_3gpp_profile_get_profile_id             (MM3gppProfile *self);
+ const gchar                  *mm_3gpp_profile_get_profile_name           (MM3gppProfile *self);
+@@ -111,6 +113,7 @@ MMBearerAccessTypePreference  mm_3gpp_profile_get_access_type_preference (MM3gpp
+ gboolean                      mm_3gpp_profile_get_enabled                (MM3gppProfile *self);
+ MMBearerRoamingAllowance      mm_3gpp_profile_get_roaming_allowance      (MM3gppProfile *self);
+ MMBearerProfileSource         mm_3gpp_profile_get_profile_source         (MM3gppProfile *self);
++gboolean                      mm_3gpp_profile_get_clat_enabled           (MM3gppProfile *self);
+ 
+ /*****************************************************************************/
+ /* ModemManager/libmm-glib/mmcli specific methods */
+@@ -144,6 +147,7 @@ typedef enum {
+     MM_3GPP_PROFILE_CMP_FLAGS_NO_ENABLED                = 1 << 7,
+     MM_3GPP_PROFILE_CMP_FLAGS_NO_ROAMING_ALLOWANCE      = 1 << 8,
+     MM_3GPP_PROFILE_CMP_FLAGS_NO_PROFILE_SOURCE         = 1 << 9,
++    MM_3GPP_PROFILE_CMP_FLAGS_NO_CLAT_ENABLED           = 1 << 10,
+ } MM3gppProfileCmpFlags;
+ 
+ gboolean mm_3gpp_profile_cmp (MM3gppProfile         *a,
+diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
+index 1a22888c..d2d8fc5b 100644
+--- a/src/mm-bearer-qmi.c
++++ b/src/mm-bearer-qmi.c
+@@ -1864,6 +1864,7 @@ load_ip_type_settings_from_profile (ConnectContext *ctx,
+                                     GError        **error)
+ {
+     MMBearerIpFamily ip_family;
++    gboolean clat_enabled = FALSE;
+ 
+     ip_family = mm_3gpp_profile_get_ip_type (profile);
+     if (mm_3gpp_normalize_ip_family (&ip_family))
+@@ -1871,7 +1872,16 @@ load_ip_type_settings_from_profile (ConnectContext *ctx,
+     if (ip_family & MM_BEARER_IP_FAMILY_IPV4)
+         ctx->ipv4 = TRUE;
+     if (ip_family & MM_BEARER_IP_FAMILY_IPV6)
++    {
+         ctx->ipv6 = TRUE;
++        clat_enabled = mm_3gpp_profile_get_clat_enabled (profile);
++        if(clat_enabled)
++        {
++            mm_obj_info (NULL, " Info : CLAT Enabled :  %s %d ", __func__, __LINE__);
++            /*As clat is enabled ipv4 address support is available*/
++            ctx->ipv4 = TRUE;
++        }
++    }
+     if (ip_family & MM_BEARER_IP_FAMILY_IPV4V6) {
+         ctx->ipv4 = TRUE;
+         ctx->ipv6 = TRUE;
+diff --git a/src/mm-broadband-modem-qmi.c b/src/mm-broadband-modem-qmi.c
+index 86a54f6f..7bb1f185 100644
+--- a/src/mm-broadband-modem-qmi.c
++++ b/src/mm-broadband-modem-qmi.c
+@@ -6388,6 +6388,7 @@ wds_profile_settings_to_3gpp_profile (MMBroadbandModemQmi                    *se
+     QmiWdsPdpType             pdp_type;
+     QmiWdsAuthentication      auth;
+     QmiWdsApnTypeMask         apn_type;
++    gboolean                  clat_enabled = FALSE;
+ 
+     profile = mm_3gpp_profile_new ();
+ 
+@@ -6413,6 +6414,9 @@ wds_profile_settings_to_3gpp_profile (MMBroadbandModemQmi                    *se
+     if (qmi_message_wds_get_profile_settings_output_get_password (output, &str, NULL) && str[0])
+         mm_3gpp_profile_set_password (profile, str);
+ 
++    if (qmi_message_wds_get_profile_settings_output_get_clat_enabled_flag (output, &clat_enabled, NULL))
++        mm_3gpp_profile_set_clat_enabled (profile, clat_enabled);
++
+     /* If loading APN type TLV fails, flag it as unsupported so that we don't try to use it any
+      * more. */
+     if (qmi_message_wds_get_profile_settings_output_get_apn_type_mask (output, &apn_type, NULL))
+-- 
+2.17.1
+

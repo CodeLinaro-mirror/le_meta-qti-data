@@ -25,7 +25,7 @@ SRC_URI:append:9615-cdp += " \
            file://pimd.conf \
            file://config_fix_multicast_subnetmask_on_rmnet.patch "
 
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 do_compile() {
   make
@@ -35,13 +35,13 @@ do_install() {
         make install DESTDIR=${D}
 }
 do_install:append:9615-cdp() {
-    install -m 0755 ${WORKDIR}/pimd.conf ${D}${sysconfdir}
+    install -m 0755 ${UNPACKDIR}/pimd.conf ${D}${sysconfdir}
 }
 
 do_install:append:mdm(){
 if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
    install -d ${D}${systemd_unitdir}/system/
-   install -m 0644 ${WORKDIR}/pimd.service -D ${D}${systemd_unitdir}/system/pimd.service
+   install -m 0644 ${UNPACKDIR}/pimd.service -D ${D}${systemd_unitdir}/system/pimd.service
 fi
 }
 FILES_${PN} += "${systemd_unitdir}/system/*"

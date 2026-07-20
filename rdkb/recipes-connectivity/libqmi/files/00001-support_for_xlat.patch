@@ -1,0 +1,112 @@
+From: Deepa Mariam Jacob <deepjaco@qti.qualcomm.com>
+Date: Fri, 8 Mar 2024 13:31:44 +0530
+Subject: [PATCH] To provide clat support through libqmi
+Signed-off-by: Deepa Mariam Jacob <deepjaco@qti.qualcomm.com>
+
+Index: libqmi-d0973775d2bce93fb927ce7bc6c61385b146f54d/data/qmi-service-wds.json
+===================================================================
+--- libqmi-d0973775d2bce93fb927ce7bc6c61385b146f54d.orig/data/qmi-service-wds.json
++++ libqmi-d0973775d2bce93fb927ce7bc6c61385b146f54d/data/qmi-service-wds.json
+@@ -399,6 +399,13 @@
+       "format"        : "guint64",
+       "public-format" : "QmiWdsApnTypeMask" },
+ 
++    { "common-ref"    : "WDS CLAT Enabled Flag",
++      "name"          : "CLAT Enabled Flag",
++      "id"            : "0xDE",
++      "type"          : "TLV",
++      "format"        : "guint8",
++      "public-format" : "gboolean" },
++
+   // *********************************************************************************
+   {  "name"    : "Reset",
+      "type"    : "Message",
+@@ -1188,6 +1195,8 @@
+                    // 0xA9, APN enabled
+                    // 0xAA, PDN inactivity timeout
+                    // 0xAB, APN class
++                   { "common-ref"    : "WDS CLAT Enabled Flag",
++                     "since"         : "1.32" },
+                    { "common-ref"    : "WDS APN Type",
+                      "since"         : "1.30" } ],
+      "output"  : [ { "common-ref" : "Operation Result" },
+@@ -1297,6 +1306,8 @@
+                    // 0xA9, APN enabled
+                    // 0xAA, PDN inactivity timeout
+                    // 0xAB, APN class
++                   { "common-ref"    : "WDS CLAT Enabled Flag",
++                     "since"         : "1.32" },
+                    { "common-ref"    : "WDS APN Type",
+                      "since"         : "1.30" } ],
+      "output"  : [ { "common-ref" : "Operation Result" },
+@@ -1485,6 +1496,8 @@
+                     // 0xA9, APN enabled
+                     // 0xAA, PDN inactivity timeout
+                     // 0xAB, APN class
++                    { "common-ref"    : "WDS CLAT Enabled Flag",
++                      "since"         : "1.32" },
+                     { "common-ref"    : "WDS APN Type",
+                       "since"         : "1.30",
+                       "prerequisites" : [ { "common-ref" : "Success" } ] },
+Index: libqmi-d0973775d2bce93fb927ce7bc6c61385b146f54d/src/qmicli/qmicli-wds.c
+===================================================================
+--- libqmi-d0973775d2bce93fb927ce7bc6c61385b146f54d.orig/src/qmicli/qmicli-wds.c
++++ libqmi-d0973775d2bce93fb927ce7bc6c61385b146f54d/src/qmicli/qmicli-wds.c
+@@ -1386,6 +1386,8 @@ typedef struct {
+     gboolean              no_roaming_set;
+     gboolean              disabled;
+     gboolean              disabled_set;
++    gboolean              clat_enabled;
++    gboolean              clat_enabled_set;
+ } CreateModifyProfileProperties;
+ 
+ static gboolean
+@@ -1507,6 +1509,19 @@ create_modify_profile_properties_handle
+         return TRUE;
+     }
+ 
++    if (g_ascii_strcasecmp (key, "clat-enabled") == 0 && !props->clat_enabled_set) {
++        if (!qmicli_read_yes_no_from_string (value, &(props->clat_enabled))) {
++            g_set_error (error,
++                         QMI_CORE_ERROR,
++                         QMI_CORE_ERROR_FAILED,
++                         "unknown 'clat-enabled' value '%s'",
++                         value);
++            return FALSE;
++        }
++        props->clat_enabled_set = TRUE;
++        return TRUE;
++    }
++
+     g_set_error (error,
+                  QMI_CORE_ERROR,
+                  QMI_CORE_ERROR_FAILED,
+@@ -1606,6 +1621,9 @@ create_profile_input_create (const gchar
+     if (props.disabled_set)
+         qmi_message_wds_create_profile_input_set_apn_disabled_flag (*input, props.disabled, NULL);
+ 
++    if (props.clat_enabled_set)
++        qmi_message_wds_create_profile_input_set_clat_enabled_flag (*input, props.clat_enabled, NULL);
++
+     success = TRUE;
+ 
+ out:
+@@ -1922,6 +1940,9 @@ modify_profile_input_create (const gchar
+     if (props.disabled_set)
+         qmi_message_wds_modify_profile_input_set_apn_disabled_flag (*input, props.disabled, NULL);
+ 
++    if (props.clat_enabled_set)
++        qmi_message_wds_modify_profile_input_set_clat_enabled_flag (*input, props.clat_enabled, NULL);
++
+     success = TRUE;
+ 
+ out:
+@@ -2095,6 +2116,8 @@ get_profile_settings_ready (QmiClientWds
+             g_print ("\t\tNo roaming: '%s'\n", flag ? "yes" : "no");
+         if (qmi_message_wds_get_profile_settings_output_get_apn_disabled_flag (output, &flag, NULL))
+             g_print ("\t\tAPN disabled: '%s'\n", flag ? "yes" : "no");
++        if (qmi_message_wds_get_profile_settings_output_get_clat_enabled_flag (output, &flag, NULL))
++            g_print ("\t\tCLAT enabled: '%s'\n", flag ? "yes" : "no");
+         qmi_message_wds_get_profile_settings_output_unref (output);
+     }
+ 

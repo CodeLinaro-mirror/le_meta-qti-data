@@ -19,13 +19,14 @@ SRC_URI = " \
 "
 
 inherit autotools-brokensep
-CACHED:CONFIGUREVARS = "ac_cv_linux_vers=${ac_cv_linux_vers=2} td_cv_buggygetaddrinfo=cross"
+CACHED_CONFIGUREVARS += "ac_cv_linux_vers=2 td_cv_buggygetaddrinfo=cross"
+# On aarch64 with glibc, inttypes.h defines the PRIx64 format macros.
+CACHED_CONFIGUREVARS += "ac_lbl_inttypes_h_defines_formats=yes"
 
 PACKAGECONFIG ??= "ipv6"
 PACKAGECONFIG[openssl] = "--with-crypto=yes, --without-crypto, openssl"
 PACKAGECONFIG[ipv6] = "--enable-ipv6, --disable-ipv6,"
 
-CFLAGS:append = " -I/usr/include/tirpc "
 LDFLAGS:append = " -ltirpc "
 
 do_configure:prepend () {
@@ -38,9 +39,13 @@ do_configure() {
 
 	gnu-configize
 	autoconf  -v -f
+	sed -i 's/ac_lbl_inttypes_h_defines_formats=no/ac_lbl_inttypes_h_defines_formats=yes/g' \
+	    ./configure
 	oe_runconf
 	sed -i 's:/usr/lib:${STAGING_LIBDIR}:' ./Makefile
 	sed -i 's:/usr/include:${STAGING_INCDIR}:' ./Makefile
+	# Add tirpc include path for rpc/rpc.h
+	sed -i 's:^INCLS = :INCLS = -I${STAGING_INCDIR}/tirpc :' ./Makefile
 }
 
 do_install:append() {

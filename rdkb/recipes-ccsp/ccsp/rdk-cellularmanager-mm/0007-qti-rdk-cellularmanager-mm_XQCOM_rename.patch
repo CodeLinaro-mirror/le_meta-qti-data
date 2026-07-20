@@ -1,0 +1,124 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 215d832e49bcfb9ed590599b5f3d8bd7ad4c7548 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Tue, 9 Jun 2026 22:42:30 +0000
+Subject: Rename AutoConnect and ConnectBackHaul DMs to X_QCOM
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_cellular_apis.c    | 10 +++++-----
+ source/CellularManager/cellularmgr_cellular_apis.h    |  5 ++---
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c |  8 ++++----
+ 3 files changed, 11 insertions(+), 12 deletions(-)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 5d6c19e..bf91a53 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -855,7 +855,7 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+                     pstAPInfo[i].X_RDK_Roaming            = ( pstProfileOutput[i].bIsNoRoaming ) ? FALSE : TRUE;
+ #ifdef CM_EXTN_SUPPORTED
+                     pstAPInfo[i].APNType = pstProfileOutput[i].APNType;
+-                    pstAPInfo[i].ConnectBackHaul = pstProfileOutput[i].stPrflCtxExtn.bConnectBackHaul;
++                    pstAPInfo[i].stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul = pstProfileOutput[i].stPrflCtxExtn.bConnectBackHaul;
+                     snprintf(pstAPInfo[i].Alias, sizeof(pstAPInfo[i].Alias), pstProfileOutput[i].stPrflCtxExtn.Alias);
+ #endif
+                     if( CELLULAR_PDP_TYPE_IPV4 == pstProfileOutput[i].PDPType )
+@@ -894,7 +894,7 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+                                                             pstAPInfo[i].Enable,
+                                                             pstAPInfo[i].X_RDK_Default,
+                                                             pstAPInfo[i].APNType,
+-                                                            pstAPInfo[i].ConnectBackHaul));
++                                                            pstAPInfo[i].stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul));
+ #endif
+                 }
+             }
+@@ -957,7 +957,7 @@ int CellularMgr_AccessPointCreateProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     stProfileInput.PDPNetworkConfig         = pstAPInfo->X_RDK_PdpInterfaceConfig;
+     stProfileInput.bIsNoRoaming             = ( pstAPInfo->X_RDK_Roaming ) ? FALSE : TRUE;
+ #ifdef CM_EXTN_SUPPORTED
+-    stProfileInput.stPrflCtxExtn.bConnectBackHaul = pstAPInfo->ConnectBackHaul;
++    stProfileInput.stPrflCtxExtn.bConnectBackHaul = pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul;
+ #endif
+     if( INTERFACE_PROFILE_FAMILY_IPV4 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+@@ -1029,7 +1029,7 @@ int CellularMgr_AccessPointDeleteProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     stProfileInput.PDPNetworkConfig         = pstAPInfo->X_RDK_PdpInterfaceConfig;
+     stProfileInput.bIsNoRoaming             = ( pstAPInfo->X_RDK_Roaming ) ? FALSE : TRUE;
+ #ifdef CM_EXTN_SUPPORTED
+-    stProfileInput.stPrflCtxExtn.bConnectBackHaul = pstAPInfo->ConnectBackHaul;
++    stProfileInput.stPrflCtxExtn.bConnectBackHaul = pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul;
+ #endif
+     if( INTERFACE_PROFILE_FAMILY_IPV4 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+@@ -1073,7 +1073,7 @@ int CellularMgr_AccessPointModifyProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     stProfileInput.PDPNetworkConfig         = pstAPInfo->X_RDK_PdpInterfaceConfig;
+     stProfileInput.bIsNoRoaming             = ( pstAPInfo->X_RDK_Roaming ) ? FALSE : TRUE;
+ #ifdef CM_EXTN_SUPPORTED
+-    stProfileInput.stPrflCtxExtn.bConnectBackHaul        = pstAPInfo->ConnectBackHaul;
++    stProfileInput.stPrflCtxExtn.bConnectBackHaul        = pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul;
+     stProfileInput.stPrflCtxExtn.bearerIndex             = pstSmCtxProfile->stPrflCtxExtn.bearerIndex;
+ #endif
+     if( INTERFACE_PROFILE_FAMILY_IPV4 == pstAPInfo->X_RDK_IpAddressFamily )
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 5542b27..812a4f5 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -177,7 +177,7 @@ _CELLULAR_INTERFACE_ACCESSPOINT_INFO
+     CHAR                                  IPAddress[64];
+     CHAR                                  IPv6Address[128];
+     CellularApnType_t                     APNType;
+-    BOOLEAN                               ConnectBackHaul;
++    CELLULAR_INTERFACE_ACCESSPOINT_INFO_EXTN                stCellularAccessPointInfoExtn;
+ #endif
+ }
+ CELLULAR_INTERFACE_ACCESSPOINT_INFO,  *PCELLULAR_INTERFACE_ACCESSPOINT_INFO;
+@@ -384,8 +384,7 @@ _CELLULAR_DML_INFO
+     BOOLEAN                                X_RDK_Enable;
+     CELLULAR_RDK_STATUS                    X_RDK_Status;
+ #ifdef CM_EXTN_SUPPORTED
+-    BOOLEAN                                AutoConnect;
+-    UINT                                   CurrentAPN;
++    CELLULAR_DML_INFO_EXTN                 stCellularDmlInfoExtn;
+ #endif
+     CHAR                                   X_RDK_Model[20];
+     CHAR                                   X_RDK_HardwareRevision[20];
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 377f96d..6ac0a08 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -2958,7 +2958,7 @@ static rbusError_t Cellular_AccessPoint_GetParamBoolValue_rbus(rbusHandle_t hand
+ #ifdef CM_EXTN_SUPPORTED
+     else if(strcmp(context.name,"ConnectBackHaul")==0)
+     {
+-        rbusProperty_SetBoolean(property, pstAPInfo->ConnectBackHaul);
++        rbusProperty_SetBoolean(property, pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul);
+     }
+ #endif
+     else
+@@ -3367,8 +3367,8 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.X_RDK_Enable", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamBoolValue_rbus, Cellular_SetParamBoolValue_rbus, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+         {"Device.Cellular.X_RDK_Status", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+ #ifdef CM_EXTN_SUPPORTED
+-        {"Device.Cellular.CurrentAPN", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamUlongValue_rbus, Cellular_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
+-        {"Device.Cellular.AutoConnect", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.X_QCOM.CurrentAPN", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamUlongValue_rbus, Cellular_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.X_QCOM.AutoConnect", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif
+         {"Device.Cellular.X_RDK_Model", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_HardwareRevision", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+@@ -3524,7 +3524,7 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.IPAddress", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.IPv6Address", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.Type", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+-        {"Device.Cellular.AccessPoint.{i}.ConnectBackHaul", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamBoolValue_rbus, Cellular_AccessPoint_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}}
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.ConnectBackHaul", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamBoolValue_rbus, Cellular_AccessPoint_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif
+     };
+     rc = rbus_regDataElements(handle, ARRAY_SZ(dataElements), dataElements);
+-- 
+2.34.1
+

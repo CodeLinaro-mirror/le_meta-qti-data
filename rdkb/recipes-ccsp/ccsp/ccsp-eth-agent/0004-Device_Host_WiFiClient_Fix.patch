@@ -1,0 +1,33 @@
+This patch file is from Qualcomm Technologies, Inc. and is
+provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 8650a1d7d0525ce736771c863890c183b4e70797 Mon Sep 17 00:00:00 2001
+From: rayakuma <rayakuma@qti.qualcomm.com>
+Date: Wed, 2 Jul 2025 07:21:25 +0000
+Subject: [PATCH] 00004-Device_Host_WiFiClient_Fix.patch
+Signed-off-by: Rohith kumar <rayakuma@qti.qualcomm.com>
+---
+ source/TR-181/board_sbapi/eth_hal_interface.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/source/TR-181/board_sbapi/eth_hal_interface.c b/source/TR-181/board_sbapi/eth_hal_interface.c
+index 883b59a..bb28c9b 100644
+--- a/source/TR-181/board_sbapi/eth_hal_interface.c
++++ b/source/TR-181/board_sbapi/eth_hal_interface.c
+@@ -77,8 +77,8 @@ int ValidateClient(char *mac)
+ 	if(fgets(buf, sizeof(buf), fp1)!= NULL)
+ 	{
+ #ifdef _PLATFORM_SDX_
+-                // ATH0, ATH1, ATH2, ATH3, ATH14 ATH15 and ATH16 are the wifi clients in SDX
+-                if(!(strstr(buf,"ath0") || strstr(buf,"ath1") || strstr(buf,"ath2") || strstr(buf,"ath3") || strstr(buf,"ath14") || strstr(buf,"ath15") || strstr(buf,"ath16")))
++                // To Check ath and mld interfaces for getting Wi-Fi clients
++		if (!(strstr(buf, "ath") || strstr(buf, "mld")))
+                 {
+ #endif
+ 			ret = 1;
+-- 
+2.17.1
+

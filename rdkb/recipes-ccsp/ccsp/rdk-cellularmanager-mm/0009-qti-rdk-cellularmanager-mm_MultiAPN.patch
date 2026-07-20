@@ -1,0 +1,1367 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 6a4cbc2468ff693d5097ac9815c659006a7377ac Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Mon, 22 Jun 2026 04:01:18 +0000
+Subject: MultiAPN enablement
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.c         |  16 ++
+ source/CellularManager/cellular_hal.h         |  22 ++
+ source/CellularManager/cellular_hal_mm_apis.c | 238 ++++++++++++----
+ source/CellularManager/cellular_hal_mm_apis.h |  22 ++
+ .../cellularmgr_cellular_apis.c               | 127 ++++++---
+ .../cellularmgr_cellular_apis.h               |  13 +-
+ source/CellularManager/cellularmgr_main.c     |  21 +-
+ source/CellularManager/cellularmgr_sm.c       | 145 +++++++++-
+ source/CellularManager/cellularmgr_sm.h       |   1 +
+ .../middle_layer_src/cellularmgr_rbus_dml.c   | 258 ++++++++++++++----
+ 10 files changed, 689 insertions(+), 174 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.c b/source/CellularManager/cellular_hal.c
+index bf2a8bf..46b6e15 100755
+--- a/source/CellularManager/cellular_hal.c
++++ b/source/CellularManager/cellular_hal.c
+@@ -733,3 +733,19 @@ int cellular_hal_set_modem_device_type(CELLULAR_RDK_DEVICETYPE devType, void *ps
+ 
+     return RETURN_OK;
+ }
++
++/* cellular_hal_resource_release function */
++/**
++* @description - This function used to release hal resources.
++*
++* @param[in]  None
++* @param[out] None
++*
++* @return None
++*/
++void cellular_hal_resource_release()
++{
++    CELLULAR_HAL_DBG_PRINT("%s:%d - Releasing Hal resources\n", __FUNCTION__, __LINE__);
++    cellular_hal_mm_resource_release();
++}
++
+diff --git a/source/CellularManager/cellular_hal.h b/source/CellularManager/cellular_hal.h
+index cb0dee9..0261dad 100755
+--- a/source/CellularManager/cellular_hal.h
++++ b/source/CellularManager/cellular_hal.h
+@@ -1201,4 +1201,26 @@ CELLULAR_RDK_DEVICETYPE cellular_hal_get_modem_device_type();
+ */
+ int cellular_hal_set_modem_device_type(CELLULAR_RDK_DEVICETYPE devType, void *pstModemInfo);
+ /** @} */  //END OF GROUP CELLULAR_HAL_APIS
++
++/* cellumanager_get_wanifname function */
++/**
++* @description - This used to get wan interface name.
++*
++* @param[in] arraySize - size of wanIfName
++* @param[out] - wan interface naame - wanIfName
++* @return void
++*/
++void cellumanager_get_wanifname(char *wanIfName,size_t arraySize);
++
++/* cellular_hal_resource_release function */
++/**
++* @description - This function used to release hal resources.
++*
++* @param[in]  None
++* @param[out] None
++*
++* @return None
++*/
++void cellular_hal_resource_release();
++
+ #endif //_CELLULAR_HAL_H_
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index c8eeebf..8f3fcb6 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -41,6 +41,7 @@
+ #define CELLULAR_IMSI_MAX_LENGTH                         16
+ #define CELLULAR_OPERATOR_NAME_MAX_LENGTH                32
+ #endif
++guint mm_watch_id;
+ typedef struct {
+     MMObject *object;
+     MMModem *modem;
+@@ -59,6 +60,7 @@ ModemState mmState = MODEM_STATE_UNKNOWN;
+ gulong state_id = 0;
+ GHashTable *hashTable;
+ DEVICE_INFO deviceInfo;
++static GMainLoop* loop = NULL;
+ 
+ CellularNetworkCBStruct *networkStatusCB = NULL;
+ CellularDeviceContextCBStruct *deviceStatusCB = NULL;
+@@ -1322,81 +1324,133 @@ INT cellular_hal_mm_get_bearer_properties_list (CHAR *modemIndex, CellularProfil
+     GError *error = NULL;
+     GList *profiles= NULL;
+     GCancellable *cancellable = NULL;
++#ifdef CM_EXTN_SUPPORTED
+     MMModem3gppProfileManager *modem_3gpp_profile_manager = NULL;
++    GList *l= NULL;
++    CHAR *papnName = NULL;
++#endif
+     ctx = g_new0 (Context, 1);
++
++    if(NULL == ctx)
++        return RETURN_ERROR;
++
+     ctx->object = get_modem_context (modemIndex);
+-    ctx->modem = mm_object_get_modem (ctx->object);
+-    if (ctx->modem)
++    if(ctx->object)
+     {
+-        bearers = mm_modem_list_bearers_sync (ctx->modem, NULL, &error);
+-        modem_3gpp_profile_manager = mm_object_get_modem_3gpp_profile_manager (ctx->object);
+-        if (!bearers) {
+-            CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get bearers at '%s': '%s'\n",
+-                                    __FUNCTION__, mm_modem_get_path (ctx->modem), error ? error->message : "unknown error");
+-            if(error)
+-                g_error_free (error);
+-        }
+-        else
++        ctx->modem = mm_object_get_modem (ctx->object);
++        if (ctx->modem)
+         {
+-            totalCount = g_list_length(bearers);
+-            pfStruct = (CellularProfileStruct*)malloc(sizeof(CellularProfileStruct)*totalCount);
+-            memset(pfStruct, 0, sizeof(CellularProfileStruct)*totalCount);
+-            for (list = bearers, i = 0; list, i < totalCount; list = g_list_next (list), i++)
+-            {
+-                MMBearer *bearer = MM_BEARER (list->data);
+-                properties  = mm_bearer_get_properties (bearer);
+-                if( properties )
+-                {
+-                    if( mm_bearer_get_bearer_type (bearer) == BEARER_TYPE_DEFAULT )
+-                        pfStruct[i].bIsThisDefaultProfile = TRUE;
+-                    if( (value = mm_bearer_properties_get_apn (properties)) != NULL )
+-                        strlcpy (pfStruct[i].APN, value, sizeof(pfStruct[i].APN));
+-                    if( (value = mm_bearer_properties_get_user (properties)) != NULL )
+-                        strlcpy (pfStruct[i].Username, value, sizeof(pfStruct[i].Username));
+-                    if( (value = mm_bearer_properties_get_password (properties)) != NULL )
+-                        strlcpy (pfStruct[i].Password, value, sizeof(pfStruct[i].Password));
+-                    pfStruct[i].bIsAPNDisabled = (mm_bearer_get_connected (bearer) ? FALSE : TRUE);
++            bearers = mm_modem_list_bearers_sync (ctx->modem, NULL, &error);
+ #ifdef CM_EXTN_SUPPORTED
+-                    pfStruct[i].APNType = mm_bearer_properties_get_apn_type(properties);
++            modem_3gpp_profile_manager = mm_object_get_modem_3gpp_profile_manager (ctx->object);
+ #endif
+-                    ipFamily = mm_bearer_properties_get_ip_type (properties);
+-                    if( ipFamily == BEARER_IP_FAMILY_IPV4 )
+-                        pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV4;
+-                    else if( ipFamily == BEARER_IP_FAMILY_IPV6 )
+-                        pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV6;
+-                    else
+-                        pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
+-                    pfStruct[i].bIsNoRoaming = (mm_bearer_properties_get_allow_roaming(properties) ? FALSE : TRUE);
+-                    bearPath = mm_bearer_get_path (bearer);
+-#if CM_EXTN_SUPPORTED
+-                    strlcpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE);
+-                    pfStruct[i].stPrflCtxExtn.bearerIndex = atoi(bearerIndex);
+-                    if (modem_3gpp_profile_manager)
++            if (!bearers) {
++                CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get bearers at '%s': '%s'\n",
++                                    __FUNCTION__, mm_modem_get_path (ctx->modem), error ? error->message : "unknown error");
++                if(error)
++                    g_error_free (error);
++            }
++            else
++            {
++                totalCount = g_list_length(bearers);
++                pfStruct = (CellularProfileStruct*)malloc(sizeof(CellularProfileStruct)*totalCount);
++                if(NULL == pfStruct)
++                    return RETURN_ERROR;
++
++                memset(pfStruct, 0, sizeof(CellularProfileStruct)*totalCount);
++                for (list = bearers, i = 0; list, i < totalCount; list = g_list_next (list), i++)
++                {
++                    if(list->data)
+                     {
+-                        mm_modem_3gpp_profile_manager_list_sync (modem_3gpp_profile_manager,
++                        MMBearer *bearer = MM_BEARER (list->data);
++                        if(bearer)
++                        {
++                            properties  = mm_bearer_get_properties (bearer);
++                            if( properties )
++                            {
++                                if( mm_bearer_get_bearer_type (bearer) == BEARER_TYPE_DEFAULT )
++                                    pfStruct[i].bIsThisDefaultProfile = TRUE;
++                                if( (value = mm_bearer_properties_get_apn (properties)) != NULL )
++                                    strlcpy (pfStruct[i].APN, value, sizeof(pfStruct[i].APN));
++                                if( (value = mm_bearer_properties_get_user (properties)) != NULL )
++                                    strlcpy (pfStruct[i].Username, value, sizeof(pfStruct[i].Username));
++                                if( (value = mm_bearer_properties_get_password (properties)) != NULL )
++                                strlcpy (pfStruct[i].Password, value, sizeof(pfStruct[i].Password));
++                                pfStruct[i].bIsAPNDisabled = (mm_bearer_get_connected (bearer) ? FALSE : TRUE);
++                                ipFamily = mm_bearer_properties_get_ip_type (properties);
++                                if( ipFamily == BEARER_IP_FAMILY_IPV4 )
++                                    pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV4;
++                                else if( ipFamily == BEARER_IP_FAMILY_IPV6 )
++                                    pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV6;
++                                else
++                                    pfStruct[i].PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
++                                pfStruct[i].bIsNoRoaming = (mm_bearer_properties_get_allow_roaming(properties) ? FALSE : TRUE);
++                                bearPath = mm_bearer_get_path (bearer);
++                                if(bearPath)
++                                {
++#ifdef CM_EXTN_SUPPORTED
++                                    strlcpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE);
++                                    pfStruct[i].stPrflCtxExtn.bearerIndex = atoi(bearerIndex);
++                                    if (modem_3gpp_profile_manager)
++                                    {
++                                        mm_modem_3gpp_profile_manager_list_sync (modem_3gpp_profile_manager,
+                                                      cancellable,
+                                                      &profiles,
+                                                      &error);
+-                        MM3gppProfile *profile = MM_3GPP_PROFILE(profiles->data);
+-                        if( profile )
+-                        {
+-                           pfStruct[i].ProfileID = mm_3gpp_profile_get_profile_id(profile);
+-                        }
+-                    }
++
++                                        if(error)
++                                        {
++                                            CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get list of MM3gppProfile: '%s'\n",
++                                                                    __FUNCTION__, error ? error->message : "unknown error");
++                                            g_error_free (error);
++                                            error = NULL;
++                                        }
++
++                                        /* Traverse the list to arrive at profile ID */
++                                        for (l = profiles; l; l = g_list_next (l))
++                                        {
++                                            if (l != NULL)
++                                            {
++                                                if(l->data)
++                                                {
++                                                    MM3gppProfile *profile = MM_3GPP_PROFILE(l->data);
++                                                    if( profile != NULL)
++                                                    {
++                                                        papnName = mm_3gpp_profile_get_apn(profile);
++                                                        if(papnName != NULL)
++                                                        {
++                                                            if(g_str_equal (papnName, pfStruct[i].APN))
++                                                            {
++                                                                pfStruct[i].ProfileID = mm_3gpp_profile_get_profile_id(profile);
++                                                                pfStruct[i].APNType = mm_3gpp_profile_get_apn_type (profile);
++                                                                break;
++                                                            }
++                                                        }
++                                                    }
++                                                }
++                                            }
++                                        }
++
++                                        if(profiles)
++                                            g_list_free_full(profiles , g_object_unref);
++                                    }
+ #else
+-                    strlcpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE);
+-                    pfStruct[i].ProfileID = atoi(bearerIndex);
++                                    strlcpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE);
++                                    pfStruct[i].ProfileID = atoi(bearerIndex);
+ #endif
+-                    g_clear_object (&properties);
++                                    g_clear_object (&properties);
++                                }
++                            }
++                        }
++                    }
+                 }
++                *pstProfileOutput = pfStruct;
++                *profile_count = totalCount;
++                res = RETURN_OK;
++                g_list_free_full (bearers, g_object_unref);
+             }
+-            *pstProfileOutput = pfStruct;
+-            *profile_count = totalCount;
+-            res = RETURN_OK;
+-            g_list_free_full (bearers, g_object_unref);
+         }
+     }
+-
+     context_free(ctx);
+     return res;
+ }
+@@ -2308,3 +2362,71 @@ INT cellular_hal_mm_get_servingCell (CHAR *index, SERVING_CELL *servingCell)
+     context_free(ctx);
+     return res;
+ }
++
++void cellular_hal_mm_resource_release()
++{
++    if(NULL != loop)
++    {
++        g_main_loop_quit(loop);
++        CELLULAR_HAL_DBG_PRINT("%s:%d - g_main_loop hal thread stopped successfully\n", __FUNCTION__, __LINE__);
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT("%s:%d - No hal thread running.\n", __FUNCTION__, __LINE__);
++    }
++}
++
++/* cellular_hal_mm_disable_modem() function */
++/**
++* @description - This function performs modem disable.
++*
++* @param[in] None
++*
++* @return None
++*
++*/
++void cellular_hal_mm_disable_modem (void)
++{
++    Context *ctx;
++
++    ctx = g_new0 (Context, 1);
++    ctx->object = get_modem_context (NULL);
++    if (ctx->object)
++    {
++        ctx->modem = mm_object_get_modem (ctx->object);
++        if( ctx->modem )
++        {
++            CELLULAR_HAL_DBG_PRINT("%s:%d - Disabling modem\n", __FUNCTION__, __LINE__);
++            mm_modem_disable(ctx->modem, NULL, NULL, NULL);
++        }
++        else
++        {
++            CELLULAR_HAL_DBG_PRINT("%s:%d - Failed to disable modem!\n", __FUNCTION__, __LINE__);
++        }
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT("%s:%d - Failed to get modem object!\n", __FUNCTION__, __LINE__);
++    }
++
++    context_free(ctx);
++}
++
++/* cellular_hal_unwatch_modem_interface() function */
++/**
++* @description - This function will unwatch modem dbus interface.
++*
++* @param[in] None
++*
++* @return None
++*
++*/
++void cellular_hal_unwatch_modem_interface(void)
++{
++    if(0 < mm_watch_id)
++    {
++        g_bus_unwatch_name(mm_watch_id);
++        CELLULAR_HAL_DBG_PRINT("%s:%d - unwatching modem dbus inteface\n", __FUNCTION__, __LINE__);
++    }
++}
++
+diff --git a/source/CellularManager/cellular_hal_mm_apis.h b/source/CellularManager/cellular_hal_mm_apis.h
+index fe2a8f4..7de9d62 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.h
++++ b/source/CellularManager/cellular_hal_mm_apis.h
+@@ -381,6 +381,28 @@ void cellular_hal_mm_send_device_status(CellularDeviceContextCBStruct *device_st
+ void cellular_hal_mm_send_network_status(CellularNetworkCBStruct *network_status_cb);
+ INT cellular_hal_mm_get_bearer_data_interface(CHAR *index, CHAR* dataInterface);
+ #endif
++void cellular_hal_mm_resource_release(void);
++/* cellular_hal_mm_disable_modem() function */
++/**
++* @description - This function performs modem disable.
++*
++* @param[in] None
++*
++* @return None
++*
++*/
++void cellular_hal_mm_disable_modem (void);
++
++/* cellular_hal_unwatch_modem_interface() function */
++/**
++* @description - This function will unwatch modem dbus interface.
++*
++* @param[in] None
++*
++* @return None
++*
++*/
++void cellular_hal_unwatch_modem_interface(void);
+ 
+ /**
+  * @}
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 1e72065..ee8fa44 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -516,19 +516,7 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+     stCtxInputStruct.stIfInput.ProxyPort          = 0;
+     snprintf(stCtxInputStruct.stIfInput.Proxy, sizeof(stCtxInputStruct.stIfInput.Proxy), "%s", "");
+ #ifdef CM_EXTN_SUPPORTED
+-    int apindex[CELLULAR_APN_MAX_ENTRY], i;
+-    memset(apindex, -1, sizeof(apindex));
+-    //get the stored apn index value from db
+-    CellularMgr_extn_GetIndex(apindex);
+-    for(i = 0; i < CELLULAR_APN_MAX_ENTRY; i++)
+-    {
+-        if(apindex[i] == -1)
+-        {
+-            break;
+-        }
+-        CellularMgr_extn_InitializeContextApnProfile(&stCtxInputStruct, apindex[i]);
+-        break;//Currently supporting for one  table entry
+-    }
++    CellularMgr_extn_InitializeContextApnProfile(&stCtxInputStruct);
+ #else
+     CellularMgr_InitializeContextDefaultProfile( &stCtxInputStruct );
+ #endif
+@@ -968,6 +956,7 @@ int CellularMgr_AccessPointCreateProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV6;
+     }
++#ifndef CM_EXTN_SUPPORTED
+     else if( INTERFACE_PROFILE_FAMILY_IPV4_IPV6 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
+@@ -976,6 +965,12 @@ int CellularMgr_AccessPointCreateProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4;
+     }
++#else
++    else
++    {
++        stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
++    }
++#endif
+ 
+     //Create Profile
+ #ifdef CM_EXTN_SUPPORTED
+@@ -987,29 +982,6 @@ int CellularMgr_AccessPointCreateProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+         CcspTraceError(("%s - Failed to create profile information\n", __FUNCTION__));
+         return RETURN_ERROR;
+     }
+-#ifdef CM_EXTN_SUPPORTED
+-    //save APN profile information to DB
+-    if ( RETURN_OK != CellularMgr_extn_WriteAccessPointStructToPSM(pstAPInfo))
+-    {
+-        CcspTraceError(("%s - Failed to write APN profile information to PSM\n", __FUNCTION__));
+-    }
+-
+-    char param_value[CELLULARMGR_PARAM_VALUE_LENGTH];
+-    char param_name[CELLULARMGR_PARAM_VALUE_LENGTH];
+-    int retPsmGet = CCSP_SUCCESS;
+-    memset(param_value, 0, sizeof(param_value));
+-
+-    //Get previous previous index value from db
+-    retPsmGet = CellularMgr_RdkBus_GetParamValuesFromDB(PSM_CELLULARMANAGER_ACCESSPOINT_INDEX, param_value, sizeof(param_value));
+-    if (retPsmGet == CCSP_SUCCESS)
+-    {
+-        //string catinate new index value with previous index and saved to db
+-       snprintf(param_name,sizeof(param_name), ",%u", pstAPInfo->PDPContextNumber);
+-       strlcat(param_value, param_name, strlen(param_name));
+-    }
+-    //concatinated index values set to db
+-    CellularMgr_RdkBus_SetParamValuesToDB(PSM_CELLULARMANAGER_ACCESSPOINT_INDEX, param_value);
+-#endif
+ 
+     return RETURN_OK;
+ }
+@@ -1040,10 +1012,17 @@ int CellularMgr_AccessPointDeleteProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV6;
+     }
++#ifndef CM_EXTN_SUPPORTED
+     else if( INTERFACE_PROFILE_FAMILY_IPV4_IPV6 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
+     }
++#else
++    else
++    {
++        stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
++    }
++#endif
+ 
+     //Delete Profile
+     if ( RETURN_OK != cellular_hal_profile_delete( &stProfileInput, NULL ) )
+@@ -1051,7 +1030,16 @@ int CellularMgr_AccessPointDeleteProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+         CcspTraceError(("%s - Failed to delete profile information\n", __FUNCTION__));
+         return RETURN_ERROR;
+     }
++    //Delete PSM records
++#ifdef CM_EXTN_SUPPORTED
++    CellularMgr_extn_DelApnParamValuesFromPSM(pstAPInfo->PDPContextNumber-1);
+ 
++    if(RETURN_OK != CellularMgr_extn_UpdateApnIndexToPSM((pstAPInfo->PDPContextNumber)))
++    {
++        CcspTraceError(("%s - Failed to delete profile index from DB\n", __FUNCTION__));
++        return RETURN_ERROR;
++    }
++#endif
+     return RETURN_OK;
+ }
+ 
+@@ -1085,10 +1073,17 @@ int CellularMgr_AccessPointModifyProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV6;
+     }
++#ifndef CM_EXTN_SUPPORTED
+     else if( INTERFACE_PROFILE_FAMILY_IPV4_IPV6 == pstAPInfo->X_RDK_IpAddressFamily )
+     {
+         stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
+     }
++#else
++    else
++    {
++        stProfileInput.PDPType = CELLULAR_PDP_TYPE_IPV4_OR_IPV6;
++    }
++#endif
+ 
+     //Modify Profile
+ #ifdef CM_EXTN_SUPPORTED
+@@ -1100,12 +1095,7 @@ int CellularMgr_AccessPointModifyProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+         CcspTraceError(("%s - Failed to modify profile information\n", __FUNCTION__));
+         return RETURN_ERROR;
+     }
+-#ifdef CM_EXTN_SUPPORTED
+-    if ( RETURN_OK != CellularMgr_extn_WriteAccessPointStructToPSM(pstAPInfo))
+-    {
+-        CcspTraceError(("%s - Failed to write APN profile information to PSM\n", __FUNCTION__));
+-    }
+-#endif
++
+     return RETURN_OK;
+ }
+ 
+@@ -1717,6 +1707,59 @@ int CellularMgr_GetDeviceInfo( PCELLULAR_DML_INFO pstDeviceInfo )
+ 
+     return RETURN_OK;
+ }
++
++/* CellularMgr_SignalHandlerCleanup() function */
++/**
++* @description - This function performs deletion of current interface, disable modem and hal resource clean up
++*
++* @param[in] None
++*
++* @return None
++*
++*/
++void CellularMgr_SignalHandlerCleanup(void)
++{
++#ifndef IP_CONTINUITY_ENABLED
++    char wanIfName[BUFLEN_32] = {0};
++    char cmd[BUFLEN_256] = {0};
++    char modemStatus[BUFFER_SIZE_10] = {0};
++
++    /* Getting wan interface name */
++    cellumanager_get_wanifname(wanIfName,sizeof(wanIfName));
++
++    /* Deleting old wan interface */
++    memset(cmd, 0, sizeof(cmd));
++    snprintf( cmd, sizeof(cmd), "ip link del %s", wanIfName);
++    if(0 != system(cmd))
++    {
++        CcspTraceError(("%s:%d - Failed to delete interface \n", __FUNCTION__, __LINE__));
++    }
++#endif //!IP_CONTINUITY_ENABLED
++
++    /* Unwatch the MM dbus interface */
++    cellular_hal_unwatch_modem_interface();
++
++#ifndef IP_CONTINUITY_ENABLED
++    if (RETURN_OK == CellularMgr_extn_Get_Modem_Status(modemStatus, BUFFER_SIZE_10))
++    {
++        /* Disable modem if modemStatus is online [Registered/Connecting/Connected] */
++        if(strcmp(modemStatus, "Online") == 0)
++        {
++            CcspTraceInfo(("%s - %d : Modem is online disabling modem\n",__FUNCTION__,__LINE__));
++            cellular_hal_mm_disable_modem ();
++        }
++    }
++    else
++    {
++        CcspTraceError(("%s - %d : Failed to get modem status\n",__FUNCTION__,__LINE__));
++    }
++#endif //!IP_CONTINUITY_ENABLED
++
++    /* Clearing hal loop resources */
++    cellular_hal_resource_release();
++
++}
++
+ int CellularMgr_GetSupportedAccessTechnologies(char *pSupportedAccessTechnologies)
+ {
+     return( cellular_hal_get_supported_access_technologies( pSupportedAccessTechnologies ) );
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index ecf70f5..2bd6db7 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -158,7 +158,7 @@ typedef enum _CELLULAR_INTERFACE_PROFILE_FAMILY
+ CELLULAR_INTERFACE_PROFILE_FAMILY;
+ 
+ typedef  struct
+-_CELLULAR_INTERFACE_ACCESSPOINT_INFO                                      
++CELLULAR_INTERFACE_ACCESSPOINT_INFO
+ {
+     BOOLEAN                               bIsThisNewlyAddedRecord;
+     BOOLEAN                               Enable;
+@@ -495,4 +495,15 @@ int CellularMgr_GetDeviceInfo( PCELLULAR_DML_INFO pstDeviceInfo );
+ 
+ int CellularMgr_GetDataInterface(char *pDataInterface);
+ 
++/* CellularMgr_SignalHandlerCleanup() function */
++/**
++* @description - This function performs deletion of current interface, disable modem and hal resource clean up
++*
++* @param[in] None
++*
++* @return None
++*
++*/
++void CellularMgr_SignalHandlerCleanup(void);
++
+ #endif //_CELLULARMGR_CELLULAR_APIS_H_
+diff --git a/source/CellularManager/cellularmgr_main.c b/source/CellularManager/cellularmgr_main.c
+index be31e5f..cab8692 100755
+--- a/source/CellularManager/cellularmgr_main.c
++++ b/source/CellularManager/cellularmgr_main.c
+@@ -43,6 +43,7 @@
+ #include "ccsp_trace.h"
+ #include "syscfg/syscfg.h"
+ #include "webconfig_framework.h"
++#include "cellular_hal_mm_apis.h"
+ 
+ #define CELLULAR_INIT_FILE_BOOTUP "/tmp/cellularmanager_initialized_bootup"
+ 
+@@ -184,13 +185,20 @@ static void _print_stack_backtrace(void)
+ 
+ void sig_handler(int sig)
+ {
+-    if ( sig == SIGINT )
++    char wanIfName[32] = {0};
++    char cmd[256] = {0};
++
++    if (sig != SIGUSR1 && sig != SIGUSR2 &&
++        sig != SIGCHLD && sig != SIGPIPE && sig != SIGALRM )
+     {
+-        signal(SIGINT, sig_handler); /* reset it to this function */
+-        CcspTraceInfo(("SIGINT received!\n"));
+-        exit(0);
++        CellularMgr_SignalHandlerCleanup();
++
++        /* Re-sending signal after cleanup */
++        signal(sig,SIG_DFL);
++        raise(sig);
+     }
+-    else if ( sig == SIGUSR1 )
++
++    if ( sig == SIGUSR1 )
+     {
+         signal(SIGUSR1, sig_handler); /* reset it to this function */
+         CcspTraceInfo(("SIGUSR1 received!\n"));
+@@ -216,10 +224,11 @@ void sig_handler(int sig)
+     }
+     else
+     {
++#ifdef INCLUDE_BREAKPAD
+         /* get stack trace first */
+         _print_stack_backtrace();
++#endif
+         CcspTraceInfo(("Signal %d received, exiting!\n", sig));
+-        exit(0);
+     }
+ 
+ }
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index de62497..7c55baa 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -31,6 +31,11 @@
+ #if RBUS_BUILD_FLAG_ENABLE
+ #include "cellularmgr_rbus_events.h"
+ #endif
++
++#ifdef CM_EXTN_SUPPORTED
++#include "cellular_hal_mm_apis.h"
++void dump_state_variables();
++#endif
+ /**********************************************************************
+                 CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -122,7 +127,13 @@ static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
+ #ifdef CM_EXTN_SUPPORTED
+ sem_t connection_signal_sem; // This semaphore is posted whenever there is change in connection status as detected by the SM
+-#endif
++sem_t apn_ctx_sem; // This is a protection semaphore for APN context update
++sem_t state_chg_sem; // This is a protection semaphore for state change
++sem_t mm_sm_sync_sem;// This is for async signalling of CM state machine
++
++static CellularPolicySmState_t CellularMgr_getPolicyStructureRecoveryState(void);
++static void CellularMgr_setPolicyStructureRecoveryState(CellularPolicySmState_t enRecoveryTargetState);
++#endif //CM_EXTN_SUPPORTED
+ /**********************************************************************
+                 FUNCTION DEFINITION
+ **********************************************************************/
+@@ -930,7 +941,15 @@ static void CellularMgrSMSetCurrentState( CellularPolicySmState_t smState)
+ 
+ CellularPolicySmState_t CellularMgrSMGetCurrentState( void )
+ {
+-    return gpstCellularPolicyCtrl->enCurrentSMState;
++    if(NULL != gpstCellularPolicyCtrl)
++    {
++        return gpstCellularPolicyCtrl->enCurrentSMState;
++    }
++    else
++    {
++        CcspTraceWarning(("%s %d : State Machine is not initialized\n", __FUNCTION__, __LINE__));
++        return CELLULAR_STATUS_UNKNOWN;
++    }
+ }
+ 
+ void CellularMgrSMSetCellularEnable( unsigned char bRDKEnable )
+@@ -1280,7 +1299,7 @@ static ANSC_STATUS CellularMgr_ControllerInit( CellularMgrSMInputStruct    *pstI
+          gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus = DEVICE_PROFILE_STATUS_CONFIGURING;
+      }
+         /* Updating AP table with values from PSM to prevent cellular manager from crashing when setting AP table parameters through dmcli before doing a dm get */
+-        CellularMgr_extn_AccessPointGetProfileList( &(gpstCellularPolicyCtrl->pstDmlCellular->pstAPInfo), (int*)&gpstCellularPolicyCtrl->pstDmlCellular->ulAccessPointNoOfEntries);
++        CellularMgr_extn_GetAccessPoint_for_SM( &(gpstCellularPolicyCtrl->pstDmlCellular->pstAPInfo), (int*)&gpstCellularPolicyCtrl->pstDmlCellular->ulAccessPointNoOfEntries);
+ #endif
+         retStatus = ANSC_STATUS_SUCCESS;
+     }
+@@ -1293,7 +1312,14 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+ {
+     unsigned char  bRunning = TRUE;
+     int             n        = 0;
++#ifdef CM_EXTN_SUPPORTED
++    struct timespec  tv;
++    uint64_t elapsedNanosec = 0;
++    CellularPolicySmState_t targetRecoveryState = CELLULAR_STATE_DOWN;
++    bool linkFailureDetected = FALSE;
++#else
+     struct timeval  tv;
++#endif
+     CellularPolicySmState_t policy_sm_state = CELLULAR_STATE_DOWN;
+ 
+     //detach thread from caller stack
+@@ -1306,20 +1332,43 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+     while( bRunning ) 
+     {
+         /* Wait up to 500 milli seconds */
++#ifdef CM_EXTN_SUPPORTED
++        clock_gettime(CLOCK_REALTIME, &tv);
++        tv.tv_nsec +=  1000*LOOP_TIMEOUT;
++        tv.tv_sec += tv.tv_nsec / 1000000000;
++        tv.tv_nsec %= 1000000000;
++        elapsedNanosec += (1000 * (uint64_t)LOOP_TIMEOUT);
++        //Wait upto 500 ms for any MM signalling
++        sem_timedwait(&mm_sm_sync_sem, &tv);
++#else
+         tv.tv_sec = 0;
+         tv.tv_usec = LOOP_TIMEOUT;
+ 
+         n = select(0, NULL, NULL, NULL, &tv);
++#endif
+         if (n < 0)
+         {
+             /* interrupted by signal or something, continue */
+             continue;
+         }
++#ifdef CM_EXTN_SUPPORTED
++        sem_wait(&apn_ctx_sem);
++        sem_wait(&state_chg_sem);
++        static int state_chg_flag = 0;
++#endif //CM_EXTN_SUPPORTED
+         if (policy_sm_state_old != policy_sm_state) // This is just to add log
+         {
+-           CcspTraceInfo(("%s %d - New state: %d ,Previous state :%d  \n", __FUNCTION__, __LINE__,policy_sm_state,policy_sm_state_old));
+-           policy_sm_state_old = policy_sm_state;
+-           CellularMgrSMCheckAndSetWWANConnectionStatus( policy_sm_state );
++            CcspTraceInfo(("%s %d - New state: %d ,Previous state :%d  \n", __FUNCTION__, __LINE__,policy_sm_state,policy_sm_state_old));
++            policy_sm_state_old = policy_sm_state;
++            CellularMgrSMCheckAndSetWWANConnectionStatus( policy_sm_state );
++#ifdef CM_EXTN_SUPPORTED
++           if (gpstCellularPolicyCtrl != NULL)
++           {
++               state_chg_flag = 1;
++               CcspTraceInfo((" %s %d - Before calling SM handler for new state  \n", __FUNCTION__, __LINE__));
++               dump_state_variables();
++           }
++#endif
+         }
+         switch (policy_sm_state)
+         {
+@@ -1344,10 +1393,27 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+                 bRunning = false;
+                 break;
+         }
++
++#ifdef CM_EXTN_SUPPORTED
++        if (gpstCellularPolicyCtrl != NULL)
++        {
++            if (state_chg_flag == 1)
++            {
++                state_chg_flag = 0;
++                CcspTraceInfo((" %s %d - After calling SM handler for new state  \n", __FUNCTION__, __LINE__));
++                dump_state_variables();
++            }
++        }
++        sem_post(&state_chg_sem);
++        sem_post(&apn_ctx_sem);
++#endif
+     }
+ 
+-    free( gpstCellularPolicyCtrl );
+-    gpstCellularPolicyCtrl = NULL;
++    if(gpstCellularPolicyCtrl)
++    {
++        free( gpstCellularPolicyCtrl );
++        gpstCellularPolicyCtrl = NULL;
++    }
+ 
+     CcspTraceInfo(("%s %d Exit\n", __FUNCTION__, __LINE__));
+ 
+@@ -1365,6 +1431,9 @@ CellularMgr_Start_State_Machine
+ {
+ #ifdef CM_EXTN_SUPPORTED
+     sem_init(&connection_signal_sem, 0, 0);
++    sem_init(&apn_ctx_sem, 0, 1);
++    sem_init(&state_chg_sem, 0, 1);
++    sem_init(&mm_sm_sync_sem, 0, 0);
+ #endif
+     if ( pstInput == NULL )
+     {
+@@ -1384,7 +1453,6 @@ CellularMgr_Start_State_Machine
+     //Initiate the thread for cellular state  
+     pthread_create( &Thread, NULL, &CellularMgr_StateMachine_Thread, (void*)NULL);
+     CcspTraceInfo(("%s %d - Started QMI Device Monitor Thread\n", __FUNCTION__, __LINE__));
+-
+     return RETURN_OK;
+ }
+ 
+@@ -1406,4 +1474,61 @@ void set_device_profile_status(CellularDeviceProfileSelectionStatus_t val)
+     gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus =  DEVICE_PROFILE_STATUS_NOT_READY;
+ }
+ 
+-#endif
++void dump_state_variables()
++{
++    CcspTraceInfo(("************** State Variables Dump *************\n \
++                \t\t CurrentSMState          : %d\n \
++                \t\t DeviceDetectionStatus   : %d\n \
++                \t\t DeviceOpenStatus        : %d\n \
++                \t\t SlotSelectionStatus     : %d\n \
++                \t\t NASRegisterStatus       : %d\n \
++                \t\t NASRoamingStatus        : %d\n \
++                \t\t RegisteredService       : %d\n \
++                \t\t ProfileSelectionStatus  : %d\n \
++                \t\t IPv4ReadyStatus         : %d\n \
++                \t\t IPv4PktServiceStatus    : %d\n \
++                \t\t IPv4NWStartInProgress   : %d\n \
++                \t\t IPv4Waiting4PktStatus   : %d\n \
++                \t\t IPv6IPReadyStatus       : %d\n \
++                \t\t NWIPv6PktServiceStatus  : %d\n \
++                \t\t IPv6NWStartInProgress   : %d\n \
++                \t\t IPv6WaitingForPktStatus : %d\n \
++                \t\t RDKEnable               : %d\n \
++                \t\t pCmIfData->Enable       : %d\n",gpstCellularPolicyCtrl->enCurrentSMState,\
++                                                    gpstCellularPolicyCtrl->enDeviceDetectionStatus, \
++                                                    gpstCellularPolicyCtrl->enDeviceOpenStatus, \
++                                                    gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus, \
++                                                    gpstCellularPolicyCtrl->enDeviceNASRegisterStatus, \
++                                                    gpstCellularPolicyCtrl->enDeviceNASRoamingStatus, \
++                                                    gpstCellularPolicyCtrl->enRegisteredService, \
++                                                    gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus, \
++                                                    gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus, \
++                                                    gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus, \
++                                                    gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress, \
++                                                    gpstCellularPolicyCtrl->bIPv4WaitingForPacketStatus, \
++                                                    gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus, \
++                                                    gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus, \
++                                                    gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress, \
++                                                    gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus, \
++                                                    gpstCellularPolicyCtrl->bRDKEnable, \
++                                                    gpstCellularPolicyCtrl->pCmIfData->Enable ));
++}
++
++#endif //CM_EXTN_SUPPORTED
++
++/* cellumanager_get_wanifname function */
++/**
++* @description - This used to get wan interface name.
++*
++* @param[in] arraySize - size of wanIfName
++* @param[out] - wan interface naame - wanIfName
++* @return void
++*/
++void cellumanager_get_wanifname(char *wanIfName, size_t arraySize)
++{
++    if((wanIfName != NULL) && (arraySize != 0))
++    {
++        memset(wanIfName, 0, arraySize);
++        strlcpy(wanIfName, gpstCellularPolicyCtrl->acWANIfName, arraySize);
++    }
++}
+diff --git a/source/CellularManager/cellularmgr_sm.h b/source/CellularManager/cellularmgr_sm.h
+index 441be06..8af403d 100644
+--- a/source/CellularManager/cellularmgr_sm.h
++++ b/source/CellularManager/cellularmgr_sm.h
+@@ -39,6 +39,7 @@ typedef enum
+    CELLULAR_STATE_REGISTERED,                                      //Device is open, NAS attached, Selecting Profile, Attaching PDN context, Start Network
+    CELLULAR_STATE_CONNECTED,                                       //Device is open, Network Started and WWAN status up
+    CELLULAR_STATUS_ERROR,                                          //State Machine error state
++   CELLULAR_STATUS_UNKNOWN               = 0xffff,                 //State Machine unknown state
+ 
+ } CellularPolicySmState_t;
+ 
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 8f80dd5..03fcd8b 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -58,6 +58,10 @@
+ 
+ #ifdef CM_EXTN_SUPPORTED
+ #include "cellularmgr_rbus_dml_extn.h"
++#include <sysevent/sysevent.h>
++extern int sysevent_fd;
++extern token_t sysevent_token;
++extern UINT Cellular_extn_AccessPoint_NoOfEntries;
+ #endif
+ 
+ #define  ARRAY_SZ(x) (sizeof(x) / sizeof((x)[0]))
+@@ -184,16 +188,48 @@ rbusError_t cellularmgr_Init()
+                 }
+             }
+         }
++
+     }
+ 
+-    for(int k = 0; k < pstDmlCellular->ulAccessPointNoOfEntries; k++)
++#ifdef CM_EXTN_SUPPORTED
++//Register Initial AP table with RBUS
++    int entryCount = 0;
++    int *apindex = NULL;
++    int retPsm = CellularMgr_RdkBus_GetParamValuesFromDB(PSM_CELLULARMANAGER_ACCESSPOINT_ENTRYCOUNT, paramName, sizeof(paramName));
++    if (retPsm == CCSP_SUCCESS)
+     {
+-        if (Sample_RegisterRow(CELLULARMGR_ACCESSPOINT_TABLE, (k+1), NULL, NULL) != RBUS_ERROR_SUCCESS)
+-        {
+-            CcspTraceError(("%s-%d : Failed to Add AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (k+1), CELLULARMGR_ACCESSPOINT_TABLE));
+-        }
++        sscanf(paramName, "%d", &entryCount);  // APN Entry Count from last boot
++    }
++    else
++    {
++        entryCount = 1;
++    }
++
++    apindex = malloc(entryCount * sizeof(int));
++    if (apindex == NULL)
++    {
++        return RBUS_ERROR_BUS_ERROR;
++    }
++
++    memset(apindex, 0, entryCount * sizeof(int));
++
++    //get the stored apn index value from db
++    if(CCSP_SUCCESS != CellularMgr_extn_GetApnIndex_list(apindex, &entryCount))
++    {
++        entryCount = 1;
+     }
+ 
++    pstDmlCellular->ulAccessPointNoOfEntries = 0;
++    if (Sample_RegisterRow(CELLULARMGR_ACCESSPOINT_TABLE, apindex[0], NULL, NULL) != RBUS_ERROR_SUCCESS) //starting with row index as read from PSM
++    {
++        CcspTraceError(("%s-%d : Failed to Add AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (apindex[0]), CELLULARMGR_ACCESSPOINT_TABLE));
++    }
++
++    if (apindex != NULL)
++    {
++        free(apindex);
++    }
++#endif
+     for(int l = 0; l < pstDmlCellular->ulUICCNoOfEntries; l++)
+     {
+         if (Sample_RegisterRow(CELLULARMGR_UICC_TABLE, (l+1), NULL, NULL) != RBUS_ERROR_SUCCESS)
+@@ -202,6 +238,13 @@ rbusError_t cellularmgr_Init()
+         }
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    if (RETURN_OK != Cellular_AccessPoint_extn_register_rows())
++    {
++        CcspTraceInfo(("%s %d - PSM Read Failed for AccessPoint table entries \n", __FUNCTION__, __LINE__));
++    }
++#endif
++
+     CcspTraceInfo(("%s-%d : Rbus Initialised successfully \n",__FUNCTION__, __LINE__));
+     return RBUS_ERROR_SUCCESS;
+ }
+@@ -262,13 +305,34 @@ rbusError_t cellularmgr_Unload()
+ 
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    for(int k = 1; k <= Cellular_extn_AccessPoint_NoOfEntries; k++)
++    {
++        PCELLULAR_INTERFACE_ACCESSPOINT_INFO pstAPInfo = NULL;
++        if (RETURN_OK !=  CellularMgr_extn_AccessPoint_TableUtil(ACCESSPOINT_GET, k, NULL,&pstAPInfo))
++        {
++            return RBUS_ERROR_BUS_ERROR;
++        }
++
++        if (NULL == pstAPInfo )
++        {
++            continue;
++        }
++
++        if (Sample_UnregisterRow(CELLULARMGR_ACCESSPOINT_TABLE, k) != RBUS_ERROR_SUCCESS)
++        {
++            CcspTraceError(("%s-%d : Failed to Del AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (k+1), paramName));
++        }
++    }
++#else
+     for(int k = 0; k < pstDmlCellular->ulAccessPointNoOfEntries; k++)
+     {
+         if (Sample_UnregisterRow(CELLULARMGR_ACCESSPOINT_TABLE, (k+1)) != RBUS_ERROR_SUCCESS)
+         {
+-            CcspTraceError(("%s-%d : Failed to Del AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (k+1), paramName));
++             CcspTraceError(("%s-%d : Failed to Del AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (k+1), paramName));
+         }
+     }
++#endif
+ 
+     for(int l = 0; l < pstDmlCellular->ulUICCNoOfEntries; l++)
+     {
+@@ -2741,13 +2805,20 @@ void* Cellular_AccessPoint_Add(void* ctx, uint32_t* instNum)
+ static rbusError_t Cellular_AccessPoint_AddEntry_rbus(rbusHandle_t handle, char const* tableName, char const* aliasName, uint32_t* instNum)
+ {
+     HandlerContext context = GetTableContext(tableName);
++#ifdef CM_EXTN_SUPPORTED
++    void* rowContext = Cellular_AccessPoint_extn_Add(instNum);
++#else
+     void* rowContext = Cellular_AccessPoint_Add(NULL, instNum);
++#endif
+     if(!rowContext)
+     {
+         CcspTraceError(("Cellular_AccessPoint_Add returned null row context"));
+         return RBUS_ERROR_BUS_ERROR;
+     }
++#ifndef CM_EXTN_SUPPORTED
+     SetRowContext(context.fullName, *instNum, aliasName, rowContext);
++#endif
++
+     return RBUS_ERROR_SUCCESS;
+ }
+ 
+@@ -2790,6 +2861,42 @@ rbusError_t Cellular_AccessPoint_Delete(void* ctx, void* inst)
+ static rbusError_t Cellular_AccessPoint_DeleteEntry_rbus(rbusHandle_t handle, char const* rowName)
+ {
+     HandlerContext context = GetHandlerContext(rowName);
++#ifdef CM_EXTN_SUPPORTED
++    int instnum = 0;
++    sscanf(context.fullName, "%*[^0-9]%d", &instnum);
++    int index = instnum;
++
++    /*Check if we are trying to delete the only table left in which case we shouldn't allow it*/
++    if (ONLY_REMAINING_PROFILE == check_is_only_profile(&index))
++    {
++        CcspTraceError(("%s:%d ERROR DELETING Inst(%d) - ONLY ONE PROFILE REMAINING",__FUNCTION__,__LINE__,instnum));
++        return RBUS_ERROR_BUS_ERROR;
++    }
++
++    PCELLULAR_INTERFACE_ACCESSPOINT_INFO pstAPInfo = NULL;
++    if (RETURN_OK !=  CellularMgr_extn_AccessPoint_TableUtil(ACCESSPOINT_GET, instnum, NULL,&pstAPInfo))
++    {
++        CcspTraceError(("%s:%d ERROR DELETING Inst(%d) - MEMORY CHECK FAILED",__FUNCTION__,__LINE__,instnum));
++        return RBUS_ERROR_BUS_ERROR;
++    }
++
++    if (pstAPInfo == NULL) {
++        CcspTraceError(("%s:%d ERROR DELETING Inst(%d) - REQUESTED MEMORY DOESN'T EXIST",__FUNCTION__,__LINE__,instnum));
++        return RBUS_ERROR_BUS_ERROR;
++    }
++
++    if ((pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul == TRUE) ||
++        (pstAPInfo->X_RDK_Default == TRUE))
++    {
++        CcspTraceError(("%s:%d ERROR DELETING Inst(%d) - DELETION NOT ALLOWED ON ACTIVE APN / DEFAULT PROFILE",__FUNCTION__,__LINE__,instnum));
++        return RBUS_ERROR_BUS_ERROR; // dont allow deletion of active APN or default profile
++    }
++
++    if (RETURN_OK !=  CellularMgr_extn_AccessPoint_TableUtil(ACCESSPOINT_DEL, instnum, NULL,NULL))
++    {
++        return RBUS_ERROR_BUS_ERROR;
++    }
++#else
+     void* rowContext = GetRowContext(context.fullName);
+     int rc = Cellular_AccessPoint_Delete(&context, rowContext);
+     if(rc != RBUS_ERROR_SUCCESS)
+@@ -2798,6 +2905,8 @@ static rbusError_t Cellular_AccessPoint_DeleteEntry_rbus(rbusHandle_t handle, ch
+         return RBUS_ERROR_BUS_ERROR;
+     }
+     RemoveRowContextByName(rowName);
++#endif
++
+     return RBUS_ERROR_SUCCESS;
+ }
+ 
+@@ -2835,34 +2944,14 @@ rbusError_t Cellular_AccessPoint_Synchronize_rbus(void* ctx)
+     }
+ 
+     ULONG AccessPointCurrentEntriesCount = pstDmlCellular->ulAccessPointNoOfEntries;
+-
+-    CellularProfileStruct                *pstProfileOutput = NULL;
+-
+-#ifdef CM_EXTN_SUPPORTED
+-    if(PROFILE_GET_SUCCESS != CellularMgr_AccessPointGetProfileList( &(pstDmlCellular->pstAPInfo), (int*)&pstDmlCellular->ulAccessPointNoOfEntries))
+-    {
+-        CellularMgr_extn_AccessPointGetProfileList( &(pstDmlCellular->pstAPInfo), (int*)&pstDmlCellular->ulAccessPointNoOfEntries);
+-    }
+-#else
+     CellularMgr_AccessPointGetProfileList( &(pstDmlCellular->pstAPInfo), (int*)&pstDmlCellular->ulAccessPointNoOfEntries);
+-#endif
+ 
+     if ( pstDmlCellular->pstAPInfo != NULL )
+     {
+         for(int j = 0; j < pstDmlCellular->ulAccessPointNoOfEntries; j++)
+         {
+             CELLULAR_INTERFACE_ACCESSPOINT_INFO  *pstAPInfo = &(pstDmlCellular->pstAPInfo[j]);
+-#ifdef CM_EXTN_SUPPORTED
+-            if (Sample_RegisterRow(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber + 1, NULL, pstAPInfo) == RBUS_ERROR_SUCCESS)
+-            {
+-                CcspTraceInfo(("%s-%d : Add AccessPoint Table:Inst(%s%d) \n", __FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE,pstAPInfo->PDPContextNumber + 1));
+-            }
+-            else
+-            {
+-                CcspTraceInfo(("%s-%d : tableName(%s), Inst(%d) \n",__FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber + 1));
+-                SetRowContext(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber + 1, NULL, pstAPInfo);
+-            }
+-#else
++
+             if (Sample_RegisterRow(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber, NULL, pstAPInfo) == RBUS_ERROR_SUCCESS)
+             {
+                 CcspTraceInfo(("%s-%d : Add AccessPoint Table:Inst(%s%d) \n", __FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE,pstAPInfo->PDPContextNumber));
+@@ -2872,7 +2961,6 @@ rbusError_t Cellular_AccessPoint_Synchronize_rbus(void* ctx)
+                 CcspTraceInfo(("%s-%d : tableName(%s), Inst(%d) \n",__FUNCTION__, __LINE__, CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber));
+                 SetRowContext(CELLULARMGR_ACCESSPOINT_TABLE, pstAPInfo->PDPContextNumber, NULL, pstAPInfo);
+             }
+-#endif
+         }
+     }
+     return RBUS_ERROR_SUCCESS;
+@@ -2893,9 +2981,6 @@ static rbusError_t Cellular_AccessPoint_GetEntryCount_rbus(rbusHandle_t handle,
+     PCELLULARMGR_CELLULAR_DATA  pMyObject      =  (PCELLULARMGR_CELLULAR_DATA) g_pBEManager->hCellular;
+     rbusError_t ret;
+ 
+-    if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+-        return ret;
+-
+     context = GetPropertyContext(property);
+     PCELLULAR_DML_INFO          pstDmlCellular =  (PCELLULAR_DML_INFO) pMyObject->pstDmlCellular;
+ 
+@@ -2904,6 +2989,14 @@ static rbusError_t Cellular_AccessPoint_GetEntryCount_rbus(rbusHandle_t handle,
+         return RBUS_ERROR_BUS_ERROR;
+     }
+ 
++#ifndef CM_EXTN_SUPPORTED
++    if(pstDmlCellular->pstAPInfo == NULL)
++    {
++        if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
++            return ret;
++    }
++#endif
++
+     if(strcmp(context.name, "AccessPointNumberOfEntries") == 0)
+     {
+         rbusProperty_SetUInt64(property, pstDmlCellular->ulAccessPointNoOfEntries);
+@@ -2921,14 +3014,19 @@ static rbusError_t Cellular_AccessPoint_GetParamBoolValue_rbus(rbusHandle_t hand
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+ #ifdef CM_EXTN_SUPPORTED
+-    PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = NULL;
+-    pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
+-    if (pstAPInfo == NULL)
++    PCELLULAR_INTERFACE_ACCESSPOINT_INFO pstAPInfo = NULL;
++    UINT instnum;
++
++    // scan the full name for instnum
++    sscanf(context.fullName, "%*[^0-9]%d", &instnum);
++
++    if (RETURN_OK !=  CellularMgr_extn_AccessPoint_TableUtil(ACCESSPOINT_GET, instnum, NULL,&pstAPInfo))
+     {
+-        if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+-            return ret;
+-        context = GetPropertyContext(property);
+-        pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++        return RBUS_ERROR_BUS_ERROR;
++    }
++
++    if (pstAPInfo == NULL) {
++        return RBUS_ERROR_BUS_ERROR;
+     }
+ #else
+     if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+@@ -2943,6 +3041,13 @@ static rbusError_t Cellular_AccessPoint_GetParamBoolValue_rbus(rbusHandle_t hand
+         return RBUS_ERROR_BUS_ERROR;
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    CELLULAR_RDK_STATUS  enRDKStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
++    if(( enRDKStatus == RDK_STATUS_CONNECTED ) && (pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul == TRUE))
++    {
++        CellularMgr_extn_Get_BearerProperties(&pstAPInfo);
++    }
++#endif
+     if(strcmp(context.name, "Enable") == 0)
+     {
+         rbusProperty_SetBoolean(property, pstAPInfo->Enable);
+@@ -2974,14 +3079,19 @@ static rbusError_t Cellular_AccessPoint_GetParamUlongValue_rbus(rbusHandle_t han
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+ #ifdef CM_EXTN_SUPPORTED
+-    PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = NULL;
+-    pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
+-    if (pstAPInfo == NULL)
++    PCELLULAR_INTERFACE_ACCESSPOINT_INFO    pstAPInfo = NULL;
++    UINT instnum;
++
++    // scan the full name for instnum
++    sscanf(context.fullName, "%*[^0-9]%d", &instnum);
++
++    if (RETURN_OK !=  CellularMgr_extn_AccessPoint_TableUtil(ACCESSPOINT_GET, instnum, NULL,&pstAPInfo))
+     {
+-        if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+-            return ret;
+-        context = GetPropertyContext(property);
+-        pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++        return RBUS_ERROR_BUS_ERROR;
++    }
++
++    if (pstAPInfo == NULL) {
++        return RBUS_ERROR_BUS_ERROR;
+     }
+ #else
+     if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+@@ -2995,9 +3105,16 @@ static rbusError_t Cellular_AccessPoint_GetParamUlongValue_rbus(rbusHandle_t han
+         return RBUS_ERROR_BUS_ERROR;
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    CELLULAR_RDK_STATUS  enRDKStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
++    if(( enRDKStatus == RDK_STATUS_CONNECTED ) && (pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul == TRUE))
++    {
++        CellularMgr_extn_Get_BearerProperties(&pstAPInfo);
++    }
++#endif
+     if(strcmp(context.name, "X_RDK_ProfileId") == 0)
+     {
+-        rbusProperty_SetUInt32(property, pstAPInfo->ProfileIndex);
++        rbusProperty_SetInt32(property, pstAPInfo->ProfileIndex);
+     }
+     else
+     {
+@@ -3012,14 +3129,19 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+     HandlerContext context = GetPropertyContext(property);
+     rbusError_t ret;
+ #ifdef CM_EXTN_SUPPORTED
+-    PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = NULL;
+-    pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
+-    if (pstAPInfo == NULL)
++    PCELLULAR_INTERFACE_ACCESSPOINT_INFO    pstAPInfo = NULL;
++    UINT instnum;
++
++    // scan the full name for instnum
++    sscanf(context.fullName, "%*[^0-9]%d", &instnum);
++
++    if (RETURN_OK !=  CellularMgr_extn_AccessPoint_TableUtil(ACCESSPOINT_GET, instnum, NULL,&pstAPInfo))
+     {
+-        if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+-            return ret;
+-        context = GetPropertyContext(property);
+-        pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
++        return RBUS_ERROR_BUS_ERROR;
++    }
++
++    if (pstAPInfo == NULL) {
++        return RBUS_ERROR_BUS_ERROR;
+     }
+ #else
+     if((ret = do_Cellular_AccessPoint_IsUpdated_Cellular_AccessPoint_Synchronize(context)) != RBUS_ERROR_SUCCESS)
+@@ -3028,11 +3150,19 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+     context = GetPropertyContext(property);
+     PCELLULAR_INTERFACE_ACCESSPOINT_INFO   pstAPInfo = (PCELLULAR_INTERFACE_ACCESSPOINT_INFO)context.userData;
+ #endif
++
+     if (pstAPInfo == NULL)
+     {
+         return RBUS_ERROR_BUS_ERROR;
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    CELLULAR_RDK_STATUS  enRDKStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
++    if(( enRDKStatus == RDK_STATUS_CONNECTED ) && (pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul == TRUE))
++    {
++        CellularMgr_extn_Get_BearerProperties(&pstAPInfo);
++    }
++#endif
+     if(strcmp(context.name, "Alias") == 0)
+     {
+         rbusProperty_SetString(property, pstAPInfo->Alias);
+@@ -3050,9 +3180,17 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+     }
+     else if(strcmp(context.name, "IPv6Address") == 0)
+     {
+-        memset(pstAPInfo->IPv6Address, 0, 128);
+-        sysevent_get(sysevent_fd, sysevent_token, "cellular_wan_v6_ip",pstAPInfo->IPv6Address , sizeof(pstAPInfo->IPv6Address));
+-        rbusProperty_SetString(property, pstAPInfo->IPv6Address);
++        CELLULAR_RDK_STATUS  enRDKStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
++        if(( enRDKStatus == RDK_STATUS_CONNECTED ) && (pstAPInfo->stCellularAccessPointInfoExtn.stAccessPoint.ConnectBackHaul == TRUE))
++        {
++            memset(pstAPInfo->IPv6Address, 0, MAX_IPV6_ADDRESS_STR_LENGTH);
++            sysevent_get(sysevent_fd, sysevent_token, "cellular_wan_v6_ip",pstAPInfo->IPv6Address , sizeof(pstAPInfo->IPv6Address));
++            rbusProperty_SetString(property, pstAPInfo->IPv6Address);
++        }
++        else
++        {
++            rbusProperty_SetString(property, "::");
++        }
+     }
+ #endif
+     else if(strcmp(context.name, "X_RDK_ApnAuthentication") == 0)
+@@ -3092,6 +3230,7 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+         {
+             rbusProperty_SetString(property, "IPv6");
+         }
++#ifndef CM_EXTN_SUPPORTED
+         else if (pstAPInfo->X_RDK_IpAddressFamily == INTERFACE_PROFILE_FAMILY_IPV4_IPV6)
+         {
+             rbusProperty_SetString(property, "IPv4IPv6");
+@@ -3100,6 +3239,12 @@ static rbusError_t Cellular_AccessPoint_GetParamStringValue_rbus(rbusHandle_t ha
+         {
+             rbusProperty_SetString(property, "None");
+         }
++#else
++        else
++        {
++            rbusProperty_SetString(property, "IPv4IPv6");
++        }
++#endif
+     }
+     else if(strcmp(context.name, "X_RDK_PdpInterfaceConfig") == 0)
+     {
+@@ -3367,7 +3512,6 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.X_RDK_Enable", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamBoolValue_rbus, Cellular_SetParamBoolValue_rbus, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+         {"Device.Cellular.X_RDK_Status", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+ #ifdef CM_EXTN_SUPPORTED
+-        {"Device.Cellular.X_QCOM.CurrentAPN", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamUlongValue_rbus, Cellular_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_QCOM.AutoConnect", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif
+         {"Device.Cellular.RoamingEnabled", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+-- 
+2.34.1
+

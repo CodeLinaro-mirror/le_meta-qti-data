@@ -1,0 +1,47 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Susheel Nyamala <snyamala@qti.qualcomm.com>
+Date: Wed, 04 Jun 2026 00:00:00 +0000
+Subject: [PATCH] Fix -Werror=stringop-truncation errors in HotspotApi.c
+
+strncpy calls using SIZE_OF_IP-1 (39) into SIZE_OF_IP (40) sized buffers
+trigger -Werror=stringop-truncation with newer GCC. Replace with snprintf
+which null-terminates correctly and avoids the warning.
+
+Signed-off-by: Susheel Nyamala <snyamala@qti.qualcomm.com>
+---
+
+--- a/source/HotspotApi/HotspotApi.c
++++ b/source/HotspotApi/HotspotApi.c
+@@ -79,7 +79,7 @@ bool tunnel_param_synchronize() {
+ 
+     memset(tunnelSet,0,sizeof(tunnelSet_t));
+-    strncpy(tunnelSet->set_primary_endpoint, gPriEndptIP, SIZE_OF_IP - 1);
+-    strncpy(tunnelSet->set_sec_endpoint, gSecEndptIP, SIZE_OF_IP - 1);
++    snprintf(tunnelSet->set_primary_endpoint, SIZE_OF_IP, "%s", gPriEndptIP);
++    snprintf(tunnelSet->set_sec_endpoint, SIZE_OF_IP, "%s", gSecEndptIP);
+     tunnelSet->set_gre_enable = gXfinityEnable;
+     for(itr=0; itr<MAX_VAP; itr++)
+     {
+@@ -1099,12 +1099,12 @@ pErr setHotspot(void* const network){
+          memset(gPriEndptIP, '\0', sizeof(gPriEndptIP));
+          memset(gSecEndptIP, '\0', sizeof(gSecEndptIP));
+-         strncpy(gPriEndptIP, pGreTunnelData->entries->gre_primary_endpoint,SIZE_OF_IP - 1);
++         snprintf(gPriEndptIP, SIZE_OF_IP, "%s", pGreTunnelData->entries->gre_primary_endpoint);
+          if(secTunInvalid)
+          {
+              CcspTraceInfo(("HOTSPOT_LIB : Secondary endpoint ip is invalid, Using primary EP IP \n"));
+-             strncpy(gSecEndptIP, gPriEndptIP, SIZE_OF_IP - 1);
++             snprintf(gSecEndptIP, SIZE_OF_IP, "%s", gPriEndptIP);
+          }
+          else
+          {
+-             strncpy(gSecEndptIP, pGreTunnelData->entries->gre_sec_endpoint,SIZE_OF_IP - 1);
++             snprintf(gSecEndptIP, SIZE_OF_IP, "%s", pGreTunnelData->entries->gre_sec_endpoint);
+          }
+-- 
+2.0.0

@@ -1,0 +1,26 @@
+From 0046dd41db2ae4034f48957c1d62d8a55e928712 Mon Sep 17 00:00:00 2001
+From: Alekhya Tumma <talekhya@qti.qualcomm.com>
+Date: Tue, 23 Jun 2026 23:48:44 +0530
+Subject: [PATCH] Add_modem_ready_dependency_in_service
+
+---
+ ModemManager.service.in | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/data/ModemManager.service.in b/data/ModemManager.service.in
+index 74c9557..df6692b 100644
+--- a/data/ModemManager.service.in
++++ b/data/ModemManager.service.in
+@@ -1,7 +1,7 @@
+ [Unit]
+ Description=Modem Manager
+-After=qrtr_ns.service utopia.service @MM_POLKIT_SERVICE@
+-Requires=init_sys_mss.service @MM_POLKIT_SERVICE@
++After=utopia.service @MM_POLKIT_SERVICE@
++Requires=qrtr_ns.service init_sys_mss.service @MM_POLKIT_SERVICE@
+ ConditionVirtualization=!container
+
+ [Service]
+--
+2.34.1
+

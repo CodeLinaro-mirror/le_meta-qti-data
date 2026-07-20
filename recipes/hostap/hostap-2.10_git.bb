@@ -25,13 +25,13 @@ SRC_URI  += "file://mka_supplicant-eth1.conf"
 SRC_URI  += "file://mka_authenticator-eth1.conf"
 
 # Git based uris are unpacked into git/ directory
-S = "${WORKDIR}/git"
+S = "${UNPACKDIR}/git"
 
 inherit pkgconfig
 
 do_configure() {
-	cp -f ${WORKDIR}/hostapd.buildconfig ${S}/hostapd/.config
-	cp -f ${WORKDIR}/wpa_supplicant.buildconfig ${S}/wpa_supplicant/.config
+	cp -f ${UNPACKDIR}/hostapd.buildconfig ${S}/hostapd/.config
+	cp -f ${UNPACKDIR}/wpa_supplicant.buildconfig ${S}/wpa_supplicant/.config
 }
 do_compile[depends] += "virtual/kernel:do_shared_workdir"
 EXTRA_OEMAKE = " EXTRA_CFLAGS='-I${STAGING_KERNEL_BUILDDIR}/usr/include -I${STAGING_INCDIR}/linux-msm/usr/include'"
@@ -55,17 +55,17 @@ do_install() {
 do_install:append() {
 	install -d ${D}${sysconfdir}
 	# MKA supplicant and authenticator configuration for eth0
-	install -m 0644 ${WORKDIR}/mka_supplicant-eth0.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth0.conf
-	install -m 0644 ${WORKDIR}/mka_supplicant-eth1.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth1.conf
-	install -m 0644 ${WORKDIR}/mka_authenticator-eth0.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth0.conf
-	install -m 0644 ${WORKDIR}/mka_authenticator-eth1.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth1.conf
+	install -m 0644 ${UNPACKDIR}/mka_supplicant-eth0.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth0.conf
+	install -m 0644 ${UNPACKDIR}/mka_supplicant-eth1.conf -D ${D}${sysconfdir}/data/mka_supplicant-eth1.conf
+	install -m 0644 ${UNPACKDIR}/mka_authenticator-eth0.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth0.conf
+	install -m 0644 ${UNPACKDIR}/mka_authenticator-eth1.conf -D ${D}${sysconfdir}/data/mka_authenticator-eth1.conf
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 		install -d ${D}${systemd_system_unitdir}
 
 
 		# MKA (MACSEC) Supplicant and Authenticator services
-		install -m 0644 ${WORKDIR}/mka-supplicant@.service -D ${D}${systemd_system_unitdir}/mka-supplicant@.service
-		install -m 0644 ${WORKDIR}/mka-authenticator@.service -D ${D}${systemd_system_unitdir}/mka-authenticator@.service
+		install -m 0644 ${UNPACKDIR}/mka-supplicant@.service -D ${D}${systemd_system_unitdir}/mka-supplicant@.service
+		install -m 0644 ${UNPACKDIR}/mka-authenticator@.service -D ${D}${systemd_system_unitdir}/mka-authenticator@.service
 	fi
 }
 FILES_${PN} += "${sysconfdir}"

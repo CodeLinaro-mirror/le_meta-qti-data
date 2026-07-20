@@ -1,0 +1,27 @@
+From 5c61fbec055678db7097b7628717e8e22f6e49c9 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Wed, 13 May 2026 02:13:41 +0000
+Subject: flag-check-enable
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+
+---
+ src/mm-port-qmi.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/mm-port-qmi.c b/src/mm-port-qmi.c
+index fa09f32d..82c9c40d 100644
+--- a/src/mm-port-qmi.c
++++ b/src/mm-port-qmi.c
+@@ -730,7 +730,8 @@ mm_port_qmi_setup_link (MMPortQmi           *self,
+          */
+         if (self->priv->dap == QMI_WDA_DATA_AGGREGATION_PROTOCOL_QMAPV4)
+             flags = (QMI_DEVICE_ADD_LINK_FLAGS_INGRESS_MAP_CKSUMV4 | QMI_DEVICE_ADD_LINK_FLAGS_EGRESS_MAP_CKSUMV4);
+-
++        else if (self->priv->dap == QMI_WDA_DATA_AGGREGATION_PROTOCOL_QMAPV5)
++	    flags = (QMI_DEVICE_ADD_LINK_FLAGS_INGRESS_MAP_CKSUMV5 | QMI_DEVICE_ADD_LINK_FLAGS_EGRESS_MAP_CKSUMV5);
+         qmi_device_add_link_with_flags (self->priv->qmi_device,
+                                         QMI_DEVICE_MUX_ID_AUTOMATIC,
+                                         mm_kernel_device_get_name (mm_port_peek_kernel_device (data)),
+-- 
+2.34.1
+

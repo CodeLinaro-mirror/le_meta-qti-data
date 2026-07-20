@@ -1,0 +1,29 @@
+From 3a7fc98e4bd4b0f4cd4881988b09e4e4b6eb90b7 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 15 May 2026 08:15:02 +0000
+Subject: QMI-Proxy-Crash-Fix
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ src/libqrtr-glib/qrtr-client.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/libqrtr-glib/qrtr-client.c b/src/libqrtr-glib/qrtr-client.c
+index 3c8de1b..11397d3 100644
+--- a/src/libqrtr-glib/qrtr-client.c
++++ b/src/libqrtr-glib/qrtr-client.c
+@@ -136,6 +136,12 @@ qrtr_message_cb (GSocket      *gsocket,
+ 
+     bytes_received = g_socket_receive_from (gsocket, &addr, (gchar *)buf->data,
+                                             next_datagram_size, NULL, &error);
++
++    if ((bytes_received == 0) || (buf->data == NULL))
++    {
++        return TRUE;
++    }
++
+     if (bytes_received < 0) {
+         g_warning ("[qrtr client %u:%u] socket i/o failure: %s",
+                    qrtr_node_get_id (self->priv->node), self->priv->port, error->message);
+-- 
+2.34.1
+

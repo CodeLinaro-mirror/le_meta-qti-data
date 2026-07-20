@@ -1,0 +1,2045 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 2f0dc1bffacae61e9021e7731b20d34f42a9216e Mon Sep 17 00:00:00 2001
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Thu, 18 Jun 2026 08:56:45 +0000
+Subject: [PATCH] USB Data Model
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+---
+ config-arm/TR181-USGv2.XML                    |  82 +-
+ source-arm/TR-181/board_sbapi/Makefile.am     |   3 +-
+ source-arm/TR-181/board_sbapi/cosa_usb_apis.c | 513 +++++++++++++
+ source/TR-181/include/cosa_usb_apis.h         |  52 ++
+ source/TR-181/middle_layer_src/Makefile.am    |   4 +-
+ .../middle_layer_src/cosa_apis_busutil.c      |  36 +
+ .../TR-181/middle_layer_src/cosa_apis_util.c  |  30 +
+ source/TR-181/middle_layer_src/cosa_usb_dml.c | 711 ++++++++++++++++++
+ source/TR-181/middle_layer_src/cosa_usb_dml.h |  73 ++
+ .../middle_layer_src/cosa_usb_internal.c      | 226 ++++++
+ .../middle_layer_src/cosa_usb_internal.h      |  48 ++
+ source/TR-181/middle_layer_src/plugin_main.c  |  23 +
+ .../middle_layer_src/plugin_main_apis.c       |  11 +
+ .../middle_layer_src/plugin_main_apis.h       |   5 +-
+ 14 files changed, 1812 insertions(+), 5 deletions(-)
+ create mode 100644 source-arm/TR-181/board_sbapi/cosa_usb_apis.c
+ create mode 100644 source/TR-181/include/cosa_usb_apis.h
+ create mode 100644 source/TR-181/middle_layer_src/cosa_usb_dml.c
+ create mode 100644 source/TR-181/middle_layer_src/cosa_usb_dml.h
+ create mode 100644 source/TR-181/middle_layer_src/cosa_usb_internal.c
+ create mode 100644 source/TR-181/middle_layer_src/cosa_usb_internal.h
+
+diff --git a/config-arm/TR181-USGv2.XML b/config-arm/TR181-USGv2.XML
+index 5656017..bb52e37 100644
+--- a/config-arm/TR181-USGv2.XML
++++ b/config-arm/TR181-USGv2.XML
+@@ -5381,11 +5381,89 @@
+       </parameters>
+ 
+     </object>
+-
+ <?endif?>
+-
+     <object>
++      <name>USB</name>
++      <objectType>object</objectType>
++      <functions>
++        <func_GetParamBoolValue>Usb_GetParamBoolValue</func_GetParamBoolValue>
++        <func_GetParamStringValue>Usb_GetParamStringValue</func_GetParamStringValue>
++      </functions>
++      <parameters>
++        <parameter>
++          <name>InterfaceNumberOfEntries</name>
++          <type>unsignedInt</type>
++          <syntax>uint32</syntax>
++        </parameter>
++      </parameters>
++      <objects>
++        <object>
++          <name>Interface</name>
++          <objectType>dynamicTable</objectType>
++          <maxInstance>1</maxInstance>
++          <functions>
++            <func_GetEntryCount>Usb_Interface_GetEntryCount</func_GetEntryCount>
++            <func_GetEntry>Usb_Interface_GetEntry</func_GetEntry>
++            <func_IsUpdated>Usb_Interface_IsUpdated</func_IsUpdated>
++            <func_GetParamBoolValue>Usb_Interface_GetParamBoolValue</func_GetParamBoolValue>
++            <func_GetParamStringValue>Usb_Interface_GetParamStringValue</func_GetParamStringValue>
++            <func_GetParamUlongValue>Usb_Interface_GetParamUlongValue</func_GetParamUlongValue>
++            <func_GetParamIntValue>Usb_Interface_GetParamIntValue</func_GetParamIntValue>
++            <func_SetParamBoolValue>Usb_Interface_SetParamBoolValue</func_SetParamBoolValue>
++            <func_SetParamStringValue>Usb_Interface_SetParamStringValue</func_SetParamStringValue>
++            <func_SetParamUlongValue>Usb_Interface_SetParamUlongValue</func_SetParamUlongValue>
++            <func_Validate>Usb_Interface_Validate</func_Validate>
++            <func_Commit>Usb_Interface_Commit</func_Commit>
++            <func_Rollback>Usb_Interface_Rollback</func_Rollback>
++          </functions>
++          <parameters>
++            <parameter>
++              <name>Enable</name>
++              <type>boolean</type>
++              <syntax>bool</syntax>
++            </parameter>
++            <parameter>
++              <name>Status</name>
++              <type>string: Up(1),Down(2),Unknown(3),Dormant(4),NotPresent(5),LowerLayerDown(6),Error(7)</type>
++              <syntax>uint32/mapped</syntax>
++            </parameter>
++            <parameter>
++              <name>Alias</name>
++              <type>string(64)</type>
++              <syntax>string</syntax>
++              <writable>true</writable>
++            </parameter>
++            <parameter>
++              <name>Name</name>
++              <type>string(64)</type>
++              <syntax>string</syntax>
++            </parameter>
++            <parameter>
++              <name>LowerLayers</name>
++              <type>string(1024)</type>
++              <syntax>string</syntax>
++            </parameter>
++            <parameter>
++              <name>Upstream</name>
++              <type>boolean</type>
++              <syntax>bool</syntax>
++            </parameter>
++            <parameter>
++              <name>MACAddress</name>
++              <type>string</type>
++              <syntax>string</syntax>
++            </parameter>
++            <parameter>
++              <name>MaxBitRate</name>
++              <type>int[-1:]</type>
++              <syntax>int</syntax>
++            </parameter>
++          </parameters>
++        </object>
++      </objects>
++    </object>
+ 
++    <object>
+       <name>Ethernet</name>
+ 
+       <objectType>object</objectType>
+diff --git a/source-arm/TR-181/board_sbapi/Makefile.am b/source-arm/TR-181/board_sbapi/Makefile.am
+index 40569d6..1c8f0e1 100644
+--- a/source-arm/TR-181/board_sbapi/Makefile.am
++++ b/source-arm/TR-181/board_sbapi/Makefile.am
+@@ -72,7 +72,8 @@ libCcspPandM_board_sbapi_la_SOURCES = \
+     dmz_wan_doc.c \
+     helpers.c \
+     lan_webconfig_param.c \
+-    macbinding_webconfig_param.c
++    macbinding_webconfig_param.c \
++    cosa_usb_apis.c
+ 
+ if FEATURE_HOTSPOT_SUPPORT
+ libCcspPandM_board_sbapi_la_SOURCES += cosa_GRE_webconfig_apis.c
+diff --git a/source-arm/TR-181/board_sbapi/cosa_usb_apis.c b/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
+new file mode 100644
+index 0000000..8653b8c
+--- /dev/null
++++ b/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
+@@ -0,0 +1,513 @@
++/*
++*
++* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.  
++* SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++/**************************************************************************
++
++    module: cosa_usb_apis.c
++
++        For COSA Data Model Library Development
++
++    description:
++
++        This file implementes back-end apis for the COSA Data Model Library
++
++        *  CosaDmlUsbInit
++        *  CosaDmlUsbGetNumberOfEntries
++**************************************************************************/
++
++#include "cosa_usb_apis.h"
++#include "cosa_usb_internal.h"
++#include "secure_wrapper.h"
++#include "safec_lib_common.h"
++#include "ansc_string_util.h"
++
++/**********************************************************************
++
++    prototype:
++
++        static ANSC_STATUS getUsbInterface(char *command,char *result);
++
++    description:
++
++        To check if usb tethered interface available in ifconfig
++
++    argument:   char *command,
++                ifconfig command to get the interface
++
++                char *result,
++                The output parameter which holds the interface name
++
++    return:     ANSC_STATUS_SUCCESS if usb interface available
++                ANSC_STATUS_FAILURE for failure
++
++**********************************************************************/
++static ANSC_STATUS getUsbInterface(char *command,char *result)
++{
++    FILE *fp = NULL;
++    char output[CMD_SIZE];
++    char *pos = NULL, *retval = NULL;
++    if((NULL == command) || (NULL == result))
++    {
++        CcspTraceInfo(("%s %d - param NULL \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++    memset(output,0,sizeof(output));
++    fp = popen(command, "r");
++    if(NULL == fp)
++    {
++        CcspTraceInfo(("%s %d - popen failed \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++    retval = fgets(output, sizeof(output)-1, fp);
++    pclose(fp);
++    if (NULL == retval)
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++    if (NULL != (pos=strchr(output, '\n')) )
++    {
++        *pos = '\0';
++    }
++    strlcpy(result,output,strlen(output)+1);
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        static BOOL isRndisInterface();
++
++    description:
++
++        To check rndis0 inerface availability.
++
++    argument:   None
++
++    return:     TRUE If rndis0 interface available
++                FALSE if rndis0 not available
++
++**********************************************************************/
++static BOOL isRndisInterface()
++{
++    ANSC_STATUS ret = ANSC_STATUS_FAILURE;
++    char rndis_iface[USB_SIZE];
++
++    memset(rndis_iface, 0, sizeof(rndis_iface));
++
++    ret = getUsbInterface(" ifconfig |grep rndis0 |awk '{print $1}' ",rndis_iface);
++    if (ANSC_STATUS_SUCCESS == ret)
++    {
++        if (strcmp(rndis_iface,"rndis0") == 0)
++            return TRUE;
++    }
++    return FALSE;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        static BOOL isEcmInterface();
++
++    description:
++
++        To check ecm0 inerface availability.
++
++    argument:   None
++
++    return:     TRUE If ecm0 interface available
++                FALSE if ecm0 not available
++
++**********************************************************************/
++static BOOL isEcmInterface()
++{
++    ANSC_STATUS ret = ANSC_STATUS_FAILURE;
++    char ecm_iface[USB_SIZE];
++
++    memset(ecm_iface, 0, sizeof(ecm_iface));
++
++    ret = getUsbInterface(" ifconfig |grep ecm0 |awk '{print $1}' ",ecm_iface);
++    if (ANSC_STATUS_SUCCESS == ret)
++    {
++        if (strcmp(ecm_iface,"ecm0") == 0)
++            return TRUE;
++    }
++    return FALSE;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        static ANSC_STATUS isInterfacePathExist(const char *fname);
++
++    description:
++
++        To check entry under /sys/class/net/.
++
++    argument:   const char *fname
++                Path of usb tethered interface
++
++    return:     ANSC_STATUS_SUCCESS if path present
++                ANSC_STATUS_FAILURE if not present
++
++**********************************************************************/
++static ANSC_STATUS isInterfacePathExist(const char *fname)
++{
++    FILE *file;
++    if ((file = fopen(fname, "r")))
++    {
++        fclose(file);
++        return ANSC_STATUS_SUCCESS;
++    }
++    return ANSC_STATUS_FAILURE;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        ANSC_STATUS CosaDmlUsbInit ( ANSC_HANDLE hDml,
++                   PANSC_HANDLE phContext );
++
++    description:
++
++        usb initialize.
++
++    argument:   ANSC_HANDLE hDml,
++                The instance handle
++
++                PANSC_HANDLE phContext,
++                The context
++
++    return:     ANSC_STATUS_SUCCESS
++
++**********************************************************************/
++ANSC_STATUS CosaDmlUsbInit ( ANSC_HANDLE hDml, PANSC_HANDLE phContext )
++{
++    UNREFERENCED_PARAMETER(hDml);
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)phContext;
++
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        ULONG CosaDmlUsbGetNumberOfEntries ( ANSC_HANDLE hContext );
++
++    description:
++
++        Number of usb interface entries
++
++    argument:   ANSC_HANDLE hInsContext,
++                The instance handle
++
++    return:     Number of entries
++
++**********************************************************************/
++ULONG CosaDmlUsbGetNumberOfEntries ( ANSC_HANDLE hContext )
++{
++    UNREFERENCED_PARAMETER(hContext);
++    ULONG ulNumEntry = 0;
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)hContext;
++
++    if (isRndisInterface())
++    {
++        ulNumEntry++;
++    }
++    CcspTraceInfo(("%s %d - ulNumEntry %lu \n", __FUNCTION__,__LINE__,ulNumEntry));
++
++    return ulNumEntry;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        ANSC_STATUS CosaDmlGetUsbName ( ANSC_HANDLE hContext,
++                                   CHAR *pUsbName );
++
++    description:
++
++        Get usb interface name.
++
++    argument:   ANSC_HANDLE hInsContext,
++                The instance handle
++
++                CHAR *pUsbName,
++                The output parameter which holds the name
++
++    return:     ANSC_STATUS_SUCCESS if usb interface available
++                ANSC_STATUS_FAILURE for failure
++
++**********************************************************************/
++ANSC_STATUS CosaDmlGetUsbName ( ANSC_HANDLE hContext, CHAR *pUsbName )
++{
++    if (NULL == pUsbName)
++    {
++        CcspTraceInfo(("%s %d - param NULL \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    if(isRndisInterface())
++    {
++        AnscCopyString(pUsbName, "rndis0");
++    }
++    else if(isEcmInterface())
++    {
++        AnscCopyString(pUsbName, "ecm0");
++    }
++    else
++    {
++        CcspTraceInfo(("%s %d - no usb interface available \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        ANSC_STATUS CosaDmlGetMACAddress ( ANSC_HANDLE hContext,
++                                    CHAR *pMacAddress );
++
++    description:
++
++        Get MAC address.
++
++    argument:   ANSC_HANDLE hInsContext,
++                The instance handle
++
++                CHAR *pMacAddress,
++                The output parameter which holds interface mac address
++
++    return:     ANSC_STATUS_SUCCESS for success
++                ANSC_STATUS_FAILURE for failure
++
++**********************************************************************/
++ANSC_STATUS CosaDmlGetMACAddress ( ANSC_HANDLE hContext, CHAR *pMacAddress )
++{
++    FILE *fp = NULL;
++    char basemac[BUFF_SIZE];
++    char cmd[CMD_SIZE];
++    char *retVal;
++
++    if (NULL == pMacAddress)
++    {
++        CcspTraceInfo(("%s %d - param NULL \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    memset(basemac, 0, sizeof(basemac));
++    if(isRndisInterface())
++    {
++        snprintf(cmd ,sizeof(cmd), "ifconfig rndis0 | grep HWaddr | awk '{print $5}'");
++    }
++    else if(isEcmInterface())
++    {
++        snprintf(cmd ,sizeof(cmd), "ifconfig ecm0 | grep HWaddr | awk '{print $5}'");
++    }
++    else
++    {
++        CcspTraceInfo(("%s %d - no usb interface available \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    fp=popen(cmd,"r");
++    if (fp == NULL)
++    {
++        CcspTraceInfo(("%s %d - popen FAILED \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++    retVal = fgets(basemac, sizeof(basemac),fp);
++    pclose(fp);
++    if (NULL != retVal)
++        strlcpy(pMacAddress,basemac,strlen(basemac)+1);
++    else
++    {
++        CcspTraceInfo(("%s %d - fgets FAILED \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        ANSC_STATUS CosaDmlGetStatus ( ANSC_HANDLE hContext,
++                                    ULONG *pStatus );
++
++    description:
++
++        Get interface status.
++
++    argument:   ANSC_HANDLE hInsContext,
++                The instance handle
++
++                ULONG *pStatus,
++                The output parameter which holds interface status
++
++    return:     ANSC_STATUS_SUCCESS for success
++                ANSC_STATUS_FAILURE for failure
++
++**********************************************************************/
++ANSC_STATUS CosaDmlGetStatus ( ANSC_HANDLE hContext, ULONG *pStatus )
++{
++    char path[BUFF_SIZE];
++    ANSC_STATUS ret = ANSC_STATUS_FAILURE;
++
++    if (NULL == pStatus)
++    {
++        CcspTraceInfo(("%s %d - param NULL \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    memset(path, 0, sizeof(path));
++
++    if(isRndisInterface())
++    {
++        strlcpy(path,"/sys/class/net/rndis0",sizeof(path));
++    }
++    else if(isEcmInterface())
++    {
++        strlcpy(path,"/sys/class/net/ecm0",sizeof(path));
++    }
++    else
++        return ANSC_STATUS_FAILURE;
++
++    ret = isInterfacePathExist(path);
++    if(ANSC_STATUS_SUCCESS == ret)
++        *pStatus = COSA_DML_IF_STATUS_Up;
++    else
++        *pStatus = COSA_DML_IF_STATUS_Down;
++
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        ANSC_STATUS CosaDmlGetUsbEnable ( ANSC_HANDLE hContext,
++                                    BOOLEAN *bEnabled );
++
++    description:
++
++        USB tethering enabled.
++
++    argument:   ANSC_HANDLE hInsContext,
++                The instance handle
++
++                BOOLEAN *bEnabled,
++                The output parameter which holds if enable
++
++    return:     ANSC_STATUS_SUCCESS for success
++                ANSC_STATUS_FAILURE for failure
++
++**********************************************************************/
++ANSC_STATUS CosaDmlGetUsbEnable ( ANSC_HANDLE hContext, BOOLEAN *bEnabled )
++{
++    if (NULL == bEnabled)
++    {
++        CcspTraceInfo(("%s %d - param NULL \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    if(isRndisInterface())
++    {
++        *bEnabled = 1;
++    }
++    else if(isEcmInterface())
++    {
++        *bEnabled = 1;
++    }
++    else
++        *bEnabled = 0;
++
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    prototype:
++
++        ANSC_STATUS CosaDmlGetMaxBitRate ( ANSC_HANDLE hContext,
++                                    int *pMaxBitRate );
++
++    description:
++
++        USB tethering enabled.
++
++    argument:   ANSC_HANDLE hInsContext,
++                The instance handle
++
++                int *pMaxBitRate,
++                The output parameter which holds max bitrate(in MBPS)
++
++    return:     ANSC_STATUS_SUCCESS for success
++                ANSC_STATUS_FAILURE for failure
++
++**********************************************************************/
++ANSC_STATUS CosaDmlGetMaxBitRate ( ANSC_HANDLE hContext, int *pMaxBitRate )
++{
++    FILE *fp = NULL;
++    char cmd[CMD_SIZE];
++    char maxbitrate[BUFF_SIZE];
++    char *retVal;
++
++    if (NULL == pMaxBitRate)
++    {
++        CcspTraceInfo(("%s %d - param NULL \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    memset(maxbitrate, 0, sizeof(maxbitrate));
++    if(isRndisInterface() || isEcmInterface())
++    {
++        snprintf(cmd ,sizeof(cmd), "cat /sys/bus/platform/devices/a600000.ssusb/speed");
++    }
++    else
++    {
++        CcspTraceInfo(("%s %d - no usb interface available \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    fp=popen(cmd,"r");
++    if (fp == NULL)
++    {
++        CcspTraceInfo(("%s %d - popen FAILED \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    retVal = fgets(maxbitrate, sizeof(maxbitrate),fp);
++    pclose(fp);
++    if (NULL != retVal)
++    {
++        maxbitrate[strlen(maxbitrate) - 1] = '\0';
++        if(0 == strcmp(maxbitrate,"super-speed-plus"))
++            *pMaxBitRate = BITRATE_10GBPS;
++        else if(0 == strcmp(maxbitrate,"super-speed"))
++            *pMaxBitRate = BITRATE_5GBPS;
++        else if(0 == strcmp(maxbitrate,"high-speed"))
++            *pMaxBitRate = BITRATE_480MBPS;
++        else
++            *pMaxBitRate = BITRATE_NULL;
++    }
++    else
++    {
++        CcspTraceInfo(("%s %d - fgets FAILED \n", __FUNCTION__,__LINE__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    return ANSC_STATUS_SUCCESS;
++}
+diff --git a/source/TR-181/include/cosa_usb_apis.h b/source/TR-181/include/cosa_usb_apis.h
+new file mode 100644
+index 0000000..72c147f
+--- /dev/null
++++ b/source/TR-181/include/cosa_usb_apis.h
+@@ -0,0 +1,52 @@
++/*
++*
++* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.  
++* SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++#ifndef  _COSA_DSLITE_APIS_H
++#define  _COSA_DSLITE_APIS_H
++
++#include "../middle_layer_src/cosa_apis.h"
++
++#define MACADDR_SIZE 17
++#define USB_SIZE 10
++#define BUFF_SIZE 32
++#define CMD_SIZE 128
++#define BITRATE_NULL 0
++#define BITRATE_480MBPS 480
++#define BITRATE_5GBPS 5000
++#define BITRATE_10GBPS 10000
++
++typedef  struct
++_USB_INTERFACE_INFO
++{
++    BOOLEAN                                     Enable;
++    COSA_DML_IF_STATUS                          Status;
++    CHAR                                        Alias[64];
++    CHAR                                        Name[64];
++    CHAR                                        LowerLayers[1024];
++    BOOLEAN                                     Upstream;
++    UCHAR                                       MACAddress[MACADDR_SIZE+1];
++    LONG                                        MaxBitRate;
++}
++USB_INTERFACE_INFO,  *PUSB_INTERFACE_INFO;
++
++/**********************************************************************
++                FUNCTION PROTOTYPES
++**********************************************************************/
++ANSC_STATUS CosaDmlUsbInit ( ANSC_HANDLE hDml, PANSC_HANDLE phContext );
++
++ULONG CosaDmlUsbGetNumberOfEntries ( ANSC_HANDLE hContext );
++
++ANSC_STATUS CosaDmlGetUsbEnable ( ANSC_HANDLE hContext, BOOLEAN *bEnabled );
++
++ANSC_STATUS CosaDmlGetUsbName ( ANSC_HANDLE hContext, CHAR *pUsbName );
++
++ANSC_STATUS CosaDmlGetMACAddress ( ANSC_HANDLE hContext, CHAR *pMacAddress );
++
++ANSC_STATUS CosaDmlGetStatus ( ANSC_HANDLE hContext, ULONG *pStatus );
++
++ANSC_STATUS CosaDmlGetMaxBitRate ( ANSC_HANDLE hContext, int *pMaxBitRate );
++
++#endif
+diff --git a/source/TR-181/middle_layer_src/Makefile.am b/source/TR-181/middle_layer_src/Makefile.am
+index df0eaab..0b3d402 100644
+--- a/source/TR-181/middle_layer_src/Makefile.am
++++ b/source/TR-181/middle_layer_src/Makefile.am
+@@ -107,7 +107,9 @@ libCcspPandM_middle_layer_src_la_SOURCES = \
+     webui_webconfig_apis.c \
+     webui_webconfig_dml.c \
+     cosa_x_rdk_features_dml.c \
+-    cosa_x_rdk_features_internal.c 
++    cosa_x_rdk_features_internal.c \
++    cosa_usb_dml.c \
++    cosa_usb_internal.c
+ 
+ if FEATURE_HOTSPOT_SUPPORT
+ libCcspPandM_middle_layer_src_la_SOURCES += \
+diff --git a/source/TR-181/middle_layer_src/cosa_apis_busutil.c b/source/TR-181/middle_layer_src/cosa_apis_busutil.c
+index 3ac3641..e1cdfb6 100644
+--- a/source/TR-181/middle_layer_src/cosa_apis_busutil.c
++++ b/source/TR-181/middle_layer_src/cosa_apis_busutil.c
+@@ -113,6 +113,9 @@ static ANSC_STATUS RdkBus_GetParamValues( char *pComponent, char *pBus, char *pP
+ #endif
+ 
+ #endif
++#define USB_INTERFACE_OBJECT "Device.USB.Interface."
++#define USB_COMPONENT_NAME "eRT.com.cisco.spvtg.ccsp.usb"
++#define USB_DBUS_PATH "/com/cisco/spvtg/ccsp/usb"
+ /**********************************************************************
+ 
+     prototype:
+@@ -167,6 +170,16 @@ CosaGetParamValueUlong
+     }
+ #endif
+ #endif
++    if (strncmp(pParamName, USB_INTERFACE_OBJECT, strlen(USB_INTERFACE_OBJECT)) == 0)
++    {
++        if (ANSC_STATUS_FAILURE == RdkBus_GetParamValues(USB_COMPONENT_NAME, USB_DBUS_PATH, pParamName, acTmpReturnValue))
++        {
++            CcspTraceError(("[%s:%d] Failed to get param value\n", __FUNCTION__, __LINE__));
++            return 0;
++        }
++        result = strtoul(acTmpReturnValue, NULL, 10);
++        return result;
++    }
+     /* we should look up CR to find right component.
+             if it's P&M component, we just call the global variable 
+             Currently, we suppose all the parameter is from P&M. */
+@@ -241,6 +254,17 @@ CosaGetParamValueString
+     }
+ #endif
+ #endif
++    if (strncmp(pParamName, USB_INTERFACE_OBJECT, strlen(USB_INTERFACE_OBJECT)) == 0)
++    {
++        if (ANSC_STATUS_FAILURE == RdkBus_GetParamValues(USB_COMPONENT_NAME, USB_DBUS_PATH, pParamName, acTmpReturnValue))
++        {
++            CcspTraceError(("[%s:%d] Failed to get param value\n", __FUNCTION__, __LINE__));
++            return -1;
++        }
++        strlcpy(pBuffer, acTmpReturnValue, strlen(acTmpReturnValue)+1);
++        *pulSize = strlen(acTmpReturnValue) + 1;
++        return 1;
++    }
+     /* we should look up CR to find right component.
+             if it's P&M component, we just call the global variable 
+             Currently, we suppose all the parameter is from P&M. */
+@@ -309,6 +333,18 @@ CosaGetParamValueBool
+     }
+ #endif
+ #endif
++    if (strncmp(pParamName, USB_INTERFACE_OBJECT, strlen(USB_INTERFACE_OBJECT)) == 0)
++    {
++        if (ANSC_STATUS_FAILURE == RdkBus_GetParamValues(USB_COMPONENT_NAME, USB_DBUS_PATH, pParamName, acTmpReturnValue))
++        {
++            CcspTraceError(("[%s:%d]  Failed to get param value\n", __FUNCTION__, __LINE__));
++            return FALSE;
++        }
++        if (!(strcmp(acTmpReturnValue, "true")))
++            return TRUE;
++        else
++            return FALSE;
++    }
+     /* we should look up CR to find right component.
+             if it's P&M component, we just call the global variable 
+             Currently, we suppose all the parameter is from P&M. */
+diff --git a/source/TR-181/middle_layer_src/cosa_apis_util.c b/source/TR-181/middle_layer_src/cosa_apis_util.c
+index 325b5d4..f7ae2b5 100644
+--- a/source/TR-181/middle_layer_src/cosa_apis_util.c
++++ b/source/TR-181/middle_layer_src/cosa_apis_util.c
+@@ -438,6 +438,36 @@ CosaUtilGetLowerLayers
+             }
+             else if (strcmp(pTableStringToken->Name, "Device.USB.Interface.") == 0)
+             {
++                ulNumOfEntries =       CosaGetParamValueUlong("Device.USB.InterfaceNumberOfEntries");
++
++                for ( i = 0 ; i < ulNumOfEntries; i++ )
++                {
++                    ulEntryInstanceNum = CosaGetInstanceNumberByIndex("Device.USB.Interface.", i);
++
++                    if ( ulEntryInstanceNum )
++                    {
++                        rc = sprintf_s(ucEntryFullPath, sizeof(ucEntryFullPath), "Device.USB.Interface.%lu", ulEntryInstanceNum);
++                        if(rc < EOK)
++                        {
++                          ERR_CHK(rc);
++                          continue;
++                        }
++                        rc = sprintf_s(ucEntryParamName, sizeof(ucEntryParamName), "%s.Name", ucEntryFullPath);
++                        if(rc < EOK)
++                        {
++                          ERR_CHK(rc);
++                          continue;
++                        }
++
++                        ulEntryNameLen = sizeof(ucEntryNameValue);
++                        if ( ( 0 == CosaGetParamValueString(ucEntryParamName, ucEntryNameValue, &ulEntryNameLen)) &&
++                             (strcmp(ucEntryNameValue, (char*)pKeyword) == 0) )
++                        {
++                            pMatchedLowerLayer =  (PUCHAR)AnscCloneString(ucEntryFullPath);
++                            break;
++                        }
++                    }
++                }
+             }
+             else if (strcmp(pTableStringToken->Name, "Device.HPNA.Interface.") == 0)
+             {
+diff --git a/source/TR-181/middle_layer_src/cosa_usb_dml.c b/source/TR-181/middle_layer_src/cosa_usb_dml.c
+new file mode 100644
+index 0000000..76c5419
+--- /dev/null
++++ b/source/TR-181/middle_layer_src/cosa_usb_dml.c
+@@ -0,0 +1,711 @@
++/*
++*
++* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.  
++* SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++/**************************************************************************
++
++    module: cosa_usb_dml.c
++
++        For COSA Data Model Library Development
++
++    description:
++
++        This file implementes back-end apis for the COSA Data Model Library
++**************************************************************************/
++
++#include "cosa_usb_dml.h"
++#include "safec_lib_common.h"
++
++#define REFRESH_INTERVAL 60
++#define TIME_NO_NEGATIVE(x) ((long)(x) < 0 ? 0 : (x))
++static ULONG last_tick = 0;
++
++/***********************************************************************
++
++ APIs for Object:
++
++    USB.
++
++    *  Usb_GetParamBoolValue
++    *  Usb_GetParamStringValue
++
++***********************************************************************/
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Usb_GetParamBoolValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                BOOL*                       pBool
++            );
++
++    description:
++
++        This function is called to retrieve Boolean parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                BOOL*                       pBool
++                The buffer of returned boolean value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL Usb_GetParamBoolValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                             BOOL* pBool )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    UNREFERENCED_PARAMETER(ParamName);
++    UNREFERENCED_PARAMETER(pBool);
++
++    return TRUE;
++}
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        Usb_GetParamStringValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                char*                       pValue,
++                ULONG*                      pUlSize
++            );
++
++    description:
++
++        This function is called to retrieve string parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                char*                       pValue,
++                The string value buffer;
++
++                ULONG*                      pUlSize
++                The buffer of length of string value;
++                Usually size of 1023 will be used.
++                If it's not big enough, put required size here and return 1;
++
++    return:     0 if succeeded;
++                1 if short of buffer size; (*pUlSize = required size)
++                -1 if not supported.
++
++**********************************************************************/
++ULONG Usb_GetParamStringValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                char* pValue, ULONG* pUlSize )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    UNREFERENCED_PARAMETER(ParamName);
++    UNREFERENCED_PARAMETER(pValue);
++    UNREFERENCED_PARAMETER(pUlSize);
++
++    return 0;
++}
++
++/***********************************************************************
++
++ APIs for Object:
++
++    USB.Interface.{i}.
++
++    *  Usb_Interface_GetEntryCount
++    *  Usb_Interface_GetEntry
++    *  Usb_Interface_IsUpdated
++    *  Usb_Interface_GetParamBoolValue
++    *  Usb_Interface_GetParamStringValue
++    *  Usb_Interface_GetParamUlongValue
++    *  Usb_Interface_GetParamIntValue
++    *  Usb_Interface_SetParamBoolValue
++    *  Usb_Interface_SetParamStringValue
++    *  Usb_Interface_Validate
++    *  Usb_Interface_Commit
++    *  Usb_Interface_Rollback
++
++***********************************************************************/
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        Usb_Interface_GetEntryCount
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to retrieve the count of the table.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The count of the table
++
++**********************************************************************/
++ULONG Usb_Interface_GetEntryCount ( ANSC_HANDLE hInsContext )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    return CosaDmlUsbGetNumberOfEntries(NULL);
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ANSC_HANDLE
++        Usb_Interface_GetEntry
++            (
++                ANSC_HANDLE                 hInsContext,
++                ULONG                       nIndex,
++                ULONG*                      pInsNumber
++            );
++
++    description:
++
++        This function is called to retrieve the entry specified by the index.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                ULONG                       nIndex,
++                The index of this entry;
++
++                ULONG*                      pInsNumber
++                The output instance number;
++
++    return:     The handle to identify the entry
++
++**********************************************************************/
++ANSC_HANDLE Usb_Interface_GetEntry ( ANSC_HANDLE hInsContext, ULONG nIndex,
++                                 ULONG* pInsNumber )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)g_pCosaBEManager->hUsb;
++    *pInsNumber = nIndex + 1;
++
++    return  (ANSC_HANDLE)pMyObject;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++     prototype:
++
++         BOOL
++        Usb_Interface_IsUpdated
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is checking whether the table is updated or not.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     TRUE or FALSE.
++
++**********************************************************************/
++BOOL Usb_Interface_IsUpdated (ANSC_HANDLE hInsContext )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++
++    if(!last_tick)
++    {
++        last_tick = AnscGetTickInSeconds();
++        return TRUE;
++    }
++
++    if (last_tick >= TIME_NO_NEGATIVE(AnscGetTickInSeconds() - REFRESH_INTERVAL))
++    {
++        return FALSE;
++    }
++    else
++    {
++        last_tick = AnscGetTickInSeconds();
++        return TRUE;
++    }
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Usb_Interface_GetParamBoolValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                BOOL*                       pBool
++            );
++
++    description:
++
++        This function is called to retrieve Boolean parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                BOOL*                       pBool
++                The buffer of returned boolean value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL Usb_Interface_GetParamBoolValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                   BOOL* pBool )
++{
++    BOOL bEnable;
++    ANSC_STATUS retStatus = ANSC_STATUS_FAILURE;
++
++    if (strcmp(ParamName, "Enable") == 0)
++    {
++        retStatus = CosaDmlGetUsbEnable(hInsContext,&bEnable);
++        if (ANSC_STATUS_FAILURE != retStatus)
++        {
++            *pBool = bEnable;
++        }
++        else
++            CcspTraceInfo(("%s %d - CosaDmlGetUsbEnable failed \n", __FUNCTION__,__LINE__));
++
++        return TRUE;
++    }
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        Usb_Interface_GetParamStringValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                char*                       pValue,
++                ULONG*                      pUlSize
++            );
++
++    description:
++
++        This function is called to retrieve string parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                char*                       pValue,
++                The string value buffer;
++
++                ULONG*                      pUlSize
++                The buffer of length of string value;
++                Usually size of 1023 will be used.
++                If it's not big enough, put required size here and return 1;
++
++    return:     0 if succeeded;
++                1 if short of buffer size; (*pUlSize = required size)
++                -1 if not supported.
++
++**********************************************************************/
++ULONG Usb_Interface_GetParamStringValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                      char* pValue, ULONG* pUlSize )
++{
++    UNREFERENCED_PARAMETER(pUlSize);
++    char name[USB_SIZE];
++    char macaddr[BUFF_SIZE];
++    ANSC_STATUS retStatus = ANSC_STATUS_FAILURE;
++    PCOSA_DATAMODEL_USB pUsbInfo = (PCOSA_DATAMODEL_USB)hInsContext;
++
++    if (strcmp(ParamName, "Name") == 0)
++    {
++        memset(name, 0, sizeof(name));
++        retStatus = CosaDmlGetUsbName(hInsContext,name);
++        if (ANSC_STATUS_FAILURE != retStatus)
++        {
++            AnscCopyString(pValue, name);
++        }
++        else
++            CcspTraceInfo(("%s %d - CosaDmlGetUsbName failed \n", __FUNCTION__,__LINE__));
++
++        return 0;
++    }
++    if (strcmp(ParamName, "MACAddress") == 0)
++    {
++        memset(macaddr, 0, sizeof(macaddr));
++        retStatus = CosaDmlGetMACAddress(hInsContext,macaddr);
++        if (ANSC_STATUS_FAILURE != retStatus)
++        {
++            AnscCopyString(pValue, macaddr);
++        }
++        else
++            CcspTraceInfo(("%s %d - CosaDmlGetMACAddress failed \n", __FUNCTION__,__LINE__));
++
++        return 0;
++    }
++    if (strcmp(ParamName, "Alias") == 0)
++    {
++        AnscCopyString(pValue, pUsbInfo->UsbInterfaceInfo.Alias);
++        return 0;
++    }
++
++    return -1;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Usb_Interface_GetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG*                      puLong
++            );
++
++    description:
++
++        This function is called to retrieve ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                ULONG*                      puLong
++                The buffer of returned ULONG value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL Usb_Interface_GetParamUlongValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                    ULONG* puLong )
++{
++    ULONG ulStatus;
++    ANSC_STATUS retStatus = ANSC_STATUS_FAILURE;
++
++    if (strcmp(ParamName, "Status") == 0)
++    {
++        retStatus = CosaDmlGetStatus(hInsContext,&ulStatus);
++        if (ANSC_STATUS_FAILURE != retStatus)
++        {
++            *puLong = ulStatus;
++        }
++        else
++            CcspTraceInfo(("%s %d - CosaDmlGetStatus failed \n", __FUNCTION__,__LINE__));
++
++        return TRUE;
++    }
++
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Usb_Interface_GetParamIntValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                int*                        pInt
++            );
++
++    description:
++
++        This function is called to retrieve integer parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                int*                        pInt
++                The buffer of returned integer value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL Usb_Interface_GetParamIntValue ( ANSC_HANDLE hInsContext, char* ParamName, int* pInt )
++{
++    int maxBitRate;
++    ANSC_STATUS retStatus = ANSC_STATUS_FAILURE;
++
++    if (strcmp(ParamName, "MaxBitRate") == 0)
++    {
++        retStatus = CosaDmlGetMaxBitRate(hInsContext,&maxBitRate);
++        if (ANSC_STATUS_FAILURE != retStatus)
++        {
++            *pInt = maxBitRate;
++        }
++        else
++        {
++            CcspTraceInfo(("%s %d - CosaDmlGetMaxBitRate failed \n", __FUNCTION__,__LINE__));
++        }
++
++        return TRUE;
++    }
++
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Usb_Interface_SetParamBoolValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                BOOL                        bValue
++            );
++
++    description:
++
++        This function is called to set BOOL parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                BOOL                        bValue
++                The updated BOOL value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL Usb_Interface_SetParamBoolValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                   BOOL bValue )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    UNREFERENCED_PARAMETER(ParamName);
++
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Interface_SetParamStringValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                char*                       pString
++            );
++
++    description:
++
++        This function is called to set string parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                char*                       pString
++                The updated string value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL Usb_Interface_SetParamStringValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                     char* pString )
++{
++    PCOSA_DATAMODEL_USB pUsbInfo = (PCOSA_DATAMODEL_USB)hInsContext;
++
++    if (strcmp(ParamName, "Alias") == 0)
++    {
++        AnscCopyString(pUsbInfo->UsbInterfaceInfo.Alias, pString);
++        return TRUE;
++    }
++
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Usb_Interface_SetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG                       uValue
++            );
++
++    description:
++
++        This function is called to set ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                ULONG                       uValue
++                The updated ULONG value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL Usb_Interface_SetParamUlongValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                    ULONG uValue )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    UNREFERENCED_PARAMETER(ParamName);
++
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        Usb_Interface_Validate
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       pReturnParamName,
++                ULONG*                      puLength
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       pReturnParamName,
++                The buffer (128 bytes) of parameter name if there's a validation.
++
++                ULONG*                      puLength
++                The output length of the param name.
++
++    return:     TRUE if there's no validation.
++
++**********************************************************************/
++BOOL Usb_Interface_Validate ( ANSC_HANDLE hInsContext, char* pReturnParamName,
++                          ULONG* puLength )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    UNREFERENCED_PARAMETER(pReturnParamName);
++    UNREFERENCED_PARAMETER(puLength);
++
++    return TRUE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        Usb_Interface_Commit
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG Usb_Interface_Commit ( ANSC_HANDLE hInsContext )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++
++    return 0;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        Usb_Interface_Rollback
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to roll back the update whenever there's a
++        validation found.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG Usb_Interface_Rollback ( ANSC_HANDLE hInsContext )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++
++    return 0;
++}
+diff --git a/source/TR-181/middle_layer_src/cosa_usb_dml.h b/source/TR-181/middle_layer_src/cosa_usb_dml.h
+new file mode 100644
+index 0000000..03a90e3
+--- /dev/null
++++ b/source/TR-181/middle_layer_src/cosa_usb_dml.h
+@@ -0,0 +1,73 @@
++/*
++*
++* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.  
++* SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++#ifndef  _COSA_USB_DML_H
++#define  _COSA_USB_DML_H
++
++#include "cosa_apis.h"
++#include "plugin_main_apis.h"
++#include "cosa_usb_internal.h"
++
++/***********************************************************************
++ APIs for Object:
++
++    USB.
++
++    *  Usb_GetParamStringValue
++    *  Usb_GetParamBoolValue
++***********************************************************************/
++ULONG Usb_GetParamStringValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                                char* pValue, ULONG* pUlSize );
++
++BOOL Usb_GetParamBoolValue ( ANSC_HANDLE hInsContext, char* ParamName,
++                             BOOL* pBool );
++
++/***********************************************************************
++ APIs for Object:
++
++    USB.Interface.{i}.
++
++    *  Usb_Interface_GetEntryCount
++    *  Usb_Interface_GetEntry
++    *  Usb_Interface_IsUpdated
++    *  Usb_Interface_GetParamBoolValue
++    *  Usb_Interface_GetParamStringValue
++    *  Usb_Interface_GetParamUlongValue
++    *  Usb_Interface_GetParamIntValue
++    *  Usb_Interface_SetParamBoolValue
++    *  Usb_Interface_SetParamStringValue
++    *  Usb_Interface_SetParamUlongValue
++    *  Usb_Interface_Validate
++    *  Usb_Interface_Commit
++    *  Usb_Interface_Rollback
++***********************************************************************/
++ULONG Usb_Interface_GetEntryCount( ANSC_HANDLE );
++
++ANSC_HANDLE Usb_Interface_GetEntry ( ANSC_HANDLE hInsContext, ULONG nIndex, ULONG* pInsNumber );
++
++BOOL Usb_Interface_IsUpdated (ANSC_HANDLE hInsContext );
++
++BOOL Usb_Interface_GetParamBoolValue ( ANSC_HANDLE hInsContext, char* ParamName, BOOL* pBool );
++
++ULONG Usb_Interface_GetParamStringValue ( ANSC_HANDLE hInsContext, char* ParamName, char* pValue, ULONG* pUlSize );
++
++BOOL Usb_Interface_GetParamUlongValue ( ANSC_HANDLE hInsContext, char* ParamName, ULONG* pUlong );
++
++BOOL Usb_Interface_GetParamIntValue ( ANSC_HANDLE hInsContext, char* ParamName, int* pInt );
++
++BOOL Usb_Interface_SetParamBoolValue ( ANSC_HANDLE hInsContext, char* ParamName, BOOL bValue );
++
++BOOL Usb_Interface_SetParamStringValue ( ANSC_HANDLE hInsContext, char* ParamName, char* strValue );
++
++BOOL Usb_Interface_SetParamUlongValue ( ANSC_HANDLE hInsContext, char* ParamName, ULONG uValuepUlong );
++
++BOOL Usb_Interface_Validate ( ANSC_HANDLE hInsContext, char* pReturnParamName, ULONG* puLength );
++
++ULONG Usb_Interface_Commit ( ANSC_HANDLE hInsContext );
++
++ULONG Usb_Interface_Rollback ( ANSC_HANDLE hInsContext );
++
++#endif
+diff --git a/source/TR-181/middle_layer_src/cosa_usb_internal.c b/source/TR-181/middle_layer_src/cosa_usb_internal.c
+new file mode 100644
+index 0000000..ec49bbf
+--- /dev/null
++++ b/source/TR-181/middle_layer_src/cosa_usb_internal.c
+@@ -0,0 +1,226 @@
++/*
++*
++* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.  
++* SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++/**************************************************************************
++
++    module: cosa_usb_internal.c
++
++        For COSA Data Model Library Development
++
++    description:
++
++        This file implementes back-end apis for the COSA Data Model Library
++
++        *  CosaUsbCreate
++        *  CosaUsbInitialize
++        *  CosaUsbRemove
++**************************************************************************/
++
++#include "cosa_usb_internal.h"
++#include "safec_lib_common.h"
++
++extern void * g_pDslhDmlAgent;
++
++/**********************************************************************
++
++    caller:     owner of the object
++
++    prototype:
++
++        ANSC_HANDLE CosaUsbInterfaceCreate ( );
++
++    description:
++
++        This function constructs cosa usb object and return handle.
++
++    argument:
++
++    return:     newly created usb object.
++
++**********************************************************************/
++ANSC_HANDLE CosaUsbInterfaceCreate ( VOID )
++{
++    PCOSA_DATAMODEL_USB    pMyObject    = (PCOSA_DATAMODEL_USB)NULL;
++
++    pMyObject = (PCOSA_DATAMODEL_USB)AnscAllocateMemory(sizeof(COSA_DATAMODEL_USB));
++    if ( !pMyObject )
++    {
++        return  (ANSC_HANDLE)NULL;
++    }
++
++    pMyObject->Oid = COSA_DATAMODEL_USB_OID;
++    pMyObject->Create = CosaUsbInterfaceCreate;
++    pMyObject->Remove = CosaUsbInterfaceRemove;
++    pMyObject->Initialize = CosaUsbInterfaceInitialize;
++
++    pMyObject->Initialize ((ANSC_HANDLE)pMyObject);
++
++    return  (ANSC_HANDLE)pMyObject;
++}
++
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS CosaUsbInterfaceInitialize ( ANSC_HANDLE hThisObject );
++
++    description:
++
++        This function initiate  cosa usb object and return handle.
++
++    argument:   ANSC_HANDLE hThisObject
++            This handle is actually the pointer of this object
++            itself.
++
++    return:     operation status.
++
++**********************************************************************/
++ANSC_STATUS CosaUsbInterfaceInitialize ( ANSC_HANDLE hThisObject )
++{
++    ANSC_STATUS returnStatus = ANSC_STATUS_SUCCESS;
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)hThisObject;
++
++    _ansc_memset(&pMyObject->UsbInterfaceInfo, 0, sizeof(USB_INTERFACE_INFO));
++
++    return returnStatus;
++}
++
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS
++        CosaUsbInterfaceRemove ( ANSC_HANDLE hThisObject );
++
++    description:
++
++        This function initiate  cosa usb object and return handle.
++
++    argument:   ANSC_HANDLE hThisObject
++            This handle is actually the pointer of this object
++            itself.
++
++    return:     operation status.
++
++**********************************************************************/
++ANSC_STATUS CosaUsbInterfaceRemove ( ANSC_HANDLE hThisObject )
++{
++    ANSC_STATUS returnStatus = ANSC_STATUS_SUCCESS;
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)hThisObject;
++
++    if (NULL != pMyObject)
++        AnscFreeMemory((ANSC_HANDLE)pMyObject);
++
++    return returnStatus;
++}
++
++/**********************************************************************
++
++    caller:     owner of the object
++
++    prototype:
++
++        ANSC_HANDLE CosaUsbCreate ();
++
++    description:
++
++        This function constructs cosa USB object and return handle.
++
++    argument:
++
++    return:     newly created USB object.
++
++**********************************************************************/
++
++ANSC_HANDLE CosaUsbCreate ( VOID )
++{
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)NULL;
++
++    pMyObject = (PCOSA_DATAMODEL_USB)AnscAllocateMemory(sizeof(COSA_DATAMODEL_USB));
++    if ( !pMyObject )
++    {
++        return  (ANSC_HANDLE)NULL;
++    }
++
++    pMyObject->Oid = COSA_DATAMODEL_USB_OID;
++    pMyObject->Create = CosaUsbCreate;
++    pMyObject->Remove = CosaUsbRemove;
++    pMyObject->Initialize = CosaUsbInitialize;
++
++    pMyObject->Initialize ((ANSC_HANDLE)pMyObject);
++
++    return  (ANSC_HANDLE)pMyObject;
++}
++
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS CosaUsbInitialize(ANSC_HANDLE hThisObject);
++
++    description:
++
++        This function initiate  cosa USB object and return handle.
++
++    argument:   ANSC_HANDLE                 hThisObject
++            This handle is actually the pointer of this object
++            itself.
++
++    return:     operation status.
++
++**********************************************************************/
++ANSC_STATUS CosaUsbInitialize ( ANSC_HANDLE hThisObject )
++{
++    ANSC_STATUS returnStatus = ANSC_STATUS_SUCCESS;
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)hThisObject;
++    PPOAM_IREP_FOLDER_OBJECT pPoamIrepFoCOSA = (PPOAM_IREP_FOLDER_OBJECT)NULL;
++
++    CosaDmlUsbInit(NULL, (PANSC_HANDLE)pMyObject);
++    pMyObject->hIrepFolderCOSA = g_GetRegistryRootFolder(g_pDslhDmlAgent);
++    pPoamIrepFoCOSA = (PPOAM_IREP_FOLDER_OBJECT)pMyObject->hIrepFolderCOSA;
++    if ( !pPoamIrepFoCOSA )
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    return returnStatus;
++}
++
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS CosaUsbRemove(ANSC_HANDLE hThisObject);
++
++    description:
++
++        This function initiate  cosa USB object and return handle.
++
++    argument:   ANSC_HANDLE hThisObject
++            This handle is actually the pointer of this object
++            itself.
++
++    return:     operation status.
++
++**********************************************************************/
++ANSC_STATUS CosaUsbRemove ( ANSC_HANDLE hThisObject )
++{
++    ANSC_STATUS returnStatus = ANSC_STATUS_SUCCESS;
++    PCOSA_DATAMODEL_USB pMyObject = (PCOSA_DATAMODEL_USB)hThisObject;
++
++    if (NULL != pMyObject)
++        AnscFreeMemory((ANSC_HANDLE)pMyObject);
++
++    return returnStatus;
++}
+diff --git a/source/TR-181/middle_layer_src/cosa_usb_internal.h b/source/TR-181/middle_layer_src/cosa_usb_internal.h
+new file mode 100644
+index 0000000..a67c75a
+--- /dev/null
++++ b/source/TR-181/middle_layer_src/cosa_usb_internal.h
+@@ -0,0 +1,48 @@
++/*
++*
++* Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.  
++* SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++#ifndef  _COSA_USB_INTERNAL_H
++#define  _COSA_USB_INTERNAL_H
++
++#include "cosa_apis.h"
++#include "plugin_main_apis.h"
++#include "cosa_usb_apis.h"
++#include "poam_irepfo_interface.h"
++
++/*
++*  This struct is for usb.
++*/
++#define  COSA_DATAMODEL_USB_CLASS_CONTENT                            \
++    /* duplication of the base object class content */               \
++    COSA_BASE_CONTENT                                                \
++    /* start of Interface object class content */                    \
++    USB_INTERFACE_INFO UsbInterfaceInfo;       \
++    SLIST_HEADER                    UsbList;                         \
++    ANSC_HANDLE                     hIrepFolderCOSA;                 \
++    ANSC_HANDLE                     hIrepFolderUsb;                  \
++
++typedef  struct
++_COSA_DATAMODEL_USB_CLASS_CONTENT
++{
++    COSA_DATAMODEL_USB_CLASS_CONTENT
++}
++COSA_DATAMODEL_USB, *PCOSA_DATAMODEL_USB;
++
++/*
++    Standard function declaration
++*/
++ANSC_HANDLE CosaUsbInterfaceCreate ( VOID );
++
++ANSC_STATUS CosaUsbInterfaceInitialize ( ANSC_HANDLE hThisObject );
++
++ANSC_STATUS CosaUsbInterfaceRemove ( ANSC_HANDLE hThisObject );
++
++ANSC_HANDLE CosaUsbCreate ( VOID );
++
++ANSC_STATUS CosaUsbInitialize ( ANSC_HANDLE hThisObject );
++
++ANSC_STATUS CosaUsbRemove ( ANSC_HANDLE hThisObject );
++#endif
+diff --git a/source/TR-181/middle_layer_src/plugin_main.c b/source/TR-181/middle_layer_src/plugin_main.c
+index 21936cb..ae68b40 100644
+--- a/source/TR-181/middle_layer_src/plugin_main.c
++++ b/source/TR-181/middle_layer_src/plugin_main.c
+@@ -83,6 +83,7 @@
+ #include "plugin_main_apis.h"
+ //#include "cosa_moca_internal.h"
+ #include "safec_lib_common.h"
++#include "cosa_usb_dml.h"
+ 
+ #if !defined (RESOURCE_OPTIMIZATION)
+ #include "cosa_gatewayinfo_dml.h"
+@@ -101,6 +102,8 @@ extern COSARepopulateTableProc            g_COSARepopulateTable;
+ 
+ #define THIS_PLUGIN_VERSION                         1
+ 
++ANSC_HANDLE g_UsbObject;
++
+ int ANSC_EXPORT_API
+ COSA_Init
+     (
+@@ -136,6 +139,24 @@ COSA_Init
+     }   
+     
+     pPlugInfo->uPluginVersion       = THIS_PLUGIN_VERSION;
++
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_GetParamBoolValue", Usb_GetParamBoolValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_GetParamStringValue", Usb_GetParamStringValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_GetEntryCount", Usb_Interface_GetEntryCount);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_GetEntry", Usb_Interface_GetEntry);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_IsUpdated", Usb_Interface_IsUpdated);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_GetParamBoolValue", Usb_Interface_GetParamBoolValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_GetParamStringValue", Usb_Interface_GetParamStringValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_GetParamUlongValue", Usb_Interface_GetParamUlongValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_GetParamIntValue", Usb_Interface_GetParamIntValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_SetParamBoolValue", Usb_Interface_SetParamBoolValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_SetParamStringValue", Usb_Interface_SetParamStringValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_SetParamUlongValue", Usb_Interface_SetParamUlongValue);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_Validate", Usb_Interface_Validate);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_Commit", Usb_Interface_Commit);
++    pPlugInfo->RegisterFunction(pPlugInfo->hContext, "Usb_Interface_Rollback", Usb_Interface_Rollback);
++
++
+     g_pDslhDmlAgent                 = pPlugInfo->hDmlAgent;
+ 
+ /*
+@@ -367,6 +388,8 @@ COSA_Init
+         }
+     }
+ 
++    g_UsbObject          = (ANSC_HANDLE)CosaUsbCreate();
++
+     /* Create backend framework */
+     g_pCosaBEManager = (PCOSA_BACKEND_MANAGER_OBJECT)CosaBackEndManagerCreate();
+ 
+diff --git a/source/TR-181/middle_layer_src/plugin_main_apis.c b/source/TR-181/middle_layer_src/plugin_main_apis.c
+index e7606fa..35516f4 100644
+--- a/source/TR-181/middle_layer_src/plugin_main_apis.c
++++ b/source/TR-181/middle_layer_src/plugin_main_apis.c
+@@ -145,6 +145,8 @@
+ #if  defined  (WAN_FAILOVER_SUPPORTED) || defined(RDKB_EXTENDER_ENABLED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined (RBUS_WAN_IP)
+ #include "cosa_rbus_handler_apis.h"
+ #endif
++#include "cosa_usb_apis.h"
++#include "cosa_usb_internal.h"
+ #if defined (WIFI_MANAGE_SUPPORTED)
+ #include "cosa_managedwifi_webconfig_apis.h"
+ #endif /*WIFI_MANAGE_SUPPORTED*/
+@@ -379,6 +381,9 @@ CosaBackEndManagerInitialize
+     AnscTraceWarning(("  CosaNeighdiscCreate done!\n"));
+     pMyObject->hMld           = (ANSC_HANDLE)CosaMldCreate();
+     AnscTraceWarning(("  CosaMldCreate done!\n"));
++    pMyObject->hUsb      = (ANSC_HANDLE)CosaUsbInterfaceCreate();
++    AnscTraceWarning(("  CosaUsbInterfaceCreate done!\n"));
++
+ #endif
+     /*
+ #ifdef CONFIG_TI_PACM
+@@ -724,6 +729,12 @@ CosaBackEndManagerRemove
+     {
+         CosaMldRemove((ANSC_HANDLE)pMyObject->hMld);
+     }
++
++    if ( pMyObject->hUsb )
++    {
++        CosaUsbRemove((ANSC_HANDLE)pMyObject->hUsb);
++    }
++
+ #endif
+     /*
+ #ifdef CONFIG_TI_PACM
+diff --git a/source/TR-181/middle_layer_src/plugin_main_apis.h b/source/TR-181/middle_layer_src/plugin_main_apis.h
+index 0229950..d163fd0 100644
+--- a/source/TR-181/middle_layer_src/plugin_main_apis.h
++++ b/source/TR-181/middle_layer_src/plugin_main_apis.h
+@@ -165,6 +165,7 @@ extern COSARegisterCallBackAfterInitDmlProc  g_RegisterCallBackAfterInitDml;
+ #define COSA_DATAMODEL_LANMANAGEMENT_OID                        42
+ #if defined(DDNS_BROADBANDFORUM)
+ #define COSA_DATAMODEL_DYNDNS_OID                               43
++#define COSA_DATAMODEL_USB_OID                                 120
+ #endif
+ 
+ #define COSA_DATAMODEL_FEATURES_OID                             44
+@@ -220,7 +221,9 @@ extern COSARegisterCallBackAfterInitDmlProc  g_RegisterCallBackAfterInitDml;
+     ANSC_HANDLE                  hLanMngm;                                                  \
+     ANSC_HANDLE                  hXpc;                                                    \
+     ANSC_HANDLE                  hOnboardLogging;                                                    \
+-    PCOSA_PLUGIN_INFO            hCosaPluginInfo;								   		
++    ANSC_HANDLE                  hUsb;                                                    \
++    PCOSA_PLUGIN_INFO            hCosaPluginInfo;
++
+ 
+ typedef  struct
+ _COSA_BACKEND_MANAGER_OBJECT
+-- 
+2.34.1
+

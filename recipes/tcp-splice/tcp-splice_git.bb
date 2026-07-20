@@ -8,7 +8,7 @@ PR = "r0"
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://tcp-splice/"
 
-S = "${WORKDIR}/tcp-splice/"
+S = "${UNPACKDIR}/tcp-splice/"
 
 do_install() {
     install -d ${D}${base_libdir}/modules/${KERNEL_VERSION}/kernel/drivers/net

@@ -7,13 +7,13 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 PR = "r0"
 
-COMPATIBLE_MACHINE = "echo"
+COMPATIBLE_MACHINE = "(echo|sa535m)"
 
 inherit deploy kernel-arch
 
 # Ensure kernel headers/build artifacts are available in sysroot
-DEPENDS += "virtual/kernel"
-do_compile[depends] += "virtual/kernel:do_compile"
+DEPENDS += "virtual/kernel dtc-native"
+do_compile[depends] += "virtual/kernel:do_shared_workdir"
 
 # Allow SRC_URI file://vendor/... to resolve under your workspace
 FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
@@ -21,16 +21,18 @@ FILESEXTRAPATHS:prepend := "${WORKSPACE}/:"
 SRC_URI  = "file://vendor/qcom/opensource/data-devicetree"
 SRC_URI += "file://Makefile"
 
-S = "${WORKDIR}/vendor/qcom/opensource/data-devicetree"
+S = "${UNPACKDIR}/vendor/qcom/opensource/data-devicetree"
 
 # Use kernel build dtc and staged kernel headers
-DTC = "${STAGING_KERNEL_BUILDDIR}/scripts/dtc/dtc"
+DTC = "${STAGING_BINDIR_NATIVE}/dtc"
 KERNEL_INCLUDE = "${STAGING_KERNEL_DIR}/include"
 
 do_configure:prepend() {
     # Override upstream Makefile with Yocto-specific Makefile
-    install -m 0644 ${WORKDIR}/Makefile ${S}/Makefile
+    install -m 0644 ${UNPACKDIR}/Makefile ${S}/Makefile
 }
+
+EXTRA_OEMAKE += "TARGET_SUPPORT=${BASEMACHINE}"
 
 do_compile() {
     test -f ${S}/Makefile || bbfatal "Missing Makefile at ${S}/Makefile"

@@ -8,7 +8,7 @@ PR = "r3"
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://webserver"
 
-S = "${WORKDIR}/webserver"
+S = "${UNPACKDIR}/webserver"
 
 EXTRA_OEMAKE:append = " CROSS=${HOST_PREFIX}"
 

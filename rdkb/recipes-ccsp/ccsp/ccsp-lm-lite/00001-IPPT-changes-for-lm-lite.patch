@@ -1,0 +1,64 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a58a1f7218d9962a62be9f10259ffaf6ef436200 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Wed, 17 Jun 2026 11:52:39 +0000
+Subject: [PATCH] IPPT-changes-for-lm-lite
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/lm_wrapper.c | 20 +++++++++++++++++---
+ 1 file changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/source/lm/lm_wrapper.c b/source/lm/lm_wrapper.c
+index c0bc113..0a02afd 100644
+--- a/source/lm/lm_wrapper.c
++++ b/source/lm/lm_wrapper.c
+@@ -66,7 +66,7 @@
+ #define DHCPV4_RESERVED_FORMAT  "%17[^,],%63[^,],%63[^,]"
+ #define LM_DHCP_CLIENT_FORMAT   "%63d %17s %63s %63s"   
+ #define LM_ARP_ENTRY_FORMAT  "%63s %63s %63s %63s %17s %31s"   
+-
++#define IPPT_CLIENTTYPE_ANY        5
+ extern ANSC_HANDLE bus_handle;
+ extern char g_Subsystem[32];
+ static char *pERTPAMComponentName = NULL;
+@@ -167,7 +167,20 @@ static int AreIPv4AddressesInSameSubnet(char* ipaddress, char* ipaddres2, char*
+ {
+     struct in_addr addr, addr2, mask;
+     int ret = 0;
+-
++    char ippt_enable[32]={0};
++    char buf[8]={0};
++    int ippt_client_type = 0;
++    if (syscfg_get(NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable)) != 0)
++    {
++        CcspTraceWarning(("Failed to get IPPT_Enable value\n"));
++        strlcpy(ippt_enable, "false", sizeof(ippt_enable)); // Default to disabled
++    }
++    if (syscfg_get(NULL, "IPPT_ClientType", buf, sizeof(buf)) != 0)
++    {
++        CcspTraceWarning(("Failed to get IPPT_ClientType value\n"));
++        strlcpy(buf, "0", sizeof(buf)); // Default to 0
++    }
++    ippt_client_type = _ansc_atoi(buf);
+     if (inet_pton(AF_INET, ipaddress, &addr) == 0) {
+         fprintf(stderr, "%s Invalid IPAddress1\n", __FUNCTION__);
+         return 0;
+@@ -185,7 +198,8 @@ static int AreIPv4AddressesInSameSubnet(char* ipaddress, char* ipaddres2, char*
+    
+    if((addr.s_addr & mask.s_addr) == (addr2.s_addr & mask.s_addr))
+         ret = 1;
+-
++   else if ((strcmp(ippt_enable, "true") == 0) && (ippt_client_type == IPPT_CLIENTTYPE_ANY))
++        ret = 1;  /* When IPPT is enabled and client type is 'Any', setting ret=1 prevents lease time from becoming 0 by ensuring the address is considered to be in the same subnet */
+     return ret;
+ }
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,32 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From cffa6956c547e82b82e994cda7b33b325d55fc12 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Sun, 28 Jun 2026 14:26:28 +0000
+Subject: [PATCH] Fix to populate IPv6 DM parameters
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -10819,9 +10819,11 @@ dhcpv6c_dbg_thrd(void * in)
+                         memset(&dhcpv6_data, 0, sizeof(ipc_dhcpv6_data_t));
+ 
+ #if defined(FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE)
+-                        strncpy(dhcpv6_data.ifname, IfaceName, sizeof(dhcpv6_data.ifname));
++                        strlcpy(dhcpv6_data.ifname, IfaceName, sizeof(dhcpv6_data.ifname));
++#elif defined(_PLATFORM_SDX_)
++                        strlcpy(dhcpv6_data.ifname, wan_ifname_val, sizeof(dhcpv6_data.ifname));
+ #else
+-                        strncpy(dhcpv6_data.ifname, CFG_TR181_DHCPv6_CLIENT_IfName, sizeof(dhcpv6_data.ifname));
++                        strlcpy(dhcpv6_data.ifname, CFG_TR181_DHCPv6_CLIENT_IfName, sizeof(dhcpv6_data.ifname));
+ #endif
+                         if(strlen(v6pref) == 0  && strlen(v6addr) ==0) 
+                         {

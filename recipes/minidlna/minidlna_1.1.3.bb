@@ -30,14 +30,14 @@ do_install:append () {
     sed -i s:"#friendly_name=My DLNA Server":"friendly_name=9x35 MobileAP DLNA":g minidlna.conf
     install -d ${D}${sysconfdir}
     install -d ${D}${sysconfdir}/data/
-    install -m 664  ${WORKDIR}/${PN}-${PV}/${PN}.conf ${D}${sysconfdir}/data/
+    install -m 664  ${UNPACKDIR}/${PN}-${PV}/${PN}.conf ${D}${sysconfdir}/data/
     chown -R root:1001 ${D}${sysconfdir}/data/minidlna.conf
     install -d ${D}${sysconfdir}/init.d/
-    install ${WORKDIR}/${PN}-${PV}/linux/${PN}.init.d.script ${D}${sysconfdir}/init.d/minidlna
+    install ${UNPACKDIR}/${PN}-${PV}/linux/${PN}.init.d.script ${D}${sysconfdir}/init.d/minidlna
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         rm -rf ${D}${sysconfdir}/init.d/minidlna
         install -d ${D}${systemd_unitdir}/system/
-        install -m 0644 ${WORKDIR}/minidlnad.service -D ${D}${systemd_unitdir}/system/minidlnad.service
+        install -m 0644 ${UNPACKDIR}/minidlnad.service -D ${D}${systemd_unitdir}/system/minidlnad.service
     fi
 }
 FILES_${PN} += "${sysconfdir}/data/minidlna.conf"

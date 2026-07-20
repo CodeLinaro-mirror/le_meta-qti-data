@@ -1,0 +1,32 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From bd55d52bf76501a33f6012d5984cd2cb889057f7 Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Wed, 13 May 2026 17:14:39 +0000
+Subject: [PATCH] Added header file for vendor
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+---
+ source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c b/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c
+index 8091bbc..615121e 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_deviceinfo_apis.c
+@@ -98,6 +98,7 @@
+ #include "cosa_drg_common.h"
+ #include "safec_lib_common.h"
+ #include "ansc_string_util.h"
++#include "ccsp_vendor.h"
+ 
+ #define DEVICE_PROPERTIES    "/etc/device.properties"
+ #define PARTNERS_INFO_FILE              "/nvram/partners_defaults.json"
+-- 
+2.34.1
+

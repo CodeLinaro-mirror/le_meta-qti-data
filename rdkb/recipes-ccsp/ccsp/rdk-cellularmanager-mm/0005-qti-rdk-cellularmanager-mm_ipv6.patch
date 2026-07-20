@@ -1,0 +1,243 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 9b18fc06438dca523994314d7bd1e4775eb8b07d Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Tue, 26 May 2026 00:11:18 +0530
+Subject: Added changes for enabling IPv6 address from cellular
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+
+---
+ source/CellularManager/cellular_hal_utils.c   | 41 +++++++++++++++-
+ source/CellularManager/cellular_hal_utils.h   | 16 ++++++
+ .../cellularmgr_cellular_apis.h               |  1 +
+ source/CellularManager/cellularmgr_sm.c       | 10 +++-
+ .../middle_layer_src/cellularmgr_utils.c      | 49 ++++++++++++++-----
+ 5 files changed, 102 insertions(+), 15 deletions(-)
+
+Index: git/source/CellularManager/cellular_hal_utils.c
+===================================================================
+--- git.orig/source/CellularManager/cellular_hal_utils.c
++++ git/source/CellularManager/cellular_hal_utils.c
+@@ -75,4 +75,43 @@ void cellular_hal_util_PrintTime(char *t
+     time(&timer);
+     tm_info = localtime(&timer);
+     strftime(time_value, length, "%Y-%m-%d %H:%M:%S ", tm_info);
+-}
+\ No newline at end of file
++}
++
++#ifdef CM_EXTN_SUPPORTED
++/*===========================================================================
++  FUNCTION:  get_populate_ipv6_prefix
++===========================================================================*/
++/*!
++    @brief
++     To populate IPv6 prefix
++    @param
++     ipv6_addr - String containing IPv6 address
++     size - size of preix_ip
++    @return
++     prefix_ip - String containing IPv6 prefix
++*/
++/*=========================================================================*/
++int get_populate_ipv6_prefix(char *ipv6_addr, char *prefix_ip, size_t size)
++{
++        if ((ipv6_addr == NULL) || (prefix_ip == NULL) || (strlen(ipv6_addr)==0))
++        {
++            return -1;
++        }
++        char substring[100];
++        int index=0;
++        int count=0;
++        while (count < 4) {
++                substring[index] = ipv6_addr[index];
++                if(ipv6_addr[index] == ':')
++                {
++                        count++;
++                }
++                index++;
++        }
++        substring[index++] = ':';
++        substring[index] = '\0';
++        strlcpy (prefix_ip, substring, size);
++        CELLULAR_HAL_DBG_PRINT ("%s substring, %s prefix_ip=%s \n", __FUNCTION__, substring, prefix_ip);
++        return 0;
++}
++#endif
+\ No newline at end of file
+Index: git/source/CellularManager/cellular_hal_utils.h
+===================================================================
+--- git.orig/source/CellularManager/cellular_hal_utils.h
++++ git/source/CellularManager/cellular_hal_utils.h
+@@ -51,5 +51,21 @@
+ unsigned char cellular_hal_util_IsDeviceFileExists (const char *devname);
+ unsigned long cellular_hal_util_GetCurrentTimeInSeconds( void );
+ int cellular_hal_util_GetUptime(unsigned long *time);
++#ifdef CM_EXTN_SUPPORTED
++/*===========================================================================
++  FUNCTION:  get_populate_ipv6_prefix
++===========================================================================*/
++/*!
++    @brief
++     To populate IPv6 prefix
++    @param
++     ipv6_addr - String containing IPv6 address
++     size - size of preix_ip
++    @return
++     prefix_ip - String containing IPv6 prefix
++*/
++/*=========================================================================*/
++int get_populate_ipv6_prefix(char *ipv6_addr, char *prefix_ip, size_t size);
++#endif //CM_EXTN_SUPPORTED
+ 
+ #endif //_CELLULAR_HAL_UTILS_H_
+Index: git/source/CellularManager/cellularmgr_cellular_apis.h
+===================================================================
+--- git.orig/source/CellularManager/cellularmgr_cellular_apis.h
++++ git/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -175,6 +175,7 @@ _CELLULAR_INTERFACE_ACCESSPOINT_INFO
+     BOOLEAN                               X_RDK_Roaming;
+ #ifdef CM_EXTN_SUPPORTED
+     CHAR                                  IPAddress[64];
++    CHAR                                  IPv6Address[128];
+     CellularApnType_t                     APNType;
+     BOOLEAN                               ConnectBackHaul;
+ #endif
+Index: git/source/CellularManager/cellularmgr_sm.c
+===================================================================
+--- git.orig/source/CellularManager/cellularmgr_sm.c
++++ git/source/CellularManager/cellularmgr_sm.c
+@@ -18,6 +18,7 @@
+ */
+ 
+ #include <sysevent/sysevent.h>
++#include <syscfg/syscfg.h>
+ #include "cellular_hal.h"
+ #include "cellularmgr_sm.h"
+ #include "cellularmgr_cellular_apis.h"
+@@ -43,6 +44,7 @@
+ #define SYSEVENT_CM_WAN_V4_DNS1     "cellular_wan_v4_dns1"
+ #define SYSEVENT_CM_WAN_V4_DNS2     "cellular_wan_v4_dns2"
+ #define SYSEVENT_CM_WAN_V4_MTU      "cellular_wan_v4_mtu"
++#define SYSEVENT_CM_WAN_V6_IFNAME   "current_wan_ipv6_interface"
+ #define SYSEVENT_CM_WAN_V6_IPADDR   "cellular_wan_v6_ip"
+ #define SYSEVENT_CM_WAN_V6_GWADDR   "cellular_wan_v6_gw"
+ #define SYSEVENT_CM_WAN_V6_DNS1     "cellular_wan_v6_dns1"
+@@ -356,6 +358,7 @@ int CellularMgrIPReadyCBForSM( CellularI
+ 	//Set associated sysevents
+         if(sysevent_fd >= 0)
+         {
++            sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_IFNAME, pstIPStruct->WANIFName, 0);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_GWADDR, pstIPStruct->DefaultGateWay, 0);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_DNS1, pstIPStruct->DNSServer1, 0);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_DNS2, pstIPStruct->DNSServer2, 0);
+@@ -364,7 +367,12 @@ int CellularMgrIPReadyCBForSM( CellularI
+             snprintf(str_value, sizeof(str_value), "%d", pstIPStruct->MTUSize);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_MTU,str_value, 0);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_IPADDR, pstIPStruct->IPAddress, 0);
+-	}
++            if (syscfg_set_commit(NULL, "router_mtu", str_value) != 0)
++            {
++                AnscTraceWarning(("syscfg_set failed for router_mtu\n"));
++            }
++        }
++
+       }
+ #ifdef HYBRID_SUPPORT
+     CellularMgrUpdateIfname ( gpstCellularPolicyCtrl->acWANIfName, pstIPStruct->WANIFName );
+Index: git/source/TR-181/middle_layer_src/cellularmgr_utils.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cellularmgr_utils.c
++++ git/source/TR-181/middle_layer_src/cellularmgr_utils.c
+@@ -18,10 +18,20 @@
+  */
+ #include "cellularmgr_utils.h"
+ #include "cellularmgr_global.h"
++#include "cellular_hal_mm_apis.h"
+ #include "cap.h"
+ #include <stdlib.h>
++#include <sysevent/sysevent.h>
++#ifdef CM_EXTN_SUPPORTED
++#include "cellular_hal_mm_apis_extn.h"
++#endif
+ 
+ extern cap_user appcaps;
++#ifdef CM_EXTN_SUPPORTED
++extern int sysevent_fd;
++extern token_t sysevent_token;
++#endif
++#define IPV6_PREFIX_BUFFER_SIZE (INET6_ADDRSTRLEN + 5)
+ 
+ #define POINTER_ASSERT(expr)                   \
+   if (!(expr))                                 \
+@@ -101,7 +111,9 @@ int CellularMgr_Util_SendIPToWanMgr( Cel
+ #if defined(FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE)
+         char ifName[64] = {0};
+         char * fifo_pattern = "dibbler-client add %s '%s' '1' '\\0' '\\0' '\\0' '\\0' '\\0' %d '1' '\\0' '\\0' '3600' '7200' ''";
+-        strncpy (ifName, pstIPStruct->WANIFName, sizeof(ifName) - 1);
++        strlcpy (ifName, pstIPStruct->WANIFName, sizeof(ifName) - 1);
++#elif defined CM_EXTN_SUPPORTED
++        char * fifo_pattern = "dibbler-client add '%s' '1' '\\0' '\\0' '\\0' '\\0' %s %d '1' '\\0' '\\0' '3600' '7200' ''";
+ #else
+         char * fifo_pattern = "dibbler-client add '%s' '1' '\\0' '\\0' '\\0' '\\0' '\\0' %d '1' '\\0' '\\0' '3600' '7200' ''";
+ #endif
+@@ -110,25 +122,36 @@ int CellularMgr_Util_SendIPToWanMgr( Cel
+         char buff [512] = {0};
+         int pref_len=0;
+ 
++#ifdef CM_EXTN_SUPPORTED
++        if((cellular_hal_extn_mm_get_bearer_ipv6_prefix(NULL, &pref_len)) != RETURN_OK)
++        {
++            CcspTraceInfo(("%s %d: ipv6 prefix fetching failed\n", __FUNCTION__, __LINE__));
++            return RETURN_ERROR;
++        }
++#endif
++
+         // copy the ipv6_addr to local buff
+-        strncpy (ipv6_addr, pstIPStruct->IPAddress, sizeof(ipv6_addr) - 1);
+-        strncpy (temp, ipv6_addr, sizeof(temp) - 1);
+-        char* token = NULL ;
+-
+-        token = strtok(temp, "/");
+-        if (token != NULL) {
+-            token = strtok(NULL, "/");
+-            if (token != NULL) 
+-                pref_len = atoi(token);
++        strlcpy (ipv6_addr, pstIPStruct->IPAddress, sizeof(ipv6_addr));
++        strlcpy (temp, ipv6_addr, sizeof(temp));
+ 
+-        }
+         // copy the ipv6_addr and string len to string pattern so reading side can parse it
+ #if defined(FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE)
+         snprintf(buff, sizeof (buff), fifo_pattern, ifName, ipv6_addr, pref_len);
++#elif defined CM_EXTN_SUPPORTED
++        char prefix_ip [INET6_ADDRSTRLEN] = {0};
++        char prefix[IPV6_PREFIX_BUFFER_SIZE] = {0};
++        //populate ipv6-prefix
++        if(RETURN_ERROR == get_populate_ipv6_prefix(ipv6_addr,prefix_ip,sizeof(prefix_ip)))
++        {
++            CcspTraceError(("%s %d: Invalid IPv6 Address details\n", __FUNCTION__, __LINE__));
++            return RETURN_ERROR;
++        }
++        snprintf(buff, sizeof (buff), fifo_pattern,ipv6_addr,prefix_ip, pref_len);
++        snprintf(prefix,sizeof(prefix),"%s/%d",prefix_ip,pref_len);
++        sysevent_set(sysevent_fd, sysevent_token, "cellular_ipv6_prefix", prefix, 0);
+ #else
+         snprintf(buff, sizeof (buff), fifo_pattern,ipv6_addr,pref_len);
+ #endif
+-
+         // open fifo
+         sock = open(CCSP_COMMON_FIFO, O_WRONLY);
+         if (sock < 0)
+@@ -145,7 +168,7 @@ int CellularMgr_Util_SendIPToWanMgr( Cel
+             close(sock);
+             return RETURN_ERROR;
+         }
+-
++        CcspTraceInfo(("%s %d: Successfully sent ipv6 to PandM\n", __FUNCTION__, __LINE__));
+         // close fifo
+         close(sock);
+     }

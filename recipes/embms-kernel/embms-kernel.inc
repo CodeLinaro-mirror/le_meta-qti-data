@@ -22,8 +22,8 @@ do_install() {
               install -d ${D}${systemd_unitdir}/system/
               #embms-kernel service
               install -d ${D}${sysconfdir}/initscripts
-              install -m 0755 ${WORKDIR}/start_embms_le ${D}${sysconfdir}/initscripts
-              install -m 0644 ${WORKDIR}/embmsd.service -D ${D}${systemd_unitdir}/system/embmsd.service
+              install -m 0755 ${UNPACKDIR}/start_embms_le ${D}${sysconfdir}/initscripts
+              install -m 0644 ${UNPACKDIR}/embmsd.service -D ${D}${systemd_unitdir}/system/embmsd.service
               install -d ${D}${systemd_unitdir}/system/multi-user.target.wants/
               # enable the service for multi-user.target
               ln -sf ${systemd_unitdir}/system/embmsd.service \

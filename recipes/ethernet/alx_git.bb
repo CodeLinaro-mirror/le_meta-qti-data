@@ -12,7 +12,7 @@ PR = "r4"
 FILESPATH =+ "${WORKSPACE}:"
 SRC_URI = "file://external/compat-wireless/drivers/net/ethernet/atheros/alx/ \
            file://start_alx_le"
-S = "${WORKDIR}/external/compat-wireless/drivers/net/ethernet/atheros/alx/"
+S = "${UNPACKDIR}/external/compat-wireless/drivers/net/ethernet/atheros/alx/"
 
 FILES_${PN}="/etc/init.d/start_alx_le"
 
@@ -21,7 +21,7 @@ EXTRA_OEMAKE += "CONFIG_MDM_ALX=y"
 do_install() {
     module_do_install
     install -d ${D}${sysconfdir}/init.d
-    install -m 0755 ${WORKDIR}/start_alx_le ${D}${sysconfdir}/init.d
+    install -m 0755 ${UNPACKDIR}/start_alx_le ${D}${sysconfdir}/init.d
 }
 
 INITSCRIPT_NAME = "start_alx_le"

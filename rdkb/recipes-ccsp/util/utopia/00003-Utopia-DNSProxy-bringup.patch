@@ -1,0 +1,96 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Thu, 14 May 2026 09:23:55 +0000
+Subject: [PATCH] Dns proxy bringup
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+
+---
+ .../dhcp_server_functions.sh                  | 20 +++++++++++++------
+ source/service_routed/service_routed.c        | 14 ++++++++++++-
+ 2 files changed, 27 insertions(+), 7 deletions(-)
+
+diff --git a/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh b/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+index 1a05bbf..d916a94 100755
+--- a/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
++++ b/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+@@ -85,7 +85,8 @@ DHCP_START=`syscfg get dhcp_start`
+ #if [ -z "$DHCP_NUM" ] ; then
+ #   DHCP_NUM=0
+ #fi
+-
++#For DNSProxy
++DNS_PROXY_ENABLE=`syscfg get dns_proxy_enable`
+ # are we propagating the nameserver learned from wan dhcp client to our lan clients
+ PROPAGATE_NS=`syscfg get dhcp_server_propagate_wan_nameserver`
+ # if Filter Internet NAT Redirection is enabled then we need to make sure that
+@@ -578,13 +579,20 @@ prepare_dhcp_options_wan_dns()
+    # Propagate Wan DNS
+    if [ "1" = "$PROPAGATE_NS" ] ; then
+       #Wan Dynamic DNS from dhcp protocol
+-      NS=`sysevent get wan_dhcp_dns`
+-      if [ -n "$NS" ] ; then
+-         NS=`echo "$NS" | sed "s/ /,/g"`
++      NS1=`sysevent get wan_dhcp_dns`
++      NS2=`sysevent get wan_dhcp_dns1`
++      LAN_IP=`syscfg get lan_ipaddr`
++      if [ -n "$NS1" ] ; then
++         NS1=`echo "$NS1" | sed "s/ /,/g"`
++         NS2=`echo "$NS2" | sed "s/ /,/g"`
+          if [ -z "$DHCP_OPTION_STR" ] ; then
+-            DHCP_OPTION_STR="option:dns-server, "$NS
++            if [ $DNS_PROXY_ENABLE = 1 ]; then
++                DHCP_OPTION_STR="option:dns-server, "$LAN_IP
++            else
++                DHCP_OPTION_STR="option:dns-server, "$NS1","$NS2
++            fi
+          else
+-            DHCP_OPTION_STR=$DHCP_OPTION_STR","$NS
++            DHCP_OPTION_STR=$DHCP_OPTION_STR","$NS2
+          fi
+       fi
+    fi
+diff --git a/source/service_routed/service_routed.c b/source/service_routed/service_routed.c
+index 4a4e8f2..b264731 100644
+--- a/source/service_routed/service_routed.c
++++ b/source/service_routed/service_routed.c
+@@ -882,6 +882,9 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+     char orig_lan_prefix[64];
+ #endif
+     char m_flag[16], o_flag[16], ra_mtu[16];
++    char dnsproxyenable[5] = {0};
++    char wan_dns[64]={0};
++    char wan_dns1[64]={0};
+     char rec[256], val[512];
+     char buf[6];
+     FILE *responsefd = NULL;
+@@ -1512,11 +1515,20 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+         }
+ #else
+ #if !defined (_HUB4_PRODUCT_REQ_) || defined (_WNXL11BWL_PRODUCT_REQ_)
+-		if (strlen(lan_addr))
++                syscfg_get(NULL, "dns_proxy_enable", dnsproxyenable, sizeof(dnsproxyenable));
++                sysevent_get(sefd, setok,"cellular_wan_v6_dns1", wan_dns, sizeof(wan_dns));
++                sysevent_get(sefd, setok,"cellular_wan_v6_dns2", wan_dns1, sizeof(wan_dns1));
++
++                if (strlen(lan_addr))
++                {
+ #else
+                 if (strlen(lan_addr) && ula_enable)
+ #endif 
++                if (strcmp(dnsproxyenable,"1") == 0)
+                     fprintf(fp, "   ipv6 nd rdnss %s %d\n", lan_addr, rdnsslft);
++                else
++                    fprintf(fp, "   ipv6 nd rdnss %s %s %d\n", wan_dns, wan_dns1, rdnsslft);
++                }
+ #endif /** _RDKB_GLOBAL_PRODUCT_REQ_ */
+ 	}
+ 
+-- 
+2.34.1
+

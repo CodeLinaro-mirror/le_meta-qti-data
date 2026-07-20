@@ -1,0 +1,12 @@
+# QCA NSS ECM configuration
+# Replaces OpenWRT UCI config (/etc/config/ecm)
+#
+# ECM_FRONT_END_SELECTION controls the acceleration engine.
+# Valid values:
+#   auto    (0) - Automatic selection
+#   sfe     (2) - Shortcut Forwarding Engine
+#   ipa     (7) - IPA hardware offload
+#   ipa-sfe (8) - IPA + SFE combined
+#   sfe-ipa (9) - SFE + IPA combined
+#
+ECM_FRONT_END_SELECTION=ipa
