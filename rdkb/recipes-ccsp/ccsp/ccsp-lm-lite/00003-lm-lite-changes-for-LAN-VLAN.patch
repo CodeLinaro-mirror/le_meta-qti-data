@@ -1,0 +1,135 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e4ba7d1a3402079c97823c8e73719cacca4c110b Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Sat, 11 Jul 2026 17:26:02 +0000
+Subject: [PATCH] lm-lite changes for LAN VLAN
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ config/LMLite.XML          |  5 +++++
+ source/lm/cosa_hosts_dml.c | 14 +++++++++++++-
+ source/lm/lm_main.c        | 23 ++++++++++++++++++++++-
+ source/lm/lm_main.h        |  3 ++-
+ 4 files changed, 42 insertions(+), 3 deletions(-)
+
+Index: git/config/LMLite.XML
+===================================================================
+--- git.orig/config/LMLite.XML
++++ git/config/LMLite.XML
+@@ -196,6 +196,11 @@
+               <type>string</type>
+               <syntax>string</syntax>
+             </parameter>
++            <parameter>
++              <name>X_QCOM_VlanId</name>
++              <type>int</type>
++              <syntax>int</syntax>
++            </parameter>
+ <?ifdef VENDOR_CLASS_ID?>
+             <parameter>
+               <name>VendorClassID</name>
+Index: git/source/lm/cosa_hosts_dml.c
+===================================================================
+--- git.orig/source/lm/cosa_hosts_dml.c
++++ git/source/lm/cosa_hosts_dml.c
+@@ -1331,6 +1331,18 @@ Host_GetParamIntValue
+         return TRUE;
+     }
+ 
++    if (strcmp(ParamName, "X_QCOM_VlanId") == 0)
++    {
++        char buf[8] = {0};
++        pthread_mutex_lock(&LmHostObjectMutex);
++        syscfg_get( NULL, "lan_vlan_enable", buf, sizeof(buf));
++        if (strcmp(buf, "1") == 0)
++        {
++            *pInt = pHost->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID];
++        }
++        pthread_mutex_unlock(&LmHostObjectMutex);
++        return TRUE;
++    }
+     /* AnscTraceWarning(("Unsupported parameter '%s'\n", ParamName)); */
+     return FALSE;
+ }
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -128,6 +128,8 @@
+ #define MAX_SIZE    2048
+ #define MAX_SIZE_DNSMASQ_Q    512
+ #define MAX_SIZE_EVT    1024
++#define MACADDR_SIZE 18
++#define CMD_SIZE 256
+ 
+ #define CHECK(x) \
+     do { \
+@@ -294,7 +296,7 @@ pthread_mutex_t LmRetryHostListMutex;
+ 
+ LmObjectHosts lmHosts = {
+     .pHostBoolParaName = {"Active","X_RDKCENTRAL-COM_PresenceNotificationEnabled","RDK_PresenceActive"},
+-    .pHostIntParaName = {"X_CISCO_COM_ActiveTime", "X_CISCO_COM_InactiveTime", "X_CISCO_COM_RSSI"},
++    .pHostIntParaName = {"X_CISCO_COM_ActiveTime", "X_CISCO_COM_InactiveTime", "X_CISCO_COM_RSSI", "X_QCOM_VlanId"},
+     .pHostUlongParaName = {"X_CISCO_COM_DeviceType", "X_CISCO_COM_NetworkInterface", "X_CISCO_COM_ConnectionStatus", "X_CISCO_COM_OSType","X_COMCAST-COM_LastChange","RDK_PresenceActiveLastChange"},
+     .pHostStringParaName = {"Alias", "PhysAddress", "IPAddress", "DHCPClient", "AssociatedDevice", "Layer1Interface", "Layer3Interface", "HostName",
+                                         "X_CISCO_COM_UPnPDevice", "X_CISCO_COM_HNAPDevice", "X_CISCO_COM_DNSRecords", "X_CISCO_COM_HardwareVendor",
+@@ -1138,6 +1140,7 @@ static PLmObjectHost Hosts_AddHost (int
+ 	    pHost->activityChangeTime  = time(NULL);
+ 	    pHost->iIntParaValue[LM_HOST_X_CISCO_COM_ActiveTimeId] = -1;
+ 	    pHost->iIntParaValue[LM_HOST_X_CISCO_COM_RSSIId] = -200;
++            pHost->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID] = 0;
+ 
+ 		pHost->Layer3Interface = NULL;
+     pHost->bBoolParaValue[LM_HOST_PresenceActiveId] = FALSE;
+@@ -2294,6 +2297,8 @@ static void *Event_HandlerThread(void *t
+         ssize_t bytes_read;
+         EventQData EventMsg;
+         Eth_data EthHost;
++        char cmd[CMD_SIZE];
++        char MacAddress[MACADDR_SIZE];
+ 
+         /* receive the message */
+         bytes_read = mq_receive(mq, buffer, MAX_SIZE, NULL);
+@@ -2354,6 +2359,23 @@ static void *Event_HandlerThread(void *t
+             {
+                 CcspTraceDebug(("%s-%d LM Ethernet client is active \n",__FUNCTION__,__LINE__));
+                 LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]), "Ethernet");
++                char vlan_id_list[5] = {0};
++                syscfg_get(NULL, "lan_ethernet_virtual_ifnums", vlan_id_list, sizeof(vlan_id_list));
++                if (vlan_id_list != NULL && vlan_id_list[0] != '\0') {
++                        CcspTraceWarning(("%s:%d MAC address = %s \n",__FUNCTION__,__LINE__,MacAddress));
++                        snprintf(cmd, sizeof(cmd), "bridge fdb show | grep -w 'master brlan0 permanent' | awk '$3 ~ /^eth[0-9]+.[0-9]+$/ {print $3}' | cut -d '.' -f 2");
++                        FILE *fp = popen(cmd, "r");
++                        if (fp != NULL) {
++                            char vlan_id[5] = {0};
++                            fscanf(fp, "%s", vlan_id);
++                            pclose(fp);
++                            if (vlan_id != NULL && vlan_id[0] != '\0') {
++                                if (strstr(vlan_id_list, vlan_id) != NULL) {
++                                    pHost->iIntParaValue[LM_HOST_X_CISCO_COM_VLANID] = atoi(vlan_id);
++                                }
++                            }
++                        }
++                }
+                 if ( ! pHost->pStringParaValue[LM_HOST_IPAddressId] )
+                 {
+                     CcspTraceWarning(("RDKB_CONNECTED_CLIENTS: Client type is Ethernet, MacAddress is %s IPAddr is not updated in ARP\n",pHost->pStringParaValue[LM_HOST_PhysAddressId]));
+Index: git/source/lm/lm_main.h
+===================================================================
+--- git.orig/source/lm/lm_main.h
++++ git/source/lm/lm_main.h
+@@ -78,7 +78,8 @@
+ #define LM_HOST_X_CISCO_COM_ActiveTimeId        0
+ #define LM_HOST_X_CISCO_COM_InactiveTimeId      1
+ #define LM_HOST_X_CISCO_COM_RSSIId              2
+-#define LM_HOST_NumIntPara                      3
++#define LM_HOST_X_CISCO_COM_VLANID              2
++#define LM_HOST_NumIntPara                      4
+ 
+ #define LM_HOST_X_CISCO_COM_DeviceTypeId        0
+ #define LM_HOST_X_CISCO_COM_NetworkInterfaceId  1

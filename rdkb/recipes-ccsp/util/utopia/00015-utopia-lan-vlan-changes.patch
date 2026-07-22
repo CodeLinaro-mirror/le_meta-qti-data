@@ -1,0 +1,271 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e9f46c63a58f566aedd20438e2c1aaf076b800ea Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Sat, 11 Jul 2026 16:15:59 +0000
+Subject: [PATCH] Utopia changes for LAN VLAN
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ .../init/service.d/interface_functions.sh     | 86 ++++++++++++-------
+ source/scripts/init/service.d/service_lan.sh  | 45 ++++++++--
+ 2 files changed, 91 insertions(+), 40 deletions(-)
+
+Index: git/source/scripts/init/service.d/interface_functions.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/interface_functions.sh
++++ git/source/scripts/init/service.d/interface_functions.sh
+@@ -44,6 +44,8 @@
+ #    parameter:
+ #       ip address from which to extract network portion
+ #--------------------------------------------------------------
++source /etc/utopia/service.d/service_lan_extn_qti.sh
++
+ get_network () {
+    TEMP=""
+    LAST=""
+@@ -119,40 +121,7 @@ convert_v4_2_v6 () {
+ config_vlan () {
+ #   echo "[utopia][interface] configuring vlan $2 on $1" > /dev/console
+    ip link set "$1" up
+-   vconfig set_name_type VLAN_PLUS_VID_NO_PAD
+-   vconfig add "$1" "$2"
+-   vconfig set_ingress_map vlan"$2" 0 0
+-   vconfig set_ingress_map vlan"$2" 1 1
+-   vconfig set_ingress_map vlan"$2" 2 2
+-   vconfig set_ingress_map vlan"$2" 3 3
+-   vconfig set_ingress_map vlan"$2" 4 4
+-   vconfig set_ingress_map vlan"$2" 5 5
+-   vconfig set_ingress_map vlan"$2" 6 6
+-   vconfig set_ingress_map vlan"$2" 7 7
+-   ip link set vlan"$2" mtu 1500
+-
+-   # vconfig is not ensuring that a vlan's mac address is unique
+-   # so we need to do it
+-   # if the vlan mac has already been specified
+-   # then we will use that value, otherwise
+-   # our approach is to consider vlan1 the normal mac
+-   # and to increment each subsequent vlan mac by 1
+-   REPLACEMENT=`sysevent get vlan"$2"_mac`
+-   if [ -n "$REPLACEMENT" ] ; then
+-       ip link set vlan"$2" addr "$REPLACEMENT"
+-#      echo "[utopia] [interface] Setting vlan$2 hw address to $REPLACEMENT" > /dev/console
+-   else
+-      if [ "1" != "$2" ] ; then
+-         ip link set vlan"$2" up
+-         INCR_AMOUNT=`expr "$2" - 1`
+-         OUR_MAC=`get_mac "vlan""$2"`
+-         REPLACEMENT=`incr_mac "$OUR_MAC" "$INCR_AMOUNT"`
+-         ip link set vlan"$2" down
+-         ip link set vlan"$2" addr "$REPLACEMENT"
+-#         echo "[utopia] [interface] Changing vlan$2 hw address to $REPLACEMENT" > /dev/console
+-         `sysevent set vlan"$2"_mac "$REPLACEMENT"`
+-      fi
+-   fi
++   qti_vconfig_set "$1"
+ }
+ 
+ #--------------------------------------------------------------
+@@ -162,6 +131,5 @@ config_vlan () {
+ #--------------------------------------------------------------
+ unconfig_vlan () {
+ #   echo "[utopia][interface] unconfiguring vlan$1" > /dev/console
+-   ip link set vlan"$1" down
+-   vconfig rem vlan"$1"
++   qti_unconfig_vlan_set "$1"
+ }
+Index: git/source/scripts/init/service.d/service_lan.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_lan.sh
++++ git/source/scripts/init/service.d/service_lan.sh
+@@ -43,6 +43,7 @@ source /etc/utopia/service.d/event_handl
+ #source /etc/utopia/service.d/brcm_ethernet_helper.sh
+ source /lib/rdk/t2Shared_api.sh
+ source /etc/utopia/service.d/usb_tether_interface.sh
++source /etc/utopia/service.d/service_lan_extn_qti.sh
+ 
+ IPPT_WITH_NAT=1
+ IPPT_WITHOUT_NAT=2
+@@ -138,7 +139,7 @@ enslave_a_interface() {
+    # ulog lan status "Enslaving interface $1 to $2"
+ #   echo "[lan] enslave_a_interface called" > /dev/console
+    
+-   brctl addif "$2" "$1"
++   qti_enslaving_to_bridge "$1" "$2"
+ }
+ 
+ #--------------------------------------------------------------
+@@ -148,10 +149,16 @@ bringup_ethernet_interfaces() {
+    # if we are using virtual ethernet interfaces then
+    # create them now
+ #   echo "[lan] bringup_ethernet_interfaces called" > /dev/console
++   SYSCFG_lan_vlan_enable=`syscfg get lan_vlan_enable`
+    if [ -n "$SYSCFG_lan_ethernet_virtual_ifnums" ] ; then
++       IFS=,
+        for loop in $SYSCFG_lan_ethernet_physical_ifnames
+        do
+-         config_vlan "$loop" "$SYSCFG_lan_ethernet_virtual_ifnums"
++         if [ "eth0" != "$loop" ] && [ "1" == "$SYSCFG_lan_vlan_enable" ]; then
++             echo "[lan] calling config_vlan with $loop " > /dev/console
++             config_vlan "$loop"
++             brctl delif "$SYSCFG_lan_ifname" "$loop" 2>/dev/null
++         fi
+        done
+    fi
+    ethernetcount=0
+@@ -177,7 +184,6 @@ bringup_ethernet_interfaces() {
+ # Tear down the ethernet interfaces
+ #--------------------------------------------------------------
+ teardown_ethernet_interfaces() {
+-#   echo "[lan] teardown_ethernet_interfaces called" > /dev/console
+    if [ -z "$SYSCFG_lan_ethernet_virtual_ifnums" ] ; then
+       for loop in $SYSCFG_lan_ethernet_physical_ifnames
+       do
+@@ -186,10 +192,7 @@ teardown_ethernet_interfaces() {
+    else
+       # if we are using virtual ethernet interfaces then
+       # tear them down
+-      for loop in $SYSCFG_lan_ethernet_virtual_ifnums
+-      do
+-         unconfig_vlan "$loop"
+-      done
++      qti_interface_teardown
+    fi
+ }
+ 
+@@ -648,8 +651,10 @@ lan_create () {
+     do
+       # SDX Platform specific: avoiding disable_ipv6 from being set to 1, to allow eth1 to generate link-local IPv6 address
+       if [ "$BOX_TYPE" != "echo" ]; then
+-         # disable IPv6 for bridge port so it won't interfere bridge interface's DAD procedure
+-         echo 1 > /proc/sys/net/ipv6/conf/"$loop"/disable_ipv6
++         if [ "$loop" != "eth1" ]; then
++            # disable IPv6 for bridge port so it won't interfere bridge interface's DAD procedure
++            echo 1 > /proc/sys/net/ipv6/conf/"$loop"/disable_ipv6
++         fi
+       fi
+       enslave_a_interface "$loop" "$SYSCFG_lan_ifname"
+     done
+@@ -694,7 +699,8 @@ service_init ()
+    #figure out the interfaces that are part of the lan
+    # if we are not using virtual ethernet interfaces then
+    # use the physical ethernet names
+-   if [ -z "$SYSCFG_lan_ethernet_virtual_ifnums" ] ; then
++   check_lan_vlan_enable=`syscfg get lan_vlan_enable`
++   if [ "1" != "$check_lan_vlan_enable" ] || [ -z "$SYSCFG_lan_ethernet_virtual_ifnums" ] ; then
+       LAN_IFNAMES="$SYSCFG_lan_ethernet_physical_ifnames"
+     else
+        # in this architecture, vlans are used to separate the physical
+Index: git/source/scripts/init/service.d/service_lan_extn_qti.sh
+===================================================================
+--- /dev/null
++++ git/source/scripts/init/service.d/service_lan_extn_qti.sh
+@@ -0,0 +1,104 @@
++#!/bin/sh
++# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++# SPDX-License-Identifier: BSD-3-Clause-Clear
++
++qti_vconfig_set()
++{
++   if [ -n "$SYSCFG_lan_ethernet_virtual_ifnums" ] ; then
++
++   IFS=','
++   base_ip="169.254.1.50"
++   REPLACEMENT=`ip link show "$1" | grep link | awk '{print $2}'`
++   for loop in $SYSCFG_lan_ethernet_virtual_ifnums
++   do
++      echo "[utopia] [interface] loop: $loop" > /dev/console
++      if [ "1" != "$loop" ] ; then
++         vconfig set_name_type DEV_PLUS_VID_NO_PAD
++
++         vconfig add "$1" "$loop"
++         vconfig set_ingress_map "$1"".""$loop" 0 0
++         vconfig set_ingress_map "$1"".""$loop" 1 1
++         vconfig set_ingress_map "$1"".""$loop" 2 2
++         vconfig set_ingress_map "$1"".""$loop" 3 3
++         vconfig set_ingress_map "$1"".""$loop" 4 4
++         vconfig set_ingress_map "$1"".""$loop" 5 5
++         vconfig set_ingress_map "$1"".""$loop" 6 6
++         vconfig set_ingress_map "$1"".""$loop" 7 7
++         ip link set "$1"".""$loop" mtu 1500
++
++         # vconfig is not ensuring that a vlan's mac address is unique
++         # so we need to do it
++         # if the vlan mac has already been specified
++         # then we will use that value, otherwise
++         # our approach is to consider vlan1 the normal mac
++         # and to increment each subsequent vlan mac by 1
++         ip link set "$1"".""$loop" up
++         INCR_AMOUNT=`expr "$loop" - 1`
++         OUR_MAC=`get_mac "$1"".""$loop"`
++         REPLACEMENT=`incr_mac "$OUR_MAC" "$INCR_AMOUNT"`
++         ip link set "$1"".""$loop" addr "$REPLACEMENT"
++         echo "[utopia] [interface] Changing hw address to $REPLACEMENT" > /dev/console
++         ifconfig "$1"".""$loop" $base_ip
++         ip link set dev "$1"".""$loop" master brlan0
++         brctl delif brlan0 "$1" 2>/dev/null
++         base_ip=$(echo "$base_ip" | awk -F. '{print $1"."$2"."$3"."$4+1}')
++      fi
++     done
++   fi
++}
++
++qti_unconfig_vlan_set()
++{
++   SYSCFG_lan_ethernet_prev_virtual_ifnums=`syscfg get lan_ethernet_prev_virtual_ifnums`
++   SYSCFG_lan_ethernet_virtual_ifnums=`syscfg get lan_ethernet_virtual_ifnums`
++   # To bring down VLAN interfaces by checking syscfg lan_ethernet_prev_virtual_ifnums
++   for loop in $SYSCFG_lan_ethernet_prev_virtual_ifnums
++   do
++      if [ "1" != "$loop" ] ; then
++         ip link set "$1"".""$loop" down
++         vconfig rem "$1"".""$loop"
++      fi
++   done
++   # To bring down VLAN interfaces by checking syscfg lan_ethernet_virtual_ifnums
++   for loop in $SYSCFG_lan_ethernet_virtual_ifnums
++   do
++      if [ "1" != "$loop" ] ; then
++         ip link set "$1"".""$loop" down
++         vconfig rem "$1"".""$loop"
++      fi
++   done
++   unset IFS
++   syscfg set lan_ethernet_prev_virtual_ifnums $SYSCFG_lan_ethernet_virtual_ifnums
++}
++
++qti_enslaving_to_bridge()
++{
++   val=`syscfg get lan_vlan_enable`
++   if [ "$val" -eq 1 ]; then
++       if [ "$1" != "eth1" ]; then
++           brctl addif "$2" "$1"
++       fi
++   else
++       brctl addif "$2" "$1"
++fi
++}
++
++qti_interface_teardown()
++{
++      SYSCFG_lan_vlan_enable=`syscfg get lan_vlan_enable`
++      IFS=,
++      for loop in $SYSCFG_lan_ethernet_physical_ifnames
++      do
++         if [ "eth0" != "$loop" ]; then
++             echo "[lan] calling unconfig_vlan with $loop " >> /dev/console
++             unconfig_vlan "$loop"
++         fi
++         ip link set $loop down
++      done
++      val=`syscfg get lan_ethernet_virtual_ifnums`
++      if [ "1" != "$SYSCFG_lan_vlan_enable" ] && [ "1" != val ]; then
++          syscfg set lan_ethernet_prev_virtual_ifnums 1
++          syscfg set lan_ethernet_virtual_ifnums 1
++          syscfg commit
++      fi
++}
