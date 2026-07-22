@@ -1,0 +1,35 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 7abcf7e04af3b9092e03aba08c2595ee445a2ec5 Mon Sep 17 00:00:00 2001
+From: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+Date: Wed, 15 Jul 2026 08:42:29 +0000
+Subject: [PATCH] lan-restart-after-dhcp-pool-change
+
+[Issue Description]: brlan0 IP does not update after LAN config change via dmcli setv, dnsmasq pool is updated but brlan interface restart never trigger.
+
+[Fix Description]: Added service_lan.sh lan-restart in CosaDmlDhcpsSetPoolCfg commit to apply the new gateway IP to brlan0.
+
+Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c b/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c
+index bfe32a0..2d04c44 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c
+@@ -2408,6 +2408,7 @@ CosaDmlDhcpsSetPoolCfg
+                 snprintf(endIp,sizeof(endIp),"%d.%d.%d.%d",pCfg->MaxAddress.Dot[0],pCfg->MaxAddress.Dot[1],pCfg->MaxAddress.Dot[2],pCfg->MaxAddress.Dot[3]);
+                 syslog_systemlog("LAN DHCPv4 Server", LOG_NOTICE, "Configuration change to: Start->%s End->%s Lease time->%d", startIp,endIp,pCfg->LeaseTime);
+             }
++            v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
+             return ANSC_STATUS_SUCCESS;
+         }
+     }
+-- 
+2.34.1
+
