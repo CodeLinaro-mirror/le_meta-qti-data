@@ -1,0 +1,768 @@
+From 223ea9bade8f80fada62f5c899f4dd770491f314 Mon Sep 17 00:00:00 2001
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Tue, 7 Jul 2026 09:45:46 +0000
+Subject: [PATCH] IPv6 prefix client management
+
+#DESCRIPTION
+#Support of Legacy IPv6 PD in cellular.
+#PURPOSE
+#SLAAC changes for client prefix management.
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+---
+Index: quagga-1.2.4/zebra/interface.h
+===================================================================
+--- quagga-1.2.4.orig/zebra/interface.h
++++ quagga-1.2.4/zebra/interface.h
+@@ -204,6 +204,7 @@ struct rtadvconf
+   uint32_t AdvDNSSLLifetime;
+ #define RTADV_RDNSS_INFINITY_LIFETIME (0xffffffff)
+ #define RTADV_RDNSS_DEFAULT_LIFETIME RTADV_RDNSS_INFINITY_LIFETIME
++  int AdvManagedClientPrefixFlag;
+ };
+ 
+ #endif /* HAVE_RTADV */
+Index: quagga-1.2.4/zebra/rtadv.h
+===================================================================
+--- quagga-1.2.4.orig/zebra/rtadv.h
++++ quagga-1.2.4/zebra/rtadv.h
+@@ -55,7 +55,7 @@ struct rtadv_prefix
+ #ifndef ND_OPT_PI_FLAG_RADDR
+ #define ND_OPT_PI_FLAG_RADDR         0x20
+ #endif
+-
++  struct in6_addr prefix_assigned_client_ll_addr;
+ };
+ 
+ extern void rtadv_config_write (struct vty *, struct interface *);
+Index: quagga-1.2.4/zebra/rt_netlink.c
+===================================================================
+--- quagga-1.2.4.orig/zebra/rt_netlink.c
++++ quagga-1.2.4/zebra/rt_netlink.c
+@@ -67,11 +67,19 @@ extern struct zebra_privs_t zserv_privs;
+ 
+ extern u_int32_t nl_rcvbufsize;
+ 
++#ifndef NDA_RTA
++#define NDA_RTA(r)                                                             \
++        ((struct rtattr *)(((char *)(r)) + NLMSG_ALIGN(sizeof(struct ndmsg))))
++#endif
++
+ static struct {
+   char *p;
+   size_t size;
+ } nl_rcvbuf;
+ 
++
++extern void prefix_release( ifindex_t ifindex, char* buffer);
++
+ /* Note: on netlink systems, there should be a 1-to-1 mapping between interface
+    names and ifindex values. */
+ static void
+@@ -1127,6 +1135,38 @@ netlink_route_change (struct sockaddr_nl
+   return 0;
+ }
+ 
++/*
++ *This function handle the events when the ipv6 client
++ *removed from the device and release the allocated prefix of client
++ *
++ */
++static int
++handle_netlink_ipneigh_del(struct nlmsghdr *nlmsg, int len)
++{
++        struct ndmsg *ndm;
++        struct rtattr *tb[NDA_MAX + 1];
++        char buffer[PREFIX_STRLEN]={0};
++
++        ndm = NLMSG_DATA(nlmsg);
++
++        /* Parse attributes and extract fields of interest. */
++        netlink_parse_rtattr(tb, NDA_MAX, NDA_RTA(ndm), len);
++
++        if (!tb[NDA_DST]) {
++                zlog_debug("RTL_DELNEIGH %d family %d IF (%u) - no DST",
++                           nlmsg->nlmsg_type,
++                           ndm->ndm_family,
++                           ndm->ndm_ifindex);
++                return 0;
++        }
++
++        inet_ntop(AF_INET6,RTA_DATA(tb[NDA_DST]),buffer,INET6_ADDRSTRLEN);
++        zlog_debug("RTL_DELNEIGH len %d ip %s %d family %d IF (%u)",
++                   len, buffer, nlmsg->nlmsg_type, ndm->ndm_family, ndm->ndm_ifindex);
++        prefix_release(ndm->ndm_ifindex, buffer);
++        return 0;
++}
++
+ static int
+ netlink_link_change (struct sockaddr_nl *snl, struct nlmsghdr *h,
+     vrf_id_t vrf_id)
+@@ -1244,7 +1284,8 @@ netlink_information_fetch (struct sockad
+       zlog ( NULL, LOG_ERR, "Ignoring message from pid %u", snl->nl_pid );
+       return 0;
+     }
+-
++  struct ndmsg *ndm;
++  int len;
+   switch (h->nlmsg_type)
+     {
+     case RTM_NEWROUTE:
+@@ -1265,6 +1306,15 @@ netlink_information_fetch (struct sockad
+     case RTM_DELADDR:
+       return netlink_interface_addr (snl, h, vrf_id);
+       break;
++    case RTM_DELNEIGH:
++      len = h->nlmsg_len - NLMSG_LENGTH(sizeof(struct ndmsg));
++      if (len < 0)
++          return -1;
++      ndm = NLMSG_DATA(h);
++      if (ndm->ndm_family != AF_INET6)// only requires IPV6 neighbor deletion details
++          return 0;
++      return handle_netlink_ipneigh_del(h, len);
++      break;
+     default:
+       zlog_warn ("Unknown netlink nlmsg_type %d vrf %u\n", h->nlmsg_type,
+                  vrf_id);
+@@ -2002,7 +2052,7 @@ kernel_init (struct zebra_vrf *zvrf)
+ {
+   unsigned long groups;
+ 
+-  groups = RTMGRP_LINK | RTMGRP_IPV4_ROUTE | RTMGRP_IPV4_IFADDR;
++  groups = RTMGRP_LINK | RTMGRP_IPV4_ROUTE | RTMGRP_IPV4_IFADDR | RTMGRP_NEIGH;
+ #ifdef HAVE_IPV6
+   groups |= RTMGRP_IPV6_ROUTE | RTMGRP_IPV6_IFADDR;
+ #endif /* HAVE_IPV6 */
+Index: quagga-1.2.4/zebra/rtadv.c
+===================================================================
+--- quagga-1.2.4.orig/zebra/rtadv.c
++++ quagga-1.2.4/zebra/rtadv.c
+@@ -58,6 +58,10 @@ extern struct zebra_privs_t zserv_privs;
+ #define ALLNODE   "ff02::1"
+ #define ALLROUTER "ff02::2"
+ 
++#define IPV6_NEI_FILE "/tmp/ipv6_neighbor.txt"
++static void
++rtadv_send_packet (int sock, struct interface *ifp,struct sockaddr_in6 *from);
++
+ extern struct zebra_t zebrad;
+ 
+ enum rtadv_event {RTADV_START, RTADV_STOP, RTADV_TIMER, 
+@@ -123,9 +127,425 @@ rtadv_recv_packet (int sock, u_char *buf
+ 
+ #define RTADV_MSG_SIZE 4096
+ 
++/*
++ *This function send the Router Solicited packets with prefix for
++ *already connected ipv6 clients,which are before zebra start connected.
++ *
++ */
++
++static void
++inittime_rtadv_send_packet (struct zebra_vrf *zvrf, struct interface *ifp)
++{
++   FILE * fp = NULL;
++   ssize_t nread;
++   size_t len = 0;
++   char *line = NULL;
++
++   fp = fopen(IPV6_NEI_FILE, "r");
++
++   if (fp != NULL)
++   {
++       zlog_debug("inittime_rtadv_send_packet inside\n ");
++       while ((nread = getline(&line, &len, fp)) != -1)
++       {
++           struct sockaddr_in6 addr;
++           char *bptr = line;
++
++           char *nlla = strtok_r(line, "\n",&line);
++           if (nlla)
++           {
++               if (inet_pton (AF_INET6, nlla, &(addr.sin6_addr)) > 0)
++               {
++                   zlog_debug("Sending boot RA to %s\n", nlla);
++                   rtadv_send_packet (zvrf->rtadv.sock, ifp,&addr);
++               } else {
++                   zlog_err("Invalid ipv6 address=%s \n", nlla);
++               }
++           }
++           if(bptr) {
++               free(bptr); // getline allocated memory free
++               bptr = NULL;
++               line = NULL;
++           }
++       }
++       fclose (fp);
++   }
++   zlog_debug("inittime_rtadv_send_packet End\n ");
++}
++
++/*
++ * This function releases the prefix of corresponding link local address.
++ */
++void
++prefix_release (ifindex_t ifindex, char *addr)
++{
++  struct interface *ifp;
++  struct zebra_if *zif;
++  struct rtadv_prefix *rprefix;
++  u_char null_addr[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
++  struct listnode *node = NULL;
++  char buffer[PREFIX_STRLEN]={0};
++
++  /* Interface search. */
++  ifp = if_lookup_by_index(ifindex);
++  if (ifp == NULL)
++  {
++      return;
++  }
++
++  if (if_is_loopback (ifp))
++  {
++    return;
++  }
++
++  /* Check interface configuration. */
++  zif = (struct zebra_if *) ifp->info;
++  if (! zif) {
++      zlog_err (" zif is null \n");
++      return;
++  }
++
++  if (zif->rtadv.AdvManagedClientPrefixFlag) {
++      for (ALL_LIST_ELEMENTS_RO (zif->rtadv.AdvPrefixList, node, rprefix))
++      {
++          if (!IN6_IS_ADDR_UNSPECIFIED(&rprefix->prefix_assigned_client_ll_addr))
++          {
++              inet_ntop (AF_INET6, &rprefix->prefix_assigned_client_ll_addr,buffer, INET6_ADDRSTRLEN);
++              if(!strncmp(buffer,addr,PREFIX_STRLEN)) {
++                  zlog_debug("prefix found Releasing the prefix & LLA %s seeting null \n",buffer);
++                  IPV6_ADDR_COPY (&rprefix->prefix_assigned_client_ll_addr, null_addr);
++                  return;
++              }
++          }
++
++      }
++  }
++  return;
++}
++
++
++/* Send periodic router advertisement packet to all connected clients. */
++
++static void
++periodic_rtadv_send_packet (int sock, struct interface *ifp)
++{
++    struct msghdr msg;
++    struct iovec iov;
++    struct cmsghdr  *cmsgptr = NULL;
++    struct in6_pktinfo *pkt  = NULL;
++    struct sockaddr_in6 addr;
++#ifdef HAVE_STRUCT_SOCKADDR_DL
++    struct sockaddr_dl *sdl;
++#endif /* HAVE_STRUCT_SOCKADDR_DL */
++    u_char cmsgbuf[CMSG_SPACE(sizeof (struct in6_pktinfo))]={0};
++    unsigned char buf[RTADV_MSG_SIZE];
++    struct nd_router_advert *rtadv;
++    int ret;
++    int len = 0;
++    int reserve_len = 0;
++    struct zebra_if *zif;
++    struct rtadv_prefix *rprefix;
++    struct listnode *node;
++    u_int16_t pkt_RouterLifetime;
++    struct nd_opt_route_info *rinfo;
++    char buf1[PREFIX_STRLEN]={0};
++
++
++    /* Logging of packet. */
++    if (IS_ZEBRA_DEBUG_PACKET)
++        zlog_debug ("Router advertisement send to %s", ifp->name);
++
++    /* Fill in sockaddr_in6. */
++    memset (&addr, 0, sizeof (struct sockaddr_in6));
++    addr.sin6_family = AF_INET6;
++#ifdef SIN6_LEN
++    addr.sin6_len = sizeof (struct sockaddr_in6);
++#endif /* SIN6_LEN */
++    addr.sin6_port = htons (IPPROTO_ICMPV6);
++    /* Fetch interface information. */
++    zif = ifp->info;
++
++    /* Make router advertisement message. */
++    rtadv = (struct nd_router_advert *) buf;
++
++    rtadv->nd_ra_type = ND_ROUTER_ADVERT;
++    rtadv->nd_ra_code = 0;
++    rtadv->nd_ra_cksum = 0;
++
++    rtadv->nd_ra_curhoplimit = 64;
++
++    /* RFC4191: Default Router Preference is 0 if Router Lifetime is 0. */
++    rtadv->nd_ra_flags_reserved =
++        zif->rtadv.AdvDefaultLifetime == 0 ? 0 : zif->rtadv.DefaultPreference;
++    rtadv->nd_ra_flags_reserved <<= 3;
++
++    if (zif->rtadv.AdvManagedFlag)
++        rtadv->nd_ra_flags_reserved |= ND_RA_FLAG_MANAGED;
++    if (zif->rtadv.AdvOtherConfigFlag)
++        rtadv->nd_ra_flags_reserved |= ND_RA_FLAG_OTHER;
++    if (zif->rtadv.AdvHomeAgentFlag)
++        rtadv->nd_ra_flags_reserved |= ND_RA_FLAG_HOME_AGENT;
++    /* Note that according to Neighbor Discovery (RFC 4861 [18]),
++     * AdvDefaultLifetime is by default based on the value of
++     * MaxRtrAdvInterval.  AdvDefaultLifetime is used in the Router Lifetime
++     * field of Router Advertisements.  Given that this field is expressed
++     * in seconds, a small MaxRtrAdvInterval value can result in a zero
++     * value for this field.  To prevent this, routers SHOULD keep
++     * AdvDefaultLifetime in at least one second, even if the use of
++     * MaxRtrAdvInterval would result in a smaller value. -- RFC6275, 7.5 */
++    pkt_RouterLifetime = zif->rtadv.AdvDefaultLifetime != -1 ?
++        zif->rtadv.AdvDefaultLifetime :
++        MAX (1, 0.003 * zif->rtadv.MaxRtrAdvInterval);
++    rtadv->nd_ra_router_lifetime = htons (pkt_RouterLifetime);
++    rtadv->nd_ra_reachable = htonl (zif->rtadv.AdvReachableTime);
++    rtadv->nd_ra_retransmit = htonl (0);
++
++    len = sizeof (struct nd_router_advert);
++
++    /* If both the Home Agent Preference and Home Agent Lifetime are set to
++     * their default values specified above, this option SHOULD NOT be
++     * included in the Router Advertisement messages sent by this home
++     * agent. -- RFC6275, 7.4 */
++    if
++        (
++         zif->rtadv.AdvHomeAgentFlag &&
++         (zif->rtadv.HomeAgentPreference || zif->rtadv.HomeAgentLifetime != -1)
++        )
++        {
++            struct nd_opt_homeagent_info *ndopt_hai =
++                (struct nd_opt_homeagent_info *)(buf + len);
++            ndopt_hai->nd_opt_hai_type = ND_OPT_HA_INFORMATION;
++            ndopt_hai->nd_opt_hai_len = 1;
++            ndopt_hai->nd_opt_hai_reserved = 0;
++            ndopt_hai->nd_opt_hai_preference = htons(zif->rtadv.HomeAgentPreference);
++            /* 16-bit unsigned integer.  The lifetime associated with the home
++             * agent in units of seconds.  The default value is the same as the
++             * Router Lifetime, as specified in the main body of the Router
++             * Advertisement.  The maximum value corresponds to 18.2 hours.  A
++             * value of 0 MUST NOT be used. -- RFC6275, 7.5 */
++            ndopt_hai->nd_opt_hai_lifetime = htons
++                (
++                 zif->rtadv.HomeAgentLifetime != -1 ?
++                 zif->rtadv.HomeAgentLifetime :
++                 MAX (1, pkt_RouterLifetime) /* 0 is OK for RL, but not for HAL*/
++                );
++            len += sizeof(struct nd_opt_homeagent_info);
++        }
++    if (zif->rtadv.AdvRDNSSFlag)
++    {
++        char *addr_ptr;
++        struct nd_opt_rdnss *ndopt_rdnss;
++        struct prefix *rdnss_prefix;
++        unsigned int rdnss_entries = 1;
++
++        ndopt_rdnss = (struct nd_opt_rdnss *) (buf + len);
++        ndopt_rdnss->nd_opt_type = ND_OPT_RDNSS;
++        ndopt_rdnss->nd_opt_reserved = 0;
++        ndopt_rdnss->nd_opt_lifetime = htonl(zif->rtadv.AdvRDNSSLifetime);
++        len += sizeof(struct nd_opt_rdnss);
++
++        /* Fill in all RDNS server entries */
++        for (ALL_LIST_ELEMENTS_RO (zif->rtadv.AdvRDNSSList, node, rdnss_prefix))
++        {
++            addr_ptr = (char *)(buf + len);
++            memcpy(addr_ptr, &rdnss_prefix->u.prefix6, sizeof (struct in6_addr));
++            len += sizeof (struct in6_addr);
++            rdnss_entries += 2;
++        }
++        ndopt_rdnss->nd_opt_len = rdnss_entries;
++    }
++
++    if (zif->rtadv.AdvIntervalOption)
++    {
++        struct nd_opt_adv_interval *ndopt_adv =
++            (struct nd_opt_adv_interval *)(buf + len);
++        ndopt_adv->nd_opt_ai_type = ND_OPT_ADV_INTERVAL;
++        ndopt_adv->nd_opt_ai_len = 1;
++        ndopt_adv->nd_opt_ai_reserved = 0;
++        ndopt_adv->nd_opt_ai_interval = htonl(zif->rtadv.MaxRtrAdvInterval);
++        len += sizeof(struct nd_opt_adv_interval);
++    }
++
++    /* Fill in prefix. */
++    reserve_len = len;
++    for (ALL_LIST_ELEMENTS_RO (zif->rtadv.AdvPrefixList, node, rprefix))
++    {
++        zlog_debug ("entered periodic_rtadv_send_packet inside for loop 6\n");
++        len = reserve_len;
++        memset((buf+reserve_len), 0, (sizeof(buf) - reserve_len));
++        struct nd_opt_prefix_info *pinfo;
++
++        pinfo = (struct nd_opt_prefix_info *) (buf + reserve_len);
++
++        pinfo->nd_opt_pi_type = ND_OPT_PREFIX_INFORMATION;
++        pinfo->nd_opt_pi_len = 4;
++        pinfo->nd_opt_pi_prefix_len = rprefix->prefix.prefixlen;
++
++        pinfo->nd_opt_pi_flags_reserved = 0;
++        if (rprefix->AdvOnLinkFlag)
++            pinfo->nd_opt_pi_flags_reserved |= ND_OPT_PI_FLAG_ONLINK;
++        if (rprefix->AdvAutonomousFlag)
++            pinfo->nd_opt_pi_flags_reserved |= ND_OPT_PI_FLAG_AUTO;
++        if (rprefix->AdvRouterAddressFlag)
++            pinfo->nd_opt_pi_flags_reserved |= ND_OPT_PI_FLAG_RADDR;
++
++        pinfo->nd_opt_pi_valid_time = htonl (rprefix->AdvValidLifetime);
++        pinfo->nd_opt_pi_preferred_time = htonl (rprefix->AdvPreferredLifetime);
++        pinfo->nd_opt_pi_reserved2 = 0;
++        prefix2str (&rprefix->prefix, buf1, sizeof(buf1));
++        zlog_debug (" prefix %s \n",buf1);
++        if (IN6_IS_ADDR_UNSPECIFIED(&rprefix->prefix_assigned_client_ll_addr))
++        {
++            zlog_debug("Link local NOT assigned skipping prefix \n");
++            continue;
++        }
++        else
++        {
++            zlog_debug("Neighbor table found prefix resending via Periodic RA\n");
++            IPV6_ADDR_COPY (&pinfo->nd_opt_pi_prefix, &rprefix->prefix.prefix);
++            IPV6_ADDR_COPY (&addr.sin6_addr, &rprefix->prefix_assigned_client_ll_addr);
++        }
++
++#ifdef DEBUG
++        {
++            u_char buf[INET6_ADDRSTRLEN];
++            zlog_debug ("DEBUG %s", inet_ntop (AF_INET6, &pinfo->nd_opt_pi_prefix,
++                        buf, INET6_ADDRSTRLEN));
++
++        }
++#endif /* DEBUG */
++
++        len += sizeof (struct nd_opt_prefix_info);
++
++        /* Add route information option for default route */
++        rinfo = (struct nd_opt_route_info *) (buf + len);
++        memset(rinfo, 0, sizeof(struct nd_opt_route_info));
++        rinfo->nd_opt_ri_type = ND_OPT_ROUTE_INFORMATION;
++        rinfo->nd_opt_ri_len = 3;
++
++        /* Use route lifetime from router advertisement header */
++        rinfo->nd_opt_ri_lifetime = htonl (zif->rtadv.AdvDefaultLifetime);
++        /* Set the prefix to ::/0 */
++        rinfo->nd_opt_ri_prefix_len = 0;
++        inet_pton(AF_INET6, "::0", &rinfo->nd_opt_ri_prefix);
++        len += sizeof (struct nd_opt_route_info);
++        if (zif->rtadv.AdvDNSSLFlag)
++        {
++            unsigned option_bytes, stuffing_bytes, total_opt_len;
++            struct nd_opt_dnssl *ndopt_dnssl = (struct nd_opt_dnssl *) (buf + len);
++            char *domain;
++            int len_copy = len;
++
++            /* calculate total length needed by the option, including stuffing */
++            option_bytes = 8; /* type,length, reserved, and lifetime */
++            for (ALL_LIST_ELEMENTS_RO (zif->rtadv.AdvDNSSLList, node, domain))
++            {
++                /*
++                   length of the string plus the leading length byte
++                   and trailing 0 length byte
++                   (the dots in the middle get replaced with more length bytes
++                   */
++
++                option_bytes += strlen(domain)+2;
++            }
++            total_opt_len = 8*((option_bytes+7)/8);
++            stuffing_bytes = total_opt_len-option_bytes;
++
++            if ((len + total_opt_len) > RTADV_MSG_SIZE)
++            {
++                zlog_debug ("rtadv_send_packet: router advertisement message buffer overflow\n");
++                return; } else {
++                ndopt_dnssl->nd_opt_type = ND_OPT_DNSSL;
++                ndopt_dnssl->nd_opt_len = total_opt_len/8;
++                ndopt_dnssl->nd_opt_reserved = 0;
++                ndopt_dnssl->nd_opt_lifetime = htonl(zif->rtadv.AdvRDNSSLifetime);
++                len_copy += 8;
++            }
++
++            /* fill n each domain string - the format is in RFC 1035, 3.1 */
++            /* (((len)(label))+(0x00))+ */
++            /* test.example.com would be 0x04test0x07example0x03com0x00 */
++            for (ALL_LIST_ELEMENTS_RO (zif->rtadv.AdvDNSSLList, node, domain))
++            {
++                char domain_copy[RTADV_DOMAIN_LEN_MAX];
++                strlcpy(domain_copy, domain, strlen(domain));
++
++                char *label = strtok_r(domain_copy, ".",&domain_copy);
++                while(NULL != label) {
++                    buf[len_copy++] = strlen(label);
++                    memcpy(buf+len_copy, label, strlen(label)); /* don't copy NULL terminator */
++                    len_copy += strlen(label);
++                    label = strtok_r(NULL, ".",&domain_copy);
++                }
++                buf[len_copy++] = 0;
++            }
++            bzero(buf + len_copy, stuffing_bytes);
++            len_copy += stuffing_bytes;
++
++            len += total_opt_len;
++        }
++
++        /* Hardware address. */
++        if (ifp->hw_addr_len != 0)
++        {
++            buf[len++] = ND_OPT_SOURCE_LINKADDR;
++
++            /* Option length should be rounded up to next octet if
++               the link address does not end on an octet boundary. */
++            buf[len++] = (ifp->hw_addr_len + 9) >> 3;
++
++            memcpy (buf + len, ifp->hw_addr, ifp->hw_addr_len);
++            len += ifp->hw_addr_len;
++
++            /* Pad option to end on an octet boundary. */
++            memset (buf + len, 0, -(ifp->hw_addr_len + 2) & 0x7);
++            len += -(ifp->hw_addr_len + 2) & 0x7;
++        }
++
++        /* MTU */
++        if (zif->rtadv.AdvLinkMTU)
++        {
++            struct nd_opt_mtu * opt = (struct nd_opt_mtu *) (buf + len);
++            opt->nd_opt_mtu_type = ND_OPT_MTU;
++            opt->nd_opt_mtu_len = 1;
++            opt->nd_opt_mtu_reserved = 0;
++            opt->nd_opt_mtu_mtu = htonl (zif->rtadv.AdvLinkMTU);
++            len += sizeof (struct nd_opt_mtu);
++        }
++
++        msg.msg_name = (void *) &addr;
++        msg.msg_namelen = sizeof (struct sockaddr_in6);
++        msg.msg_iov = &iov;
++        msg.msg_iovlen = 1;
++        msg.msg_control = (void *) cmsgbuf;
++        msg.msg_controllen = CMSG_SPACE(sizeof(struct in6_pktinfo));
++        msg.msg_flags = 0;
++        iov.iov_base = buf;
++        iov.iov_len = len;
++
++        cmsgptr = ZCMSG_FIRSTHDR(&msg);
++        cmsgptr->cmsg_len = CMSG_LEN(sizeof(struct in6_pktinfo));
++        cmsgptr->cmsg_level = IPPROTO_IPV6;
++        cmsgptr->cmsg_type = IPV6_PKTINFO;
++
++        pkt = (struct in6_pktinfo *) CMSG_DATA (cmsgptr);
++        memset (&pkt->ipi6_addr, 0, sizeof (struct in6_addr));
++        pkt->ipi6_ifindex = ifp->ifindex;
++
++        ret = sendmsg (sock, &msg, 0);
++        if (ret < 0)
++        {
++            zlog_err ("rtadv_send_packet: sendmsg %d (%s)\n",
++                    errno, safe_strerror(errno));
++        }
++        zlog_debug ("Send Periodic RA success \n");
++    }
++}
++
++
+ /* Send router advertisement packet. */
+ static void
+-rtadv_send_packet (int sock, struct interface *ifp)
++rtadv_send_packet (int sock, struct interface *ifp,struct sockaddr_in6 *from)
+ {
+   struct msghdr msg;
+   struct iovec iov;
+@@ -146,7 +566,7 @@ rtadv_send_packet (int sock, struct inte
+   struct listnode *node;
+   u_int16_t pkt_RouterLifetime;
+   struct nd_opt_route_info *rinfo;
+-
++  char buffer[PREFIX_STRLEN]={0};
+   /*
+    * Allocate control message bufffer.  This is dynamic because
+    * CMSG_SPACE is not guaranteed not to call a function.  Note that
+@@ -303,8 +723,29 @@ rtadv_send_packet (int sock, struct inte
+       pinfo->nd_opt_pi_preferred_time = htonl (rprefix->AdvPreferredLifetime);
+       pinfo->nd_opt_pi_reserved2 = 0;
+ 
+-      IPV6_ADDR_COPY (&pinfo->nd_opt_pi_prefix, &rprefix->prefix.prefix);
++      if (zif->rtadv.AdvManagedClientPrefixFlag)
++      {
++          if (!IN6_IS_ADDR_UNSPECIFIED(&rprefix->prefix_assigned_client_ll_addr) && from
++               && !(IPV6_ADDR_SAME(&rprefix->prefix_assigned_client_ll_addr,&from->sin6_addr)))
++          {
++              zlog_debug("Link local assigned skipping prefix \n");
++              continue;
++          }
++          else {
++              zlog_debug("prefix assigned\n");
++              IPV6_ADDR_COPY (&pinfo->nd_opt_pi_prefix, &rprefix->prefix.prefix);
++          }
+ 
++          if(from)
++          {
++             IPV6_ADDR_COPY (&rprefix->prefix_assigned_client_ll_addr,&from->sin6_addr);
++             inet_ntop (AF_INET6, &rprefix->prefix_assigned_client_ll_addr,buffer, INET6_ADDRSTRLEN);
++             zlog_debug (" Saving client local link address %s\n",buffer);
++             IPV6_ADDR_COPY (&addr.sin6_addr, &(from->sin6_addr));
++          }
++      } else {
++          IPV6_ADDR_COPY (&pinfo->nd_opt_pi_prefix, &rprefix->prefix.prefix);
++      }
+ #ifdef DEBUG
+       {
+ 	u_char buf[INET6_ADDRSTRLEN];
+@@ -316,6 +757,11 @@ rtadv_send_packet (int sock, struct inte
+ #endif /* DEBUG */
+ 
+       len += sizeof (struct nd_opt_prefix_info);
++      if( zif->rtadv.AdvManagedClientPrefixFlag && (from))
++      {
++          zlog_debug("Prefix list breaking \n");
++          break;
++      }
+     }
+ 
+   /* Add route information option for default route */
+@@ -478,7 +924,13 @@ rtadv_timer (struct thread *thread)
+ 	      /* FIXME: using MaxRtrAdvInterval each time isn't what section
+ 	         6.2.4 of RFC4861 tells to do. */
+ 	      zif->rtadv.AdvIntervalTimer = zif->rtadv.MaxRtrAdvInterval;
+-	      rtadv_send_packet (zvrf->rtadv.sock, ifp);
++              if(zif->rtadv.AdvManagedClientPrefixFlag)
++              {
++                 periodic_rtadv_send_packet (zvrf->rtadv.sock, ifp);
++              } else {
++                 /* to use as it is base code */
++                 rtadv_send_packet (zvrf->rtadv.sock, ifp,NULL);
++              }
+ 	    }
+ 	}
+     }
+@@ -486,13 +938,24 @@ rtadv_timer (struct thread *thread)
+ }
+ 
+ static void
+-rtadv_process_solicit (struct interface *ifp)
++rtadv_process_solicit (struct interface *ifp, struct sockaddr_in6 *from)
+ {
+   struct zebra_vrf *zvrf = vrf_info_lookup (ifp->vrf_id);
+-
++  struct zebra_if *zif = ifp->info;
+   zlog_info ("Router solicitation received on %s vrf %u", ifp->name, zvrf->vrf_id);
+ 
+-  rtadv_send_packet (zvrf->rtadv.sock, ifp);
++  if (!zif) {
++      zlog_err("zif is null");
++      return;
++  }
++
++  if(zif->rtadv.AdvManagedClientPrefixFlag)
++  {
++    rtadv_send_packet (zvrf->rtadv.sock,ifp,from);
++  } else {
++    /* to use as it is base code */
++    rtadv_send_packet (zvrf->rtadv.sock,ifp,NULL);
++  }
+ }
+ 
+ static void
+@@ -503,7 +966,7 @@ rtadv_process_advert (void)
+ 
+ static void
+ rtadv_process_packet (u_char *buf, unsigned int len, ifindex_t ifindex,
+-    int hoplimit, vrf_id_t vrf_id)
++    int hoplimit, vrf_id_t vrf_id,struct sockaddr_in6 *from)
+ {
+   struct icmp6_hdr *icmph;
+   struct interface *ifp;
+@@ -582,7 +1045,7 @@ rtadv_process_packet (u_char *buf, unsig
+ 
+   /* Check ICMP message type. */
+   if (icmph->icmp6_type == ND_ROUTER_SOLICIT)
+-    rtadv_process_solicit (ifp);
++    rtadv_process_solicit (ifp,from);
+   else if (icmph->icmp6_type == ND_ROUTER_ADVERT)
+     rtadv_process_advert ();
+ 
+@@ -614,7 +1077,7 @@ rtadv_read (struct thread *thread)
+       return len;
+     }
+ 
+-  rtadv_process_packet (buf, (unsigned)len, ifindex, hoplimit, zvrf->vrf_id);
++  rtadv_process_packet (buf, (unsigned)len, ifindex, hoplimit, zvrf->vrf_id,&from);
+ 
+   return 0;
+ }
+@@ -1964,6 +2427,58 @@ rtadv_config_write (struct vty *vty, str
+     }
+ }
+ 
++/*
++ *Handle the "ipv6 nd managed-client-prefix-flag" configuration in zebra.conf
++ */
++DEFUN (ipv6_nd_managed_client_prefix_flag,
++       ipv6_nd_managed_client_prefix_flag_cmd,
++       "ipv6 nd managed-client-prefix-flag",
++       "Interface IPv6 config commands\n"
++       "Neighbor discovery\n"
++       "Managed client prefix configuration flag\n")
++{
++  struct interface *ifp;
++  struct zebra_if *zif;
++
++  ifp = (struct interface *) vty->index;
++  zif = ifp->info;
++
++  zif->rtadv.AdvManagedClientPrefixFlag = 1;
++  zlog_debug(" rtadv.AdvManagedClientPrefixFlag set \n");
++
++  if(zif->rtadv.AdvManagedClientPrefixFlag)
++  {
++     struct zebra_vrf *zvrf = vrf_info_lookup (ifp->vrf_id);
++     if (zvrf == NULL)
++         return CMD_SUCCESS;
++     inittime_rtadv_send_packet (zvrf, ifp);
++  }
++
++  return CMD_SUCCESS;
++}
++
++/*
++ *Handle the "no ipv6 nd managed-client-prefix-flag" configuration in zebra.conf
++ */
++DEFUN (no_ipv6_nd_managed_client_prefix_flag,
++       no_ipv6_nd_managed_client_prefix_flag_cmd,
++       "no ipv6 nd managed-client-prefix-flag",
++       NO_STR
++       "Interface IPv6 config commands\n"
++       "Neighbor discovery\n"
++       "Managed client prefix configuration flag\n")
++{
++  struct interface *ifp;
++  struct zebra_if *zif;
++
++  ifp = (struct interface *) vty->index;
++  zif = ifp->info;
++
++  zif->rtadv.AdvManagedClientPrefixFlag = 0;
++
++  return CMD_SUCCESS;
++}
++
+ 
+ static void
+ rtadv_event (struct zebra_vrf *zvrf, enum rtadv_event event, int val)
+@@ -2087,6 +2602,9 @@ rtadv_cmd_init (void)
+   install_element (INTERFACE_NODE, &ipv6_nd_rdnss_cmd_nolife);
+   install_element (INTERFACE_NODE, &ipv6_nd_dnssl_cmd);
+   install_element (INTERFACE_NODE, &ipv6_nd_dnssl_cmd_nolife);
++  install_element (INTERFACE_NODE, &ipv6_nd_managed_client_prefix_flag_cmd);
++  install_element (INTERFACE_NODE, &no_ipv6_nd_managed_client_prefix_flag_cmd);
++
+ }
+ 
+ static int
+

@@ -2254,8 +2254,8 @@ $ACS_global_Enable-wifi2-mode=1
 
 #PD
 $PD_enable=0
-$prev-lan-prefixes=
-$prev-lan-prefix-update=
+$prev-wan6-prefix=
+$prev-wan6-prefixlen=
 
 $ippt_auto_ip=169.254.1.50
 
