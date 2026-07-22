@@ -1,0 +1,133 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 9f302e5e7c41acb7b50df42e9e089afdb5c4372b Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Fri, 17 Jul 2026 04:36:12 +0000
+Subject: [PATCH] Adds EnableSIP DM parameter to enable/disable SIP ALG
+ functionality
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ config-arm/TR181-USGv2.XML                    | 13 +++++++++
+ .../cosa_x_cisco_com_security_apis.c          | 28 +++++++++++++++++++
+ .../include/cosa_x_cisco_com_security_apis.h  |  1 +
+ .../cosa_x_cisco_com_security_dml.c           | 25 +++++++++++++++++
+ 4 files changed, 67 insertions(+)
+
+Index: git/config-arm/TR181-USGv2.XML
+===================================================================
+--- git.orig/config-arm/TR181-USGv2.XML
++++ git/config-arm/TR181-USGv2.XML
+@@ -14033,6 +14033,19 @@
+             <writable>true</writable>
+ 
+           </parameter>
++
++          <parameter>
++
++            <name>EnableSIP</name>
++
++            <type>boolean</type>
++
++            <syntax>bool</syntax>
++
++            <writable>true</writable>
++
++          </parameter>
++
+ <?ifdef BCI?>
+           <parameter>
+ 
+Index: git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_security_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_security_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_security_apis.c
+@@ -6180,3 +6180,31 @@ CosaDmlIaInit
+         return ANSC_STATUS_SUCCESS;
+ }
+ #endif
++
++/*===========================================================================
++
++FUNCTION:
++     Sip_Proc_Update
++
++DESCRIPTION:
++   - Enables/Disables SIP Alg Functionality.
++   - Writes to a proc/sys entry which indicates netfilter to bypass SIP ALG
++     processing
++
++==========================================================================*/
++void Sip_Proc_Update()
++{
++       char buf[8] = {0};
++       syscfg_get( NULL, "sip_status", buf, sizeof(buf));
++       if (strncmp(buf, "1", sizeof(buf)) == 0) {
++           v_secure_system("echo 0 > /proc/sys/net/netfilter/nf_conntrack_disable_sip_alg");
++           v_secure_system("echo 0 > /proc/sys/net/netfilter/nf_conntrack_sip_direct_media");
++           CcspTraceWarning(("SIP Enable Success\n"));
++       }
++       else {
++           v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_disable_sip_alg");
++           v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_sip_direct_media");
++           CcspTraceWarning(("SIP Disable Success\n"));
++       }
++}
++
+Index: git/source/TR-181/include/cosa_x_cisco_com_security_apis.h
+===================================================================
+--- git.orig/source/TR-181/include/cosa_x_cisco_com_security_apis.h
++++ git/source/TR-181/include/cosa_x_cisco_com_security_apis.h
+@@ -138,6 +138,7 @@ _COSA_DML_FIREWALL_CFG2
+     BOOLEAN                         SmartPktDectionEnableV6;
+     BOOLEAN                         WanPingEnable;
+     BOOLEAN                         WanPingEnableV6;
++    BOOLEAN                         EnableSIP;
+ }_struct_pack_;
+ 
+ typedef struct _COSA_DML_FIREWALL_CFG2 COSA_DML_FIREWALL_CFG2,  *PCOSA_DML_FIREWALL_CFG2;
+Index: git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+@@ -1395,6 +1395,18 @@ Firewall1_GetParamBoolValue
+         return TRUE;
+     }
+ 
++    if (strcmp(ParamName, "EnableSIP") == 0)
++    {
++        /* collect value */
++       char buf[8] = {0};
++       syscfg_get( NULL, "sip_status", buf, sizeof(buf));
++       if (strncmp(buf, "1", sizeof(buf)) == 0)
++           *pBool = TRUE;
++       else
++           *pBool = FALSE;
++       return TRUE;
++    }
++
+     /* CcspTraceWarning(("Unsupported parameter '%s'\n", ParamName)); */
+     return FALSE;
+ }
+@@ -1827,6 +1839,19 @@ Firewall1_SetParamBoolValue
+ 
+         return TRUE;
+     }
++
++    if (strcmp(ParamName, "EnableSIP") == 0)
++    {
++        /* save update to backup */
++       if (syscfg_set_commit (NULL, "sip_status", bValue ? "1" : "0") != 0)
++        {
++            CcspTraceError(("syscfg_set sip_status failed\n"));
++            return FALSE;
++        }
++       pCosaDMSecurity->FirewallConfig.EnableSIP = bValue;
++       Sip_Proc_Update();
++        return TRUE;
++    }
+     /* CcspTraceWarning(("Unsupported parameter '%s'\n", ParamName)); */
+     return FALSE;
+ }

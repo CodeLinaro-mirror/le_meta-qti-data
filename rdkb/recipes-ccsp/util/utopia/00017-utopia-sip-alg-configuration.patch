@@ -1,0 +1,37 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 6a9286ea8161083a37420a85ecf86765acfed0b9 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 16 Jul 2026 05:07:26 +0000
+Subject: [PATCH] Configures SIP ALG state
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/scripts/init/system/utopia_init.sh | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+Index: git/source/scripts/init/system/utopia_init.sh
+===================================================================
+--- git.orig/source/scripts/init/system/utopia_init.sh
++++ git/source/scripts/init/system/utopia_init.sh
+@@ -504,6 +504,18 @@ syscfg commit
+ syscfg unset NonRootSupport
+ syscfg commit
+ 
++SIP_ENABLE=`syscfg get sip_status`
++if [ "$SIP_ENABLE" == "1" ] ; then
++     echo 0 > /proc/sys/net/netfilter/nf_conntrack_disable_sip_alg
++     #Enable media streaming between non signalling endpoints
++     echo 0 > /proc/sys/net/netfilter/nf_conntrack_sip_direct_media
++     echo_t "successfully enabled SIP ALG"
++else
++     echo 1 > /proc/sys/net/netfilter/nf_conntrack_disable_sip_alg
++     #Disable media streaming between non signalling endpoints
++     echo 1 > /proc/sys/net/netfilter/nf_conntrack_sip_direct_media
++     echo_t "successfully disabled SIP ALG"
++fi
+ #Added log to check the DHCP range corruption after system defaults applied.
+ lan_ipaddr=`syscfg get lan_ipaddr`
+ lan_netmask=`syscfg get lan_netmask`
