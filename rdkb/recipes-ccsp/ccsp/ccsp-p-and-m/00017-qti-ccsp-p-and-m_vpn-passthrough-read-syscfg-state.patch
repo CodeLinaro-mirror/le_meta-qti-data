@@ -1,0 +1,77 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From c7fc94f5f69d16db0ed844f9a97c64452c3634d7 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Sat, 18 Jul 2026 15:12:31 +0000
+Subject: [PATCH] Fix VPN passthrough DM get values to read from syscfg
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ .../cosa_x_cisco_com_security_dml.c           | 32 +++++++++++++++----
+ 1 file changed, 25 insertions(+), 7 deletions(-)
+
+Index: git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+@@ -1154,6 +1154,7 @@ Firewall1_GetParamBoolValue
+     UNREFERENCED_PARAMETER(hInsContext);
+     PCOSA_DATAMODEL_SECURITY        pCosaDMSecurity = (PCOSA_DATAMODEL_SECURITY)g_pCosaBEManager->hSecurity;
+     PCOSA_DML_FIREWALL_CFG2         pFirewallCfg    = &pCosaDMSecurity->FirewallConfig;
++    char buf[8] = {0};
+ 
+     if(fwSync)
+     {
+@@ -1164,26 +1165,43 @@ Firewall1_GetParamBoolValue
+     /* check the parameter name and return the corresponding value */
+     if (strcmp(ParamName, "L2TPPassthrough") == 0)
+     {
+-        /* collect value */
+-        *pBool = pFirewallCfg->L2TPPassthrough;
++       /* collect value */
++       memset(buf,0,sizeof(buf));
++       syscfg_get( NULL, "blockl2tp::result", buf, sizeof(buf));
++       if (strncmp(buf, "ACCEPT", sizeof(buf)) == 0)
++           *pBool = TRUE;
++       else
++           *pBool = FALSE;
+ 
+-        return TRUE;
++       return TRUE;
+     }
+ 
+     if (strcmp(ParamName, "PPTPPassthrough") == 0)
+     {
+-        /* collect value */
+-        *pBool = pFirewallCfg->PPTPPassthrough;
++       /* collect value */
++       memset(buf,0,sizeof(buf));
++       syscfg_get( NULL, "blockl2tp::result", buf, sizeof(buf));
++       if (strncmp(buf, "ACCEPT", sizeof(buf)) == 0)
++           *pBool = TRUE;
++       else
++           *pBool = FALSE;
+ 
+-        return TRUE;
++       return TRUE;
+     }
+ 
+     if (strcmp(ParamName, "IPSecPassthrough") == 0)
+     {
+         /* collect value */
+         *pBool = pFirewallCfg->IPSecPassthrough;
++       /* collect value */
++       memset(buf,0,sizeof(buf));
++       syscfg_get( NULL, "blockpptp::result", buf, sizeof(buf));
++       if (strncmp(buf, "ACCEPT", sizeof(buf)) == 0)
++           *pBool = TRUE;
++       else
++           *pBool = FALSE;
+ 
+-        return TRUE;
++       return TRUE;
+     }
+ 
+     if (strcmp(ParamName, "SSLPassthrough") == 0)

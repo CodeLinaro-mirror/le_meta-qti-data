@@ -21,6 +21,7 @@ SRC_URI:append = " \
     file://00015-utopia-lan-vlan-changes.patch \
     file://00017-utopia-sip-alg-configuration.patch \
     file://00018-utopia-MTU-information.patch \
+    file://00019-utopia-fix-pptp-rtsp-raw-table-initialization.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \

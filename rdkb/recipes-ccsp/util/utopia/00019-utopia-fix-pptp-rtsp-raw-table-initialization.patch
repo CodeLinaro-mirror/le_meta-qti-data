@@ -1,0 +1,63 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 2393cc4ecc719c91f0342331942db728261fbc48 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Sat, 18 Jul 2026 15:27:31 +0000
+Subject: [PATCH] Fix PPTP passthrough and RTSP helper raw table initialization
+ in firewall
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/firewall/firewall.c      | 16 ++++++++++++++++
+ source/firewall/firewall_ipv6.c |  1 +
+ 2 files changed, 17 insertions(+)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -9870,7 +9870,11 @@ static int do_lan2wan_helpers(FILE *raw_
+ 
+    /* RTSP helper */
+ #ifdef CONFIG_CCSP_RTSP_HELPER
++   char tmpbuf[2] = {'\0'};
++
++   if(!((0==syscfg_get(NULL, "enable_rtsp", tmpbuf, sizeof(tmpbuf))) && (atoi(tmpbuf)==0))) {
+    fprintf(raw_fp, "-A lan2wan_helpers -p tcp --dport 554 -j CT --helper rtsp\n");
++   }
+ #endif
+    FIREWALL_DEBUG("Exiting do_lan2wan_helpers\n");
+    return(0);
+@@ -14246,6 +14250,18 @@ int prepare_ipv4_firewall(const char *fw
+    rewind(filter_fp);
+    char string[MAX_QUERY];
+    char *strp;
++   char buf_rtsp[8] = {0};
++   char buf_pptp[8]= {0};
++   syscfg_get( NULL, "enable_rtsp", buf_rtsp, sizeof(buf_rtsp));
++   if (strncmp(buf_rtsp, "1", sizeof(buf_rtsp)) == 0)
++   {
++       isRawTableUsed = 1;
++   }
++   syscfg_get( NULL, "PPTPPassthrough", buf_pptp, sizeof(buf_pptp));
++   if (strncmp(buf_pptp, "1", sizeof(buf_pptp)) == 0)
++   {
++       isRawTableUsed = 1;
++   }
+    /*
+     * The raw table is before conntracking and is thus expensive
+     * So we dont set it up unless we actually used it
+Index: git/source/firewall/firewall_ipv6.c
+===================================================================
+--- git.orig/source/firewall/firewall_ipv6.c
++++ git/source/firewall/firewall_ipv6.c
+@@ -275,6 +275,7 @@ int prepare_ipv6_firewall(const char *fw
+    else
+    {
+    #endif
++      fprintf(raw_fp, "*raw\n");
+       #ifdef INTEL_PUMA7
+          fprintf(raw_fp, "*raw\n");
+          do_raw_table_puma7(raw_fp);
