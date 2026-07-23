@@ -13,6 +13,7 @@ DTBO += eth/echo-idp
 DTBO += eth/echo-idp-qmp5
 DTBO += eth/echo-idp-qmp5-v2
 DTBO += eth/echo-idp-qmp5-v3
+DTBO += eth/echo-idp-lga
 endif
 
 .PHONY: dtbs clean
