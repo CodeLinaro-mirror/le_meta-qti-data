@@ -32,7 +32,7 @@
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 NODE=/dev/ipa
-IPACONF=/etc/data/ipa_config.txt
+IPACONF=/systemrw/data/ipa_config.txt
 
 case "$1" in
 	vlan)

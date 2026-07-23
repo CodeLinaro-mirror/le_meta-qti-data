@@ -35,6 +35,10 @@ TARGET_CFLAGS += -g \
 	-I$(WORKSPACE)/common/inc \
 	-fpic
 
+ifeq ($(BOARD),sdx85)
+	TARGET_CFLAGS += -DFEATURE_STA_AT_ANY_INDEX
+endif
+
 TARGET_LDFLAGS += \
 	-lrt \
 	-lstdc++
