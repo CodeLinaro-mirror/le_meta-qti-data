@@ -1113,7 +1113,7 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.wan.interfacecount" type="astr">2</Record>
   <Record name="dmsb.wanmanager.group.Count" type="astr">2</Record>
   <Record name="dmsb.wanmanager.group.1.policy" type="astr">6</Record>
-  <Record name="dmsb.wanmanager.if.1.Name" type="astr">eth0</Record>
+  <Record name="dmsb.wanmanager.if.1.Name" type="astr">eth1</Record>
   <Record name="dmsb.wanmanager.if.1.DisplayName" type="astr">WanOE</Record>
   <Record name="dmsb.wanmanager.if.1.Type" type="astr">2</Record>
   <Record name="dmsb.wanmanager.if.1.BaseInterface" type="astr">Device.Ethernet.X_RDK_Interface.1</Record>
@@ -1126,7 +1126,7 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.if.1.VirtualInterfaceifcount" type="astr">1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Enable" type="astr">TRUE</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Alias" type="astr">WANOE</Record>
-  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Name" type="astr">eth0</Record>
+  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Name" type="astr">eth1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.EnableMAPT" type="astr">FALSE</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.EnableDSLite" type="astr">FALSE</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.EnableIPoE" type="astr">FALSE</Record>
