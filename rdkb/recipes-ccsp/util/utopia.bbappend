@@ -22,6 +22,7 @@ SRC_URI:append = " \
     file://00017-utopia-sip-alg-configuration.patch \
     file://00018-utopia-MTU-information.patch \
     file://00019-utopia-fix-pptp-rtsp-raw-table-initialization.patch \
+    file://00020-set-eth-perf-invocation.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
