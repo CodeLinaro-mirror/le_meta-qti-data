@@ -1,0 +1,47 @@
+From 7aaebea762baa67e232332f0abe8d592885fa4d1 Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Tue, 28 Jul 2026 13:03:26 +0530
+Subject: [PATCH] Included the FORWARD hook and allowing registered hooks only
+Signed-off-by: B Saravanan <saravb@qti.qualcomm.com>
+
+Change-Id: I54e25c70747ae95335d5f5600c2205b917c2be79
+---
+ net/ipv4/netfilter/ipt_TRIGGER.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/net/ipv4/netfilter/ipt_TRIGGER.c b/net/ipv4/netfilter/ipt_TRIGGER.c
+index de26b4682b5c..3ffbc18416d0 100644
+--- a/net/ipv4/netfilter/ipt_TRIGGER.c
++++ b/net/ipv4/netfilter/ipt_TRIGGER.c
+@@ -293,7 +293,9 @@ static unsigned int porttrigger_forward(struct sk_buff *skb, const struct xt_act
+ 	unsigned int src_addr;
+ 	unsigned short protocol;
+ 
+-	if (xt_hooknum(par) != NF_INET_POST_ROUTING)
++	if (xt_hooknum(par) != NF_INET_POST_ROUTING &&
++	    xt_hooknum(par) != NF_INET_PRE_ROUTING &&
++	    xt_hooknum(par) != NF_INET_FORWARD)
+ 		return XT_CONTINUE;
+ 
+ 	ct = nf_ct_get(skb, &ctinfo);
+@@ -505,7 +507,7 @@ static int porttrigger_check(const struct xt_tgchk_param *par)
+ 		return -EINVAL;
+ 	}
+ 
+-	if (par->hook_mask & ~((1 << NF_INET_PRE_ROUTING) | (1 << NF_INET_POST_ROUTING))) {
++	if (par->hook_mask & ~((1 << NF_INET_PRE_ROUTING) | (1 << NF_INET_POST_ROUTING) | (1 << NF_INET_FORWARD))) {
+ 		DEBUGP("%s: bad hooks %x.\n", __func__, par->hook_mask);
+ 		return -EINVAL;
+ 	}
+@@ -565,7 +567,7 @@ static struct xt_target trigger = {
+ 	.target		= porttrigger_target,
+ 	.checkentry	= porttrigger_check,
+ 	.targetsize	= sizeof(struct ipt_porttrigger_info),
+-	.hooks		= ((1 << NF_INET_PRE_ROUTING) | (1 << NF_INET_POST_ROUTING)),
++	.hooks		= ((1 << NF_INET_PRE_ROUTING) | (1 << NF_INET_POST_ROUTING) | (1 << NF_INET_FORWARD)),
+ 	.me		= THIS_MODULE,
+ };
+ 
+-- 
+2.34.1
+
