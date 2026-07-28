@@ -23,6 +23,8 @@ SRC_URI:append = " \
     file://00018-utopia-MTU-information.patch \
     file://00019-utopia-fix-pptp-rtsp-raw-table-initialization.patch \
     file://00020-set-eth-perf-invocation.patch \
+    file://00021-qti-utopia-TCPMSS_clamping_rules_adding.patch \
+    file://00022-qti-utopia-TCPMSS_clamping_rules_adding_extn_support.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
