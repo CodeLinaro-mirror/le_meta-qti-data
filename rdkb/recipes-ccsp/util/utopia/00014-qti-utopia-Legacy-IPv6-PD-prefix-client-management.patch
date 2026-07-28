@@ -87,18 +87,17 @@ Index: git/source/service_routed/service_routed.c
  
  #ifdef CORE_NET_LIB
  #define LOG_FILE_1 "/rdklogs/logs/Consolelog.txt.0"
-@@ -169,7 +172,9 @@ enum ipv6_mode {
- 
+@@ -170,6 +173,9 @@ enum ipv6_mode {
  int gIpv6AddrAssignment = GLOBAL_IPV6 ;
  int gModeSwitched = NO_SWITCHING ;
--
+ #define PSM_MESH_WAN_IFNAME "dmsb.Mesh.WAN.Interface.Name"
 +#define MAX_PREFIXES 16
 +#define MIN_LAN_PREFIX_LEN 60
 +#define MAX_LAN_PREFIX_LEN 64
  #define DEF_ULA_PREF_LEN 64
  #endif 
  
-@@ -873,8 +878,8 @@ STATIC int gen_zebra_conf(int sefd, toke
+@@ -872,8 +878,8 @@ STATIC int gen_zebra_conf(int sefd, toke
      char dnssl[2560] = {0};
      char dnssl_lft[16];
      unsigned int dnssllft = 0;
@@ -108,7 +107,7 @@ Index: git/source/service_routed/service_routed.c
      unsigned int rdnsslft = 3 * RA_INTERVAL; // as defined in RFC
  #if defined(MULTILAN_FEATURE)
      char orig_lan_prefix[64];
-@@ -1195,7 +1200,7 @@ STATIC int gen_zebra_conf(int sefd, toke
+@@ -1193,7 +1199,7 @@ STATIC int gen_zebra_conf(int sefd, toke
  #endif
  #endif
  	{
@@ -117,7 +116,7 @@ Index: git/source/service_routed/service_routed.c
  
  #if defined (_HUB4_PRODUCT_REQ_) && (!defined (_WNXL11BWL_PRODUCT_REQ_)) || defined(_SCER11BEL_PRODUCT_REQ_)
  #if defined(_SCER11BEL_PRODUCT_REQ_)
-@@ -1214,6 +1219,11 @@ STATIC int gen_zebra_conf(int sefd, toke
+@@ -1212,6 +1218,11 @@ STATIC int gen_zebra_conf(int sefd, toke
  #endif
          fprintf(fp, "interface %s\n", lan_if);
          fprintf(fp, "   no ipv6 nd suppress-ra\n");
