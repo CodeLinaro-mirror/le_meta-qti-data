@@ -49,6 +49,7 @@ EXTRA_OEMAKE += " \
     ECM_IPV6_ENABLE=y \
     ECM_FRONT_END_SFE_ENABLE=${ECM_FRONT_END_SFE_ENABLE} \
     ECM_FRONT_END_IPA_ENABLE=y \
+    ECM_FRONT_END_FSE_ENABLE=${ECM_FRONT_END_FSE_ENABLE} \
     ECM_SDX_PCC_ENABLED=y \
     ECM_INTERFACE_PPP_ENABLE=n \
     ECM_INTERFACE_PPPOE_ENABLE=n \
@@ -60,6 +61,11 @@ EXTRA_OEMAKE += " \
 # ECM_FRONT_END_SFE_ENABLE:qti-distro-nogplv3-debug example for DISTRO only
 ECM_FRONT_END_SFE_ENABLE = "n"
 ECM_FRONT_END_SFE_ENABLE:echo = "y"
+
+# ECM_FRONT_END_FSE_ENABLE: enables FSE rule push from ECM frontend.
+# Required for echo (RDKB) where qca-wifi-nss-plugins uses ecm_front_end_fse_callbacks_*.
+ECM_FRONT_END_FSE_ENABLE = "n"
+ECM_FRONT_END_FSE_ENABLE:echo = "y"
 
 # ECM_FRONT_END_SELECTION: default acceleration engine written into the config file at build time.
 # The installed /etc/qca-nss-ecm/config is a plain text file sourced by qca-nss-ecm.sh at
@@ -146,6 +152,12 @@ do_install() {
     install -m 0755 ${S}/examples/ecm_sdx_pcc.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/ecm_sdx_pcc.ko
     install -m 0755 ${S}/examples/ecm_ae_select.ko -D ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/ecm_ae_select.ko
 
+    # Export Module.symvers and public headers so dependent modules can resolve
+    # inter-module symbol references at modpost time.
+    install -d ${D}${includedir}/qca-nss-ecm
+    install -m 0644 ${S}/exports/*.h ${D}${includedir}/qca-nss-ecm/
+    install -m 0644 ${S}/Module.symvers ${D}${includedir}/qca-nss-ecm/Module.symvers
+
     # Install sysctl config
     install -d ${D}${sysconfdir}/sysctl.d/
     install -m 0644 ${UNPACKDIR}/qca-nss-ecm.sysctl ${D}${sysconfdir}/sysctl.d/qca-nss-ecm.conf
@@ -176,6 +188,7 @@ do_install() {
 }
 
 FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/*"
+FILES:${PN} += "${includedir}/qca-nss-ecm/*"
 FILES:${PN} += "${sysconfdir}/sysctl.d/qca-nss-ecm.conf"
 FILES:${PN} += "${sysconfdir}/qca-nss-ecm/config"
 FILES:${PN} += "${sbindir}/qca-nss-ecm.sh"
