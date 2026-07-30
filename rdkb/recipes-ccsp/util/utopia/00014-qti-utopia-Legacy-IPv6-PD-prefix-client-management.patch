@@ -28,7 +28,7 @@ Index: git/source/scripts/init/c_registration/20_routing.c
                                          "wan-status|/etc/utopia/service.d/service_routed.sh",
                                          "lan-status|/etc/utopia/service.d/service_routed.sh",
                                          "dhcpv6_option_changed|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
-+                                        "wan6_prefixlen|/etc/utopia/service.d/service_routed.sh",
++                                        "lan-prefix-update|/etc/utopia/service.d/service_routed.sh",
                                          "ripd-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
                                          "zebra-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
                                          "staticroute-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
@@ -36,7 +36,7 @@ Index: git/source/scripts/init/c_registration/20_routing.c
                                          "lan-status|/etc/utopia/service.d/service_routed.sh",
                                          "ipv6_nameserver|/etc/utopia/service.d/service_routed.sh",
                                          "ipv6_prefix|/etc/utopia/service.d/service_routed.sh",
-+                                        "wan6_prefixlen|/etc/utopia/service.d/service_routed.sh",
++                                        "lan-prefix-update|/etc/utopia/service.d/service_routed.sh",
                                          "ripd-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
                                          "zebra-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
                                          "staticroute-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
@@ -44,26 +44,12 @@ Index: git/source/scripts/init/service.d/service_routed.sh
 ===================================================================
 --- git.orig/source/scripts/init/service.d/service_routed.sh
 +++ git/source/scripts/init/service.d/service_routed.sh
-@@ -79,12 +79,21 @@ case "$1" in
-        service_routed rip-restart
-        ;;
-    zebra-restart)
-+       PD_ENABLE=$(syscfg get PD_enable)
-+       WAN6_PREFIX=$(syscfg get wan6_prefix)
-+       WAN6_PREFIXLEN=$(syscfg get wan6_prefixlen)
-+       if [ "$PD_ENABLE" = "1" ] && [ -n "$WAN6_PREFIX" ]; then
-+           sysevent set wan6_prefix "$WAN6_PREFIX"
-+           sysevent set wan6_prefixlen "$WAN6_PREFIXLEN"
-+           sysevent set ipv6_prefix "$WAN6_PREFIX/$WAN6_PREFIXLEN"
-+           sysevent set wan-status "started"
-+       fi
-        service_routed radv-restart
-        ;;
+@@ -84,7 +84,7 @@ case "$1" in
     staticroute-restart)
         service_routed radv-restart
         ;;
 -   ipv6_prefix|ipv6_nameserver)
-+   ipv6_prefix|ipv6_nameserver|dns-search-list|wan6_prefixlen)
++   ipv6_prefix|ipv6_nameserver|dns-search-list|lan-prefix-update)
         service_routed radv-restart
         ;;
     *)
@@ -136,14 +122,22 @@ Index: git/source/service_routed/service_routed.c
          fprintf(fp, "interface %s\n", lan_if);
          fprintf(fp, "   no ipv6 nd suppress-ra\n");
 +
-+        gen_pd_zebra_conf(fp, sefd, setok, wan_st, valid_lft,
++        if(gen_pd_zebra_conf(fp, sefd, setok, wan_st, valid_lft,
 +                  preferred_lft,
-+                  default_wan_interface, wan_interface);
++                  default_wan_interface, wan_interface) == 1) {
 +
  #if defined (_HUB4_PRODUCT_REQ_) && (!defined (_WNXL11BWL_PRODUCT_REQ_))
          if(strlen(orig_prefix)) 
          { //SKYH4-1765: we add only the latest prefix data to zebra.conf.
-@@ -1409,7 +1419,19 @@ STATIC int gen_zebra_conf(int sefd, toke
+@@ -1324,6 +1334,7 @@ STATIC int gen_zebra_conf(int sefd, toke
+                 fprintf(fp, "   ipv6 nd prefix %s 0 0\n", orig_prefix);
+ #endif
+         }
++}
+ #endif//_HUB4_PRODUCT_REQ_
+ #if defined (INTEL_PUMA7)
+             //Intel Proposed RDKB Generic Bug Fix from XB6 SDK
+@@ -1409,7 +1420,19 @@ STATIC int gen_zebra_conf(int sefd, toke
  #endif /** _SCER11BEL_PRODUCT_REQ_ */
                  fprintf(fp, "   no ipv6 nd managed-config-flag\n");
  #endif
@@ -153,8 +147,8 @@ Index: git/source/service_routed/service_routed.c
 +        char pref_len_str[8] = {0};
 +
 +        syscfg_get(NULL, "PD_enable", pd_en_chk, sizeof(pd_en_chk));
-+        syscfg_get(NULL, "wan6_prefix", pref_chk, sizeof(pref_chk));
-+        syscfg_get(NULL, "wan6_prefixlen", pref_len_str, sizeof(pref_len_str));
++        syscfg_get(NULL, "lan-prefixes", pref_chk, sizeof(pref_chk));
++        syscfg_get(NULL, "lan-prefix-update", pref_len_str, sizeof(pref_len_str));
 +        pref_len_chk = atoi(pref_len_str);
  
 +        if((strcmp(pd_en_chk, "1") == 0) && strlen(pref_chk) && (pref_len_chk > 0) && (pref_len_chk <= MAX_LAN_PREFIX_LEN)) {
@@ -163,7 +157,7 @@ Index: git/source/service_routed/service_routed.c
          syscfg_get(NULL, "router_other_flag", o_flag, sizeof(o_flag));
          if (strcmp(o_flag, "1") == 0)
              fprintf(fp, "   ipv6 nd other-config-flag\n");
-@@ -1724,8 +1746,7 @@ STATIC int gen_zebra_conf(int sefd, toke
+@@ -1724,8 +1747,7 @@ STATIC int gen_zebra_conf(int sefd, toke
  
  
  		}
@@ -177,7 +171,7 @@ Index: git/source/service_routed/service_routed_extn_qti.c
 ===================================================================
 --- /dev/null
 +++ git/source/service_routed/service_routed_extn_qti.c
-@@ -0,0 +1,263 @@
+@@ -0,0 +1,261 @@
 +/*
 + * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 + * SPDX-License-Identifier: BSD-3-Clause-Clear
@@ -224,7 +218,7 @@ Index: git/source/service_routed/service_routed_extn_qti.c
 + * gen_pd_zebra_conf - PD prefix derivation logic
 + * Moved from gen_zebra_conf() in service_routed.c
 + */
-+void gen_pd_zebra_conf(FILE *fp, int sefd, token_t setok,
++int gen_pd_zebra_conf(FILE *fp, int sefd, token_t setok,
 +                       char *wan_st, char *valid_lft,
 +                       char *preferred_lft,
 +                       char *default_wan_interface,
@@ -248,29 +242,29 @@ Index: git/source/service_routed/service_routed_extn_qti.c
 +
 +    memset(lan_prefixes, 0, sizeof(lan_prefixes));
 +    memset(lan_prefix_update, 0, sizeof(lan_prefix_update));
-+    sysevent_get(sefd, setok, "wan6_prefix",
++    sysevent_get(sefd, setok, "lan-prefixes",
 +                 lan_prefixes, sizeof(lan_prefixes));
-+    sysevent_get(sefd, setok, "wan6_prefixlen",
++    sysevent_get(sefd, setok, "lan-prefix-update",
 +                 lan_prefix_update, sizeof(lan_prefix_update));
 +
 +    /* syscfg fallback - survives zebra-restart event */
 +    if (!strlen(lan_prefixes))
-+        syscfg_get(NULL, "wan6_prefix",
++        syscfg_get(NULL, "lan-prefixes",
 +                   lan_prefixes, sizeof(lan_prefixes));
 +    if (!strlen(lan_prefix_update))
-+        syscfg_get(NULL, "wan6_prefixlen",
++        syscfg_get(NULL, "lan-prefix-update",
 +                   lan_prefix_update, sizeof(lan_prefix_update));
 +    /* Also restore ipv6_prefix sysevent if empty */
 +    if (!strlen(lan_prefixes)) {
-+    syscfg_get(NULL, "wan6_prefix", lan_prefixes, sizeof(lan_prefixes));
++    syscfg_get(NULL, "lan-prefixes", lan_prefixes, sizeof(lan_prefixes));
 +        if (strlen(lan_prefixes)) {
 +            char prefixlen_str[8] = {0};
-+            syscfg_get(NULL, "wan6_prefixlen", prefixlen_str, sizeof(prefixlen_str));
++            syscfg_get(NULL, "lan-prefix-update", prefixlen_str, sizeof(prefixlen_str));
 +            char ipv6_pref[72] = {0};
 +            snprintf(ipv6_pref, sizeof(ipv6_pref), "%s/%s", lan_prefixes, prefixlen_str);
 +            sysevent_set(sefd, setok, "ipv6_prefix", ipv6_pref, 0);
-+            sysevent_set(sefd, setok, "wan6_prefix", lan_prefixes, 0);
-+            sysevent_set(sefd, setok, "wan6_prefixlen", prefixlen_str, 0);
++            sysevent_set(sefd, setok, "lan-prefixes", lan_prefixes, 0);
++            sysevent_set(sefd, setok, "lan-prefix-update", prefixlen_str, 0);
 +        }
 +    }
 +
@@ -299,28 +293,24 @@ Index: git/source/service_routed/service_routed_extn_qti.c
 +                lan_prefixes_length_value % 4 == 0)
 +            {
 +                clearbits = 0xF0;
-+                hex = 0x00;
 +                if (lan_prefixes_length_value < MIN_LAN_PREFIX_LEN)
 +                    start_bit_index = 7;
 +            }
 +            else if (lan_prefixes_length_value % 4 == 1)
 +            {
 +                clearbits = 0xF8;
-+                hex = 0x08;
 +            }
 +            else if (lan_prefixes_length_value % 4 == 2)
 +            {
 +                clearbits = 0xFC;
-+                hex = 0x0C;
 +            }
 +            else if (lan_prefixes_length_value % 4 == 3)
 +            {
 +                clearbits = 0xFE;
-+                hex = 0x0E;
 +            }
 +
 +            ip[start_bit_index] &= clearbits;
-+
++            hex = ip[start_bit_index];
 +            for (int i = 0, j = hex;
 +                 i < MAX_PREFIXES && i < TotalPrefix; j++, i++)
 +            {
@@ -381,8 +371,8 @@ Index: git/source/service_routed/service_routed_extn_qti.c
 +                            lan_prefixes, lan_prefixes_length_value);
 +
 +            /* Save to syscfg for persistence */
-+            syscfg_set_commit(NULL, "wan6_prefix", lan_prefixes);
-+            syscfg_set_commit(NULL, "wan6_prefixlen",
++            syscfg_set_commit(NULL, "lan-prefixes", lan_prefixes);
++            syscfg_set_commit(NULL, "lan-prefix-update",
 +                              lan_prefix_update);
 +            syscfg_set_commit(NULL, "prev-wan6-prefix",
 +                              lan_prefixes);
@@ -428,8 +418,8 @@ Index: git/source/service_routed/service_routed_extn_qti.c
 +            syscfg_set_commit(NULL, "prev-wan6-prefix", "");
 +            syscfg_set_commit(NULL, "prev-wan6-prefixlen", "");
 +            /* Clear saved wan6 values on PD disable */
-+            syscfg_set_commit(NULL, "wan6_prefix", "");
-+            syscfg_set_commit(NULL, "wan6_prefixlen", "");
++            syscfg_set_commit(NULL, "lan-prefixes", "");
++            syscfg_set_commit(NULL, "lan-prefix-update", "");
 +        }
 +        if (strcmp(pd_enable, "1") == 0)
 +        {
@@ -439,7 +429,9 @@ Index: git/source/service_routed/service_routed_extn_qti.c
 +                    "prefix sharing\n",
 +                    lan_prefixes, lan_prefixes_length_value);
 +        }
++        return 1;
 +    }
++    return 0;
 +}
 Index: git/source/service_routed/service_routed_extn_qti.h
 ===================================================================
@@ -463,7 +455,7 @@ Index: git/source/service_routed/service_routed_extn_qti.h
 +#define MIN_LAN_PREFIX_LEN 60
 +#define MAX_LAN_PREFIX_LEN 64
 +
-+void gen_pd_zebra_conf(FILE *fp, int sefd, token_t setok,
++int gen_pd_zebra_conf(FILE *fp, int sefd, token_t setok,
 +                       char *wan_st, char *valid_lft,
 +                       char *preferred_lft,
 +                       char *default_wan_interface,
