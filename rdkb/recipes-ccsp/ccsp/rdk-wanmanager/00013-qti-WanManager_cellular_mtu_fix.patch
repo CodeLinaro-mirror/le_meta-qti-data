@@ -1,0 +1,66 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From ed1659388e4ec79bd6c515849fc6a54ffe379e91 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Fri, 31 Jul 2026 12:40:25 +0000
+Subject: [PATCH] MTU fix for cellular BH
+
+[Description] : MTU value were getting updated in the order sent by cellular, causing these values to be updated improperly
+
+[Fix Description]: Added implementation to retrieve v4 and v6 MTU values through sysevents and use the largest among the two for interface
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 33 +++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index 1f8cca2..b4f77ed 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -1286,6 +1286,39 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+         CcspTraceError(("%s %d - Failed to set up default system gateway", __FUNCTION__, __LINE__));
+         ret = RETURN_ERR;
+     }
++
++    if (WanManager_GetBCastFromIpSubnetMask(p_VirtIf->IP.Ipv4Data.ip, p_VirtIf->IP.Ipv4Data.mask, bCastStr) != RETURN_OK)
++    {
++        CcspTraceError((" %s %d - bad address %s/%s \n",__FUNCTION__,__LINE__, p_VirtIf->IP.Ipv4Data.ip, p_VirtIf->IP.Ipv4Data.mask));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    if ((strstr(pInterface->Name,"qmapmux")!=NULL))
++    {
++        char mtu_v6[32]={0};
++        int if_MTU_Val_V6 = -1;
++        int mtu_to_use = (int)(p_VirtIf->IP.Ipv4Data.mtuSize);
++        if(sysevent_get(sysevent_fd, sysevent_token, "cellular_wan_v6_mtu", mtu_v6, sizeof(mtu_v6)) != 0)
++        {
++            CcspTraceError(("%s %d Failed to get cellular_wan_v6_mtu from sysevent \n", __FUNCTION__, __LINE__));
++        }
++        if(mtu_v6[0] != '\0')
++        {
++            if_MTU_Val_V6 = atoi(mtu_v6);
++            if(if_MTU_Val_V6 > p_VirtIf->IP.Ipv4Data.mtuSize)
++            {
++                mtu_to_use = if_MTU_Val_V6;
++            }
++        }
++        snprintf(cmdStr, sizeof(cmdStr), "ifconfig %s %s netmask %s broadcast %s mtu %d",p_VirtIf->IP.Ipv4Data.ifname, p_VirtIf->IP.Ipv4Data.ip, p_VirtIf->IP.Ipv4Data.mask, bCastStr, mtu_to_use);
++    }
++    else
++    {
++        snprintf(cmdStr, sizeof(cmdStr), "ifconfig %s %s netmask %s broadcast %s mtu %u",p_VirtIf->IP.Ipv4Data.ifname, p_VirtIf->IP.Ipv4Data.ip, p_VirtIf->IP.Ipv4Data.mask, bCastStr, p_VirtIf->IP.Ipv4Data.mtuSize);
++    }
++    CcspTraceInfo(("%s %d -  IP configuration = %s \n", __FUNCTION__, __LINE__, cmdStr));
++    WanManager_DoSystemAction("setupIPv4:", cmdStr);
++
+     syscfg_get( NULL, "IPPT_Mode", tmpbuf, sizeof(tmpbuf));
+     mode = _ansc_atoi(tmpbuf);
+     syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
+--
+2.34.1
+
