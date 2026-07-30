@@ -1,13 +1,13 @@
 #!/bin/sh /etc/rc.common
 
-#Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 #SPDX-License-Identifier: BSD-3-Clause-Clear
 
 START=40
 STOP=50
 
 start() {
-	/etc/initscripts/start_r8152_modules start
+	/usr/bin/start_r8152_modules start
 }
 
 stop() {
