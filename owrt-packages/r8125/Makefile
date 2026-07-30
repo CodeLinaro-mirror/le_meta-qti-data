@@ -57,9 +57,9 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/r8125.ko $(1)/$(EMAC_ADDR)/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/r8125.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_DIR) $(1)/etc/initscripts/
+	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/r8125.init $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/start_r8125_modules  $(1)/etc/initscripts/
+	$(INSTALL_BIN) ./files/start_r8125_modules  $(1)/usr/bin/
 endef
 
 $(eval $(call KernelPackage,$(PKG_NAME)))

@@ -55,10 +55,10 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/r8152_rtl.ko $(1)/$(EMAC_ADDR)/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/r8152_rtl.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_DIR) $(1)/etc/initscripts/
+	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/etc/udev/rules.d/
 	$(INSTALL_BIN) ./files/r8152.init $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/start_r8152_modules  $(1)/etc/initscripts/
+	$(INSTALL_BIN) ./files/start_r8152_modules  $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/50-usb-realtek-net.rules $(1)/etc/udev/rules.d/
 endef
 

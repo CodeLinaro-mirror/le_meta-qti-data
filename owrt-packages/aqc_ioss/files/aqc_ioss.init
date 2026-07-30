@@ -1,13 +1,13 @@
 #!/bin/sh /etc/rc.common
 
-#Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 #SPDX-License-Identifier: BSD-3-Clause-Clear
 
 START=91
 STOP=97
 
 start() {
-	/etc/initscripts/start_aqc_ioss_modules start
+	/usr/bin/start_aqc_ioss_modules start
 
 	if [[ $(cat /sys/class/net/eth0/device/device) == "0x04c0" ]]; then
 		echo "eth0 brought up by  atlantic-fwd"
