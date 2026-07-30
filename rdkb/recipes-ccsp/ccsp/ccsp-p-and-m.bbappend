@@ -25,6 +25,7 @@ SRC_URI += " \
               file://00015-qti-ccsp-p-and-m_lan-restart-after-dhcp-pool-change.patch \
               file://00016-qti-ccsp-p-and-m_sip-dm-implementation.patch \
               file://00017-qti-ccsp-p-and-m_vpn-passthrough-read-syscfg-state.patch \
+              file://00018-qti-CcspPandM_address_reconf.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "

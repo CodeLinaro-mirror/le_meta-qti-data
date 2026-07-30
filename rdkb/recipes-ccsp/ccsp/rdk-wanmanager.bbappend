@@ -23,6 +23,7 @@ SRC_URI += " \
     file://00009-qti-WanManager-remove-ippt-ipa-ippass-calls.patch \
     file://00010-qti-Wanmanager-AddressReconf-brlan0-old-ipv6-not-deleting.patch \
     file://00011-qti-Wanmanager_handle_IPv6nei.patch \
+    file://00012-qti-WanManager_address_reconf.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
