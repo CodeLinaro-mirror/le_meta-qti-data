@@ -1,0 +1,166 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From aa4fa4b426ea3faf69e2c1f2fd23473ab72ee95c Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Wed, 29 Jul 2026 09:54:43 +0000
+Subject: [PATCH] TCP MSS clamp rule addition
+
+[Description]: Added TCP MSS clamping rule to support HW path for TCP packets
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/firewall/firewall_extn_qti.c | 116 ++++++++++++++++++++++++++++
+ source/firewall/firewall_extn_qti.h |  15 ++++
+ 2 files changed, 131 insertions(+)
+ create mode 100644 source/firewall/firewall_extn_qti.c
+ create mode 100644 source/firewall/firewall_extn_qti.h
+
+diff --git a/source/firewall/firewall_extn_qti.c b/source/firewall/firewall_extn_qti.c
+new file mode 100644
+index 0000000..8812b3d
+--- /dev/null
++++ b/source/firewall/firewall_extn_qti.c
+@@ -0,0 +1,116 @@
++/*
++*Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++*SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++#ifdef _PLATFORM_SDX_
++#include"firewall.h"
++
++#define SYSEVENT_IPV4_MTU_SIZE "ipv4_%s_mtu"
++#define IPV4_TOTAL_HEADER_SIZE 40
++#define IPV6_TOTAL_HEADER_SIZE 60
++#define IPV4_MSS_CLAMPING_MIN_VAL 536
++#define IPV6_MSS_CLAMPING_MIN_VAL 1220
++#define MIN_IPv4_MTU 68
++#define MIN_IPv6_MTU 1280
++#define SYSEVENT_WAN_STATUS "wan-status"
++
++/*
++ *  Procedure     :add_if_mss_clamping_HW_path
++ *  Purpose       :to add the ip rule for TCP MSS clamping
++ *  Parameters    :
++ *    mangle_fp      : An open file for mangle subtables
++ *    family         : mentioning if it is ipv4 or ipv6
++ */
++void add_if_mss_clamping_HW_path(FILE *mangle_fp,int family, char* lan_ifname)
++{
++   if (mangle_fp == NULL || lan_ifname == NULL || lan_ifname[0] == '\0') {
++       FIREWALL_DEBUG(" [%s:%d] Invalid arguments\n" COMMA __FUNCTION__ COMMA __LINE__);
++       return;
++   }
++   if (current_wan_ifname[0] == '\0') {
++       FIREWALL_DEBUG(" [%s:%d] current_wan_ifname is empty\n" COMMA __FUNCTION__ COMMA __LINE__);
++       return;
++   }
++   char  mtu_event_name[128], mtu_val[16],mtu6_val[16], buf[32] = {0};
++   memset(mtu_event_name,0,sizeof(mtu_event_name));
++   memset(mtu_val,0,sizeof(mtu_val));
++   memset(mtu6_val,0,sizeof(mtu6_val));
++   int iMtuVal=0 ,iMtu6Val=0,  mss_clamp_val = 0;
++
++   if (family == AF_INET)
++   {
++       snprintf(mtu_event_name,sizeof(mtu_event_name),SYSEVENT_IPV4_MTU_SIZE,current_wan_ifname);
++       if(sysevent_get(sysevent_fd, sysevent_token, mtu_event_name, mtu_val, sizeof(mtu_val))!=0)
++       {
++           FIREWALL_DEBUG(" [%s:%d] sysevent_get for %s failed\n" COMMA __FUNCTION__ COMMA __LINE__ COMMA mtu_event_name);
++           return;
++       }
++   }
++   else if (family == AF_INET6)
++   {
++       if(syscfg_get(NULL, "router_mtu", mtu6_val, sizeof(mtu6_val))!=0)
++       {
++           FIREWALL_DEBUG(" [%s:%d] syscfg_get for router_mtu failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++           return;
++       }
++   }
++   if(sysevent_get(sysevent_fd, sysevent_token, SYSEVENT_WAN_STATUS, buf, sizeof(buf))!=0)
++   {
++       FIREWALL_DEBUG(" [%s:%d] sysevent_get for SYSEVENT_WAN_STATUS failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++       return;
++   }
++
++   if (family == AF_INET && mtu_val[0] != '\0' && (0 == strcmp(buf, "started")))
++   {
++       char *endptr;
++       errno = 0;
++       iMtuVal = (int)strtol(mtu_val, &endptr, 10);
++       if (errno != 0 || endptr == mtu_val || *endptr != '\0') {
++           FIREWALL_DEBUG(" [%s:%d] Invalid MTU value string\n" COMMA __FUNCTION__ COMMA __LINE__);
++           return;
++       }
++       if (iMtuVal >= MIN_IPv4_MTU)
++       {
++           mss_clamp_val = iMtuVal - IPV4_TOTAL_HEADER_SIZE;
++       }
++       else
++       {
++           FIREWALL_DEBUG(" [%s:%d] MTU value received - %d is too low\n" COMMA __FUNCTION__ COMMA __LINE__ COMMA iMtuVal);
++           return;
++       }
++   }
++   else if (family == AF_INET6 && mtu6_val[0] != '\0' && (0 == strcmp(buf, "started")))
++   {
++       char *endptr;
++       errno = 0;
++       iMtu6Val = (int)strtol(mtu6_val, &endptr, 10);
++       if (errno != 0 || endptr == mtu6_val || *endptr != '\0') {
++           FIREWALL_DEBUG(" [%s:%d] Invalid MTU value string\n" COMMA __FUNCTION__ COMMA __LINE__);
++           return;
++       }
++       if (iMtu6Val >= MIN_IPv6_MTU)
++       {
++           mss_clamp_val = iMtu6Val - IPV6_TOTAL_HEADER_SIZE;
++       }
++       else
++       {
++           FIREWALL_DEBUG(" [%s:%d] MTU value received - %d is too low\n" COMMA __FUNCTION__ COMMA __LINE__ COMMA iMtu6Val);
++           return;
++       }
++   }
++   else
++   {
++       return;
++   }
++
++   if(((family == AF_INET6) && (mss_clamp_val < IPV6_MSS_CLAMPING_MIN_VAL))||((family == AF_INET) && (mss_clamp_val < IPV4_MSS_CLAMPING_MIN_VAL)))
++   {
++       FIREWALL_DEBUG(" [%s:%d] the MTU clamp value %d for %s is lower than expected threshold\n" COMMA __FUNCTION__ COMMA __LINE__ COMMA mss_clamp_val COMMA ((family == AF_INET6)? "IPv6" : "IPv4"));
++   }
++   fprintf(mangle_fp, "-A FORWARD -i %s -p tcp -o %s --tcp-flags SYN,RST SYN -j TCPMSS --set-mss %d\n", lan_ifname, current_wan_ifname, mss_clamp_val);
++   fprintf(mangle_fp, "-A FORWARD -i %s -p tcp -o %s --tcp-flags SYN,RST SYN -j TCPMSS --set-mss %d\n", current_wan_ifname, lan_ifname, mss_clamp_val);
++   return ;
++}
++
++#endif
+diff --git a/source/firewall/firewall_extn_qti.h b/source/firewall/firewall_extn_qti.h
+new file mode 100644
+index 0000000..901f4a6
+--- /dev/null
++++ b/source/firewall/firewall_extn_qti.h
+@@ -0,0 +1,15 @@
++/*
++*Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++*SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++
++#ifndef FIREWALL_EXTN_QTI_H
++#define FIREWALL_EXTN_QTI_H
++
++extern int      sysevent_fd;
++extern token_t  sysevent_token;
++extern char     current_wan_ifname[50];
++
++void add_if_mss_clamping_HW_path(FILE *mangle_fp,int family, char* lan_ifname);
++
++#endif
+-- 
+2.34.1
+
