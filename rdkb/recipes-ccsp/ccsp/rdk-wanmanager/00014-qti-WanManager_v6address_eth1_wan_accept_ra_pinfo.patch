@@ -1,0 +1,39 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e97949887d0b9b381336dac72210851ed02f47a9 Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Thu, 30 Jul 2026 17:41:50 +0530
+Subject: [PATCH] Set accept_ra_pinfo to 1 for eth1 ipv6 address
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+Index: git/source/WanManager/wanmgr_interface_sm.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_interface_sm.c
++++ git/source/WanManager/wanmgr_interface_sm.c
+@@ -2295,6 +2295,18 @@ static eWanState_t wan_transition_wan_va
+                   sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_FIREWALL_RESTART, NULL, 0);
+                   wanmgr_sshd_restart();
+              }
++             char wan_physical_ifname[BUFLEN_256] = {0};
++             syscfg_get(NULL, "wan_physical_ifname", wan_physical_ifname, sizeof(wan_physical_ifname));
++             if (wan_physical_ifname[0] != '\0' &&
++                               strcmp(p_VirtIf->Name, wan_physical_ifname) == 0)
++             {
++                 ret = v_secure_system("sysctl -w net.ipv6.conf.%s.accept_ra_pinfo=1", p_VirtIf->Name);
++                 if (ret != 0)
++                 {
++                     CcspTraceWarning(("%s: Failed to set accept_ra_pinfo for [%s], ret:[%d]\n",
++                                                                   __FUNCTION__, p_VirtIf->Name, ret));
++                 }
++             }
+         }
+     }
+ #if defined(_DT_WAN_Manager_Enable_)
