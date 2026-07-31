@@ -113,6 +113,20 @@ unload_ecm_sdx_pcc() {
 
 }
 
+load_ecm_ae_select() {
+
+	[ -e "/lib/modules/ecm_ae_select.ko" ] && {
+		[ -d /sys/module/ecm_ae_select ] || insmod /lib/modules/ecm_ae_select.ko
+	}
+
+}
+
+unload_ecm_ae_select() {
+
+	[ -d /sys/module/ecm_ae_select ] && rmmod ecm_ae_select
+
+}
+
 pre_start() {
 	#Pre-Start Commands
 
@@ -188,6 +202,9 @@ start() {
 	#Load ECM
 	load_ecm
 
+	#Load ECM AE Select
+	load_ecm_ae_select
+
 	#Post-Start commands
 	post_start
 
@@ -201,6 +218,9 @@ pre_stop() {
 
 	#Unload ECM_SDX_PCC
 	unload_ecm_sdx_pcc
+
+	#Unload ECM_AE_SELECT
+	unload_ecm_ae_select
 
 	echo "pre_stop"
 
