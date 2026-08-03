@@ -32,7 +32,7 @@ RDEPENDS:packagegroup-qti-data = ' \
     qca-nss-ecm \
     '
 RDEPENDS:packagegroup-qti-data:append:echo = "data-devicetree qca-nss-sfe"
-RDEPENDS:packagegroup-qti-data:remove:echo = "datarmnet-ext aquantia tcpdump iproute2 dnsmasq bridge-utils data-ipa-cfg-mgr"
+RDEPENDS:packagegroup-qti-data:remove:echo = "aquantia tcpdump iproute2 dnsmasq bridge-utils data-ipa-cfg-mgr"
 # sa535m enables ECM, so data-ipa-cfg-mgr is not required
 RDEPENDS:packagegroup-qti-data:remove:sa535m = "data-ipa-cfg-mgr"
 RDEPENDS:packagegroup-qti-data:append:sa535m = " data-devicetree"
