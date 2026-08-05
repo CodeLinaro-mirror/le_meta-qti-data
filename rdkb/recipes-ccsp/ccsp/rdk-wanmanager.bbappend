@@ -30,6 +30,7 @@ SRC_URI += " \
     file://00016-qti-Wanmanager-eth1-auto-bringup-on-bind.patch \
     file://00017-qti-Wanmanager-RTSP-module-check.patch \
     file://00015-qti-packet-stats-changes-for-wan-manager.patch \
+    file://00019-qti-WanManager-IPPT-Default-Route-Fix.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
