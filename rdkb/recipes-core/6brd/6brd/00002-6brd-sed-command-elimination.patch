@@ -1,0 +1,29 @@
+From f068a016d519be030fbd33fddae9dc4ef6212bee Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Thu, 6 Aug 2026 08:27:42 +0000
+Subject: [PATCH] sed command elimination
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+---
+ Makefile | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index b14cf50..14bba34 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,7 @@
+-INCS = -I/usr/include/libnl3
+-LIBS = -lnl-3
++INCS = -I${STAGING_INCDIR}/libnl3
++LIBS = ${RECIPE_SYSROOT}/usr/lib/libnl-3.so ${RECIPE_SYSROOT}/usr/lib/libglib-2.0.so
+ CPPFLAGS = -D_GNU_SOURCE ${INCS}
+-CFLAGS = -pipe -g -Wall -Wextra -O2
++CFLAGS = -pipe -g -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Dstrlcpy=g_strlcpy -O2
+ 
+ 6brd: netlink.o ndp.o 6brd.o nloop.o ${LIBS}
+ 
+-- 
+2.34.1
+

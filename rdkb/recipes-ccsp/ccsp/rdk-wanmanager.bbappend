@@ -26,6 +26,7 @@ SRC_URI += " \
     file://00012-qti-WanManager_address_reconf.patch \
     file://00013-qti-WanManager_cellular_mtu_fix.patch \
     file://00014-qti-WanManager_v6address_eth1_wan_accept_ra_pinfo.patch \
+    file://00015-qti-Wanmanager-kill-6brd.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
