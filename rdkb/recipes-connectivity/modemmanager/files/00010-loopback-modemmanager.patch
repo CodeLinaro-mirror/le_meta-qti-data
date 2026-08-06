@@ -1,23 +1,36 @@
 From: Alekhya Tumma <talekhya@qti.qualcomm.com>
 Date: Thu, 29 May 2025 00:00:00 +0000
-Subject: [PATCH] ModemManager: add loopback bearer support for pinn_rdkb_au366
+Subject: [PATCH] ModemManager: add loopback bearer support (SIM-inserted and no-SIM)
 
-Add loopback bearer support across three ModemManager source files.
+Add loopback bearer support and no-SIM loopback capability across five
+ModemManager source files.
+
 A loopback bearer is identified by APN="loopback" and uses a
 modem-internal data path that does not require 3GPP network registration.
+With the allow-no-sim change added to this patch, loopback also works
+without an inserted SIM card.
 
 Changes by file:
 
 src/mm-iface-modem-simple.c (Phase 2 - connect):
   - Bypass 3GPP/CDMA registration step in connection_step() when
-    APN is "loopback".  Skip directly to CONNECTION_STEP_BEARER so
+    APN is "loopback". Skip directly to CONNECTION_STEP_BEARER so
     the connect flow proceeds without waiting for network registration.
 
 src/mm-base-bearer.c (Phase 1 - registration guard):
   - In modem_3gpp_registration_state_changed(), skip registration
-    enforcement for loopback bearers.  Cancel any pending deferred
+    enforcement for loopback bearers. Cancel any pending deferred
     unregistration timer and return immediately so the loopback bearer
     stays connected regardless of 3GPP registration state.
+  - APN getter fix: use mm_base_bearer_peek_config(self) to obtain the
+    properties handle before calling mm_bearer_properties_get_apn();
+    self is MMBaseBearer*, not MMBearerProperties*. Without this fix,
+    the assertion 'MM_IS_BEARER_PROPERTIES (self)' fails and the
+    loopback hook is skipped. In the SIM-inserted case the bearer
+    survives via the reason_3gpp==NONE fallback path, but in the
+    no-SIM case there is no such fallback and the bearer is
+    force-disconnected right after creation. This fix is critical
+    for the no-SIM loopback path.
 
 src/mm-bearer-qmi.c (Phases 3/4 - QMI bearer):
   - Phase 3 (connect): Detect loopback bearer by APN name and set
@@ -26,16 +39,147 @@ src/mm-bearer-qmi.c (Phases 3/4 - QMI bearer):
     triggered by the deferred 3GPP unregistration timer while a
     loopback call is active.
 
-All changes are guarded by APN/loopback_mode checks so that normal
-(non-loopback) bearers are completely unaffected.
+src/mm-iface-modem.c (allow-no-sim - SIM check bypass):
+  - In internal_load_unlock_required_ready(), unconditionally pass
+    MM_MOBILE_EQUIPMENT_ERROR_SIM_NOT_INSERTED for 3GPP-capable modems.
+    Instead of setting saved_error and driving the modem into FAILED,
+    clear the error, set the lock to MM_MODEM_LOCK_NONE, log an info
+    line "allow-no-sim: SIM not inserted, continuing to DISABLED",
+    and let initialization continue. The modem reaches DISABLED even
+    without a SIM inserted, so subsequent Enable / Simple.Connect can
+    proceed and hit the loopback hooks (Phase 2/3) as usual.
+    SIM_FAILURE and SIM_WRONG remain fatal so real hardware faults
+    stay visible.
+  - If SIM slot loading already proved that all slots are empty, skip
+    the fallback create_sim() step during INITIALIZATION_STEP_SIM so
+    no placeholder primary SIM object is exported in the no-SIM case.
+
+src/mm-iface-modem-3gpp.c (no-SIM defensive guard):
+  - Do not connect SIM PIN-lock signal handlers when no SIM object is
+    present. This keeps no-SIM initialization valid after skipping the
+    placeholder SIM object.
+
+All changes are guarded by APN/loopback_mode/error/SIM-slot checks so
+that non-loopback bearers and SIM-inserted operation are unaffected.
 
 Signed-off-by: Alekhya Tumma <talekhya@qti.qualcomm.com>
+Signed-off-by: Jian Chen <jianche@qti.qualcomm.com>
 ---
- src/mm-base-bearer.c        |  10 +++
- src/mm-bearer-qmi.c         |  33 ++++++++++++++++++++++++++++++++++++
- src/mm-iface-modem-simple.c |  22 +++++++++
- 3 files changed, 65 insertions(+)
+ src/mm-base-bearer.c        | 10 +++++++
+ src/mm-bearer-qmi.c         | 32 ++++++++++++++++++++++
+ src/mm-iface-modem-3gpp.c   | 12 +++++----
+ src/mm-iface-modem-simple.c | 22 +++++++++++++++
+ src/mm-iface-modem.c        | 65 ++++++++++++++++++++++++++++++++++-----------
+ 5 files changed, 120 insertions(+), 21 deletions(-)
 
+diff --git a/src/mm-base-bearer.c b/src/mm-base-bearer.c
+index 64a19a97..f0759b71 100644
+--- a/src/mm-base-bearer.c
++++ b/src/mm-base-bearer.c
+@@ -687,6 +687,16 @@ modem_3gpp_registration_state_changed (MMIfaceModem3gpp *modem,
+         g_assert_not_reached ();
+     }
+ 
++    /* [LOOPBACK HOOK] Skip registration enforcement for loopback bearers.
++     * Loopback data calls are modem-internal and do not require network
++     * registration. Allow connect/stay-connected regardless of reg state. */
++    const gchar *apn;
++    apn = mm_bearer_properties_get_apn (mm_base_bearer_peek_config (self));
++    if (g_strcmp0 (apn, "loopback") == 0) {
++        reset_deferred_unregistration (self);
++        return;
++    }
++
+     /* If no reason to disconnect, or if it's a mixed CDMA+LTE modem without a CDMA reason,
+      * just don't do anything. */
+     if (self->priv->reason_3gpp == CONNECTION_FORBIDDEN_REASON_NONE ||
+diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
+index 1a22888c..779656ef 100644
+--- a/src/mm-bearer-qmi.c
++++ b/src/mm-bearer-qmi.c
+@@ -68,6 +68,11 @@ struct _MMBearerQmiPrivate {
+     guint32 packet_data_handle_ipv6;
+ 
+     GList *pco_list;
++
++
++    /* [LOOPBACK HOOK] Loopback mode flag (Phase 3 of loopback call flow).
++     * loopback_mode : set TRUE in _connect() when bearer APN == "loopback". */
++    gboolean loopback_mode;
+ };
+ 
+ /*****************************************************************************/
+@@ -539,6 +544,8 @@ typedef struct {
+     GError           *error_ipv6;
+     guint             extended_ipv4_config_change_id;
+     guint             extended_ipv6_config_change_id;
++    /* [LOOPBACK HOOK] TRUE when bearer APN == "loopback" */
++    gboolean          loopback_mode;
+ } ConnectContext;
+ 
+ /* When using the WDS service, we may not only want to have explicit different
+@@ -2593,6 +2600,15 @@ _connect (MMBaseBearer        *_self,
+                            g_object_ref (operation_cancellable),
+                            g_object_unref);
+ 
++    /* [LOOPBACK HOOK - Phase 3] Detect loopback bearer by APN name.
++     * When APN == "loopback", set loopback_mode on both the context and the
++     * bearer private data. */
++    if (g_strcmp0 (ctx->apn, "loopback") == 0) {
++        ctx->loopback_mode        = TRUE;
++        self->priv->loopback_mode = TRUE;
++        mm_obj_info (self, "loopback bearer: loopback mode detected (APN='loopback')");
++    }
++
+     /* Run! */
+     mm_obj_dbg (self, "launching connection with QMI port (%s) and data port (%s) (multiplex %s)",
+                 mm_port_get_device (MM_PORT (ctx->qmi)),
+@@ -2914,6 +2930,22 @@ report_connection_status (MMBaseBearer             *_self,
+ {
+     MMBearerQmi *self = MM_BEARER_QMI (_self);
+ 
++    /* [LOOPBACK HOOK - Phase 4]
++     * Suppress forced disconnection triggered by the deferred 3GPP
++     * unregistration timer (mm-base-bearer.c:deferred_3gpp_unregistration_cb)
++     * while a loopback call is intentionally active.
++     *
++     * The loopback data path is modem-internal and does NOT depend on
++     * network registration state.  Returning early here preserves the
++     * loopback bearer connection when the modem loses 3GPP registration. */
++    if (self->priv->loopback_mode &&
++        status == MM_BEARER_CONNECTION_STATUS_DISCONNECTED) {
++        mm_obj_dbg (_self,
++                    "loopback bearer: suppressing forced disconnect "
++                    "(loopback active, 3GPP registration state irrelevant)");
++        return;
++    }
++
+     if (status == MM_BEARER_CONNECTION_STATUS_DISCONNECTED) {
+         /* Cancel any ongoing connection attempt */
+         g_cancellable_cancel (self->priv->ongoing_connect_network_cancellable);
+diff --git a/src/mm-iface-modem-3gpp.c b/src/mm-iface-modem-3gpp.c
+index 57665a5e..618a6b37 100644
+--- a/src/mm-iface-modem-3gpp.c
++++ b/src/mm-iface-modem-3gpp.c
+@@ -3110,11 +3110,13 @@ load_enabled_facility_locks_ready (MMIfaceModem3gpp *self,
+         g_object_get (self,
+                       MM_IFACE_MODEM_SIM, &sim,
+                       NULL);
+-        g_signal_connect (sim,
+-                          MM_BASE_SIM_PIN_LOCK_ENABLED,
+-                          G_CALLBACK (sim_pin_lock_enabled_cb),
+-                          ctx->skeleton);
+-        g_object_unref (sim);
++        if (sim) {
++            g_signal_connect (sim,
++                              MM_BASE_SIM_PIN_LOCK_ENABLED,
++                              G_CALLBACK (sim_pin_lock_enabled_cb),
++                              ctx->skeleton);
++            g_object_unref (sim);
++        }
+     }
+ 
+     /* Go on to next step */
 diff --git a/src/mm-iface-modem-simple.c b/src/mm-iface-modem-simple.c
 index d4490f23..b097ade4 100644
 --- a/src/mm-iface-modem-simple.c
@@ -69,89 +213,97 @@ index d4490f23..b097ade4 100644
          if (mm_iface_modem_is_3gpp (MM_IFACE_MODEM (ctx->self)) ||
              mm_iface_modem_is_cdma (MM_IFACE_MODEM (ctx->self))) {
              /* 3GPP or CDMA registration */
-diff --git a/src/mm-base-bearer.c b/src/mm-base-bearer.c
-index 64a19a97..893286cb 100644
---- a/src/mm-base-bearer.c
-+++ b/src/mm-base-bearer.c
-@@ -687,6 +687,16 @@ modem_3gpp_registration_state_changed (MMIfaceModem3gpp *modem,
-         g_assert_not_reached ();
-     }
-
-+    /* [LOOPBACK HOOK] Skip registration enforcement for loopback bearers.
-+     * Loopback data calls are modem-internal and do not require network
-+     * registration. Allow connect/stay-connected regardless of reg state. */
-+    const gchar *apn;
-+    apn = mm_bearer_properties_get_apn (self);
-+    if (g_strcmp0 (apn, "loopback") == 0) {
-+        reset_deferred_unregistration (self);
-+        return;
+diff --git a/src/mm-iface-modem.c b/src/mm-iface-modem.c
+index 911c139d..ca83af55 100644
+--- a/src/mm-iface-modem.c
++++ b/src/mm-iface-modem.c
+@@ -3749,10 +3749,18 @@ internal_load_unlock_required_ready (MMIfaceModem *self,
+             return;
+         }
+ 
++        /* [ALLOW-NO-SIM] Unconditionally pass SIM_NOT_INSERTED for 3GPP-capable
++         * modems so the modem reaches DISABLED (instead of FAILED) even without
++         * a SIM inserted. Loopback bearer creation is decided later by the
++         * Simple.Connect / mm-bearer-qmi.c hooks based on APN. SIM_FAILURE /
++         * SIM_WRONG remain fatal so real hardware faults stay visible. */
+         if (g_error_matches (error,
+                              MM_MOBILE_EQUIPMENT_ERROR,
+-                             MM_MOBILE_EQUIPMENT_ERROR_SIM_NOT_INSERTED) ||
+-            g_error_matches (error,
++                             MM_MOBILE_EQUIPMENT_ERROR_SIM_NOT_INSERTED)) {
++            mm_obj_info (self, "allow-no-sim: SIM not inserted, continuing to DISABLED");
++            g_error_free (error);
++            ctx->lock = MM_MODEM_LOCK_NONE;
++        } else if (g_error_matches (error,
+                              MM_MOBILE_EQUIPMENT_ERROR,
+                              MM_MOBILE_EQUIPMENT_ERROR_SIM_FAILURE) ||
+             g_error_matches (error,
+@@ -5165,6 +5173,27 @@ load_sim_slots_ready (MMIfaceModem *self,
+     interface_initialization_step (task);
+ }
+ 
++static gboolean
++sim_slots_loaded_without_cards (MMIfaceModem *self)
++{
++    g_autoptr(GPtrArray) sim_slots = NULL;
++    guint                i;
++
++    g_object_get (self,
++                  MM_IFACE_MODEM_SIM_SLOTS, &sim_slots,
++                  NULL);
++
++    if (!sim_slots || !sim_slots->len)
++        return FALSE;
++
++    for (i = 0; i < sim_slots->len; i++) {
++        if (g_ptr_array_index (sim_slots, i))
++            return FALSE;
 +    }
 +
-     /* If no reason to disconnect, or if it's a mixed CDMA+LTE modem without a CDMA reason,
-      * just don't do anything. */
-     if (self->priv->reason_3gpp == CONNECTION_FORBIDDEN_REASON_NONE ||
-diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
---- a/src/mm-bearer-qmi.c
-+++ b/src/mm-bearer-qmi.c
-@@ -68,6 +68,11 @@
-     guint32 packet_data_handle_ipv6;
-
-     GList *pco_list;
++    return TRUE;
++}
 +
-+
-+    /* [LOOPBACK HOOK] Loopback mode flag (Phase 3 of loopback call flow).
-+     * loopback_mode : set TRUE in _connect() when bearer APN == "loopback". */
-+    gboolean loopback_mode;
- };
-
- /*****************************************************************************/
-@@ -539,6 +544,8 @@
-     GError           *error_ipv6;
-     guint             extended_ipv4_config_change_id;
-     guint             extended_ipv6_config_change_id;
-+    /* [LOOPBACK HOOK] TRUE when bearer APN == "loopback" */
-+    gboolean          loopback_mode;
- } ConnectContext;
-
- /* When using the WDS service, we may not only want to have explicit different
-@@ -2593,6 +2600,15 @@
-                            g_object_ref (operation_cancellable),
-                            g_object_unref);
-
-+    /* [LOOPBACK HOOK - Phase 3] Detect loopback bearer by APN name.
-+     * When APN == "loopback", set loopback_mode on both the context and the
-+     * bearer private data. */
-+    if (g_strcmp0 (ctx->apn, "loopback") == 0) {
-+        ctx->loopback_mode        = TRUE;
-+        self->priv->loopback_mode = TRUE;
-+        mm_obj_info (self, "loopback bearer: loopback mode detected (APN='loopback')");
-+    }
-+
-     /* Run! */
-     mm_obj_dbg (self, "launching connection with QMI port (%s) and data port (%s) (multiplex %s)",
-                 mm_port_get_device (MM_PORT (ctx->qmi)),
-@@ -2914,6 +2930,22 @@
- {
-     MMBearerQmi *self = MM_BEARER_QMI (_self);
-
-+    /* [LOOPBACK HOOK - Phase 4]
-+     * Suppress forced disconnection triggered by the deferred 3GPP
-+     * unregistration timer (mm-base-bearer.c:deferred_3gpp_unregistration_cb)
-+     * while a loopback call is intentionally active.
-+     *
-+     * The loopback data path is modem-internal and does NOT depend on
-+     * network registration state.  Returning early here preserves the
-+     * loopback bearer connection when the modem loses 3GPP registration. */
-+    if (self->priv->loopback_mode &&
-+        status == MM_BEARER_CONNECTION_STATUS_DISCONNECTED) {
-+        mm_obj_dbg (_self,
-+                    "loopback bearer: suppressing forced disconnect "
-+                    "(loopback active, 3GPP registration state irrelevant)");
-+        return;
-+    }
-+
-     if (status == MM_BEARER_CONNECTION_STATUS_DISCONNECTED) {
-         /* Cancel any ongoing connection attempt */
-         g_cancellable_cancel (self->priv->ongoing_connect_network_cancellable);
---
-2.17.1
+ static void
+ modem_update_lock_info_ready (MMIfaceModem *self,
+                               GAsyncResult *res,
+@@ -5884,22 +5913,26 @@ interface_initialization_step (GTask *task)
+                           MM_IFACE_MODEM_SIM, &sim,
+                           NULL);
+             if (!sim) {
+-                MM_IFACE_MODEM_GET_INTERFACE (self)->create_sim (
+-                    MM_IFACE_MODEM (self),
+-                    (GAsyncReadyCallback)sim_new_ready,
+-                    task);
++                if (sim_slots_loaded_without_cards (self))
++                    mm_obj_info (self, "not creating SIM object: no SIM in loaded slots");
++                else {
++                    MM_IFACE_MODEM_GET_INTERFACE (self)->create_sim (
++                        MM_IFACE_MODEM (self),
++                        (GAsyncReadyCallback)sim_new_ready,
++                        task);
++                    return;
++                }
++            } else {
++                /* If already available the sim object, relaunch initialization.
++                 * This will try to load any missing property value that couldn't be
++                 * retrieved before due to having the SIM locked. */
++                mm_base_sim_initialize (sim,
++                                        g_task_get_cancellable (task),
++                                        (GAsyncReadyCallback)sim_reinit_ready,
++                                        task);
++                g_object_unref (sim);
+                 return;
+             }
+-
+-            /* If already available the sim object, relaunch initialization.
+-             * This will try to load any missing property value that couldn't be
+-             * retrieved before due to having the SIM locked. */
+-            mm_base_sim_initialize (sim,
+-                                    g_task_get_cancellable (task),
+-                                    (GAsyncReadyCallback)sim_reinit_ready,
+-                                    task);
+-            g_object_unref (sim);
+-            return;
+         }
+         ctx->step++;
+         /* fall-through */
