@@ -64,5 +64,5 @@ start_service() {
 
 stop_service() {
 	echo "Stopping ipacm Instance"
-	service_stop /usr/bin/ipacm && rm $IPACM_PID_FILE
+	service_stop /usr/bin/ipacm
 }
