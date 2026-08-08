@@ -1,0 +1,248 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 5ddb52db729b24b9645bb43b2348b9a7dfd6d712 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Tue, 18 Aug 2026 16:17:41 +0000
+Subject: [PATCH] Automatically bring up eth1 and add it to brlan0 bridge after
+ driver unbind/bind
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/WanManager/Makefile.am                 |   2 +-
+ source/WanManager/eth_lan_interface.h         |  10 ++
+ .../WanManager/eth_lan_interface_qti_extn.c   | 168 ++++++++++++++++++
+ source/WanManager/wanmgr_network_monitor.c    |   4 +-
+ 4 files changed, 182 insertions(+), 2 deletions(-)
+ create mode 100644 source/WanManager/eth_lan_interface.h
+ create mode 100644 source/WanManager/eth_lan_interface_qti_extn.c
+
+Index: git/source/WanManager/Makefile.am
+===================================================================
+--- git.orig/source/WanManager/Makefile.am
++++ git/source/WanManager/Makefile.am
+@@ -31,7 +31,7 @@ wanmanager_CPPFLAGS = -I$(top_srcdir)/so
+ wanmanager_CFLAGS = -DFEATURE_SUPPORT_RDKLOG $(SYSTEMD_CFLAGS)
+ wanmanager_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+ 
+-wanmanager_SOURCES = wanmgr_webconfig_apis.c wanmgr_webconfig.c wanmgr_main.c  wanmgr_ssp_action.c wanmgr_ssp_messagebus_interface.c wanmgr_core.c wanmgr_controller.c wanmgr_data.c wanmgr_sysevents.c wanmgr_interface_sm.c wanmgr_utils.c wanmgr_net_utils.c wanmgr_dhcpv4_apis.c wanmgr_dhcpv6_apis.c wanmgr_ipc.c wanmgr_dhcpv4_internal.c wanmgr_dhcpv6_internal.c wanmgr_policy_auto_impl.c dm_pack_datamodel.c wanmgr_wan_failover.c wanmgr_policy_parallel_scan_impl.c wanmgr_dhcp_legacy_apis.c wanmgr_interface_apis.c wanmgr_telemetry.c wanmgr_t2_telemetry.c wanmgr_network_monitor.c wanmgr_mape.c usb_tether_interface.c wanmgr_network_monitor_extn_qti.c
++wanmanager_SOURCES = wanmgr_webconfig_apis.c wanmgr_webconfig.c wanmgr_main.c  wanmgr_ssp_action.c wanmgr_ssp_messagebus_interface.c wanmgr_core.c wanmgr_controller.c wanmgr_data.c wanmgr_sysevents.c wanmgr_interface_sm.c wanmgr_utils.c wanmgr_net_utils.c wanmgr_dhcpv4_apis.c wanmgr_dhcpv6_apis.c wanmgr_ipc.c wanmgr_dhcpv4_internal.c wanmgr_dhcpv6_internal.c wanmgr_policy_auto_impl.c dm_pack_datamodel.c wanmgr_wan_failover.c wanmgr_policy_parallel_scan_impl.c wanmgr_dhcp_legacy_apis.c wanmgr_interface_apis.c wanmgr_telemetry.c wanmgr_t2_telemetry.c wanmgr_network_monitor.c wanmgr_mape.c usb_tether_interface.c wanmgr_network_monitor_extn_qti.c eth_lan_interface_qti_extn.c
+ wanmanager_LDADD = $(wanmanager_DEPENDENCIES) -lccsp_common -lrdkloggers $(SYSTEMD_LDFLAGS) -lhal_platform -lapi_dhcpv4c -lnanomsg -lwebconfig_framework -lmsgpackc  -lprivilege -lrbus -lsecure_wrapper
+ 
+ 
+Index: git/source/WanManager/eth_lan_interface.h
+===================================================================
+--- /dev/null
++++ git/source/WanManager/eth_lan_interface.h
+@@ -0,0 +1,10 @@
++/*Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++*SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++#ifndef _ETH_LAN_INTERFACE_H_
++#define _ETH_LAN_INTERFACE_H_
++#include <linux/netlink.h>
++#include <linux/rtnetlink.h>
++void bringup_ethernet_interface(struct nlmsghdr *nlh);
++void teardown_ethernet_interface(struct nlmsghdr *nlh);
++#endif
+Index: git/source/WanManager/eth_lan_interface_qti_extn.c
+===================================================================
+--- /dev/null
++++ git/source/WanManager/eth_lan_interface_qti_extn.c
+@@ -0,0 +1,168 @@
++/*Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++*SPDX-License-Identifier: BSD-3-Clause-Clear
++*/
++#include <string.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <errno.h>
++#include <unistd.h>
++#include <linux/netlink.h>
++#include <linux/rtnetlink.h>
++#include <net/if.h>
++#include "eth_lan_interface.h"
++#include "secure_wrapper.h"
++#include "ccsp_trace.h"
++#include "syscfg/syscfg.h"
++#include "ansc_platform.h"
++
++// get_ifname_from_nlmsg - parse interface name from RTM_NEWLINK/RTM_DELLINK message
++static void get_ifname_from_nlmsg(struct nlmsghdr *nlh, char *ifname, int len)
++{
++    if (nlh == NULL || ifname == NULL || len <= 0) {
++        CcspTraceError(("%s: Invalid params\n", __FUNCTION__));
++        return;
++    }
++
++    struct ifinfomsg *ifi = NLMSG_DATA(nlh);
++    struct rtattr    *rta = IFLA_RTA(ifi);
++    int            rta_len = IFLA_PAYLOAD(nlh);
++
++    for (; RTA_OK(rta, rta_len); rta = RTA_NEXT(rta, rta_len)) {
++        if (rta->rta_type == IFLA_IFNAME) {
++            strlcpy(ifname, (char *)RTA_DATA(rta), len);
++            return;
++        }
++    }
++    CcspTraceError(("%s: IFLA_IFNAME not found in netlink message\n", __FUNCTION__));
++}
++
++// is_iface_running - check IFF_RUNNING flag from netlink message
++static ANSC_STATUS is_iface_running(struct nlmsghdr *nlh)
++{
++    if (nlh == NULL) {
++        CcspTraceError(("%s: nlh is NULL\n", __FUNCTION__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    struct ifinfomsg *ifi = NLMSG_DATA(nlh);
++    return (ifi->ifi_flags & IFF_RUNNING) ? ANSC_STATUS_SUCCESS : ANSC_STATUS_FAILURE;
++}
++
++// is_enslaved - check if iface is already a member of bridge
++static ANSC_STATUS is_enslaved(const char *iface, const char *bridge)
++{
++      char path[128] = {0};
++
++      if (iface == NULL || bridge == NULL) {
++          CcspTraceError(("%s: Invalid params - iface or bridge is NULL\n",
++                          __FUNCTION__));
++          return ANSC_STATUS_FAILURE;
++      }
++
++      snprintf(path, sizeof(path),
++               "/sys/class/net/%s/brif/%s", bridge, iface);
++      return (access(path, F_OK) == 0) ? ANSC_STATUS_SUCCESS : ANSC_STATUS_FAILURE;
++}
++
++// get_lan_ifname - parse netlink message and validate as LAN ethernet interface
++static ANSC_STATUS get_lan_ifname(struct nlmsghdr *nlh, char *ifname, int len)
++{
++    if (nlh == NULL || ifname == NULL || len <= 0) {
++        CcspTraceError(("%s: Invalid params\n", __FUNCTION__));
++        return ANSC_STATUS_FAILURE;
++    }
++    char lan_iface[IFNAMSIZ] = {0};
++    char wan_iface[IFNAMSIZ] = {0};
++
++    // Parse interface name from netlink message
++    get_ifname_from_nlmsg(nlh, ifname, len);
++    if (ifname[0] == '\0') {
++        CcspTraceError(("%s: Could not parse ifname\n", __FUNCTION__));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    // Read LAN and WAN interface names from syscfg
++    syscfg_get(NULL, "lan_ethernet_physical_ifnames", lan_iface, sizeof(lan_iface));
++    syscfg_get(NULL, "wan_physical_ifname", wan_iface, sizeof(wan_iface));
++
++    if (lan_iface[0] == '\0')
++       return ANSC_STATUS_FAILURE;
++
++    if (strstr(lan_iface, ifname) == NULL)
++       return ANSC_STATUS_FAILURE;
++
++    if (wan_iface[0] != '\0' && strcmp(wan_iface, ifname) == 0)
++       return ANSC_STATUS_FAILURE;
++
++    return ANSC_STATUS_SUCCESS;
++}
++void bringup_ethernet_interface(struct nlmsghdr *nlh)
++{
++    char ifname[IFNAMSIZ]     = {0};
++    char lan_bridge[IFNAMSIZ] = {0};
++    int  ret                  = 0;
++
++    if (nlh == NULL) {
++         CcspTraceError(("%s: nlh is NULL\n", __FUNCTION__));
++         return;
++    }
++    if (get_lan_ifname(nlh, ifname, sizeof(ifname)) != ANSC_STATUS_SUCCESS)
++        return;
++
++    syscfg_get(NULL, "lan_ifname", lan_bridge, sizeof(lan_bridge));
++    if (lan_bridge[0] == '\0') {
++        CcspTraceError(("%s: lan_ifname not set in syscfg, aborting\n", __FUNCTION__));
++        return;
++    }
++
++    if (is_iface_running(nlh) != ANSC_STATUS_SUCCESS) {
++        CcspTraceInfo(("%s: %s not running, bringing up\n", __FUNCTION__, ifname));
++        v_secure_system("ip link set %s up", ifname);
++        return;
++    }
++
++    CcspTraceInfo(("%s: RTM_NEWLINK received for %s, IFF_RUNNING set\n",
++                   __FUNCTION__, ifname));
++
++    ret = v_secure_system("ifconfig %s 169.254.1.10", ifname);
++    if (ret != 0) {
++        CcspTraceError(("%s: ifconfig IP failed: %d\n", __FUNCTION__, ret));
++        return;
++    }
++
++   if (is_enslaved(ifname, lan_bridge) == ANSC_STATUS_SUCCESS) {
++        CcspTraceInfo(("%s: %s already in bridge %s\n",
++                       __FUNCTION__, ifname, lan_bridge));
++        return;
++    }
++
++    ret = v_secure_system("ip link set %s allmulticast on", ifname);
++    if (ret != 0) {
++        CcspTraceError(("%s: allmulticast failed: %d\n", __FUNCTION__, ret));
++        return;
++    }
++
++    ret = v_secure_system("brctl addif %s %s", lan_bridge, ifname);
++    if (ret != 0) {
++        CcspTraceError(("%s: brctl addif failed: %d\n", __FUNCTION__, ret));
++        return;
++    }
++
++    CcspTraceInfo(("%s: Successfully added %s to %s\n",
++                   __FUNCTION__, ifname, lan_bridge));
++}
++
++void teardown_ethernet_interface(struct nlmsghdr *nlh)
++{
++    char ifname[IFNAMSIZ] = {0};
++
++    if (nlh == NULL) {
++         CcspTraceError(("%s: nlh is NULL\n", __FUNCTION__));
++         return;
++     }
++    if (get_lan_ifname(nlh, ifname, sizeof(ifname)) != ANSC_STATUS_SUCCESS)
++        return;
++
++    CcspTraceInfo(("%s: RTM_DELLINK received for %s - interface unregistered\n",
++                   __FUNCTION__, ifname));
++}
+Index: git/source/WanManager/wanmgr_network_monitor.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_network_monitor.c
++++ git/source/WanManager/wanmgr_network_monitor.c
+@@ -33,7 +33,7 @@
+ #include "wanmgr_dhcpv6_apis.h"
+ #include "usb_tether_interface.h"
+ #include "wanmgr_network_monitor_extn_qti.h"
+-
++#include "eth_lan_interface.h"
+ /* ---- Global Variables ------------------------------------ */
+ int sysevent_nwm_fd = -1;
+ token_t sysevent_token;
+@@ -459,11 +459,13 @@ static void NetMonitor_ProcessNetlinkRou
+             case RTM_NEWLINK:
+                  {
+                      bringup_usb_tether_interface();
++                     bringup_ethernet_interface(nl_msgHdr);
+                  }
+                 break;
+             case RTM_DELLINK:
+                  {
+                      teardown_usb_tether_interface();
++                     teardown_ethernet_interface(nl_msgHdr);
+                  }
+                 break;
+             case RTM_NEWNEIGH:
