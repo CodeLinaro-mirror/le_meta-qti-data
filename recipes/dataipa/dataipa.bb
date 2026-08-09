@@ -51,8 +51,8 @@ do_install() {
      install -m 0644  ${module_path}/${module} ${D}/usr/lib/modules/${KERNEL_VERSION}/extra/
    done
 
-   install -d ${D}${sysconfdir}/initscripts/
-   install -m 0755 ${WORKDIR}/start_dataipa_le ${D}${sysconfdir}/initscripts/start_dataipa_le
+   install -d ${D}${bindir}/
+   install -m 0755 ${WORKDIR}/start_dataipa_le ${D}${bindir}/start_dataipa_le
    install -d ${D}${systemd_unitdir}/system/
    install -m 0644 ${WORKDIR}/dataipa.service -D ${D}${systemd_unitdir}/system/dataipa.service
    install -d ${D}${sysconfdir}/data/
@@ -64,7 +64,7 @@ do_install() {
 
 FILES_${PN}+="${libdir}/modules/*"
 FILES_${PN}+="/usr/lib/modules/${KERNEL_VERSION}/extra/*"
-FILES_${PN}+="${sysconfdir}/initscripts/start_dataipa_le"
+FILES_${PN}+="${bindir}/start_dataipa_le"
 FILES_${PN}+="${systemd_unitdir}/system/dataipa.service"
 FILES_${PN}+="${sysconfdir}/udev/rules.d/dataipa.rules"
 FILES_${PN}+="${sysconfdir}/udev/scripts/dataipa_udev.sh"
