@@ -1170,7 +1170,7 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="eRT.com.cisco.spvtg.ccsp.webpa.WebConfigRfcEnable" type="astr">false</Record>
   <Record name="dmsb.device.deviceinfo.X_RDKCENTRAL-COM_WHIX.RxRetryList" type="astr">1,2,5,6,9,10</Record>
   <Record name="dmsb.ethagent.ethifcount" type="astr">1</Record>
-  <Record name="dmsb.ethagent.if.1.Name" type="astr">eth0</Record>
+  <Record name="dmsb.ethagent.if.1.Name" type="astr">eth1</Record>
   <Recordname="dmsb.cellularmanager.profile.default.autoconnect" type="astr" contentType="bool">FALSE</Record>
   <Recordname="dmsb.cellularmanager.accesspoint.1.profileIndex" type="astr">1</Record>
   <Recordname="dmsb.cellularmanager.accesspoint.1.profiletype" type="astr">3gpp</Record>
