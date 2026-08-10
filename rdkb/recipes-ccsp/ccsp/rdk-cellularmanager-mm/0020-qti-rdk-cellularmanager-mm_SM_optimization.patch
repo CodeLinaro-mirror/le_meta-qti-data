@@ -1,0 +1,523 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From c67ad5166ec767931924beb95301383b2b06c6dc Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 7 Aug 2026 16:17:38 +0000
+Subject: State machine optimization
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.h         |   5 +
+ .../cellularmgr_cellular_apis.c               |   8 +-
+ .../cellularmgr_cellular_apis.h               |  24 ++-
+ source/CellularManager/cellularmgr_sm.c       | 197 +++++++++++++++---
+ .../middle_layer_src/cellularmgr_rbus_dml.c   |   7 +
+ 5 files changed, 210 insertions(+), 31 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.h b/source/CellularManager/cellular_hal.h
+index 0261dad..9de781e 100755
+--- a/source/CellularManager/cellular_hal.h
++++ b/source/CellularManager/cellular_hal.h
+@@ -333,7 +333,12 @@ typedef enum _CellularUICCStatus_t
+     CELLULAR_UICC_STATUS_VALID     = 0,
+     CELLULAR_UICC_STATUS_BLOCKED,
+     CELLULAR_UICC_STATUS_ERROR,
++#ifndef CM_EXTN_SUPPORTED
+     CELLULAR_UICC_STATUS_EMPTY
++#else
++    CELLULAR_UICC_STATUS_EMPTY,
++    CELLULAR_UICC_STATUS_AVAILABLE
++#endif
+ 
+ } CellularUICCStatus_t;
+ 
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 7154195..e02aec8 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -913,10 +913,17 @@ int CellularMgr_AccessPointGetProfileList( CELLULAR_INTERFACE_ACCESSPOINT_INFO
+                     {
+                         pstAPInfo[i].X_RDK_IpAddressFamily = INTERFACE_PROFILE_FAMILY_IPV6;
+                     }
++#ifndef CM_EXTN_SUPPORTED
+                     else if( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == pstProfileOutput[i].PDPType )
+                     {
+                         pstAPInfo[i].X_RDK_IpAddressFamily = INTERFACE_PROFILE_FAMILY_IPV4_IPV6;
+                     }
++#else
++                    else
++                    {
++                        pstAPInfo[i].X_RDK_IpAddressFamily = INTERFACE_PROFILE_FAMILY_IPV4_IPV6;
++                    }
++#endif
+                     CcspTraceDebug(("%s - Profile Name[%s] ProfileID[%d] APN[%s] IP[%d] User[%s] Password[%s] Auth[%d] APN Disabled[%d] Default[%d]\n",
+                                                             __FUNCTION__,
+                                                             pstAPInfo[i].Alias,
+@@ -1287,7 +1294,6 @@ void* CellularMgr_FactoryResetThread(void* arg)
+         }
+ 
+ #endif
+-
+         // cellular_hal_modem_reset HAL Function
+         if ( RETURN_OK == cellular_hal_modem_reset() )
+         {
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 10f6d58..67b859a 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -109,10 +109,18 @@ CELLULAR_INTERFACE_REGISTERED_SERVICE_TYPE;
+ 
+ typedef enum _CELLULAR_INTERFACE_SIM_STATUS
+ {
++#ifdef CM_EXTN_SUPPORTED
++   SIM_STATUS_UNKNOWN = 0,
++#endif
+    SIM_STATUS_VALID = 1,
+    SIM_STATUS_BLOCKED,
+    SIM_STATUS_ERROR,
++#ifndef CM_EXTN_SUPPORTED
+    SIM_STATUS_EMPTY
++#else
++   SIM_STATUS_EMPTY,
++   SIM_STATUS_AVAILABLE
++#endif
+ } 
+ CELLULAR_INTERFACE_SIM_STATUS;
+ 
+@@ -333,8 +341,21 @@ _CELLULAR_PLMNACCESS_INFO
+ }
+ CELLULAR_PLMNACCESS_INFO,  *PCELLULAR_PLMNACCESS_INFO;
+ 
++#ifdef CM_EXTN_SUPPORTED
++typedef  struct
++_CELLULAR_USIM_SLOT_INFO
++{
++   CELLULAR_INTERFACE_SIM_STATUS       Status;
++   CHAR                                Imsi[16];
++   CHAR                                Iccid[CELLULAR_ICCID_MAX_LENGTH];
++   CHAR                                Msisdn[20];
++   CELLULAR_USIM_SLOT_INFO_EXTN        stUSIMSlotInfoExtn;
++}
++CELLULAR_USIM_SLOT_INFO,  *PCELLULAR_USIM_SLOT_INFO;
++#endif
++
+ typedef  struct
+-_CELLULAR_INTERFACE_INFO                                         
++_CELLULAR_INTERFACE_INFO
+ {
+     BOOLEAN                                     Enable;
+     CellularInterfaceStatus_t                   Status;
+@@ -365,6 +386,7 @@ _CELLULAR_INTERFACE_INFO
+     CELLULAR_INTERFACE_STATS_INFO               stStatsInfo;
+     CELLULAR_RADIO_ENV_CONDITIONS               RadioEnvConditions;
+ #ifdef CM_EXTN_SUPPORTED
++    CELLULAR_USIM_SLOT_INFO                     stUSIMSlotInfo;
+     CELLULAR_INTERFACE_INFO_EXTN                stCellularInterfaceInfoExtn;
+ #endif
+ }
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 326e20d..6e4fc87 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -25,6 +25,7 @@
+ #include "cellular_hal_qmi_apis.h"
+ 
+ #ifdef CM_EXTN_SUPPORTED
++#include <signal.h>
+ #include <semaphore.h>
+ #endif
+ 
+@@ -35,15 +36,12 @@
+ #ifdef CM_EXTN_SUPPORTED
+ #include "cellular_hal_mm_apis.h"
+ void dump_state_variables();
+-
+ void set_sm_roaming_init_value(bool val);
+ void set_sm_roaming_dynamic_value(bool val);
+ bool IsRoamingStatusConverged();
+-#ifdef CM_PROP_SUPPORTED
+-extern struct timespec mmEnabledTime;
+-extern int sc_flag;
+-#endif //CM_PROP_SUPPORTED
+-#endif //CM_EXTN_SUPPORTED
++static void modem_discovery_timeout_handler(int signum);
++static bool is_modem_restart_required();
++
+ typedef enum
+ {
+     ENABLED_AT_INIT,
+@@ -53,13 +51,25 @@ typedef enum
+     ENABLED,
+     DISABLED
+ }RoamingEnabled_t;
++
+ extern ModemState mmState;
++static int mmTimerStatus = FALSE;
++
++#ifdef CM_PROP_SUPPORTED
++extern struct timespec mmEnabledTime;
++extern int sc_flag;
++#endif //CM_PROP_SUPPORTED
++#endif //CM_EXTN_SUPPORTED
++
+ /**********************************************************************
+                 CONSTANT DEFINITIONS
+ **********************************************************************/
+ 
+ #define LOOP_TIMEOUT            500000 // timeout in milliseconds. This is the state machine loop interval
+ 
++#ifdef CM_EXTN_SUPPORTED
++#define MODEM_DISCOVERY_TIMEOUT 45  /*timeout in seconds. To handle modem not discovered case after 45 sec*/
++#endif
+ #define SYSEVENT_CM_WAN_V4_IPADDR   "cellular_wan_v4_ip"
+ #define SYSEVENT_CM_WAN_V4_SUBNET   "cellular_wan_v4_subnet"
+ #define SYSEVENT_CM_WAN_V4_GWADDR   "cellular_wan_v4_gw"
+@@ -458,7 +468,12 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+         CcspTraceInfo(("%s WAN INTERFACE NAME NOT UPDATED BEFORE SENDING TO WAN MANAGER = %s\n", __FUNCTION__,pstIPStruct->WANIFName));
+         return RETURN_ERROR;
+     }
++
++#ifdef CM_EXTN_SUPPORTED
++    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK )
++#else
+     if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, gpstCellularPolicyCtrl->enDeviceOpenStatus) != RETURN_OK )
++#endif //CM_EXTN_SUPPORTED
+     {
+         CcspTraceError(("%s - Failed to set Interface Phy status\n", __FUNCTION__));
+         return RETURN_ERROR;
+@@ -550,11 +565,11 @@ int CellularMgrGetCurrentPDPContextStatusInformation( PCELLULAR_INTERFACE_CONTEX
+     {
+         CellularIPStruct *pstIpInfo = &gpstCellularPolicyCtrl->stIPv4Info;
+ 
+-        snprintf(pstContextProfileInfo->Ipv4Adress, sizeof(pstContextProfileInfo->Ipv4Adress), "%s", pstIpInfo->IPAddress);
+-        snprintf(pstContextProfileInfo->Ipv4SubnetMask, sizeof(pstContextProfileInfo->Ipv4SubnetMask), "%s", pstIpInfo->SubnetMask);
+-        snprintf(pstContextProfileInfo->Ipv4Gateway, sizeof(pstContextProfileInfo->Ipv4Gateway), "%s", pstIpInfo->DefaultGateWay);
+-        snprintf(pstContextProfileInfo->Ipv4PrimaryDns, sizeof(pstContextProfileInfo->Ipv4PrimaryDns), "%s", pstIpInfo->DNSServer1);
+-        snprintf(pstContextProfileInfo->Ipv4SecondaryDns, sizeof(pstContextProfileInfo->Ipv4SecondaryDns), "%s", pstIpInfo->DNSServer2);
++        snprintf(pstContextProfileInfo->Ipv4Adress, sizeof(pstContextProfileInfo->Ipv4Adress), "%.*s", (int)sizeof(pstContextProfileInfo->Ipv4Adress)-1, pstIpInfo->IPAddress);
++        snprintf(pstContextProfileInfo->Ipv4SubnetMask, sizeof(pstContextProfileInfo->Ipv4SubnetMask), "%.*s", (int)sizeof(pstContextProfileInfo->Ipv4SubnetMask)-1, pstIpInfo->SubnetMask);
++        snprintf(pstContextProfileInfo->Ipv4Gateway, sizeof(pstContextProfileInfo->Ipv4Gateway), "%.*s", (int)sizeof(pstContextProfileInfo->Ipv4Gateway)-1, pstIpInfo->DefaultGateWay);
++        snprintf(pstContextProfileInfo->Ipv4PrimaryDns, sizeof(pstContextProfileInfo->Ipv4PrimaryDns), "%.*s", (int)sizeof(pstContextProfileInfo->Ipv4PrimaryDns)-1, pstIpInfo->DNSServer1);
++        snprintf(pstContextProfileInfo->Ipv4SecondaryDns, sizeof(pstContextProfileInfo->Ipv4SecondaryDns), "%.*s", (int)sizeof(pstContextProfileInfo->Ipv4SecondaryDns)-1, pstIpInfo->DNSServer2);
+         pstContextProfileInfo->MtuSize = pstIpInfo->MTUSize;
+     }
+ 
+@@ -667,7 +682,11 @@ static CellularPolicySmState_t TransitionDown( void )
+ 
+     //PhyStatus should be down
+     CcspTraceInfo(("%s - Updating physical status to DOWN for this '%s' interface\n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
+-    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_NOT_READY) != RETURN_OK)
++#ifndef CM_EXTN_SUPPORTED
++    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_NOT_READY) != RETURN_OK )
++#else
++    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK)
++#endif //CM_EXTN_SUPPORTED
+     {
+         CcspTraceInfo(("%s %d: Failed to set PhyStatus in Interface table\n", __FUNCTION__, __LINE__));
+     }
+@@ -691,7 +710,11 @@ static CellularPolicySmState_t TransitionDeactivated( void )
+ 
+     //PhyStatus should be down
+     CcspTraceInfo(("%s - Updating physical status to DOWN for this '%s' interface\n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
++#ifndef CM_EXTN_SUPPORTED
+     if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_NOT_READY) != RETURN_OK)
++#else
++    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK)
++#endif //CM_EXTN_SUPPORTED
+     {
+         CcspTraceInfo(("%s %d: Failed to set PhyStatus in Interface table\n", __FUNCTION__, __LINE__));
+     }
+@@ -720,7 +743,11 @@ static CellularPolicySmState_t TransitionDeregistered( void )
+ {
+ #ifndef HYBRID_SUPPORT
+     CcspTraceInfo(("%s - Updating Physical Status for '%s' device '%s' interface, Status[%d]\n", __FUNCTION__, gpstCellularPolicyCtrl->acDeviceName, gpstCellularPolicyCtrl->acWANIfName, gpstCellularPolicyCtrl->enDeviceOpenStatus ));
+-    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, gpstCellularPolicyCtrl->enDeviceOpenStatus) != RETURN_OK )
++#ifdef CM_EXTN_SUPPORTED
++    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK )
++#else
++    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, gpstCellularPolicyCtrl->enDeviceOpenStatus) != RETURN_OK)
++#endif //CM_EXTN_SUPPORTED
+     {
+         CcspTraceError(("%s - Failed to set Interface Phy status\n", __FUNCTION__));
+         return RETURN_ERROR;
+@@ -1006,6 +1033,29 @@ static CellularPolicySmState_t StateDown( void )
+         return CELLULAR_STATUS_ERROR;
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    /*If modem is not detected after timeout is hit
++     *we will issue a modemmanager restart
++     */
++    if(mmTimerStatus == FALSE)
++    {
++        struct sigaction action;
++        action.sa_handler = modem_discovery_timeout_handler;
++        sigemptyset(&action.sa_mask);
++        action.sa_flags = 0;
++        if(sigaction(SIGALRM ,&action ,NULL) == -1)
++        {
++            CcspTraceError(("%s - %dfailed to create timer\n", __FUNCTION__,__LINE__));
++        }
++        else
++        {
++            /*start one-shot timer to check modem status*/
++            alarm(MODEM_DISCOVERY_TIMEOUT);
++            mmTimerStatus = TRUE;
++        }
++    }
++#endif
++
+     /*
+      *  In this state Modem Device not present, Modem Offline, WAN Interface Down  
+      *  Transition will happen when Modem Device detected case 
+@@ -1016,13 +1066,19 @@ static CellularPolicySmState_t StateDown( void )
+     if( TRUE == cellular_hal_IsModemDevicePresent( ) )
+     {
+         gpstCellularPolicyCtrl->enDeviceDetectionStatus = DEVICE_DETECTED;
+-#ifdef CM_EXTN_SUPPORTED
+ 
+-            /*PRAT is not persistent in modem. Hence,. setting it from CM on modem bringup*/
+-            CellularMgr_extn_SetInitVal(CELLULAR_INIT_PARAM_PRAT,
+-                gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->PreferredAccessTechnologies);
++#ifdef CM_EXTN_SUPPORTED
++        /* Reseting timer as device detected */
++        alarm(0);
++        mmTimerStatus = FALSE;
++        CcspTraceInfo(("%s - %d one-shot timer has been killed\n", __FUNCTION__,__LINE__));
++
++        /*PRAT is not persistent in modem. Hence,. setting it from CM on modem bringup*/
++        CellularMgr_extn_SetInitVal(CELLULAR_INIT_PARAM_PRAT,
++            gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->PreferredAccessTechnologies);
+ #endif
+     }
++
+     if( DEVICE_DETECTED == gpstCellularPolicyCtrl->enDeviceDetectionStatus )
+     {
+ #ifdef CM_EXTN_SUPPORTED
+@@ -1030,7 +1086,7 @@ static CellularPolicySmState_t StateDown( void )
+         sem_post(&mm_sm_sync_sem);
+         return CELLULAR_STATE_DEACTIVATED;
+ #else
+-         return(TransitionDeactivated( ));
++        return(TransitionDeactivated( ));
+ #endif //CM_EXTN_SUPPORTED
+     }
+ 
+@@ -1062,13 +1118,13 @@ static CellularPolicySmState_t StateDeactivated( void )
+     {
+          TransitionDeregistered( ) ;
+     }
++
+ #if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
+     if (FALSE == IsRoamingStatusConverged())
+     {
+         return CELLULAR_STATE_DEACTIVATED;
+     }
+ #endif
+-
+ #ifndef CM_EXTN_SUPPORTED
+     if (( gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus == DEVICE_SLOT_STATUS_SELECTING))
+ #else
+@@ -1205,6 +1261,7 @@ static CellularPolicySmState_t StateRegistered( void )
+     {
+         return ( TransitionDeactivated( ) );
+     }
++
+ #if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
+     /* On disabling roaming in visitor network, wait until ther modem is offline (ie.. leaves registered state) */
+     if ( (gpstCellularPolicyCtrl->enRoamingEnabled == ENABLE_TO_DISABLE_TRANSITION))
+@@ -1259,7 +1316,9 @@ static CellularPolicySmState_t StateRegistered( void )
+     }
+ 
+     if( ( DEVICE_PROFILE_STATUS_READY == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus ) &&
++#ifdef CM_EXTN_SUPPORTED
+         (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == TRUE) &&
++#endif
+ #ifndef WAN_MANAGER_UNIFICATION_ENABLED
+         ( gpstCellularPolicyCtrl->bIsLoopbackMode || gpstCellularPolicyCtrl->pCmIfData->Upstream == TRUE ) &&
+ #endif
+@@ -1325,6 +1384,7 @@ static CellularPolicySmState_t StateConnected( void )
+     {        
+         return ( TransitionDeactivated( ) );
+     }
++
+ #ifdef CM_EXTN_SUPPORTED
+     /* On disabling roaming in visitor network, wait until ther modem is offline (ie.. leaves registered state) */
+     if (gpstCellularPolicyCtrl->enRoamingEnabled == ENABLE_TO_DISABLE_TRANSITION)
+@@ -1339,8 +1399,8 @@ static CellularPolicySmState_t StateConnected( void )
+         }
+         gpstCellularPolicyCtrl->enRoamingEnabled = DISABLED;
+     }
++
+ #endif
+-    
+     if ( ( FALSE == gpstCellularPolicyCtrl->bRDKEnable ) ||
+ #ifdef CM_EXTN_SUPPORTED
+          (DEVICE_PROFILE_STATUS_DELETED == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus) ||
+@@ -1370,7 +1430,14 @@ static CellularPolicySmState_t StateConnected( void )
+         gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus       = DEVICE_NETWORK_IP_NOT_READY;
+         gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress      = FALSE;
+         gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus      = FALSE;
+-
++        CcspTraceError(("%s %d: State variables ..RDKEnable = %d, ProfileStatus = %d, DevicelLot Selection = %d, IfEnable = %d, PDPType = %d, IPv4 Service Status = %d, IPv6 Service Status = %d \n", __FUNCTION__, __LINE__,
++                       gpstCellularPolicyCtrl->bRDKEnable,
++                       gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus,
++                       gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus,
++                       gpstCellularPolicyCtrl->pCmIfData->Enable,
++                       gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile,
++                       gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus,
++                       gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus));
+         return ( TransitionConnectedStopNetwork( ) );
+     }
+ 
+@@ -1419,17 +1486,18 @@ static ANSC_STATUS CellularMgr_ControllerInit( CellularMgrSMInputStruct    *pstI
+         gpstCellularPolicyCtrl->pCmIfData  = pstInput->pCmIfData;
+         gpstCellularPolicyCtrl->pstDmlCellular = pstInput->pstDmlCellular;
+ #ifdef CM_EXTN_SUPPORTED
+-     /*Prevent SM from creating bearers when on bootup we don't want to bring up the connection.*/
+-     if (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == FALSE)
+-     {
+-         gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus = DEVICE_PROFILE_STATUS_CONFIGURING;
+-     }
++        /* Prevent the state machine from creating bearers during boot when connection establishment is not required. */
++        if (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == FALSE)
++        {
++            gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus = DEVICE_PROFILE_STATUS_CONFIGURING;
++        }
+         /* Updating AP table with values from PSM to prevent cellular manager from crashing when setting AP table parameters through dmcli before doing a dm get */
+         CellularMgr_extn_GetAccessPoint_for_SM( &(gpstCellularPolicyCtrl->pstDmlCellular->pstAPInfo), (int*)&gpstCellularPolicyCtrl->pstDmlCellular->ulAccessPointNoOfEntries);
+ #ifdef CM_PROP_SUPPORTED
+         set_sm_roaming_init_value(gpstCellularPolicyCtrl->pstDmlCellular->RoamingEnabled);
+ #endif //CM_PROP_SUPPORTED
+-#endif
++#endif //CM_EXTN_SUPPORTED
++
+         retStatus = ANSC_STATUS_SUCCESS;
+     }
+ 
+@@ -1502,7 +1570,6 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+                 }
+             }
+ #endif // CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
+-
+             policy_sm_state_old = policy_sm_state;
+             CellularMgrSMCheckAndSetWWANConnectionStatus( policy_sm_state );
+ #ifdef CM_EXTN_SUPPORTED
+@@ -1660,7 +1727,6 @@ void dump_state_variables()
+                                                     gpstCellularPolicyCtrl->pCmIfData->Enable ));
+ }
+ 
+-#endif //CM_EXTN_SUPPORTED
+ /* set_sm_roaming_init_value function */
+ /**
+ * @description - This API sets roaming state variable during initialization from state machine
+@@ -1775,6 +1841,79 @@ bool IsRoamingStatusConverged()
+ 
+ }
+ 
++/* modem_discovery_timeout_handler function */
++/**
++* @description - This used to restart and MM and trigger state change
++*
++* @param[in] None
++* @param[out] - None
++* @return void
++*/
++static void modem_discovery_timeout_handler(int signum)
++{
++    (void)signum;
++    mmTimerStatus = FALSE;
++    bool isMMRestartOnly = FALSE;
++
++    if(TRUE == is_modem_restart_required())
++    {
++        CcspTraceInfo(("%s - %d Restarting MM for modem Re-discovery \n", __FUNCTION__,__LINE__));
++        /* if isMMRestartOnly = TRUE it will perform MM restart only,
++        *  but if isMMRestartOnly = FALSE it will trigger CM State Change After MM restart */
++        cellular_hal_extn_restart_modem_manager(isMMRestartOnly);
++    }
++}
++
++static bool is_modem_restart_required()
++{
++    int currentModemState = MODEM_STATE_UNKNOWN;
++    bool res = FALSE;
++    PCELLULAR_USIM_SLOT_INFO pstUSIMSlotInfo = NULL;
++
++    if((NULL == gpstCellularPolicyCtrl) || (NULL == gpstCellularPolicyCtrl->pstDmlCellular) ||
++       (NULL == gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo))
++    {
++        CcspTraceWarning(("%s %d: Interface info not available\n", __FUNCTION__, __LINE__));
++        goto end;
++    }
++
++    pstUSIMSlotInfo = &(gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->stUSIMSlotInfo);
++
++    CellularMgr_extn_GetUSIMCardStatus(pstUSIMSlotInfo);
++
++    if(pstUSIMSlotInfo->Status == SIM_STATUS_UNKNOWN)
++    {
++        res = TRUE;
++        goto end;
++    }
++
++    if(RETURN_ERROR == cellular_hal_extn_get_current_modem_state(&currentModemState))
++    {
++        goto end;
++    }
++
++    if((pstUSIMSlotInfo->Status == SIM_STATUS_EMPTY) && (currentModemState == MODEM_STATE_FAILED))
++    {
++        goto end;
++    }
++
++    if(currentModemState == MODEM_STATE_LOCKED)
++    {
++        if(pstUSIMSlotInfo->Status == SIM_STATUS_AVAILABLE)
++        {
++            goto end;
++        }
++        else if(pstUSIMSlotInfo->Status == SIM_STATUS_BLOCKED)
++        {
++            goto end;
++        }
++    }
++    res = TRUE;
++end:
++    return res;
++}
++#endif //CM_EXTN_SUPPORTED
++
+ /* cellumanager_get_wanifname function */
+ /**
+ * @description - This used to get wan interface name.
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 092a73d..9672772 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -1975,6 +1975,7 @@ static rbusError_t ContextProfile_GetParamStringValue_rbus(rbusHandle_t handle,
+         {
+             rbusProperty_SetString(property, "IPv6");
+         }
++#ifndef CM_EXTN_SUPPORTED
+         else if (pstContextProfileInfo->IpAddressFamily == INTERFACE_PROFILE_FAMILY_IPV4_IPV6)
+         {
+             rbusProperty_SetString(property, "IPv4IPv6");
+@@ -1983,6 +1984,12 @@ static rbusError_t ContextProfile_GetParamStringValue_rbus(rbusHandle_t handle,
+         {
+             rbusProperty_SetString(property, "None");
+         }
++#else
++        else
++        {
++            rbusProperty_SetString(property, "IPv4IPv6");
++        }
++#endif
+     }
+     else if(strcmp(context.name, "Ipv4Adress") == 0)
+     {
+-- 
+2.34.1
+
