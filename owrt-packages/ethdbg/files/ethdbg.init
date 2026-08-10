@@ -1,0 +1,17 @@
+#!/bin/sh /etc/rc.common
+
+#Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+#SPDX-License-Identifier: BSD-3-Clause-Clear
+
+START=25
+STOP=75
+
+start() {
+	# TODO: /etc/initscripts/start_ethdbg_modules start will be called here
+	logger -t ethdbg "start_ethdbg_modules start"
+}
+
+stop() {
+	# TODO: /etc/initscripts/start_ethdbg_modules stop will be called here
+	logger -t ethdbg "start_ethdbg_modules stop"
+}
