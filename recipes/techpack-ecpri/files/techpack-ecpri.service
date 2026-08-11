@@ -4,6 +4,8 @@
 [Unit]
 Description= Load ecpri dlkm service
 After=si5518_image_dload_util.service
+# Skip default shutdown ExecStop (rmmods lassen_mtip.ko) so nbd survives for log collectors.
+DefaultDependencies=no
 
 [Service]
 Type=oneshot
