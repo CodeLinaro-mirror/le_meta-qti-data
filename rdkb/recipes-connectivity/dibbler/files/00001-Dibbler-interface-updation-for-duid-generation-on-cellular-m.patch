@@ -1,0 +1,27 @@
+From e243da3abbc8ebd03f49849b02c6e3f070c49663 Mon Sep 17 00:00:00 2001
+From: Saravanan B <saravb@qti.qualcomm.com>
+Date: Tue, 14 Nov 2023 11:02:42 +0000
+Subject: [PATCH] Mapping lan interface name for duid generation on cellular mode
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ CfgMgr/CfgMgr.cpp | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+Index: git/CfgMgr/CfgMgr.cpp
+===================================================================
+--- git.orig/CfgMgr/CfgMgr.cpp
++++ git/CfgMgr/CfgMgr.cpp
+@@ -203,6 +203,11 @@ bool TCfgMgr::setDUID(const std::string&
+        fclose(dibblerClientConfPtr);
+     }
+ 
++    if ((interfaceName !=  NULL) && (strstr(interfaceName, "qmapmux") != NULL))
++    {
++        interfaceName = "brlan0";
++    }
++
+     if ( NULL != interfaceName ) {
+         ifaceMgr.getIfaceByName(interfaceName);
+     } else {
+

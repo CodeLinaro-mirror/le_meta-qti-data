@@ -1,0 +1,28 @@
+From: Saravanan B <saravb@qti.qualcomm.com>
+Date: Tue, 14 Nov 2023 11:16:52 +0000
+Subject: [PATCH] Changes to update wan-interface dynamically in prepare_dhcpv6_config.sh
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+diff --git a/prepare_dhcpv6_config.sh b/prepare_dhcpv6_config.sh
+index 0bae6a3..1751c8a 100644
+--- a/prepare_dhcpv6_config.sh
++++ b/prepare_dhcpv6_config.sh
+@@ -29,14 +29,12 @@ DHCP_CONFIG_FILE_RUNTIME="/tmp/dibbler/client.conf"
+ DHCP_CONFIG_FILE_TMP="/tmp/dibbler/client-tmp.conf"
+ DHCP_CONFIG_FILE_DIBBLER_TMP="/tmp/dibbler/dibbler-client-tmp.conf"
+ RDK_PATH="/lib/rdk"
+-interface=$ARM_INTERFACE
++interface=$(sysevent get current_wan_ifname)
+ 
+ ethWanMode=`syscfg get eth_wan_enabled`
+ DSLite_Enabled=`syscfg get dslite_enable`
+ isMaptEnabled=`syscfg get MAPT_Enable`
+-if [ "$interface" ] && [ -f /etc/dibbler/client_back.conf ];then
+-    sed -i "s/RDK-ESTB-IF/${interface}/g" /etc/dibbler/client_back.conf
+-fi
++sed -i "s/RDK-ESTB-IF/${interface}/g" /etc/dibbler/client_back.conf
+ if [ ! -f /etc/dibbler/radvd.conf ];then touch /etc/dibbler/radvd.conf; fi
+ if [ ! -f /etc/dibbler/radvd.conf.old ];then touch /etc/dibbler/radvd.conf.old; fi
+ if [ -f /etc/os-release ];then
+

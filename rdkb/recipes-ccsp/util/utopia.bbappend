@@ -27,6 +27,7 @@ SRC_URI:append = " \
     file://00022-qti-utopia-TCPMSS_clamping_rules_adding_extn_support.patch \
     file://00023-utopia-skip-wan-iface-in-bringup.patch \
     file://00024-utopia-6brd.patch \
+    file://00029-qti-utopia-dhcpv6-stateless.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
