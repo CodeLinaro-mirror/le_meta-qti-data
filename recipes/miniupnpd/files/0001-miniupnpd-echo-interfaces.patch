@@ -1,0 +1,54 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 3a76816a00e62a179e6ecdc5c1d269e92ef213d0 Mon Sep 17 00:00:00 2001
+From: abishaac <abishaac@qti.qualcomm.com>
+Date: Wed, 12 Aug 2026 13:27:10 +0530
+Subject: [PATCH] miniupnpd: fix interface config for Amboseli platform
+
+[Description]: miniupnpd fails to bind at startup due to wrong interface
+names in miniupnpd.conf. bridge0 and ppp0 do not exist on this platform
+and ext_ifname is not set so port-forward iptables rules cannot be applied.
+
+[Fix Description]: Set ext_ifname=qmapmux0.0 as the WAN interface for
+port-forward rules and external IP reporting. Set listening_ip=brlan0 only
+for LAN-side SSDP discovery.
+Signed-off-by: Abisha Accamma Vinod<abishaac@qti.qualcomm.com>
+---
+ miniupnpd.conf | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/miniupnpd.conf b/miniupnpd.conf
+--- a/miniupnpd.conf
++++ b/miniupnpd.conf
+@@ -1,5 +1,5 @@
+ # WAN network interface
+-#ext_ifname=eth1
++ext_ifname=qmapmux0.0
+ #ext_ifname=xl1
+ # if the WAN network interface for IPv6 is different than for IPv4,
+ # set ext_ifname6
+@@ -43,8 +43,7 @@
+ #  listening_ip=bridge0 em0 wlan0
+ #listening_ip=192.168.0.1/24
+ #listening_ip=10.5.0.0/16
+-listening_ip=bridge0
+-listening_ip=ppp0
++listening_ip=brlan0
+ # CAUTION: mixing up WAN and LAN interfaces may introduce security risks!
+ # Be sure to assign the correct interfaces to LAN and WAN and consider
+ # implementing UPnP permission rules at the bottom of this configuration file
+@@ -117,7 +116,7 @@
+ # If set to an empty string, no presentationURL element will appear
+ # in the XML description of the device, which prevents MS Windows
+ # from displaying an icon in the "Network Connections" panel.
+-presentation_url=/192.168.225.1:8201
++#presentation_url=
+ 
+ # Report system uptime instead of daemon uptime
+ system_uptime=yes
+-- 
+2.34.1
+

@@ -28,6 +28,7 @@ SRC_URI:append = " \
     file://00023-utopia-skip-wan-iface-in-bringup.patch \
     file://00024-utopia-6brd.patch \
     file://00029-qti-utopia-dhcpv6-stateless.patch \
+    file://00025-utopia-service-igd-miniupnpd-echo-support.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
