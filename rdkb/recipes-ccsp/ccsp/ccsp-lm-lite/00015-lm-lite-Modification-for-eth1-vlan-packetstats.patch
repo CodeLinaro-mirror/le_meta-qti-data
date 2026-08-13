@@ -1,0 +1,37 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 5b1c8566aec1c1980d83b523e19543e792117a16 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Thu, 13 Aug 2026 17:00:22 +0000
+Subject: [PATCH] Replace strict strcmp with prefix-based strncmp for eth1 interface matching in lm_main.c to correctly identify VLAN sub-interfaces (e.g., eth1.100, eth1.300) as Ethernet clients.
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 4 ++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -5206,7 +5206,8 @@ static bool getClientType(char *mac,bool
+         {
+             iface = strtok_r(line, " ", &ptr);
+             ifname = strstr(iface, "=");
+-            if ((0 == strncmp(ifname+1,"eth0",strlen("eth0"))) || (0 == strcmp(ifname+1,"eth1")) || (0 == strcmp(ifname+1,"eth1s1")))
++            if (ifname != NULL &&
++            ((0 == strncmp(ifname+1,"eth0",strlen("eth0"))) || (0 == strncmp(ifname+1,"eth1",strlen("eth1")) && (ifname[1+strlen("eth1")] == '.' || ifname[1+strlen("eth1")] == '\0')) || (0 == strcmp(ifname+1,"eth1s1"))))
+                 strlcpy(client_type, "Ethernet", IFACE_SIZE);
+             else if ((0 == strcmp(ifname+1,"rndis0")) || (0 == strcmp(ifname+1,"ecm0")))
+                 strlcpy(client_type, "USB", IFACE_SIZE);
+@@ -5308,7 +5309,7 @@ ANSC_STATUS getInterfaceFromMac(char *ma
+     {
+         if (0 == strncmp(iface_name, "eth0", strlen("eth0")))
+             strlcpy(ifname, "eth", (strlen(iface_name)+1));
+-        if (0 == strcmp(iface_name, "eth1") || (0 == strcmp(iface_name, "eth1s1")) )
++        if ((0 == strncmp(iface_name, "eth1", strlen("eth1")) && (iface_name[strlen("eth1")] == '.' || iface_name[strlen("eth1")] == '\0')) || (0 == strcmp(iface_name, "eth1s1")))
+             strlcpy(ifname, "eth1", (strlen(iface_name)+1));
+         if ((0 == strcmp(iface_name, "rndis0")) || (0 == strcmp(iface_name, "ecm0")))
+             strlcpy(ifname, "usb", (strlen(iface_name)+1));
