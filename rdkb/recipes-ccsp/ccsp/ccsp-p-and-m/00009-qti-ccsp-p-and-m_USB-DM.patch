@@ -33,11 +33,11 @@ Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
  create mode 100644 source/TR-181/middle_layer_src/cosa_usb_internal.c
  create mode 100644 source/TR-181/middle_layer_src/cosa_usb_internal.h
 
-diff --git a/config-arm/TR181-USGv2.XML b/config-arm/TR181-USGv2.XML
-index 5656017..bb52e37 100644
---- a/config-arm/TR181-USGv2.XML
-+++ b/config-arm/TR181-USGv2.XML
-@@ -5381,11 +5381,89 @@
+Index: git/config-arm/TR181-USGv2.XML
+===================================================================
+--- git.orig/config-arm/TR181-USGv2.XML
++++ git/config-arm/TR181-USGv2.XML
+@@ -5446,11 +5446,89 @@
        </parameters>
  
      </object>
@@ -129,10 +129,10 @@ index 5656017..bb52e37 100644
        <name>Ethernet</name>
  
        <objectType>object</objectType>
-diff --git a/source-arm/TR-181/board_sbapi/Makefile.am b/source-arm/TR-181/board_sbapi/Makefile.am
-index 40569d6..1c8f0e1 100644
---- a/source-arm/TR-181/board_sbapi/Makefile.am
-+++ b/source-arm/TR-181/board_sbapi/Makefile.am
+Index: git/source-arm/TR-181/board_sbapi/Makefile.am
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/Makefile.am
++++ git/source-arm/TR-181/board_sbapi/Makefile.am
 @@ -72,7 +72,8 @@ libCcspPandM_board_sbapi_la_SOURCES = \
      dmz_wan_doc.c \
      helpers.c \
@@ -143,11 +143,10 @@ index 40569d6..1c8f0e1 100644
  
  if FEATURE_HOTSPOT_SUPPORT
  libCcspPandM_board_sbapi_la_SOURCES += cosa_GRE_webconfig_apis.c
-diff --git a/source-arm/TR-181/board_sbapi/cosa_usb_apis.c b/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
-new file mode 100644
-index 0000000..8653b8c
+Index: git/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
+===================================================================
 --- /dev/null
-+++ b/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
 @@ -0,0 +1,513 @@
 +/*
 +*
@@ -662,11 +661,10 @@ index 0000000..8653b8c
 +
 +    return ANSC_STATUS_SUCCESS;
 +}
-diff --git a/source/TR-181/include/cosa_usb_apis.h b/source/TR-181/include/cosa_usb_apis.h
-new file mode 100644
-index 0000000..72c147f
+Index: git/source/TR-181/include/cosa_usb_apis.h
+===================================================================
 --- /dev/null
-+++ b/source/TR-181/include/cosa_usb_apis.h
++++ git/source/TR-181/include/cosa_usb_apis.h
 @@ -0,0 +1,52 @@
 +/*
 +*
@@ -720,11 +718,11 @@ index 0000000..72c147f
 +ANSC_STATUS CosaDmlGetMaxBitRate ( ANSC_HANDLE hContext, int *pMaxBitRate );
 +
 +#endif
-diff --git a/source/TR-181/middle_layer_src/Makefile.am b/source/TR-181/middle_layer_src/Makefile.am
-index df0eaab..0b3d402 100644
---- a/source/TR-181/middle_layer_src/Makefile.am
-+++ b/source/TR-181/middle_layer_src/Makefile.am
-@@ -107,7 +107,9 @@ libCcspPandM_middle_layer_src_la_SOURCES = \
+Index: git/source/TR-181/middle_layer_src/Makefile.am
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/Makefile.am
++++ git/source/TR-181/middle_layer_src/Makefile.am
+@@ -107,7 +107,9 @@ libCcspPandM_middle_layer_src_la_SOURCES
      webui_webconfig_apis.c \
      webui_webconfig_dml.c \
      cosa_x_rdk_features_dml.c \
@@ -735,11 +733,11 @@ index df0eaab..0b3d402 100644
  
  if FEATURE_HOTSPOT_SUPPORT
  libCcspPandM_middle_layer_src_la_SOURCES += \
-diff --git a/source/TR-181/middle_layer_src/cosa_apis_busutil.c b/source/TR-181/middle_layer_src/cosa_apis_busutil.c
-index 3ac3641..e1cdfb6 100644
---- a/source/TR-181/middle_layer_src/cosa_apis_busutil.c
-+++ b/source/TR-181/middle_layer_src/cosa_apis_busutil.c
-@@ -113,6 +113,9 @@ static ANSC_STATUS RdkBus_GetParamValues( char *pComponent, char *pBus, char *pP
+Index: git/source/TR-181/middle_layer_src/cosa_apis_busutil.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_apis_busutil.c
++++ git/source/TR-181/middle_layer_src/cosa_apis_busutil.c
+@@ -113,6 +113,9 @@ static ANSC_STATUS RdkBus_GetParamValues
  #endif
  
  #endif
@@ -803,10 +801,10 @@ index 3ac3641..e1cdfb6 100644
      /* we should look up CR to find right component.
              if it's P&M component, we just call the global variable 
              Currently, we suppose all the parameter is from P&M. */
-diff --git a/source/TR-181/middle_layer_src/cosa_apis_util.c b/source/TR-181/middle_layer_src/cosa_apis_util.c
-index 325b5d4..f7ae2b5 100644
---- a/source/TR-181/middle_layer_src/cosa_apis_util.c
-+++ b/source/TR-181/middle_layer_src/cosa_apis_util.c
+Index: git/source/TR-181/middle_layer_src/cosa_apis_util.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_apis_util.c
++++ git/source/TR-181/middle_layer_src/cosa_apis_util.c
 @@ -438,6 +438,36 @@ CosaUtilGetLowerLayers
              }
              else if (strcmp(pTableStringToken->Name, "Device.USB.Interface.") == 0)
@@ -844,11 +842,10 @@ index 325b5d4..f7ae2b5 100644
              }
              else if (strcmp(pTableStringToken->Name, "Device.HPNA.Interface.") == 0)
              {
-diff --git a/source/TR-181/middle_layer_src/cosa_usb_dml.c b/source/TR-181/middle_layer_src/cosa_usb_dml.c
-new file mode 100644
-index 0000000..76c5419
+Index: git/source/TR-181/middle_layer_src/cosa_usb_dml.c
+===================================================================
 --- /dev/null
-+++ b/source/TR-181/middle_layer_src/cosa_usb_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_usb_dml.c
 @@ -0,0 +1,711 @@
 +/*
 +*
@@ -1561,11 +1558,10 @@ index 0000000..76c5419
 +
 +    return 0;
 +}
-diff --git a/source/TR-181/middle_layer_src/cosa_usb_dml.h b/source/TR-181/middle_layer_src/cosa_usb_dml.h
-new file mode 100644
-index 0000000..03a90e3
+Index: git/source/TR-181/middle_layer_src/cosa_usb_dml.h
+===================================================================
 --- /dev/null
-+++ b/source/TR-181/middle_layer_src/cosa_usb_dml.h
++++ git/source/TR-181/middle_layer_src/cosa_usb_dml.h
 @@ -0,0 +1,73 @@
 +/*
 +*
@@ -1640,11 +1636,10 @@ index 0000000..03a90e3
 +ULONG Usb_Interface_Rollback ( ANSC_HANDLE hInsContext );
 +
 +#endif
-diff --git a/source/TR-181/middle_layer_src/cosa_usb_internal.c b/source/TR-181/middle_layer_src/cosa_usb_internal.c
-new file mode 100644
-index 0000000..ec49bbf
+Index: git/source/TR-181/middle_layer_src/cosa_usb_internal.c
+===================================================================
 --- /dev/null
-+++ b/source/TR-181/middle_layer_src/cosa_usb_internal.c
++++ git/source/TR-181/middle_layer_src/cosa_usb_internal.c
 @@ -0,0 +1,226 @@
 +/*
 +*
@@ -1872,11 +1867,10 @@ index 0000000..ec49bbf
 +
 +    return returnStatus;
 +}
-diff --git a/source/TR-181/middle_layer_src/cosa_usb_internal.h b/source/TR-181/middle_layer_src/cosa_usb_internal.h
-new file mode 100644
-index 0000000..a67c75a
+Index: git/source/TR-181/middle_layer_src/cosa_usb_internal.h
+===================================================================
 --- /dev/null
-+++ b/source/TR-181/middle_layer_src/cosa_usb_internal.h
++++ git/source/TR-181/middle_layer_src/cosa_usb_internal.h
 @@ -0,0 +1,48 @@
 +/*
 +*
@@ -1926,10 +1920,10 @@ index 0000000..a67c75a
 +
 +ANSC_STATUS CosaUsbRemove ( ANSC_HANDLE hThisObject );
 +#endif
-diff --git a/source/TR-181/middle_layer_src/plugin_main.c b/source/TR-181/middle_layer_src/plugin_main.c
-index 21936cb..ae68b40 100644
---- a/source/TR-181/middle_layer_src/plugin_main.c
-+++ b/source/TR-181/middle_layer_src/plugin_main.c
+Index: git/source/TR-181/middle_layer_src/plugin_main.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/plugin_main.c
++++ git/source/TR-181/middle_layer_src/plugin_main.c
 @@ -83,6 +83,7 @@
  #include "plugin_main_apis.h"
  //#include "cosa_moca_internal.h"
@@ -1938,7 +1932,7 @@ index 21936cb..ae68b40 100644
  
  #if !defined (RESOURCE_OPTIMIZATION)
  #include "cosa_gatewayinfo_dml.h"
-@@ -101,6 +102,8 @@ extern COSARepopulateTableProc            g_COSARepopulateTable;
+@@ -101,6 +102,8 @@ extern COSARepopulateTableProc
  
  #define THIS_PLUGIN_VERSION                         1
  
@@ -1981,10 +1975,10 @@ index 21936cb..ae68b40 100644
      /* Create backend framework */
      g_pCosaBEManager = (PCOSA_BACKEND_MANAGER_OBJECT)CosaBackEndManagerCreate();
  
-diff --git a/source/TR-181/middle_layer_src/plugin_main_apis.c b/source/TR-181/middle_layer_src/plugin_main_apis.c
-index e7606fa..35516f4 100644
---- a/source/TR-181/middle_layer_src/plugin_main_apis.c
-+++ b/source/TR-181/middle_layer_src/plugin_main_apis.c
+Index: git/source/TR-181/middle_layer_src/plugin_main_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/plugin_main_apis.c
++++ git/source/TR-181/middle_layer_src/plugin_main_apis.c
 @@ -145,6 +145,8 @@
  #if  defined  (WAN_FAILOVER_SUPPORTED) || defined(RDKB_EXTENDER_ENABLED) ||  defined(RBUS_BUILD_FLAG_ENABLE) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined (RBUS_WAN_IP)
  #include "cosa_rbus_handler_apis.h"
@@ -2017,29 +2011,23 @@ index e7606fa..35516f4 100644
  #endif
      /*
  #ifdef CONFIG_TI_PACM
-diff --git a/source/TR-181/middle_layer_src/plugin_main_apis.h b/source/TR-181/middle_layer_src/plugin_main_apis.h
-index 0229950..d163fd0 100644
---- a/source/TR-181/middle_layer_src/plugin_main_apis.h
-+++ b/source/TR-181/middle_layer_src/plugin_main_apis.h
-@@ -165,6 +165,7 @@ extern COSARegisterCallBackAfterInitDmlProc  g_RegisterCallBackAfterInitDml;
+Index: git/source/TR-181/middle_layer_src/plugin_main_apis.h
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/plugin_main_apis.h
++++ git/source/TR-181/middle_layer_src/plugin_main_apis.h
+@@ -165,6 +165,7 @@ extern COSARegisterCallBackAfterInitDmlP
  #define COSA_DATAMODEL_LANMANAGEMENT_OID                        42
  #if defined(DDNS_BROADBANDFORUM)
  #define COSA_DATAMODEL_DYNDNS_OID                               43
-+#define COSA_DATAMODEL_USB_OID                                 120
++#define COSA_DATAMODEL_USB_OID                             120
  #endif
  
  #define COSA_DATAMODEL_FEATURES_OID                             44
-@@ -220,7 +221,9 @@ extern COSARegisterCallBackAfterInitDmlProc  g_RegisterCallBackAfterInitDml;
+@@ -220,6 +221,7 @@ extern COSARegisterCallBackAfterInitDmlP
      ANSC_HANDLE                  hLanMngm;                                                  \
      ANSC_HANDLE                  hXpc;                                                    \
      ANSC_HANDLE                  hOnboardLogging;                                                    \
--    PCOSA_PLUGIN_INFO            hCosaPluginInfo;								   		
-+    ANSC_HANDLE                  hUsb;                                                    \
-+    PCOSA_PLUGIN_INFO            hCosaPluginInfo;
-+
++    ANSC_HANDLE                  hUsb;                                                   \
+     PCOSA_PLUGIN_INFO            hCosaPluginInfo;
  
  typedef  struct
- _COSA_BACKEND_MANAGER_OBJECT
--- 
-2.34.1
-
