@@ -3,9 +3,9 @@ This patch file is from Qualcomm Technologies, Inc. and is provided under the fo
 Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 SPDX-License-Identifier: BSD-3-Clause-Clear
 
-From bf9e30481e22f72940b834f1353b2ad3367bb008 Mon Sep 17 00:00:00 2001
+From 5066b2e1c6a9bb6c7295abc198dbed7d63540567 Mon Sep 17 00:00:00 2001
 From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
-Date: Fri, 24 Jul 2026 08:56:56 +0000
+Date: Fri, 7 Aug 2026 09:07:00 +0000
 Subject: [PATCH] TCP MSS clamp rule addition
 
 [Description]: Added TCP MSS clamping rule to support HW path for TCP packets
@@ -32,10 +32,10 @@ index 0af5c82..3ac4b35 100644
  firewall_SOURCES += firewall_lib.c firewall_dsl.c rabid.c
  AM_LDFLAGS += -lrdkconfig
 diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
-index f12be67..7eb0e19 100644
+index 1c25729..9aa4159 100644
 --- a/source/firewall/firewall.c
 +++ b/source/firewall/firewall.c
-@@ -11839,6 +11839,10 @@ static int prepare_subtables(FILE *raw_fp, FILE *mangle_fp, FILE *nat_fp, FILE *
+@@ -12064,6 +12064,10 @@ static int prepare_subtables(FILE *raw_fp, FILE *mangle_fp, FILE *nat_fp, FILE *
     fprintf(mangle_fp, "-A PREROUTING -i %s -p udp -m conntrack --ctstate NEW -m limit --limit 200/sec --limit-burst 100 -j ACCEPT\n",ecm_wan_ifname);
     fprintf(mangle_fp, "-A PREROUTING -i %s -p udp -m conntrack --ctstate NEW -m limit --limit 200/sec --limit-burst 100 -j ACCEPT\n",emta_wan_ifname);
  #endif
@@ -47,34 +47,34 @@ index f12be67..7eb0e19 100644
      * nat
      */
 diff --git a/source/firewall/firewall.h b/source/firewall/firewall.h
-index a89ec93..b27aff5 100644
+index 1fc0541..cf2838c 100644
 --- a/source/firewall/firewall.h
 +++ b/source/firewall/firewall.h
-@@ -61,6 +61,10 @@
- #include "secure_wrapper.h"
+@@ -62,6 +62,10 @@
  #include "safec_lib_common.h"
+ #include "ansc_status.h"
  
 +#ifdef _PLATFORM_SDX_
 +#include "firewall_extn_qti.h"
 +#endif
 +
- int do_logs(FILE *fp);
- int do_wan2self_attack(FILE *fp,char* wan_ip);
- int prepare_ipv4_firewall(const char *fw_file);
+ /**
+ * @brief Apply logging rules to the filter table.
+ *
 diff --git a/source/firewall/firewall_ipv6.c b/source/firewall/firewall_ipv6.c
-index 528e110..b986adc 100644
+index 9d8a1b7..296e59a 100644
 --- a/source/firewall/firewall_ipv6.c
 +++ b/source/firewall/firewall_ipv6.c
-@@ -2004,6 +2004,9 @@ void do_ipv6_sn_filter(FILE* fp) {
+@@ -2048,6 +2048,9 @@ void do_ipv6_sn_filter(FILE* fp) {
          fprintf(fp, "-A PREROUTING -i %s -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP\n",current_wan_ifname);
          fprintf(fp, "-A PREROUTING -i %s -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP\n",ecm_wan_ifname);
-         fprintf(fp, "-A PREROUTING -i %s -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP\n",emta_wan_ifname);
+ 	fprintf(fp, "-A PREROUTING -i %s -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP\n",emta_wan_ifname);
 +#endif
 +#ifdef _PLATFORM_SDX_
 +   add_if_mss_clamping_HW_path(fp,AF_INET6,lan_ifname);
  #endif
       FIREWALL_DEBUG("Exiting do_ipv6_sn_filter \n"); 
  }
--- 
+--
 2.34.1
 
