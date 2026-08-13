@@ -15,7 +15,6 @@ SRC_URI += " \
               file://00004-qti-ccsp-p-and-m_DNSProxy-bringup.patch \
               file://00005-qti-ccsp-p-and-m_Cellular_v6_bringup.patch \
               file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
-              file://00007-qti-ccsp-p-and-m_fix-buffer-size.patch \
               file://00008-qti-ccsp-p-and-m_Fix-nonnull-RfcJsonInit-null-filename.patch \
               file://00009-qti-ccsp-p-and-m_USB-DM.patch \
               file://00010-qti-ccsp-p-and-m_IPPT-changes.patch \

@@ -399,22 +399,16 @@ index 03f68a2..06e686d 100644
  typedef  struct
  _COSA_DML_DHCPCV6_SVR
  {
-@@ -762,10 +765,13 @@ remove_interface
- 	(
- 		char* 						Inf_name
- 	);
--
--
- #if defined (RDKB_EXTENDER_ENABLED) || defined (WAN_FAILOVER_SUPPORTED)
+@@ -1530,4 +1533,9 @@
+-void AssignIpv6Addr(char* ifname , char* ipv6Addr);
 +#if defined PREFIX_SHARING_CELLULAR
 +void AssignIpv6Addr(char* ifname , char* ipv6Addr, int* prefix);
 +void get_populate_ipv6_prefix(char *v6addr);
 +#else
- void AssignIpv6Addr(char* ifname , char* ipv6Addr);
++void AssignIpv6Addr(char* ifname , char* ipv6Addr);
 +#endif
- void DelIpv6Addr(char* ifname , char* ipv6Addr);
- void SetV6Route(char* ifname , char* route_addr,int metric_val);
- void UnSetV6Route(char* ifname , char* route_addr,int metric_val);
+ 
+ /**
+ * @brief Delete an IPv6 address from an interface.
 -- 
 2.34.1
-
