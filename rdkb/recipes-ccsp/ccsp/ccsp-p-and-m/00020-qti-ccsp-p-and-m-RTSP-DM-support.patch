@@ -1,0 +1,133 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From fe5bd69fba5cbce8e01348fd26f35889e52b8098 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 13 Aug 2026 18:35:21 +0000
+Subject: [PATCH] Add EnableRTSP DM parameter to load/unload RTSP kernel
+ modules
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ config-arm/TR181-USGv2.XML                    | 12 ++++++++
+ .../cosa_x_cisco_com_security_apis.c          | 28 +++++++++++++++++++
+ .../include/cosa_x_cisco_com_security_apis.h  |  1 +
+ .../cosa_x_cisco_com_security_dml.c           | 26 +++++++++++++++++
+ 4 files changed, 67 insertions(+)
+
+Index: git/config-arm/TR181-USGv2.XML
+===================================================================
+--- git.orig/config-arm/TR181-USGv2.XML
++++ git/config-arm/TR181-USGv2.XML
+@@ -14046,6 +14046,18 @@
+ 
+           </parameter>
+ 
++          <parameter>
++
++            <name>EnableRTSP</name>
++
++            <type>boolean</type>
++
++            <syntax>bool</syntax>
++
++            <writable>true</writable>
++
++          </parameter>
++
+ <?ifdef BCI?>
+           <parameter>
+ 
+Index: git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_security_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_security_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_security_apis.c
+@@ -6208,3 +6208,31 @@ void Sip_Proc_Update()
+        }
+ }
+ 
++/*===========================================================================
++
++FUNCTION:
++     Check_Update_RTSP
++
++DESCRIPTION:
++   - Enables/Disables RTSP Alg Functionality.
++   - Insertion/removal of RTSP kernel module based on status.
++   - firewall restart based on status.
++
++==========================================================================*/
++void Check_Update_RTSP()
++{
++    char buf[8] = {0};
++    syscfg_get( NULL, "enable_rtsp", buf, sizeof(buf));
++    if (strncmp(buf, "1", sizeof(buf)) == 0)
++    {
++        //v_secure_system("insmod /lib/modules/rtsp-alg/nf_nat_rtsp.ko");
++         v_secure_system("insmod /lib/modules/rtsp-alg/nf_conntrack_rtsp.ko");
++         v_secure_system("insmod /lib/modules/rtsp-alg/nf_nat_rtsp.ko");
++    }
++    else
++    {
++         v_secure_system("rmmod /lib/modules/rtsp-alg/nf_nat_rtsp.ko");
++         v_secure_system("rmmod /lib/modules/rtsp-alg/nf_conntrack_rtsp.ko");
++    }
++    v_secure_system("sysevent set firewall-restart");
++}
+Index: git/source/TR-181/include/cosa_x_cisco_com_security_apis.h
+===================================================================
+--- git.orig/source/TR-181/include/cosa_x_cisco_com_security_apis.h
++++ git/source/TR-181/include/cosa_x_cisco_com_security_apis.h
+@@ -139,6 +139,7 @@ _COSA_DML_FIREWALL_CFG2
+     BOOLEAN                         WanPingEnable;
+     BOOLEAN                         WanPingEnableV6;
+     BOOLEAN                         EnableSIP;
++    BOOLEAN                         EnableRTSP;
+ }_struct_pack_;
+ 
+ typedef struct _COSA_DML_FIREWALL_CFG2 COSA_DML_FIREWALL_CFG2,  *PCOSA_DML_FIREWALL_CFG2;
+Index: git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+@@ -1407,6 +1407,18 @@ Firewall1_GetParamBoolValue
+        return TRUE;
+     }
+ 
++    if (strcmp(ParamName, "EnableRTSP") == 0)
++    {
++       char buf[8] = {0};
++       syscfg_get( NULL, "enable_rtsp", buf, sizeof(buf));
++       if (strncmp(buf, "1", sizeof(buf)) == 0)
++           *pBool = TRUE;
++       else
++           *pBool = FALSE;
++
++       return TRUE;
++    }
++
+     /* CcspTraceWarning(("Unsupported parameter '%s'\n", ParamName)); */
+     return FALSE;
+ }
+@@ -1852,6 +1864,20 @@ Firewall1_SetParamBoolValue
+        Sip_Proc_Update();
+         return TRUE;
+     }
++
++
++    if (strcmp(ParamName, "EnableRTSP") == 0)
++    {
++       if (syscfg_set_commit (NULL, "enable_rtsp", bValue ? "1" : "0") != 0)
++        {
++            CcspTraceError(("syscfg_set enable_rtsp failed\n"));
++            return FALSE;
++        }
++
++       pCosaDMSecurity->FirewallConfig.EnableRTSP = bValue;
++       Check_Update_RTSP();
++       return TRUE;
++    }
+     /* CcspTraceWarning(("Unsupported parameter '%s'\n", ParamName)); */
+     return FALSE;
+ }

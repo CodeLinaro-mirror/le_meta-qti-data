@@ -1,0 +1,104 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 2f9b617e0444ebe72cd2f3be30175478c0c3f7fe Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Tue, 18 Aug 2026 18:29:47 +0000
+Subject: [PATCH] Log RTSP ALG module load status on IPv4 WAN up and expose
+ isModuleLoaded for _PLATFORM_SDX_ builds
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 33 +++++++++++++++++++++++++
+ source/WanManager/wanmgr_net_utils.c    |  2 +-
+ source/WanManager/wanmgr_net_utils.h    |  4 ++-
+ 3 files changed, 37 insertions(+), 2 deletions(-)
+
+Index: git/source/WanManager/wanmgr_interface_sm.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_interface_sm.c
++++ git/source/WanManager/wanmgr_interface_sm.c
+@@ -674,6 +674,38 @@ static ANSC_STATUS WanManager_ConfigureM
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
++/************************************************************************************
++ * @brief Insert RTSP related ko modules when syscfg variable enable_rtsp is enabled.
++ ************************************************************************************/
++#define RTSP_MODULE1 "nf_nat_rtsp"
++#define RTSP_MODULE2 "nf_conntrack_rtsp"
++
++void Check_Enable_RTSP()
++{
++     char tmp[8] = {0};
++     syscfg_get( NULL, "enable_rtsp", tmp, sizeof(tmp));
++     if (strncmp(tmp, "1", sizeof(tmp)) == 0)
++     {
++         if ((isModuleLoaded(RTSP_MODULE1) != RETURN_OK) && (WanManager_DoSystemActionWithStatus("wanmanager", "insmod /lib/modules/rtsp-alg/nf_nat_rtsp.ko") != RETURN_OK))
++         {
++              CcspTraceError(("%s %d insmod: !!!!! Failed to add nf_nat_rtsp.ko !!!!! \n", __FUNCTION__, __LINE__));
++         }
++         else
++         {
++              CcspTraceInfo(("%s %d!!!!! nf_nat_rtsp.ko added !!!!!\n", __FUNCTION__, __LINE__));
++         }
++
++         if ((isModuleLoaded(RTSP_MODULE2) != RETURN_OK) && (WanManager_DoSystemActionWithStatus("wanmanager", "insmod /lib/modules/rtsp-alg/nf_conntrack_rtsp.ko") != RETURN_OK))
++         {
++              CcspTraceError(("%s %d insmod: !!!!! Failed to add nf_conntrack_rtsp.ko !!!!! \n", __FUNCTION__, __LINE__));
++         }
++         else
++         {
++              CcspTraceInfo(("%s %d!!!!! nf_conntrack_rtsp.ko added !!!!!\n", __FUNCTION__, __LINE__));
++         }
++     }
++}
++
+ /*********************************************************************************/
+ /**************************** ACTIONS ********************************************/
+ /*********************************************************************************/
+@@ -1412,6 +1444,7 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_
+         CcspTraceInfo(("%s %d -  IPv4 DNS servers configures successfully \n", __FUNCTION__, __LINE__));
+     }
+ 
++    Check_Enable_RTSP();
+         /** Set default gateway. */
+     if (WanManager_AddDefaultGatewayRoute(DeviceNwMode, &p_VirtIf->IP.Ipv4Data) != RETURN_OK)
+     {
+Index: git/source/WanManager/wanmgr_net_utils.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_net_utils.c
++++ git/source/WanManager/wanmgr_net_utils.c
+@@ -274,7 +274,7 @@ int xlat_reconfigure(void)
+ }
+ #endif
+ 
+-#ifdef FEATURE_MAPT
++#if defined(FEATURE_MAPT) || defined(_PLATFORM_SDX_)
+ /*************************************************************************************
+  * @brief checks kernel module loaded.
+  * This API calls the proc entry.
+Index: git/source/WanManager/wanmgr_net_utils.h
+===================================================================
+--- git.orig/source/WanManager/wanmgr_net_utils.h
++++ git/source/WanManager/wanmgr_net_utils.h
+@@ -180,7 +180,7 @@ int xlat_configure(char *interface, char
+ int xlat_reconfigure(void);
+ #endif
+ 
+-#ifdef FEATURE_MAPT
++#if defined(FEATURE_MAPT) || defined(_PLATFORM_SDX_)
+ /*************************************************************************************
+  * @brief checks kernel module loaded.
+  * This API calls the proc entry.
+@@ -188,7 +188,9 @@ int xlat_reconfigure(void);
+  * @return RETURN_OK upon success else RETURN_ERR returned
+  **************************************************************************************/
+ int isModuleLoaded(char *moduleName); // checks kernel module loaded.
++#endif
+ 
++#ifdef FEATURE_MAPT
+ /***********************************************************************************
+  * @brief This API used to process mapt configuration data.
+  * @param dhcp6cMAPTMsgBody Hold the mapt data received from dhcp6 server.
