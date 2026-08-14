@@ -1,0 +1,120 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 93ed426e4235caad72c50871eb0d0b3e7d9e6664 Mon Sep 17 00:00:00 2001
+From: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+Date: Thu, 20 Aug 2026 04:04:35 +0000
+Subject: Cellular Manager DM support for USIM
+Signed-off-by: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal_mm_apis.c |  8 ++++++++
+ .../cellularmgr_cellular_apis.h               |  8 --------
+ source/CellularManager/cellularmgr_sm.c       | 19 ++++++++++++++++++-
+ .../include/dmsb_tr181_psm_definitions.h      |  1 +
+ .../middle_layer_src/cellularmgr_rbus_dml.c   |  8 ++++++++
+ 5 files changed, 35 insertions(+), 9 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 3827950..8781f5e 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -1395,6 +1395,14 @@ INT cellular_hal_mm_get_sim_data (CHAR *index, INT type, CHAR *data)
+                     strlcpy (data, value, CELLULAR_OPERATOR_NAME_MAX_LENGTH);
+                 break;
+             }
++#ifdef CM_EXTN_SUPPORTED
++            case SIM_IMSI:
++            {
++                if( (value = mm_sim_get_imsi (ctx->sim)) != NULL )
++                    strlcpy (data, value, CELLULAR_IMSI_MAX_LENGTH);
++                break;
++            }
++#endif
+             default:
+                 res = RETURN_ERROR;
+         }
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 59bc476..8abbf8c 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -149,14 +149,6 @@ typedef enum _CELLULAR_INTERFACE_SIM_APPLICATION
+ } 
+ CELLULAR_INTERFACE_SIM_APPLICATION;
+ 
+-typedef enum _CELLULAR_INTERFACE_USIM_PINCHECK
+-{
+-   USIM_PINCHECK_ON_NETWORK_ACCESS = 1,
+-   USIM_PINCHECK_AFTER_REBOOT,
+-   USIM_PINCHECK_DISABLE
+-} 
+-CELLULAR_INTERFACE_USIM_PINCHECK;
+-
+ typedef enum _CELLULAR_INTERFACE_PROFILE_FAMILY
+ {
+    INTERFACE_PROFILE_FAMILY_IPV4 = 1,
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 332b758..403608a 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -1179,7 +1179,24 @@ static CellularPolicySmState_t StateDown( void )
+         return(TransitionDeactivated( ));
+ #endif //CM_EXTN_SUPPORTED
+     }
+-
++#ifdef CM_EXTN_SUPPORTED
++    /* Sync pinCheck with actual SIM lock status
++     * once on first modem detection */
++    if( (NULL != gpstCellularPolicyCtrl->pstDmlCellular) &&
++        (NULL != gpstCellularPolicyCtrl->
++        pstDmlCellular->pstInterfaceInfo) &&
++        (stUsimPinPinCheckInfo.pinCheckInitUpdate != TRUE ))
++    {
++        if(RETURN_OK ==
++            CellularMgr_extn_SyncPinCheckFromActiveCard(
++            &gpstCellularPolicyCtrl->pstDmlCellular->
++            pstInterfaceInfo->stUSIMSlotInfo)
++        )
++        {
++            stUsimPinPinCheckInfo.pinCheckInitUpdate = TRUE;
++        }
++    }
++#endif
+     return CELLULAR_STATE_DOWN;
+ }
+ 
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index 81c062a..5f3fdb3 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -57,6 +57,7 @@
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_ROAMING                    "dmsb.cellularmanager.accesspoint.%d.roaming"
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_PROFILE_TYPE               "dmsb.cellularmanager.accesspoint.%d.profiletype"
+ #define PSM_CELLULARMANAGER_INTERFACE_ALIAS                                       "dmsb.cellularmanager.interface.%d.alias"
++#define PSM_CELLULARMANAGER_INTERFACE_USIM_PINCHECK                "dmsb.cellularmanager.interface.%d.usim.pincheck"
+ #ifdef CM_PROP_SUPPORTED
+ #define PSM_CELLULARMANAGER_INTERFACE_DATA_USAGE_REFRESH_TIMER      "dmsb.cellularmanager.interface.%d.x_qcom.dataUsage.refreshtimer"
+ #endif //CM_PROP_SUPPORTED
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 5340861..acbd988 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3788,6 +3788,14 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.Stats.ErrorsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.Status", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.IMSI", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.ICCID", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.MSISDN", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.PINCHECK", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, USIM_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.NEWPIN", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, USIM_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.CURRENTPIN", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, USIM_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.PUK", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, USIM_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+ #ifdef CM_PROP_SUPPORTED
+         {"Device.Cellular.Interface.{i}.X_QCOM.DataUsage.RefreshTime", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_extn_GetParamUlongValue_rbus, Data_Usage_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif //CM_PROP_SUPPORTED
+-- 
+2.34.1
+

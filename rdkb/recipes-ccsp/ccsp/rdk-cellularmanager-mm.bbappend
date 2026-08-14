@@ -30,6 +30,7 @@ SRC_URI += " \
     file://0023-qti-rdk-cellularmanager-mm_DataUsageDM.patch \
     file://0024-qti-rdk-cellularmanager-mm_Add-DNSSL-SM-triggers-and-RBUS-DM-registrations.patch \
     file://0025-qti-rdk-cellularmanager-mm_available_network.patch \
+    file://0026-qti-rdk-cellularmanager-mm_USIM_port.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
