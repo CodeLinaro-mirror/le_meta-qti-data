@@ -19,4 +19,5 @@ SRC_URI += " \
               file://00012-lm-lite-fix-for-crash-caused-by-buffer-size-mismatch.patch \
               file://00004-lm-lite-packet-stats-changes.patch \
               file://00010-lm-lite-ipa-connect-fix-for-vlan-client.patch \
+              file://00015-lm-lite-Hosts-dm-update-globalip.patch \
 "
