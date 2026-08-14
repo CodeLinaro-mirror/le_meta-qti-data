@@ -1,0 +1,192 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 2e95e2c8d44d6995757cb261e52cea393034ad2b Mon Sep 17 00:00:00 2001
+From: Sagar Kothawar <kothawar@qti.qualcomm.com>
+Date: Mon, 10 Aug 2026 19:41:12 +0000
+Subject: [PATCH] ccsp-eth-agent: Fix eth1 WAN bringup and undefined reference
+for _PLATFORM_SDX_ on RDK8
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Description:
+  Two issues observed on RDK8 when eth1 is configured as WAN interface:
+
+  1. Build failure — linker reports undefined reference to WAN_IF_NAME_PRIMARY
+     in EthwanEnableWithoutReboot and other functions. This prevented the
+     ccsp-eth-agent from building on RDK8.
+
+  2. Runtime failure — after fixing the build, eth1 was present in
+     ifconfig -a but stayed DOWN on boot with no WAN IP assigned.
+     Manually running ifconfig eth1 up brought the interface up and
+     WAN worked correctly, confirming the issue was only in the
+     automatic bringup path.
+
+  This patch fixes both issues by re-anchoring the WAN_IF_NAME_PRIMARY
+  definition outside the FEATURE_SUPPORT_ONBOARD_LOGGING flag and adding
+  _PLATFORM_SDX_ guards inside the CORE_NET_LIB blocks in CosaDmlEthInit,
+  EthwanEnableWithoutReboot and CosaDmlEthWanSetEnable.
+
+RCA:
+  Issue 1 — Undefined reference:
+  The WAN_IF_NAME_PRIMARY definition was anchored inside
+  #ifdef FEATURE_SUPPORT_ONBOARD_LOGGING by the 0007 patch context.
+  FEATURE_SUPPORT_ONBOARD_LOGGING is not defined on RDK8 so the
+  definition was compiled out while all usages remained compiled in
+  causing the linker to fail.
+
+  Issue 2 — eth1 not coming up:
+  CORE_NET_LIB is defined on RDK8 because rdkb-onewifi-distro.inc
+  is required in rdkb-distro.inc as part of the OneWifi feature set
+  which adds core-net-lib to DISTRO_FEATURES. This is absent in
+  RDKB 25Q4. In CosaDmlEthInit the code splits on #ifdef CORE_NET_LIB.
+  Without CORE_NET_LIB (RDKB 25Q4) the #else block runs which calls
+  GWP_GetEthWanInterfaceName() first to populate WAN_IF_NAME_PRIMARY
+  with eth1 then brings it up via ifconfig. With CORE_NET_LIB (RDK8)
+  the #ifdef CORE_NET_LIB block runs but GWP_GetEthWanInterfaceName()
+  was never called before this block so WAN_IF_NAME_PRIMARY still holds
+  its default value eth0. As a result interface_up(eth0) is called
+  instead of interface_up(eth1) and eth1 stays DOWN. The same issue
+  affects EthwanEnableWithoutReboot and CosaDmlEthWanSetEnable where
+  the CORE_NET_LIB blocks used hardcoded erouter0 and ETHWAN_DEF_INTF_NAME
+  instead of WAN_IF_NAME_PRIMARY.
+
+Test steps:
+  1. Set eth1 as WAN and reboot:
+     syscfg set wan_physical_ifname eth1
+     syscfg set eth_wan_enabled true
+     syscfg commit
+     reboot
+  2. After reboot without any manual intervention verify:
+     ifconfig eth1                 -- should show inet addr automatically
+     ip route show | grep default  -- default route via eth1
+     ping -I eth1 -c 4 8.8.8.8    -- 0% packet loss
+     dmcli eRT getv Device.X_RDK_WanManager.Interface.1.Status                        -- Active
+     dmcli eRT getv Device.X_RDK_WanManager.Interface.1.VirtualInterface.1.Status     -- Up
+     dmcli eRT getv Device.X_RDK_WanManager.Interface.1.VirtualInterface.1.IP.IPv4Address -- valid IP
+
+Signed-off-by: Sagar Kothawar <kothawar@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_ethernet_apis.c   | 46 ++++++++++++++++++-
+ 1 file changed, 45 insertions(+), 1 deletion(-)
+
+Index: git/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+===================================================================
+--- git.orig/source/TR-181/board_sbapi/cosa_ethernet_apis.c
++++ git/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+@@ -146,9 +146,9 @@ extern  char g_Subsystem[BUFLEN_32];
+ #endif //FEATURE_RDKB_WAN_MANAGER
+ 
+ #include <syscfg/syscfg.h>
++char WAN_IF_NAME_PRIMARY[20] = "eth0";
+ #ifdef FEATURE_SUPPORT_ONBOARD_LOGGING
+ 
+-char WAN_IF_NAME_PRIMARY[20] = "eth0";
+ 
+ #define LOGGING_MODULE           "ETHAGENT"
+ #define OnboardLog(...)         rdk_log_onboard(LOGGING_MODULE, __VA_ARGS__)
+@@ -2010,6 +2010,18 @@ ANSC_STATUS EthwanEnableWithoutReboot(BO
+     if(bEnable == FALSE && (bridge_mode == 0))
+     {
+         #ifdef CORE_NET_LIB
++        #ifdef _PLATFORM_SDX_
++        status=interface_down(WAN_IF_NAME_PRIMARY);
++        if (status != CNL_STATUS_SUCCESS)
++        {
++            CcspTraceInfo(("Failed to down the interface %s \n",WAN_IF_NAME_PRIMARY));
++        }
++        status=interface_up(WAN_IF_NAME_PRIMARY);
++        if (status != CNL_STATUS_SUCCESS)
++        {
++            CcspTraceInfo(("Failed to up the interface %s\n",WAN_IF_NAME_PRIMARY));
++        }
++        #else
+         status=interface_down(WAN_IF_NAME_PRIMARY);
+         if (status != CNL_STATUS_SUCCESS) 
+         {
+@@ -2035,6 +2047,7 @@ ANSC_STATUS EthwanEnableWithoutReboot(BO
+         {
+             CcspTraceInfo(("Failed to up the interface %s\n",WAN_IF_NAME_PRIMARY));
+         }
++        #endif
+         #else
+         	#ifdef _PLATFORM_SDX_
+ 		v_secure_system("ip link set %s down", WAN_IF_NAME_PRIMARY);
+@@ -2904,6 +2917,13 @@ CosaDmlEthWanSetEnable
+         if(bEnable == FALSE)
+         {
+             #ifdef CORE_NET_LIB
++            #ifdef _PLATFORM_SDX_
++            status=interface_down(WAN_IF_NAME_PRIMARY);
++            if (status != CNL_STATUS_SUCCESS)
++            {
++               CcspTraceInfo(("Failed to down the interface %s\n",WAN_IF_NAME_PRIMARY));
++            }
++            #else
+             status=interface_down("erouter0");
+             if (status != CNL_STATUS_SUCCESS) 
+             {
+@@ -2920,6 +2940,7 @@ CosaDmlEthWanSetEnable
+             {
+                CcspTraceInfo(("Failed to rename the interface dummy-rf with erouter0\n"));
+             }
++            #endif
+             #else
+             	#ifdef _PLATFORM_SDX_
+             	v_secure_system("ifconfig %s down", WAN_IF_NAME_PRIMARY);
+@@ -2935,6 +2956,13 @@ CosaDmlEthWanSetEnable
+             ERR_CHK(rc);
+             /*Coverity Fix  CID: 132495 DC.STRING_BUFFER*/
+             #ifdef CORE_NET_LIB
++            #ifdef _PLATFORM_SDX_
++            status=interface_up(WAN_IF_NAME_PRIMARY);
++            if (status != CNL_STATUS_SUCCESS)
++            {
++               CcspTraceInfo(("Failed to up the interface %s\n",WAN_IF_NAME_PRIMARY));
++            }
++            #else
+             status=interface_up(ETHWAN_DEF_INTF_NAME);
+             if (status != CNL_STATUS_SUCCESS) 
+             {
+@@ -2945,6 +2973,7 @@ CosaDmlEthWanSetEnable
+             {
+                CcspTraceInfo(("Failed to up the interface erouter0\n"));
+             }
++            #endif
+             #else
+             	#ifdef _PLATFORM_SDX_
+             	v_secure_system("ifconfig %s up", WAN_IF_NAME_PRIMARY);
+@@ -3493,6 +3522,19 @@ CosaDmlEthInit(
+     #endif
+     #ifdef CORE_NET_LIB
+     libnet_status status;
++    #ifdef _PLATFORM_SDX_
++    GWP_GetEthWanInterfaceName((unsigned char*)WAN_IF_NAME_PRIMARY, sizeof(WAN_IF_NAME_PRIMARY));
++    status=interface_down(WAN_IF_NAME_PRIMARY);
++    if(status != CNL_STATUS_SUCCESS)
++    {
++        CcspTraceInfo(("Failed to down the interface %s\n",WAN_IF_NAME_PRIMARY));
++    }
++    status=interface_up(WAN_IF_NAME_PRIMARY);
++    if(status != CNL_STATUS_SUCCESS)
++    {
++        CcspTraceInfo(("Failed to up the interface %s\n",WAN_IF_NAME_PRIMARY));
++    }
++    #else
+     status=interface_down(ETHWAN_DEF_INTF_NAME);
+     if(status != CNL_STATUS_SUCCESS) 
+     {
+@@ -3508,6 +3550,7 @@ CosaDmlEthInit(
+     {
+         CcspTraceInfo(("Failed to up the interface %s\n",wanPhyName));
+     }
++    #endif
+     #else
+     	#ifdef _PLATFORM_SDX_
+     	GWP_GetEthWanInterfaceName((unsigned char*)WAN_IF_NAME_PRIMARY, sizeof(WAN_IF_NAME_PRIMARY));
+--
+2.34.1
+

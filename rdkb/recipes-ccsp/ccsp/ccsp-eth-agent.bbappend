@@ -6,6 +6,7 @@ SRC_URI_append += "file://0001-ethagent-23Q1-Port-modified.patch \
                    file://0005-ethagent-fix-leak.patch \
                    file://0006-wan-failover.patch \
                    file://0007-eth1-wan-support.patch \
+                   file://0008-eth1-wan-fix-core-net-lib-bringup-and-def-anchor-rdk8.patch \
                    "
 
 require ccsp_common.inc
