@@ -30,6 +30,6 @@ Description= DHCP Release Service
 SourcePath=/usr/bin/dhcp_release
 
 [Service]
+Type=oneshot
 EnvironmentFile=/var/run/data/dhcp_release_options.conf
 ExecStart=/usr/bin/dhcp_release ${bridge_iface} ${ip_addr} ${client_mac}
-ExecStop=/bin/kill -15 $MAINPID
