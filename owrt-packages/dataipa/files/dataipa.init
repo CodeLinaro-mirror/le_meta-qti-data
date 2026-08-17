@@ -8,7 +8,7 @@ START=03
 STOP=96
 
 start() {
-	/etc/initscripts/start_dataipa_le start
+	/usr/bin/start_dataipa_le start
 
 	chmod 666 /dev/wwan_ioctl
 	chmod 666 /dev/ipa
