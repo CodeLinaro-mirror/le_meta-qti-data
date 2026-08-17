@@ -15,20 +15,20 @@ SRC_URI += " \
               file://00004-qti-ccsp-p-and-m_DNSProxy-bringup.patch \
               file://00005-qti-ccsp-p-and-m_Cellular_v6_bringup.patch \
               file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
-              file://00008-qti-ccsp-p-and-m_Fix-nonnull-RfcJsonInit-null-filename.patch \
-              file://00009-qti-ccsp-p-and-m_USB-DM.patch \
-              file://00010-qti-ccsp-p-and-m_IPPT-changes.patch \
-              file://00011-qti-ccsp-p-and-m_Fix-ipv6-dm-population.patch \
-              file://00012-qti-ccsp-p-and-m_changes_for_factory_reset.patch \
-              file://00013-qti-ccsp-p-and-m_lan-vlan-changes.patch \
-              file://00015-qti-ccsp-p-and-m_lan-restart-after-dhcp-pool-change.patch \
-              file://00016-qti-ccsp-p-and-m_sip-dm-implementation.patch \
-              file://00017-qti-ccsp-p-and-m_vpn-passthrough-read-syscfg-state.patch \
-              file://00018-qti-CcspPandM_address_reconf.patch \
-              file://00019-qti-ccsp-p-and-m_v6_mtu_fix.patch \
-              file://00021-qti-ccsp-p-and-m_dhcpv6-stateless.patch \
-              file://00020-qti-ccsp-p-and-m-RTSP-DM-support.patch \
-              file://00014-qti-ccsp-p-and-m_PacketStats-Enable-Disable.patch \
+              file://00007-qti-ccsp-p-and-m_Fix-nonnull-RfcJsonInit-null-filename.patch \
+              file://00008-qti-ccsp-p-and-m_USB-DM.patch \
+              file://00009-qti-ccsp-p-and-m_IPPT-changes.patch \
+              file://00010-qti-ccsp-p-and-m_Fix-ipv6-dm-population.patch \
+              file://00011-qti-ccsp-p-and-m_changes_for_factory_reset.patch \
+              file://00012-qti-ccsp-p-and-m_lan-vlan-changes.patch \
+              file://00013-qti-ccsp-p-and-m_lan-restart-after-dhcp-pool-change.patch \
+              file://00014-qti-ccsp-p-and-m_sip-dm-implementation.patch \
+              file://00015-qti-ccsp-p-and-m_vpn-passthrough-read-syscfg-state.patch \
+              file://00016-qti-CcspPandM_address_reconf.patch \
+              file://00017-qti-ccsp-p-and-m_v6_mtu_fix.patch \
+              file://00018-qti-ccsp-p-and-m_dhcpv6-stateless.patch \
+              file://00019-qti-ccsp-p-and-m-RTSP-DM-support.patch \
+              file://00020-qti-ccsp-p-and-m_PacketStats-Enable-Disable.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "

@@ -19,20 +19,20 @@ SRC_URI:append = " \
     file://00013-utopia-factory-reset-changes.patch \
     file://00014-qti-utopia-Legacy-IPv6-PD-prefix-client-management.patch \
     file://00015-utopia-lan-vlan-changes.patch \
-    file://00017-utopia-sip-alg-configuration.patch \
-    file://00018-utopia-MTU-information.patch \
-    file://00019-utopia-fix-pptp-rtsp-raw-table-initialization.patch \
-    file://00020-set-eth-perf-invocation.patch \
-    file://00021-qti-utopia-TCPMSS_clamping_rules_adding.patch \
-    file://00022-qti-utopia-TCPMSS_clamping_rules_adding_extn_support.patch \
-    file://00023-utopia-skip-wan-iface-in-bringup.patch \
-    file://00024-utopia-6brd.patch \
-    file://00029-qti-utopia-dhcpv6-stateless.patch \
+    file://00016-utopia-sip-alg-configuration.patch \
+    file://00017-utopia-MTU-information.patch \
+    file://00018-utopia-fix-pptp-rtsp-raw-table-initialization.patch \
+    file://00019-set-eth-perf-invocation.patch \
+    file://00020-qti-utopia-TCPMSS_clamping_rules_adding.patch \
+    file://00021-qti-utopia-TCPMSS_clamping_rules_adding_extn_support.patch \
+    file://00022-utopia-skip-wan-iface-in-bringup.patch \
+    file://00023-utopia-6brd.patch \
+    file://00024-qti-utopia-dhcpv6-stateless.patch \
     file://00025-utopia-service-igd-miniupnpd-echo-support.patch \
-    file://00016-qti-utopia-packet-stats-changes.patch \
-    file://00026-qti-utopia-site-filter-fix.patch \
-    file://00027-qti-site-filter-bug-with-url-change-of-same-table.patch \
-    file://00028-qti-utopia-site-filter-fix-fopen-append-fix.patch \
+    file://00026-qti-utopia-packet-stats-changes.patch \
+    file://00027-qti-utopia-site-filter-fix.patch \
+    file://00028-qti-site-filter-bug-with-url-change-of-same-table.patch \
+    file://00029-qti-utopia-site-filter-fix-fopen-append-fix.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
