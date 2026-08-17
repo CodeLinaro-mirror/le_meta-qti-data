@@ -11,5 +11,5 @@ start() {
 }
 
 stop() {
-	echo "Stopping r8125 Instance"
+	echo "Stopping r8152 Instance"
 }
