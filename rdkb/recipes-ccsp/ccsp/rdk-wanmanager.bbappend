@@ -28,6 +28,7 @@ SRC_URI += " \
     file://00014-qti-WanManager_v6address_eth1_wan_accept_ra_pinfo.patch \
     file://00015-qti-Wanmanager-kill-6brd.patch \
     file://00016-qti-Wanmanager-eth1-auto-bringup-on-bind.patch \
+    file://00017-qti-Wanmanager-RTSP-module-check.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
