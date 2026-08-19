@@ -30,6 +30,7 @@ SRC_URI += " \
               file://00019-qti-ccsp-p-and-m-RTSP-DM-support.patch \
               file://00020-qti-ccsp-p-and-m_PacketStats-Enable-Disable.patch \
               file://00021-qti-ccsp-p-and-m-usb-ecm-interface-count-fix.patch \
+              file://00022-qti-ccsp-p-and-m_brlan0-not-releasingIP_fix.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
