@@ -1,0 +1,221 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From f2689d3b141fa6be8ba72609f7317ba2d960e625 Mon Sep 17 00:00:00 2001
+From: Amirthavarshini N <amirthav@qti.qualcomm.com>
+Date: Wed, 19 Aug 2026 10:20:56 +0000
+Subject: [PATCH] qti-utopia-site-filter-fix
+
+Signed-off-by: Amirthavarshini N <amirthav@qti.qualcomm.com>
+---
+ source/firewall/firewall.c      | 52 +++++++++++++++++++++------------
+ source/firewall/firewall.h      |  2 +-
+ source/firewall/firewall_ipv6.c |  2 +-
+ 3 files changed, 35 insertions(+), 21 deletions(-)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 022720d..425a035 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -8335,7 +8335,7 @@ static int getmacaddress_fromip(char *ipaddress, int iptype, char *mac, int mac_
+  *  Return Values :
+  *     0               : done
+  */
+-static int do_parental_control_allow_trusted(FILE *fp, int iptype, const char* list_name, const char* table_name)
++static int do_parental_control_allow_trusted(FILE *fp, FILE *mangle_fp, FILE *raw_fp, int iptype, const char* list_name, const char* table_name)
+ {
+    int count=0, idx, rc;
+    int count_v4=0, count_v6=0;
+@@ -8405,6 +8405,7 @@ static int do_parental_control_allow_trusted(FILE *fp, int iptype, const char* l
+             {
+                 this_iptype == 4 ? ++count_v4 : ++count_v6;
+                 fprintf(fp, "-A %s -m mac --mac-source %s -j RETURN\n", table_name, mac);
++                fprintf(raw_fp, "-I PREROUTING -i brlan0 -m mac --mac-source %s -j ACCEPT\n",mac);
+             }
+             else
+             {   // !!! fail safe for ipv6: check and get mac address using ipv4.
+@@ -8424,6 +8425,7 @@ static int do_parental_control_allow_trusted(FILE *fp, int iptype, const char* l
+                             {
+                                 ++count_v6;
+                                 fprintf(fp, "-A %s -m mac --mac-source %s -j RETURN\n", table_name, mac);
++                                fprintf(raw_fp, "-I PREROUTING -i brlan0 -m mac --mac-source %s -j ACCEPT\n",mac);
+                             }
+                         }
+                     }
+@@ -8460,9 +8462,9 @@ void block_url_by_ipaddr(FILE *fp, char *url, char *dropLog, int ipver, char *in
+     int dnsResponse = 0;
+     FIREWALL_DEBUG("Entering block_url_by_ipaddr\n");  
+     if(ipver == 6)
+-        snprintf(filePath, sizeof(filePath), "/var/.pc_url2ipv6_%s", insNum);
++        snprintf(filePath, sizeof(filePath), "/var/volatile/.pc_url2ipv6_%s", insNum);
+     else
+-        snprintf(filePath, sizeof(filePath), "/var/.pc_url2ip_%s", insNum);
++        snprintf(filePath, sizeof(filePath), "/var/volatile/.pc_url2ip_%s", insNum);
+ 
+ /* * Actually needs to get IP address of every firewall-restart iteration otherwise blocking wont work properly */
+ #if !defined(_HUB4_PRODUCT_REQ_)
+@@ -8860,11 +8862,10 @@ int do_dns_route(FILE *nat_fp, int iptype) {
+ 
+ static int do_parcon_mgmt_device(FILE *fp, int iptype, FILE *cron_fp);
+ static int do_parcon_device_cloud_mgmt(FILE *fp, int iptype, FILE *cron_fp);
+-static int do_parcon_mgmt_service(FILE *fp, int iptype, FILE *cron_fp);
+-static int do_parcon_mgmt_site_keywd(FILE *fp, FILE *nat_fp, int iptype, FILE *cron_fp);
+-
+-int do_parental_control(FILE *fp,FILE *nat_fp, int iptype) {
++static int do_parcon_mgmt_service(FILE *fp, FILE *mangle_fp, FILE *raw_fp, int iptype, FILE *cron_fp);
++static int do_parcon_mgmt_site_keywd(FILE *raw_fp, FILE *fp, FILE *mangle_fp, FILE *nat_fp, int iptype, FILE *cron_fp);
+ 
++int do_parental_control(FILE *fp,FILE *nat_fp, FILE *mangle_fp, FILE *raw_fp, int iptype) {
+     char *cron_file = crontab_dir"/"crontab_filename;
+     int bCloudEnable = FALSE;
+     FILE *cron_fp = NULL; // the crontab file we use to set wakeups for timed firewall events
+@@ -8905,9 +8906,9 @@ int do_parental_control(FILE *fp,FILE *nat_fp, int iptype) {
+ 		
+ 	}
+ #ifndef CONFIG_CISCO_FEATURE_CISCOCONNECT
+-    do_parcon_mgmt_site_keywd(fp,nat_fp, iptype, cron_fp);
++    do_parcon_mgmt_site_keywd(raw_fp, fp, nat_fp, mangle_fp, iptype, cron_fp);
+ #endif
+-    do_parcon_mgmt_service(fp, iptype, cron_fp);
++    do_parcon_mgmt_service(fp, mangle_fp, raw_fp, iptype, cron_fp);
+ 
+     if (cron_fp) { /*RDKB-7145, CID-33097,  free only a valid resource*/
+         fclose(cron_fp);
+@@ -9115,7 +9116,7 @@ static int validate_port(char* port_num)
+ /*
+  * add parental control managed service(ports) rules
+  */
+-static int do_parcon_mgmt_service(FILE *fp, int iptype, FILE *cron_fp)
++static int do_parcon_mgmt_service(FILE *fp, FILE *mangle_fp, FILE *raw_fp, int iptype, FILE *cron_fp)
+ {
+    FIREWALL_DEBUG("Entering do_parcon_mgmt_service\n"); 
+    int rc;
+@@ -9127,7 +9128,7 @@ static int do_parcon_mgmt_service(FILE *fp, int iptype, FILE *cron_fp)
+       int count=0, idx;
+ 
+       // first, we let traffic from trusted user get through
+-      do_parental_control_allow_trusted(fp, iptype, "ManagedServiceTrust", "lan2wan_pc_service");
++      do_parental_control_allow_trusted(fp, mangle_fp, raw_fp, iptype, "ManagedServiceTrust", "lan2wan_pc_service");
+ 
+ #ifdef CONFIG_CISCO_PARCON_WALLED_GARDEN
+      /* only ipv4 has nat table, so cannot use nat table to redirect service port */ 
+@@ -9210,7 +9211,7 @@ static int do_parcon_mgmt_service(FILE *fp, int iptype, FILE *cron_fp)
+ /*
+  * add parental control managed site/keyword rules
+  */
+-static int do_parcon_mgmt_site_keywd(FILE *fp, FILE *nat_fp, int iptype, FILE *cron_fp)
++static int do_parcon_mgmt_site_keywd(FILE *raw_fp, FILE *fp, FILE *nat_fp, FILE *mangle_fp, int iptype, FILE *cron_fp)
+ {
+     int rc;
+     char query[MAX_QUERY];
+@@ -9230,11 +9231,11 @@ static int do_parcon_mgmt_site_keywd(FILE *fp, FILE *nat_fp, int iptype, FILE *c
+         int ruleIndex = 0;
+ 
+         // first, we let traffic from trusted user get through
+-        ruleIndex = do_parental_control_allow_trusted(fp, iptype, "ManagedSiteTrust", "lan2wan_pc_site");
++        ruleIndex = do_parental_control_allow_trusted(fp, mangle_fp, raw_fp, iptype, "ManagedSiteTrust", "lan2wan_pc_site");
+ #endif
+ #ifdef CONFIG_CISCO_PARCON_WALLED_GARDEN
+         if(iptype == 4){
+-            ruleIndex = do_parental_control_allow_trusted(nat_fp, iptype, "ManagedSiteTrust", "managedsite_based_parcon");
++            ruleIndex = do_parental_control_allow_trusted(nat_fp, mangle_fp, raw_fp, iptype, "ManagedSiteTrust", "managedsite_based_parcon");
+             fprintf(nat_fp, "-A managedsite_based_parcon -j parcon_walled_garden\n");
+         }
+ #endif
+@@ -9427,7 +9428,7 @@ static int do_parcon_mgmt_site_keywd(FILE *fp, FILE *nat_fp, int iptype, FILE *c
+ 					//Intel Proposed RDKB Generic Bug Fix from XB6 SDK
+ 					fprintf(fp, "-A lan2wan_pc_site -p tcp -m tcp --dport 80 -m webstr --host \"%s\" -j LOG_SiteBlocked_%d_DROP\n", query + host_name_offset, idx);
+ 					fprintf(fp, "-A lan2wan_pc_site -p tcp -m tcp --dport 443 -m webstr --host \"%s\" -j LOG_SiteBlocked_%d_DROP\n", query + host_name_offset, idx);
+-#elif defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_COSA_QCA_ARM_)
++#elif defined(_PLATFORM_RASPBERRYPI_) || defined(_PLATFORM_TURRIS_) || defined(_PLATFORM_BANANAPI_R4_) || defined(_COSA_QCA_ARM_) || defined(_PLATFORM_SDX_)
+                     fprintf(fp, "-A lan2wan_pc_site -p tcp -m tcp --dport 80 -d \"%s\" -j LOG_SiteBlocked_%d_DROP\n", query + host_name_offset, idx);
+                     fprintf(fp, "-A lan2wan_pc_site -p tcp -m tcp --dport 443 -d \"%s\" -j LOG_SiteBlocked_%d_DROP\n", query + host_name_offset, idx);
+ #elif !defined(_XER5_PRODUCT_REQ_)
+@@ -9448,6 +9449,19 @@ static int do_parcon_mgmt_site_keywd(FILE *fp, FILE *nat_fp, int iptype, FILE *c
+                 }
+ 
+                 block_url_by_ipaddr(fp, query + host_name_offset, drop_log, iptype, ins_num, nstdPort);
++                char *url_string=NULL;
++                char url_add[MAX_QUERY]="www.";
++                char num[16]="";
++                strlcpy(num,ins_num,sizeof(num));
++                strlcat(num,"_a",sizeof(num));
++                url_string = strstr(query + host_name_offset,url_add);
++                if(!url_string) {
++                     strlcat(url_add, query + host_name_offset, MAX_QUERY);
++                     block_url_by_ipaddr(fp, url_add, drop_log, iptype, num, nstdPort);
++                 }
++                else {
++                    block_url_by_ipaddr(fp, (url_string+4), drop_log, iptype, num, nstdPort);
++                 }
+             }
+             else if (strncasecmp(method, "KEYWD", 5)==0)
+             {
+@@ -9502,7 +9516,7 @@ static int do_parcon_mgmt_site_keywd(FILE *fp, FILE *nat_fp, int iptype, FILE *c
+                 // Add rule for https filter
+                 fprintf(fp, "-A lan2wan_pc_site -p tcp --dport 443 -m string --string \"%s\" --algo kmp --icase -j %s\n",
+                     keyword, drop_log);
+-
++                fprintf(raw_fp, "-A PREROUTING -i brlan0 -m string --string \"%s\" --algo kmp --to 65535 --icase -j DROP\n", keyword);
+ #if defined(_HUB4_PRODUCT_REQ_) || defined (_RDKB_GLOBAL_PRODUCT_REQ_)
+ #if defined (_RDKB_GLOBAL_PRODUCT_REQ_)
+                  if( 0 == strncmp( devicePartnerId, "sky-", 4 ) )
+@@ -10169,7 +10183,7 @@ static void do_add_TCP_MSS_rules(FILE *mangle_fp)
+  * Return Values  :
+  *    0              : Success
+  */
+-static int do_lan2wan(FILE *mangle_fp, FILE *filter_fp, FILE *nat_fp)
++static int do_lan2wan(FILE *mangle_fp, FILE *filter_fp, FILE *nat_fp ,FILE *raw_fp)
+ {
+    FIREWALL_DEBUG("Entering do_lan2wan\n");
+ #if defined(_COSA_BCM_ARM_) && (defined(_CBR_PRODUCT_REQ_) || defined(_XB6_PRODUCT_REQ_)) && !defined(_SCER11BEL_PRODUCT_REQ_) && !defined(_XER5_PRODUCT_REQ_) && !defined(_SCXF11BFL_PRODUCT_REQ_)
+@@ -10203,7 +10217,7 @@ static int do_lan2wan(FILE *mangle_fp, FILE *filter_fp, FILE *nat_fp)
+    //do_lan2wan_webfilters(filter_fp);
+    //do_lan_access_restrictions(filter_fp, nat_fp);
+    do_lan2wan_disable(filter_fp);
+-   do_parental_control(filter_fp, nat_fp, 4);
++   do_parental_control(filter_fp, nat_fp, mangle_fp, raw_fp, 4);
+ 
+    do_add_TCP_MSS_rules(mangle_fp);
+    /* XDNS - route dns req though dnsmasq */
+@@ -13806,7 +13820,7 @@ static int prepare_enabled_ipv4_firewall(FILE *raw_fp, FILE *mangle_fp, FILE *na
+ 
+    do_lan2self(filter_fp);
+    do_wan2self(mangle_fp, nat_fp, filter_fp);
+-   do_lan2wan(mangle_fp, filter_fp, nat_fp); 
++   do_lan2wan(mangle_fp, filter_fp, nat_fp, raw_fp);
+    do_wan2lan(filter_fp);
+    do_filter_table_general_rules(filter_fp);
+ #if defined(SPEED_BOOST_SUPPORTED)
+diff --git a/source/firewall/firewall.h b/source/firewall/firewall.h
+index 1fc0541..79db7a2 100644
+--- a/source/firewall/firewall.h
++++ b/source/firewall/firewall.h
+@@ -441,7 +441,7 @@ int prepare_rabid_rules_for_mapt(FILE *filter_fp, ip_ver_t ver);
+ * @retval 0 on success.
+ *
+ */
+-int do_parental_control(FILE *fp, FILE *nat_fp, int iptype);
++int do_parental_control(FILE *fp, FILE *nat_fp, FILE *mangle_fp, FILE *raw_fp, int iptype);
+ 
+ /**
+ * @brief Prepare LNF internet access rules.
+diff --git a/source/firewall/firewall_ipv6.c b/source/firewall/firewall_ipv6.c
+index d92be8a..02b9ce9 100644
+--- a/source/firewall/firewall_ipv6.c
++++ b/source/firewall/firewall_ipv6.c
+@@ -308,7 +308,7 @@ int prepare_ipv6_firewall(const char *fw_file)
+ #else
+         prepare_rabid_rules_v2020Q3B(filter_fp, mangle_fp, IP_V6);
+ #endif
+-	do_parental_control(filter_fp,nat_fp, 6);
++        do_parental_control(filter_fp,nat_fp,mangle_fp, raw_fp, 6);
+ #if defined(SPEED_BOOST_SUPPORTED) && defined(SPEED_BOOST_SUPPORTED_V6)
+ 	WAN_FAILOVER_SUPPORT_CHECK
+ 	if(isWanServiceReady && !isBridgeMode)
+-- 
+2.34.1
+

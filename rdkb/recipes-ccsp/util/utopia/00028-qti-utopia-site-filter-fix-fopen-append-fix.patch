@@ -1,0 +1,32 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d00283107420edf4fee9d46545ebb045540a27ee Mon Sep 17 00:00:00 2001
+From: Amirthavarshini N <amirthav@qti.qualcomm.com>
+Date: Wed, 19 Aug 2026 09:44:06 +0000
+Subject: [PATCH] qti-utopia-site-filter-fix-fopen-append-fix.patch 
+
+Signed-off-by: Amirthavarshini N <amirthav@qti.qualcomm.com>
+---
+ source/firewall/firewall.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 7a28611..6e983d8 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -8516,7 +8516,7 @@ void block_url_by_ipaddr(FILE *fp, char *url, char *dropLog, int ipver, char *in
+     if(ipRecords == NULL) {
+         struct addrinfo hints, *res, *p;
+         int status;
+-        ipRecords = fopen(filePath, "w+"); /*RDKB-7145, CID-32907, optimizing the resource used*/
++        ipRecords = fopen(filePath, "a+"); /*RDKB-7145, CID-32907, optimizing the resource used*/
+  	if (ipRecords != NULL) { /*RDKB-12965 & CID:-32907 & CID:-34143 */
+         memset(&hints, 0, sizeof(hints));
+         if(ipver == 6)
+-- 
+2.34.1
+
