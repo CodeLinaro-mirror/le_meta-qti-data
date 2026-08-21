@@ -8,18 +8,19 @@ HOMEPAGE = "http://software.es.net/iperf/"
 SECTION = "utils"
 
 LICENSE = "BSD-3-Clause"
-LIC_FILES_CHKSUM = "file://LICENSE;md5=8c3434c5a9a53c78c7739f0bc9e5adda"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=f2eb355b6d3b9d63b6b7a861cdc62440"
 
 inherit autotools
 
-PV = "3.1.3+git${SRCPV}"
+PV = "3.21+git${SRCPV}"
 
-SRC_URI = "git://github.com/esnet/iperf.git;protocol=https;branch=3.1-STABLE \
-           file://0001-remove-incompatible-gcc-arg.patch"
+SRC_URI = "git://github.com/esnet/iperf.git;protocol=https;branch=master"
 
-SRCREV = "274eaed5b17f664e4ac6c79f1ba854b55f15a3a3"
+SRCREV = "d39cf41526626b4e5a130f115d931cd6cbdffc19"
 
-S = "${UNPACKDIR}/git"
+S = "${WORKDIR}/git"
+
+EXTRA_OECONF = "--with-openssl=no"
 
 RPROVIDES_${PN} += "iperf3"
 
