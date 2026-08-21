@@ -1,0 +1,30 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 3905f283dcd409f7d7519eb12282e0b33f017a7e Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Fri, 21 Aug 2026 05:48:32 +0000
+Subject: [PATCH] Fix Device.USB.InterfaceNumberOfEntries returning 0 when ecm0
+ interface is active
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_usb_apis.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_usb_apis.c
+@@ -221,6 +221,10 @@ ULONG CosaDmlUsbGetNumberOfEntries ( ANS
+     {
+         ulNumEntry++;
+     }
++    else if (isEcmInterface())
++    {
++        ulNumEntry++;
++    }
+     CcspTraceInfo(("%s %d - ulNumEntry %lu \n", __FUNCTION__,__LINE__,ulNumEntry));
+ 
+     return ulNumEntry;
