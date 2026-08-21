@@ -16,10 +16,10 @@ EXTRA_OEMAKE = "CC='${CC}' \
 
 do_install_append () {
         install -d ${D}${sysconfdir}/data/
-        install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}/data
-        chown -R root:1001 ${D}${sysconfdir}/data/dnsmasq.conf
+        install -m 664 ${WORKDIR}/dnsmasq.conf ${D}${sysconfdir}
+        chown -R root:1001 ${D}${sysconfdir}/dnsmasq.conf
         # symlink dnsmasq.conf under /etc
-        ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
+        #ln -sf ../${sysconfdir}/data/dnsmasq.conf ${D}${sysconfdir}/dnsmasq.conf
 
         if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
          install -d ${D}/etc/initscripts
@@ -44,8 +44,8 @@ do_install_append () {
          rm -d ${D}${sysconfdir}/systemd/resolved.conf.d
 }
 
-CONFFILES_${PN} = "${sysconfdir}/data/dnsmasq.conf"
-FILES_${PN} += "${sysconfdir}/data/dnsmasq.conf"
+CONFFILES_${PN} = "${sysconfdir}/dnsmasq.conf"
+FILES_${PN} += "${sysconfdir}/dnsmasq.conf"
 FILES_${PN} += "${systemd_unitdir}/system/*"
 
 SYSTEMD_SERVICE_${PN} = ""
