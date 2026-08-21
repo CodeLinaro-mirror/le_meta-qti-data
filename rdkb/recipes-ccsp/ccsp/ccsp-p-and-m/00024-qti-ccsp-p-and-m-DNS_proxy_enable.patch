@@ -1,0 +1,209 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From c8c1a01b8eb807df29315480054070aedb743be2 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Sat, 22 Aug 2026 09:53:27 +0000
+Subject: [PATCH] Adding DNS proxy enable configuration with conditional DNS server handling
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_dhcpv6_apis.c     | 69 +++++++++++++++----
+ source-arm/TR-181/board_sbapi/cosa_ra_apis.c  | 15 +++-
+ .../cosa_x_cisco_com_devicecontrol_apis.c     | 11 +++
+ 3 files changed, 79 insertions(+), 16 deletions(-)
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+index 2cf72bd..83bc560 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -5408,6 +5408,8 @@ void __cosa_dhcpsv6_refresh_config()
+     struct stat check_ConfigFile;
+     errno_t rc = -1;
+     bool option23_written = false;
++    char other_flag_value[5] = {0};
++    char dnsproxyenable[5]={0};
+ 
+     if (!fp)
+         goto EXIT;
+@@ -6019,15 +6021,20 @@ OPTIONS:
+ 			else
+ 				sysevent = "ipv6_nameserver";
+ 
+-			commonSyseventGet(sysevent, dnsStr, sizeof(dnsStr));
+-			if (dnsStr[0]) {
+-				CosaDmlDhcpv6s_format_DNSoption(dnsStr);
+-				CcspTraceDebug(("%s: writing to server.conf: 'option dns-server %s'\n", __func__, dnsStr));
+-				fprintf(fp, "    option dns-server %s\n", dnsStr);
+-				option23_written = true;
+-			} else {
+-				CcspTraceWarning(("%s: failed to get string from sysevent '%s'\n", __func__, sysevent));
+-			}
++            syscfg_get(NULL, "router_other_flag", other_flag_value, sizeof(other_flag_value));
++            syscfg_get(NULL, "dns_proxy_enable", dnsproxyenable, sizeof(dnsproxyenable));
++            if((strcmp(other_flag_value,"0") == 0) && (strcmp(dnsproxyenable,"0") == 0))
++            {
++                commonSyseventGet(sysevent, dnsStr, sizeof(dnsStr));
++                if (dnsStr[0]) {
++                    CosaDmlDhcpv6s_format_DNSoption(dnsStr);
++                    CcspTraceDebug(("%s: writing to server.conf: 'option dns-server %s'\n", __func__, dnsStr));
++                    fprintf(fp, "    option dns-server %s\n", dnsStr);
++                    option23_written = true;
++                } else {
++                    CcspTraceWarning(("%s: failed to get string from sysevent '%s'\n", __func__, sysevent));
++                }
++            }
+ 		}
+ 
+                 for ( Index4 = 0; Index4 < g_recv_option_num; Index4++ )
+@@ -6291,19 +6298,26 @@ OPTIONS:
+         commonSyseventGet("current_wan_ifname", ifname, sizeof(ifname));
+         if (strstr(ifname, CELLULAR_IF_NAME) != NULL)
+         {
++            char lan_addr[64] = {0};
+             char wan_dns1[64] = {0};
+             char wan_dns2[64] = {0};
+-            sysevent_get(sysevent_fd, sysevent_token,"lan_ipaddr_v6", wan_dns1, sizeof(wan_dns1));
++            sysevent_get(sysevent_fd, sysevent_token,"lan_ipaddr_v6", lan_addr, sizeof(lan_addr));
++            sysevent_get(sysevent_fd, sysevent_token,"cellular_wan_v6_dns1", wan_dns1, sizeof(wan_dns1));
+             sysevent_get(sysevent_fd, sysevent_token,"cellular_wan_v6_dns2", wan_dns2, sizeof(wan_dns2));
+-            if (strstr(wan_dns1, ":") != NULL)
++            if (strstr(lan_addr, ":") != NULL)
+             {
+-                if(strlen(wan_dns2) <= 0)
++                if(strcmp(dnsproxyenable,"1") == 0)
+                 {
+-                    fprintf(fp, "option dns-server %s\n",wan_dns1);
++                    //dns server is set with gateway IP
++                    fprintf(fp, "option dns-server %s\n",lan_addr);
+                 }
+                 else
+                 {
+-                    fprintf(fp, "option dns-server %s,%s\n",wan_dns1,wan_dns2);
++                    //DNS servers is set with wan dns from network
++                    if(strlen(wan_dns2) <= 0)
++                        fprintf(fp, "option dns-server %s\n",wan_dns1);
++                    else
++                        fprintf(fp, "option dns-server %s,%s\n",wan_dns1,wan_dns2);
+                 }
+             }
+             else
+@@ -6325,7 +6339,10 @@ OPTIONS:
+     if (rename(TMP_SERVER_CONF, SERVER_CONF_LOCATION))
+         CcspTraceWarning(("%s rename failed %s\n", __FUNCTION__, strerror(errno)));
+ #endif
+-    v_secure_system("cp %s %s",TMP_SERVER_CONF,SERVER_CONF_LOCATION);
++    syscfg_get(NULL, "router_other_flag", other_flag_value, sizeof(other_flag_value));
++    if (strcmp(other_flag_value,"1") == 0)
++        v_secure_system("cp %s %s",TMP_SERVER_CONF,SERVER_CONF_LOCATION);
++
+ if (stat(SERVER_CONF_LOCATION, &check_ConfigFile) == -1) {
+ 	commonSyseventSet("dibbler_server_conf-status","");
+ }
+@@ -9976,8 +9993,28 @@ dhcpv6c_dbg_thrd(void * in)
+         goto EXIT;
+     }
+ 
++    char wan_interface[32]={0};
++    char other_flag_value[3] = {0};
+     while (1) 
+     {
++        commonSyseventGet("current_wan_ifname", wan_interface, sizeof(wan_interface));
++        syscfg_get(NULL, "router_other_flag", other_flag_value, sizeof(other_flag_value));
++        if((strncmp(wan_interface,"qmapmux",strlen("qmapmux"))==0) && (strncmp(other_flag_value,"1",1)==0))
++        {
++            FILE *fconfig = fopen(SERVER_CONF_LOCATION,"r");
++
++            if(fconfig != NULL)
++            {
++                fseek(fconfig, 0, SEEK_END);
++                if(ftell(fconfig) <= 1)
++                {
++                    _cosa_dhcpsv6_refresh_config();
++                }
++                fclose(fconfig);
++                fconfig = NULL;
++            }
++        }
++
+ 	int retCode = 0;
+         tm.tv_sec  = 60;
+         tm.tv_usec = 0;
+@@ -11003,6 +11040,8 @@ dhcpv6c_dbg_thrd(void * in)
+                                 v_secure_system("ip -6 addr add %s::1/64 dev %s valid_lft %d preferred_lft %d",
+                                                 v6pref_addr, COSA_DML_DHCPV6_SERVER_IFNAME, hub4_valid_lft, hub4_preferred_lft);
+                             } */
++                            CcspTraceInfo(("%s Going to set [%s] address on brlan0 interface \n", __FUNCTION__, globalIP));
++                            commonSyseventSet("lan_ipaddr_v6", globalIP);
+                             // send an event to wanmanager that Global-prefix is set
+                             commonSyseventSet("lan_prefix_set", globalIP);
+ #endif
+diff --git a/source-arm/TR-181/board_sbapi/cosa_ra_apis.c b/source-arm/TR-181/board_sbapi/cosa_ra_apis.c
+index f118459..32536c0 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_ra_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_ra_apis.c
+@@ -691,12 +691,18 @@ CosaDmlSetOFlag
+     char startCmd[256] = {0};
+     char stopCmd[256] = {0};
+     char lan_addr[64]={0};
++    char wan_dns1[64]={0};
++    char wan_dns2[64]={0};
++    char dnsproxyenable[5] = {0};
+ 
+     if (1 == otherConfigFlag)
+     {
+         token_t sysevent_token;
+         int sysevent_fd =s_sysevent_connect(&sysevent_token);
+         sysevent_get(sysevent_fd, sysevent_token,"lan_ipaddr_v6", lan_addr, sizeof(lan_addr));
++        sysevent_get(sysevent_fd, sysevent_token,"cellular_wan_v6_dns1", wan_dns1, sizeof(wan_dns1));
++        sysevent_get(sysevent_fd, sysevent_token,"cellular_wan_v6_dns2", wan_dns2, sizeof(wan_dns2));
++        syscfg_get(NULL, "dns_proxy_enable", dnsproxyenable, sizeof(dnsproxyenable));
+         fp_ra = fopen(TMP_SERVER_CONF, "r");
+         fp_tmp = fopen(SERVER_CONF_LOCATION,"w");
+         if (NULL == fp_ra)
+@@ -713,7 +719,14 @@ CosaDmlSetOFlag
+             {
+                 if (NULL != strstr(line_ra, "option dns-server"))
+                 {
+-                    fprintf(fp_tmp, "option dns-server %s\n", lan_addr);
++                    if(strcmp(dnsproxyenable,"1") == 0)
++                    {
++                        fprintf(fp_tmp, "option dns-server %s\n", lan_addr);
++                    }
++                    else
++                    {
++                        fprintf(fp_tmp, "option dns-server %s,%s\n", wan_dns1,wan_dns2);
++                    }
+                 }
+                 else
+                 {
+diff --git a/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c b/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+index 039306d..83b4442 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+@@ -3257,9 +3257,20 @@ CosaDmlDcSetDNSProxyEnable
+         v_secure_system("killall dnsproxy");
+     }
+ #else
++    char other_flag_value[5] = {0};
++    char wan_interface[32]={0};
++    commonSyseventGet("current_wan_ifname", wan_interface, sizeof(wan_interface));
++    syscfg_get(NULL, "router_other_flag", other_flag_value, sizeof(other_flag_value));
+     syscfg_set_commit(NULL, DNS_PROXY_ENABLE, pFlag ? "1" : "0");
+     //Restarting for the changes to reflect
+     v_secure_system("sysevent set dhcp_server-restart");
++    if (strcmp(other_flag_value,"1") == 0)
++    {
++        if (strncmp(wan_interface,"qmapmux",strlen("qmapmux"))==0)
++            _cosa_dhcpsv6_refresh_config();
++        v_secure_system("killall dibbler-server");
++        v_secure_system("dibbler-server start");
++    }
+     v_secure_system("sysevent set zebra-restart");
+     v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
+ #endif
+--
+2.34.1
+

@@ -1,0 +1,62 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 70416fea412a35800c6c6589bdc29a1b3a06e72e Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Sat, 22 Aug 2026 10:20:50 +0000
+Subject: [PATCH] Integrated DNS proxy state into WAN IPv4 LAN restart logic
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index c35f824..49ce9b2 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -1253,6 +1253,7 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+     char mac[50]={0};
+     char ippt_transition[4] = {0};
+     char ippt_auto_ip[32] = {0};
++    char dnsproxyenable[5] = {0};
+     DEVICE_NETWORKING_MODE DeviceNwMode = pWanIfaceCtrl->DeviceNwMode;
+     DML_WAN_IFACE * pInterface = pWanIfaceCtrl->pIfaceData;
+     DML_VIRTUAL_IFACE* p_VirtIf = WanMgr_getVirtualIfaceById(pInterface->VirtIfList, pWanIfaceCtrl->VirIfIdx);
+@@ -1413,8 +1414,10 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+ #endif
+     /* Firewall restart. */
+     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_FIREWALL_RESTART, NULL, 0);
+-    // lan restart for ippt
+-    if (strcmp(ippt_enable,"true") == 0)
++
++    syscfg_get(NULL, "dns_proxy_enable", dnsproxyenable, sizeof(dnsproxyenable));
++    // lan restart for ippt and dnsproxyenable
++    if (strcmp(ippt_enable,"true") == 0 || strncmp(dnsproxyenable,"0",1) == 0)
+     {
+        v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
+     }
+@@ -1435,6 +1438,7 @@ static int wan_tearDownIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+     char cmdStr[BUFLEN_128] = {0};
+     char buf[BUFLEN_32] = {0};
+     char ippt_enable[8] = {0};
++    char dnsproxyenable[5] = {0};
+ 
+     DEVICE_NETWORKING_MODE DeviceNwMode = pWanIfaceCtrl->DeviceNwMode;
+     DML_WAN_IFACE * pInterface = pWanIfaceCtrl->pIfaceData;
+@@ -1498,8 +1502,9 @@ static int wan_tearDownIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+         sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_WAN_SERVICE_STATUS, WAN_STATUS_STOPPED, 0);
+         CcspTraceInfo(("%s %d - wan-status event set to stopped \n", __FUNCTION__, __LINE__));
+         syscfg_get( NULL, "IPPT_Enable", ippt_enable, sizeof(ippt_enable));
++        syscfg_get(NULL, "dns_proxy_enable", dnsproxyenable, sizeof(dnsproxyenable));
+         // LAN restart is done so that LAN clients get private IP when WAN goes down with IPPT enabled
+-        if (strcmp(ippt_enable,"true") == 0)
++        if (strcmp(ippt_enable,"true") == 0 || (strncmp(dnsproxyenable,"0",1)==0))
+         {
+             v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
+             CcspTraceInfo(("%s %d - LAN restart done to handle IPPT \n",__FUNCTION__, __LINE__));
+--
+2.34.1
+

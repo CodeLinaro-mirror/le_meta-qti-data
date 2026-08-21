@@ -1,0 +1,63 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From ba4b8f568478e3b04250765f03dd5e03204f31b1 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Mon, 24 Aug 2026 16:26:17 +0000
+Subject: [PATCH] Added qmapmux interface-specific logic for IPv6 DNS Proxy RDNSS configuration
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/service_routed/service_routed.c | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/source/service_routed/service_routed.c b/source/service_routed/service_routed.c
+index 1d71731..e85bff9 100644
+--- a/source/service_routed/service_routed.c
++++ b/source/service_routed/service_routed.c
+@@ -1706,6 +1706,22 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+ 				}
+ 			}
+ 
++#if defined(_PLATFORM_SDX_)
++            char lan_addr_v6[64] = {0};
++
++            syscfg_get(NULL, "dns_proxy_enable", dnsproxyenable, sizeof(dnsproxyenable));
++            sysevent_get(sefd, setok,"lan_ipaddr_v6", lan_addr_v6, sizeof(lan_addr_v6));
++
++            bool is_qmapmux = (strncmp(wan_interface,"qmapmux",strlen("qmapmux"))==0);
++            bool has_lan_ipv6 = (lan_addr_v6[0] != '\0');
++            bool o_flag_disabled = (strcmp(o_flag, "0") == 0);
++            bool dns_proxy_enabled = (strcmp(dnsproxyenable,"1") == 0);
++
++            if (o_flag_disabled && (!is_qmapmux || (has_lan_ipv6 && dns_proxy_enabled)))
++            {
++                fprintf(fp, "   ipv6 nd rdnss %s %d\n", lan_addr_v6, rdnsslft);
++            }
++#endif
+ 			for (start = name_servs; (tok = strtok_r(start, " ", &sp)); start = NULL)
+ 			{
+ 			// Modifying rdnss value to fix the zebra config.
+@@ -1728,10 +1744,17 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+                             fprintf(fp, "   ipv6 nd rdnss %s %d\n", tok, rdnsslft);
+                         }
+ #endif /** _SCER11BEL_PRODUCT_REQ_ */
++#else
++#if defined (_PLATFORM_SDX_)
++                        if (is_qmapmux && has_lan_ipv6 && !dns_proxy_enabled)
++                        {
++                            fprintf(fp, "   ipv6 nd rdnss %s %d\n", tok, rdnsslft);
++                        }
+ #else
+                         if (strcmp(o_flag, "1") != 0) {
+                            fprintf(fp, "   ipv6 nd rdnss %s %d\n", tok, rdnsslft);
+                         }
++#endif
+ #endif
+                 }
+ 
+--
+2.34.1
+

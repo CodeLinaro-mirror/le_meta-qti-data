@@ -33,6 +33,7 @@ SRC_URI:append = " \
     file://00027-qti-utopia-site-filter-fix.patch \
     file://00028-qti-site-filter-bug-with-url-change-of-same-table.patch \
     file://00029-qti-utopia-site-filter-fix-fopen-append-fix.patch \
+    file://00030-qti-utopia-DNS_proxy_enable.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
