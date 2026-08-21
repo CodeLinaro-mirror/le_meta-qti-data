@@ -54,6 +54,7 @@ EXTRA_OEMAKE += " \
     ECM_INTERFACE_PPP_ENABLE=n \
     ECM_INTERFACE_PPPOE_ENABLE=n \
     EXAMPLES_BUILD_SDX=y \
+    ECM_CLASSIFIER_WIFI_ENABLE=${ECM_CLASSIFIER_WIFI_ENABLE} \
 "
 # ECM_FRONT_END_SFE_ENABLE: enabled only for echo target(RDKB), disabled for sa535m.
 # ECM_FRONT_END_SFE_ENABLE:echo:qti-distro-nogplv3-debug example for MACHINE and DISTRO
@@ -66,6 +67,9 @@ ECM_FRONT_END_SFE_ENABLE:echo = "y"
 # Required for echo (RDKB) where qca-wifi-nss-plugins uses ecm_front_end_fse_callbacks_*.
 ECM_FRONT_END_FSE_ENABLE = "n"
 ECM_FRONT_END_FSE_ENABLE:echo = "y"
+
+ECM_CLASSIFIER_WIFI_ENABLE = "n"
+ECM_CLASSIFIER_WIFI_ENABLE:echo = "y"
 
 # ECM_FRONT_END_SELECTION: default acceleration engine written into the config file at build time.
 # The installed /etc/qca-nss-ecm/config is a plain text file sourced by qca-nss-ecm.sh at
