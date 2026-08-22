@@ -1,0 +1,132 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 8ead70a57901a5609e3a921dd5f0f73658915b15 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Sat, 22 Aug 2026 06:37:38 +0000
+Subject: Update data quota on CM restart
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ .../cellularmgr_cellular_apis.c               |  2 ++
+ source/CellularManager/cellularmgr_sm.c       | 23 +++++++++++++++++--
+ .../include/dmsb_tr181_psm_definitions.h      | 18 +++++++--------
+ 3 files changed, 31 insertions(+), 12 deletions(-)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 85bd083..78c6d3f 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -1893,6 +1893,8 @@ void CellularMgr_SignalHandlerCleanup(void)
+         CcspTraceError(("%s : Failed to deregister CDM application\n", __FUNCTION__));
+     }
+ 
++    /*Perform CM cleanup operations*/
++    CellularMgr_extn_CMCrashCleanUp();
+ #endif //CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
+ 
+ #ifndef IP_CONTINUITY_ENABLED
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index f573d4d..62e328c 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -1297,6 +1297,12 @@ static CellularPolicySmState_t StateDown( void )
+         {
+             CcspTraceInfo(("%s - %d CM Recovery Enabled with targetRecoveryState:%s\n", __FUNCTION__,__LINE__,
+                 (enRecoveryTargetState == CELLULAR_STATE_CONNECTED)? "Connected" : "Registered"));
++
++            if(CELLULAR_STATE_CONNECTED == enRecoveryTargetState)
++            {
++                bool bRecoveryEnabled = TRUE;
++                CellularMgr_extn_UpdateSavedDataQuotaMetaInfo(bRecoveryEnabled);
++            }
+         }
+         else
+         {
+@@ -1500,6 +1506,9 @@ static CellularPolicySmState_t StateDeregistered( void )
+     {
+         CellularMgrSMSetCurrentState(CELLULAR_STATE_REGISTERED);
+         CcspTraceInfo(("%s %d - State changed to CELLULAR_STATE_REGISTERED \n", __FUNCTION__, __LINE__));
++#ifdef CM_EXTN_SUPPORTED
++        sem_post(&mm_sm_sync_sem);
++#endif //CM_EXTN_SUPPORTED
+         return CELLULAR_STATE_REGISTERED;
+     }
+ 
+@@ -1574,6 +1583,9 @@ static CellularPolicySmState_t StateRegistered( void )
+        ( DEVICE_PROFILE_STATUS_NOT_READY == gpstCellularPolicyCtrl->enDeviceProfileSelectionStatus ) )
+     {
+         TransitionRegistered();
++#ifdef CM_EXTN_SUPPORTED
++        sem_post(&mm_sm_sync_sem);
++#endif //CM_EXTN_SUPPORTED
+         return CELLULAR_STATE_REGISTERED;
+     }
+ 
+@@ -1616,7 +1628,13 @@ static CellularPolicySmState_t StateRegistered( void )
+         }
+         max_wait = 0;
+         iter = 0;
++#ifdef CM_EXTN_SUPPORTED
++        TransitionRegisteredStartNetwork();
++        sem_post(&mm_sm_sync_sem);
++        return CELLULAR_STATE_REGISTERED;
++#else
+         return ( TransitionRegisteredStartNetwork() );
++#endif
+     }
+ 
+     if( ( ( CELLULAR_PDP_TYPE_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) &&
+@@ -1974,9 +1992,10 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+         {
+             CcspTraceError((" %s %d - Failed to destroy recoveryMutex \n", __FUNCTION__, __LINE__));
+         }
+-
++        /* Destroy data quota metaInfo mutex */
+         CellularMgr_extn_DataQuotaMetaInfoManageMutexInitDeInit(FALSE);
+-#endif
++#endif //CM_EXTN_SUPPORTED
++
+         free( gpstCellularPolicyCtrl );
+         gpstCellularPolicyCtrl = NULL;
+     }
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index 5f3fdb3..a017622 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -56,23 +56,21 @@
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_PDPCONTEXTNUMBER           "dmsb.cellularmanager.accesspoint.%d.pdpContextNumber"
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_ROAMING                    "dmsb.cellularmanager.accesspoint.%d.roaming"
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_PROFILE_TYPE               "dmsb.cellularmanager.accesspoint.%d.profiletype"
+-#define PSM_CELLULARMANAGER_INTERFACE_ALIAS                                       "dmsb.cellularmanager.interface.%d.alias"
+-#define PSM_CELLULARMANAGER_INTERFACE_USIM_PINCHECK                "dmsb.cellularmanager.interface.%d.usim.pincheck"
+-#ifdef CM_PROP_SUPPORTED
+-#define PSM_CELLULARMANAGER_INTERFACE_DATA_USAGE_REFRESH_TIMER      "dmsb.cellularmanager.interface.%d.x_qcom.dataUsage.refreshtimer"
+-#endif //CM_PROP_SUPPORTED
+-#define PSM_CELLULARMANAGER_INTERFACE_PRAT                         "dmsb.cellularmanager.interface.%d.prat"
+ 
+-#ifdef CM_EXTN_SUPPORTED
++#define PSM_CELLULARMANAGER_INTERFACE_ALIAS                                       "dmsb.cellularmanager.interface.%d.alias"
+ //Device.Cellular.Interface.{i}.X_QCOM.
+ #define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_MONTHLY_DATA_USAGE_QUOTA           "dmsb.cellularmanager.interface.%d.x_qcom.monthlyDataUsageQuota"
+ #define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_DAILY_DATA_USAGE_QUOTA            "dmsb.cellularmanager.interface.%d.x_qcom.dailyDataUsageQuota"
+ #define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_SAVED_MONTH_DATA_USAGE            "dmsb.cellularmanager.interface.%d.x_qcom.savedMonthlyDataUsage"
+ #define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_SAVED_DAY_DATA_USAGE              "dmsb.cellularmanager.interface.%d.x_qcom.savedDailyDataUsage"
++#define PSM_CELLULARMANAGER_INTERFACE_ACTIVE_DATA_USAGE             "dmsb.cellularmanager.interface.%d.x_qcom.activeDataUsage"
+ #define PSM_CELLULARMANAGER_INIT_DATE                                             "dmsb.cellularmanager.initDate"
+-#endif
+-
+-#endif
++#define PSM_CELLULARMANAGER_INTERFACE_USIM_PINCHECK                "dmsb.cellularmanager.interface.%d.usim.pincheck"
++#ifdef CM_PROP_SUPPORTED
++#define PSM_CELLULARMANAGER_INTERFACE_DATA_USAGE_REFRESH_TIMER      "dmsb.cellularmanager.interface.%d.x_qcom.dataUsage.refreshtimer"
++#endif //CM_PROP_SUPPORTED
++#define PSM_CELLULARMANAGER_INTERFACE_PRAT                         "dmsb.cellularmanager.interface.%d.prat"
++#endif //CM_EXTN_SUPPORTED
+ 
+ #endif
+ 
+-- 
+2.34.1
+
