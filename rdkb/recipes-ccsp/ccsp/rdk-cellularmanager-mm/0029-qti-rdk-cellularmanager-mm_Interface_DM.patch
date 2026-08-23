@@ -1,0 +1,172 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 4c8ecafb854f56cabfb74b4efd1445e36e79e7b0 Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Thu, 20 Aug 2026 16:59:04 +0530
+Subject: Interface DMs support
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_sm.c       |  1 +
+ .../middle_layer_src/cellularmgr_rbus_dml.c   |  7 ++
+ .../cellularmgr_rbus_events.c                 | 77 +++++++++++++------
+ .../cellularmgr_rbus_events.h                 |  1 +
+ 4 files changed, 63 insertions(+), 23 deletions(-)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 84be878..219c063 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -1203,6 +1203,7 @@ void CellularMgrSMCheckAndSetWWANConnectionStatus( CellularPolicySmState_t smSta
+     }
+ #endif //CM_EXTN_SUPPORTED
+ #ifdef RBUS_BUILD_FLAG_ENABLE
++    CellularMgr_RBUS_Events_Publish_X_RDK_Status();
+     CellularMgr_RBUS_Events_PublishInterfaceStatus(PrevStatus,gpstCellularPolicyCtrl->pCmIfData->Status);
+     CellularMgr_RBUS_Events_PublishPhyConnectionStatus(bPreviousPhyConnectedStatus,gpstCellularPolicyCtrl->pCmIfData->X_RDK_PhyConnectedStatus);
+     CellularMgr_RBUS_Events_PublishLinkAvailableStatus(bPreviousLinkAvailableStatus,gpstCellularPolicyCtrl->pCmIfData->X_RDK_LinkAvailableStatus);
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 771ba84..13ddc29 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -866,6 +866,9 @@ static rbusError_t Cellular_Interface_GetParamUlongValue_rbus(rbusHandle_t handl
+ 
+     if(strcmp(context.name, "LastChange") == 0)
+     {
++#ifdef CM_EXTN_SUPPORTED
++        CellularMgr_extn_GetStateChangedTime(pstInterfaceInfo);
++#endif
+         rbusProperty_SetUInt32(property, pstInterfaceInfo->LastChange);
+     }
+     else if(strcmp(context.name, "RegistrationRetries") == 0)
+@@ -3727,7 +3730,11 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Enable", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamBoolValue_rbus, Cellular_Interface_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}}, 
+         {"Device.Cellular.Interface.{i}.Status", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, NULL, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
++#ifdef CM_EXTN_SUPPORTED
+         {"Device.Cellular.Interface.{i}.Alias", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, Cellular_Interface_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++#else
++        {"Device.Cellular.Interface.{i}.Alias", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#endif
+         {"Device.Cellular.Interface.{i}.Name", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.LastChange", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.LowerLayers", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, Cellular_Interface_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c
+index e8aff8c..1078c0f 100644
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c
+@@ -84,7 +84,6 @@ void* CellularMgr_RBUS_Events_Monitor_Thread( void *arg )
+ {
+     CELLULAR_INTERFACE_SERVING_INFO  stBackupServingInfo  = {0};
+     CELLULAR_RADIO_ENV_CONDITIONS    enPrevValue = RADIO_ENV_CONDITION_UNAVAILABLE;
+-    CELLULAR_RDK_STATUS              enPrevRdkStatusValue = RDK_STATUS_DOWN;
+     PCELLULARMGR_CELLULAR_DATA  pMyObject =  (PCELLULARMGR_CELLULAR_DATA) arg;
+     PCELLULAR_DML_INFO  pstDmlCellular =  (PCELLULAR_DML_INFO) pMyObject->pstDmlCellular;
+ 
+@@ -146,28 +145,7 @@ void* CellularMgr_RBUS_Events_Monitor_Thread( void *arg )
+             }
+         }
+ 
+-        if( gRBUSSubListSt.X_RDK_StatusSubFlag )
+-        {
+-            if ( enPrevRdkStatusValue != X_RDK_Status )
+-            {
+-                char acTmpPrevValue[32] = {0},
+-                     acTmpCurValue[32]  = {0},
+-                     acTmpParamName[256] = {0};
+-
+-                CellularMgr_ConvertEnumToString((void*)&enPrevRdkStatusValue,ENUM_X_RDK_STATUS,acTmpPrevValue);
+-                CellularMgr_ConvertEnumToString((void*)&X_RDK_Status,ENUM_X_RDK_STATUS,acTmpCurValue);
+-                snprintf(acTmpParamName, sizeof(acTmpParamName), CELLULARMGR_X_RDK_STATUS);
+-                enPrevRdkStatusValue = X_RDK_Status;
+-
+-                CcspTraceInfo(("%s-%d: Publish DM(%s) Prev(%s) Current(%s) Value(%d)\n",__FUNCTION__, __LINE__, acTmpParamName,acTmpPrevValue,acTmpCurValue,X_RDK_Status));
+-                CellularMgr_Rbus_String_EventPublish_OnValueChange(acTmpParamName, acTmpPrevValue, acTmpCurValue, RBUS_STRING);
+-            }
+-        }
+-        else /** we need to store current value in each iteration when there is no subscription */
+-        {
+-            enPrevRdkStatusValue = X_RDK_Status;
+-        }
+-
++        CellularMgr_RBUS_Events_Publish_X_RDK_Status();
+         /* If there is no subscription then no need to proceed further */
+         if( ( !gRBUSSubListSt.stRadioSignal.RSSISubFlag ) &&
+             ( !gRBUSSubListSt.stRadioSignal.SNRSubFlag ) &&
+@@ -393,6 +371,59 @@ void* CellularMgr_RBUS_Events_Monitor_Thread( void *arg )
+     pthread_exit(NULL);
+ }
+ 
++/* CellularMgr_RBUS_Events_Publish_X_RDK_Status */
++/**
++* @description - This wrapper function used to publish X_RDK_Event indication.
++*
++* @param[in] None.
++* @param[out] None
++*
++* @return The status of the operation
++* @retval RETURN_OK if successful
++*/
++int CellularMgr_RBUS_Events_Publish_X_RDK_Status()
++{
++    static CELLULAR_RDK_STATUS enPrevRdkStatusValue = RDK_STATUS_DOWN;
++    static pthread_mutex_t rdkStatusMutex = PTHREAD_MUTEX_INITIALIZER;
++
++    char acTmpPrevValue[32] =  {0};
++    char acTmpCurValue[32]  =  {0};
++    char acTmpParamName[256] = {0};
++    int bShouldPublish = 0;
++
++    CELLULAR_RDK_STATUS  currStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
++
++    // using mutex because this can be called from different threads
++    pthread_mutex_lock(&rdkStatusMutex);
++    if( gRBUSSubListSt.X_RDK_StatusSubFlag )
++    {
++        if ( enPrevRdkStatusValue != currStatus )
++        {
++            CellularMgr_ConvertEnumToString((void*)&enPrevRdkStatusValue,ENUM_X_RDK_STATUS,acTmpPrevValue);
++            CellularMgr_ConvertEnumToString((void*)&currStatus,ENUM_X_RDK_STATUS,acTmpCurValue);
++            snprintf(acTmpParamName, sizeof(acTmpParamName),"%s", CELLULARMGR_X_RDK_STATUS);
++            bShouldPublish = 1;
++            enPrevRdkStatusValue = currStatus;
++        }
++    }
++    else
++    {
++        enPrevRdkStatusValue = currStatus;
++    }
++    pthread_mutex_unlock(&rdkStatusMutex);
++
++    if(bShouldPublish)
++    {
++        CcspTraceInfo(("%s-%d: Publish DM(%s) Prev(%s) Current(%s) Value(%d)\n",__FUNCTION__, __LINE__, acTmpParamName,acTmpPrevValue,acTmpCurValue,currStatus));
++        if( ANSC_STATUS_SUCCESS != CellularMgr_Rbus_String_EventPublish_OnValueChange(acTmpParamName, acTmpPrevValue, acTmpCurValue, RBUS_STRING))
++        {
++            CcspTraceError(("%s-%d: Failed to publish X_RDK_Event\n",__FUNCTION__,__LINE__));
++            return RETURN_ERROR;
++        }
++    }
++    return RETURN_OK;
++}
++
+ int CellularMgr_RBUS_Events_PublishPhyConnectionStatus( unsigned char bPrevPhyState, unsigned char bCurrentPhyState )
+ {
+     if((gRBUSSubListSt.stInterface.PhyConnectedStatusSubFlag) && (bPrevPhyState != bCurrentPhyState))
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h
+index 70cb129..c485def 100644
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h
+@@ -130,6 +130,7 @@ int CellularMgr_RBUS_Events_PublishLinkAvailableStatus( unsigned char bPrevLinkS
+ int CellularMgr_RBUS_Events_PublishPhyConnectionStatus( unsigned char bPrevPhyState, unsigned char bCurrentPhyState );
+ int CellularMgr_RBUS_Events_Publish_X_RDK_Enable( unsigned char bPreviousValue, unsigned char bCurrentValue );
+ int CellularMgr_RBUS_Events_PublishInterfaceStatus( CellularInterfaceStatus_t PrevState, CellularInterfaceStatus_t CurrentState );
++int CellularMgr_RBUS_Events_Publish_X_RDK_Status();
+ 
+ /* WanManager IP.Mode rbus event subscription callback */
+ void CellularMgr_WanMgr_IPMode_EventCallback( rbusHandle_t handle,
+-- 
+2.34.1
+
