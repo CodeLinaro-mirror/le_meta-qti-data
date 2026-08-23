@@ -1,0 +1,295 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From f3c7839c636e0b0b50c56da9d838640ab0ac4c3c Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 21 Aug 2026 13:11:08 +0000
+Subject: Cellular manager change to align data-call bring-up with device IP mode
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal_mm_apis.c | 10 ++-
+ .../cellularmgr_cellular_apis.c               | 11 +++
+ .../middle_layer_src/cellularmgr_rbus_dml.c   | 33 +++++++
+ .../cellularmgr_rbus_events.c                 | 90 +++++++++++++++++++
+ .../cellularmgr_rbus_events.h                 | 19 ++++
+ 5 files changed, 162 insertions(+), 1 deletion(-)
+
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index efb90fc..e971de3 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -25,6 +25,9 @@
+ #include <gio/gio.h>
+ #include <time.h>
+ #include <stdbool.h>
++#ifdef CM_EXTN_SUPPORTED
++#include <gio/gio.h>
++#endif
+ 
+ #include "libmm-glib.h"
+ #include "cellular_hal_mm_apis.h"
+@@ -45,6 +48,8 @@
+ #define CELLULAR_OPERATOR_NAME_MAX_LENGTH                32
+ #define LOOP_MAX_RETRIES                                 10
+ #define LOOP_RETRY_DELAY                            1000000
++/* g_dbus_proxy timeout to 180 sec */
++#define G_DBUS_PROXY_TIMEOUT                       180*1000
+ #endif
+ guint mm_watch_id;
+ char savedModemPath[BUFLEN_256];
+@@ -2061,11 +2066,14 @@ INT cellular_hal_mm_delete_bearer(CHAR *modemIndex, CellularProfileStruct *pstPr
+                 }
+                 CELLULAR_HAL_DBG_PRINT ("%s - delete the bearer: '%s'\n", __FUNCTION__, bearPath);
+             }
++            /* Set the GDBus proxy timeout to 180 seconds to allow the libmm sync API
++            * sufficient time to return the modem operation result. */
++            g_dbus_proxy_set_default_timeout(G_DBUS_PROXY(ctx->modem),G_DBUS_PROXY_TIMEOUT);
+             result = mm_modem_delete_bearer_sync (ctx->modem,
+                                               bearPath,
+                                               NULL,
+                                               &error);
+-
++            g_dbus_proxy_set_default_timeout(G_DBUS_PROXY(ctx->modem),-1);
+             if( !result )
+             {
+                 CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't delete the bearer: '%s'\n",
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 1397b52..85bd083 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -1297,6 +1297,10 @@ void* CellularMgr_FactoryResetThread(void* arg)
+                 CcspTraceInfo (("%s : Failed to remove current configuration from DB, error returning\n", __FUNCTION__));
+         }
+ 
++        if(RETURN_OK != CellularMgr_extn_UnSubscribeIPModeEvent())
++        {
++            CcspTraceError(("%s : (Non Fatal) Failed to unsubscribe IP Mode Event.\n", __FUNCTION__));
++        }
+ #endif
+         // cellular_hal_modem_reset HAL Function
+         if ( RETURN_OK == cellular_hal_modem_reset() )
+@@ -1906,6 +1910,13 @@ void CellularMgr_SignalHandlerCleanup(void)
+         CcspTraceError(("%s - %d : Failed to get modem status\n",__FUNCTION__,__LINE__));
+     }
+ #endif //!IP_CONTINUITY_ENABLED
++#ifdef CM_EXTN_SUPPORTED
++    /* Unsubscribe rbus event registered for WANIPMode */
++    if(RETURN_OK != CellularMgr_extn_UnSubscribeIPModeEvent())
++    {
++        CcspTraceError(("%s : (Non Fatal) Failed to unsubscribe IP Mode Event.\n", __FUNCTION__));
++    }
++#endif
+ 
+     /* Clearing hal loop resources */
+     cellular_hal_resource_release();
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index acbd988..771ba84 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -136,6 +136,27 @@ rbusError_t cellularmgr_Init()
+     Context_Init();
+     gBusHandle = rbusHandle;
+ 
++    /* Subscribe to WanManager IP.Mode value-change events.
++     * WanManager publishes this event whenever IP.Mode changes on the
++     * cellular backhaul interface (Interface.2.VirtualInterface.1.IP.Mode).
++     * The callback CellularMgr_WanMgr_IPMode_EventCallback() is invoked
++     * directly by the rbus framework in its own thread - no polling needed. */
++    rbusError_t eventSubRet = rbusEvent_Subscribe(
++                                            gBusHandle,
++                                            WANMGR_IFACE_IP_MODE,
++                                            CellularMgr_WanMgr_IPMode_EventCallback,
++                                            NULL,
++                                            60
++                                        );
++    if( eventSubRet != RBUS_ERROR_SUCCESS )
++    {
++        CcspTraceError(("%s-%d: rbusEvent_Subscribe failed for [%s] rc=%d\n", __FUNCTION__, __LINE__, WANMGR_IFACE_IP_MODE, eventSubRet));
++    }
++    else
++    {
++        CcspTraceInfo(("%s-%d: Subscribed to WanMgr IP.Mode events [%s]\n", __FUNCTION__, __LINE__, WANMGR_IFACE_IP_MODE));
++    }
++
+     PCELLULARMGR_CELLULAR_DATA  pMyObject      =  (PCELLULARMGR_CELLULAR_DATA) g_pBEManager->hCellular;
+     if(pMyObject == NULL)
+     {
+@@ -2961,6 +2982,12 @@ static rbusError_t Cellular_AccessPoint_AddEntry_rbus(rbusHandle_t handle, char
+ {
+     HandlerContext context = GetTableContext(tableName);
+ #ifdef CM_EXTN_SUPPORTED
++    if(access(FILE_PROCESS_IPMODE, F_OK) == 0)
++    {
++        CcspTraceError(("%s-%d IP mode change in progress, AccessPoint update not allowed\n",
++            __FUNCTION__,__LINE__ ));
++        return RBUS_ERROR_BUS_ERROR;
++    }
+     void* rowContext = Cellular_AccessPoint_extn_Add(instNum);
+ #else
+     void* rowContext = Cellular_AccessPoint_Add(NULL, instNum);
+@@ -3017,6 +3044,12 @@ static rbusError_t Cellular_AccessPoint_DeleteEntry_rbus(rbusHandle_t handle, ch
+ {
+     HandlerContext context = GetHandlerContext(rowName);
+ #ifdef CM_EXTN_SUPPORTED
++    if(access(FILE_PROCESS_IPMODE, F_OK) == 0)
++    {
++        CcspTraceError(("%s-%d IP mode change in progress, AccessPoint update not allowed\n",
++            __FUNCTION__,__LINE__ ));
++        return RBUS_ERROR_BUS_ERROR;
++    }
+     int instnum = 0;
+     sscanf(context.fullName, "%*[^0-9]%d", &instnum);
+     int index = instnum;
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c
+index 5005ac9..5e24cf0 100644
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.c
+@@ -35,10 +35,15 @@
+  * limitations under the License.
+  */
+ 
++#include <stdint.h>
+ #ifdef RBUS_BUILD_FLAG_ENABLE
+ 
+ #include "cellularmgr_rbus_events.h"
+ 
++#ifdef CM_EXTN_SUPPORTED
++#include "cellularmgr_cellular_apis_extn_defines.h"
++#endif
++
+ extern rbusHandle_t gBusHandle;
+ char componentName[32] = "CELLULARMANAGER";
+ 
+@@ -975,5 +980,90 @@ rbusError_t CellularMgrDmlPublishEventHandler(rbusHandle_t handle, rbusEventSubA
+     return RBUS_ERROR_SUCCESS;
+ }
+ 
++#ifdef CM_EXTN_SUPPORTED
++/* CellularMgr_WanMgr_IPMode_EventCallback function */
++/**
++* @description - Callback API registered for WanManager Data Model -
++*                Device.X_RDK_WanManager.Interface.2.VirtualInterface.1.IP.Mode
++*
++* @param[in] handle - Rbus handle.
++* @param[in] event - Rbus event details.
++* @param[in] subscription - Rbus subscription.
++*
++* @return None
++*/
++void CellularMgr_WanMgr_IPMode_EventCallback( rbusHandle_t handle,
++                                               rbusEvent_t const *event,
++                                               rbusEventSubscription_t *subscription )
++{
++    (void)handle;
++    (void)subscription;
++    WANMGR_IP_MODE newMode;
++
++    if( event == NULL || event->data == NULL )
++    {
++        CcspTraceError(("%s-%d: Received NULL event or event data\n", __FUNCTION__, __LINE__));
++        return;
++    }
++
++    rbusValue_t newVal = rbusObject_GetValue(event->data, "value");
++    if( newVal == NULL )
++    {
++        CcspTraceError(("%s-%d: value property missing in event data for [%s] type=%d\n", __FUNCTION__, __LINE__, event->name, event->type));
++        return;
++    }
++
++    rbusValueType_t valType = rbusValue_GetType(newVal);
++    if( valType == RBUS_STRING )
++    {
++        const char *str = rbusValue_GetString(newVal, NULL);
++        if( str == NULL )
++            str = "";
++        if( strstr(str, "IPv4 Only") != NULL )
++            newMode = WANMGR_IP_MODE_IPV4_ONLY;
++        else if( strstr(str, "IPv6 Only") != NULL )
++            newMode = WANMGR_IP_MODE_IPV6_ONLY;
++        else if( strstr(str, "Dual Stack") != NULL )
++            newMode = WANMGR_IP_MODE_DUAL_STACK;
++        else if( strstr(str, "No IP") != NULL )
++            newMode = WANMGR_IP_MODE_NO_IP;
++        else
++        {
++            CcspTraceWarning(("%s-%d: Unrecognised IP.Mode string [%s] for [%s], skipping\n",__FUNCTION__, __LINE__, str, event->name));
++            return;
++        }
++    }
++    else
++    {
++        CcspTraceWarning(("%s-%d: Unexpected value type %d for [%s], skipping\n", __FUNCTION__, __LINE__, valType, event->name));
++        return;
++    }
++
++    /* Deleted when CellularMgr_extn_ProcessIPModeEventThread() completes IP mode event processing. */
++    FILE *tmpFile = fopen(FILE_PROCESS_IPMODE, "w");
++    if (tmpFile)
++    {
++        fclose(tmpFile);
++        tmpFile = NULL;
++    }
++    else
++    {
++        CcspTraceError(("%s-%d: Failed to create file\n",__FUNCTION__,__LINE__));
++    }
++
++    pthread_t ipModeThreadID;
++    pthread_attr_t attr;
++    pthread_attr_init(&attr);
++    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+ 
++    if(0 != pthread_create(&ipModeThreadID, &attr,
++        &CellularMgr_extn_ProcessIPModeEventThread, (void*)(uintptr_t)newMode))
++    {
++        CcspTraceError(("%s:%d Failed to create thread\n", __FUNCTION__,__LINE__));
++        remove(FILE_PROCESS_IPMODE);
++    }
++    pthread_attr_destroy(&attr);
++    return;
++}
++#endif /* CM_EXTN_SUPPORTED */
+ #endif /*RBUS_BUILD_FLAG_ENABLE*/
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h
+index a147371..70cb129 100644
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_events.h
+@@ -64,6 +64,20 @@ extern "C" {
+ 
+ #define  RBUS_SUBSCRIPTION_PUBLISH_POLLING_INTERVAL         (10)
+ 
++#ifdef CM_EXTN_SUPPORTED
++/*
++ * IP.Mode values published by WanManager.
++ * Mirrors DML_WAN_IP_MODE in WanManager source.
++ */
++typedef enum _WANMGR_IP_MODE
++{
++    WANMGR_IP_MODE_IPV4_ONLY  = 1,
++    WANMGR_IP_MODE_IPV6_ONLY  = 2,
++    WANMGR_IP_MODE_DUAL_STACK = 3,
++    WANMGR_IP_MODE_NO_IP      = 4
++} WANMGR_IP_MODE;
++#endif
++
+ typedef enum _CellularMGR_EnumToString{
+     ENUM_RADIOENVCONDITIONS = 1,
+     ENUM_X_RDK_STATUS
+@@ -117,6 +131,11 @@ int CellularMgr_RBUS_Events_PublishPhyConnectionStatus( unsigned char bPrevPhySt
+ int CellularMgr_RBUS_Events_Publish_X_RDK_Enable( unsigned char bPreviousValue, unsigned char bCurrentValue );
+ int CellularMgr_RBUS_Events_PublishInterfaceStatus( CellularInterfaceStatus_t PrevState, CellularInterfaceStatus_t CurrentState );
+ 
++/* WanManager IP.Mode rbus event subscription callback */
++void CellularMgr_WanMgr_IPMode_EventCallback( rbusHandle_t handle,
++                                               rbusEvent_t const *event,
++                                               rbusEventSubscription_t *subscription );
++
+ #ifdef __cplusplus
+ }
+ #endif
+-- 
+2.34.1
+
