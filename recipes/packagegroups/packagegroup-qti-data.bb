@@ -31,6 +31,7 @@ RDEPENDS:packagegroup-qti-data = ' \
     data-ipa-cfg-mgr \
     qca-nss-ecm \
     mosquitto \
+    phytool \
     '
 RDEPENDS:packagegroup-qti-data:append:echo = "data-devicetree qca-nss-sfe miniupnpd rtsp-alg"
 RDEPENDS:packagegroup-qti-data:remove:echo = "aquantia tcpdump iproute2 dnsmasq bridge-utils data-ipa-cfg-mgr"
