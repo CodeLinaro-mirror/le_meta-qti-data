@@ -1,0 +1,30 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From bd0b51cea35b3e4007096d27197150f9ae7aeca3 Mon Sep 17 00:00:00 2001
+From: Ramanasarvesh Sadula <ramanasa@qti.qualcomm.com>
+Date: Tue, 28 Nov 2023 10:50:17 +0530
+Subject: CellularMgr_NRSA_Enabled
+Signed-off-by: Ramanasarvesh Sadula <ramanasa@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 4a45529..bd6d92b 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3828,6 +3828,9 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.Stats.ErrorsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#ifdef CM_PROP_SUPPORTED
++        {"Device.Cellular.Interface.{i}.X_QCOM.NRSAEnabled", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_GetParamBoolValue_rbus, X_QCOM_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++#endif //CM_PROP_SUPPORTED
+         {"Device.Cellular.Interface.{i}.USIM.Status", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.USIM.IMSI", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.USIM.ICCID", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+--
+2.34.1
