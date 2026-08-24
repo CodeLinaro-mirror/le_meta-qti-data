@@ -29,6 +29,7 @@ SRC_URI += " \
               file://00018-qti-ccsp-p-and-m_dhcpv6-stateless.patch \
               file://00019-qti-ccsp-p-and-m-RTSP-DM-support.patch \
               file://00020-qti-ccsp-p-and-m_PacketStats-Enable-Disable.patch \
+              file://00021-qti-ccsp-p-and-m-usb-ecm-interface-count-fix.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
