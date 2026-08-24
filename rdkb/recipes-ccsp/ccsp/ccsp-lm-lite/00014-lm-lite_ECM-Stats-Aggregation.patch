@@ -1,0 +1,241 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: ECM Integration <ecm@qti.qualcomm.com>
+Date: Sun, 27 Jul 2026 00:00:00 +0000
+Subject: [PATCH] Add ECM stats aggregation to LM-Lite WANStats query
+
+[Description]: Integrates ECM hardware stats into LM-Lite WANStats queries.
+Aggregates iptables, ip6tables, and ECM per-IP stats for complete client
+traffic accounting during statistics retrieval (Phase 7).
+
+[RCA]: LM-Lite WANStats lacked ECM hardware acceleration stats.
+Clients needed complete stats including ECM-accelerated traffic.
+
+Signed-off-by: talekhya <talekhya@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 180 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 180 insertions(+), 0 deletion(-)
+
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -158,6 +158,7 @@
+ #define DNSMASQ_FILE                    "/nvram/dnsmasq.leases"
+ #define ACTION_FLAG_ADD                 (1)
+ #define ACTION_FLAG_DEL                 (2)
++#define ECM_SYSFS_PATH "/proc/sys/net/ecm/ecm_sdx_stats"
+ #define PKT_STATS_V4_CLIENTS "/tmp/ipv4_stats.txt"
+ #define PKT_STATS_V6_CLIENTS "/tmp/ipv6_stats.txt"
+ #define IFACE_SIZE 20
+@@ -250,6 +251,46 @@ static pthread_cond_t LmNotifyCond = PTH
+ static pthread_t NotifyIPMonitorThread;
+ static bool worker_thread_running = false;
+
++typedef enum {
++    BACKHAUL_TYPE_UNKNOWN = 0,
++    BACKHAUL_TYPE_WWAN = 1,
++    BACKHAUL_TYPE_ETHERNET = 2,
++    BACKHAUL_TYPE_USB = 3,
++    BACKHAUL_TYPE_WLAN = 4,
++    BACKHAUL_TYPE_PPP = 5,
++} backhaul_type_t;
++
++static const char* backhaul_type_to_string(backhaul_type_t type)
++{
++    switch (type) {
++        case BACKHAUL_TYPE_WWAN:
++            return "WWAN";
++        case BACKHAUL_TYPE_ETHERNET:
++            return "ETHERNET";
++        case BACKHAUL_TYPE_USB:
++            return "USB";
++        case BACKHAUL_TYPE_WLAN:
++            return "WLAN";
++        case BACKHAUL_TYPE_PPP:
++            return "PPP";
++        default:
++            return "UNKNOWN";
++    }
++}
++
++static backhaul_type_t getBackhaulTypeFromInterface(const char *ifname)
++{
++    if (!ifname || strlen(ifname) == 0) {
++        return BACKHAUL_TYPE_UNKNOWN;
++    }
++    if (strstr(ifname, "qmapmux") != NULL) return BACKHAUL_TYPE_WWAN;
++    if (strstr(ifname, "eth") != NULL) return BACKHAUL_TYPE_ETHERNET;
++    if (strstr(ifname, "usb") != NULL) return BACKHAUL_TYPE_USB;
++    if (strstr(ifname, "wlan") != NULL) return BACKHAUL_TYPE_WLAN;
++    if (strstr(ifname, "ppp") != NULL) return BACKHAUL_TYPE_PPP;
++    return BACKHAUL_TYPE_UNKNOWN;
++}
++
+ #define IP_RETRY_INTERVAL              10
+ #define IP_MAX_RETRIES             6
+ /***********************************************************************
+@@ -363,6 +406,8 @@ static void Send_MoCA_Host_Sync_Req(void
+ #endif
+
+ static char *_CloneString (const char *src);
++static ANSC_STATUS isECMModuleLoaded(void);
++static uint64_t getECMStatBytes(const char *ip_addr, bool is_tx_stat);
+ static bool isMacAddrAvailable(char *file, char *mac);
+ uint64_t getIPv6StatBytes(char *mac, bool is_tx_stat);
+ static ANSC_STATUS isIPv4ClientPresent(char *addr, int *found);
+@@ -4674,6 +4719,114 @@ void readPresenceFromSyscfg(BOOL * pPres
+     }
+ }
+
++static ANSC_STATUS isECMModuleLoaded(void)
++{
++    FILE *fp = NULL;
++    char path[256] = {0};
++
++    snprintf(path, sizeof(path), "%s/stats", ECM_SYSFS_PATH);
++    fp = fopen(path, "r");
++    if (fp) {
++        fclose(fp);
++        CcspTraceInfo(("[%s:%d] ECM module is loaded\n", __FUNCTION__, __LINE__));
++        return ANSC_STATUS_SUCCESS;
++    }
++    CcspTraceInfo(("[%s:%d] ECM module is NOT loaded\n", __FUNCTION__, __LINE__));
++    return ANSC_STATUS_FAILURE;
++}
++
++static backhaul_type_t getBackhaulType(void)
++{
++    char wan_ifname[64] = {0};
++
++    syscfg_get(NULL, "wan_physical_ifname", wan_ifname, sizeof(wan_ifname));
++    if (strlen(wan_ifname) == 0) {
++        CcspTraceError(("[%s:%d] Failed to get wan_physical_ifname from syscfg\n",
++                        __FUNCTION__, __LINE__));
++        return BACKHAUL_TYPE_UNKNOWN;
++    }
++
++    backhaul_type_t type = getBackhaulTypeFromInterface(wan_ifname);
++    if (type == BACKHAUL_TYPE_UNKNOWN) {
++        CcspTraceError(("[%s:%d] Unable to determine backhaul type from interface %s\n",
++                        __FUNCTION__, __LINE__, wan_ifname));
++        return BACKHAUL_TYPE_UNKNOWN;
++    }
++
++    CcspTraceInfo(("[%s:%d] Detected backhaul type: %s (ifname=%s)\n",
++                   __FUNCTION__, __LINE__, backhaul_type_to_string(type), wan_ifname));
++    return type;
++}
++
++static uint64_t getECMStatBytes(const char *ip_addr, bool is_tx_stat)
++{
++    uint64_t stat_bytes = 0;
++    char cmd[COMMAND_SIZE] = {0};
++    FILE *fp = NULL;
++    char buffer[256] = {0};  /* Large enough for full ECM XML stats line */
++    backhaul_type_t bh_type;
++
++    if (!ip_addr || strlen(ip_addr) == 0) {
++        CcspTraceError(("[%s:%d] Invalid IP address\n", __FUNCTION__, __LINE__));
++        return 0;
++    }
++
++    bh_type = getBackhaulType();
++    if (bh_type == BACKHAUL_TYPE_UNKNOWN) {
++        CcspTraceError(("[%s:%d] Unable to determine backhaul type, skipping ECM query\n",
++                        __FUNCTION__, __LINE__));
++        return 0;
++    }
++
++    if (bh_type != BACKHAUL_TYPE_WWAN && bh_type != BACKHAUL_TYPE_ETHERNET) {
++        CcspTraceInfo(("[%s:%d] Backhaul type %s - skipping ECM query\n",
++                       __FUNCTION__, __LINE__, backhaul_type_to_string(bh_type)));
++        return 0;
++    }
++
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) {
++        CcspTraceInfo(("[%s:%d] ECM module not loaded\n", __FUNCTION__, __LINE__));
++        return 0;
++    }
++
++    snprintf(cmd, sizeof(cmd), "cat %s/stats 2>/dev/null | grep -w %s",
++             ECM_SYSFS_PATH, ip_addr);
++    fp = popen(cmd, "r");
++    if (!fp) {
++        CcspTraceError(("[%s:%d] Failed to query ECM stats for IP %s\n",
++                        __FUNCTION__, __LINE__, ip_addr));
++        return 0;
++    }
++
++    if (fgets(buffer, sizeof(buffer), fp)) {
++        /* XML format: <ipv4 client_addr="x.x.x.x" rx_bytes="N" tx_bytes="N" />
++         * Parse attribute values directly using strstr to handle XML attributes */
++        char *attr = NULL;
++        char *val_start = NULL;
++        char *val_end = NULL;
++        char val_buf[32] = {0};
++        const char *attr_name = is_tx_stat ? "tx_bytes=\"" : "rx_bytes=\"";
++
++        attr = strstr(buffer, attr_name);
++        if (attr) {
++            val_start = attr + strlen(attr_name);
++            val_end = strchr(val_start, '\"');
++            if (val_end && (val_end - val_start) < (int)sizeof(val_buf)) {
++                strncpy(val_buf, val_start, val_end - val_start);
++                val_buf[val_end - val_start] = '\0';
++                stat_bytes = strtoull(val_buf, NULL, 10);
++            }
++        }
++
++        CcspTraceInfo(("[%s:%d] ECM stats for IP %s: %s=%lu\n",
++                       __FUNCTION__, __LINE__, ip_addr,
++                       is_tx_stat ? "TX" : "RX", stat_bytes));
++    }
++
++    pclose(fp);
++    return stat_bytes;
++}
++
+ /*
+   * get client type from the mac to print in WANStats and dmesg
+   * input : mac - mac address of the client to be checked
+@@ -4970,6 +5048,7 @@ uint64_t GetTotalStatBytes(char *ip, ch
+     uint64_t total_stat_bytes = 0, ipv4_stat_bytes = 0, ipv6_stat_bytes = 0;
+     char client_type[IFACE_SIZE] = {0};
+     bool mac_found_ipv4 = false;
++    uint64_t ecm_stat_bytes = 0;
+     bool mac_found_ipv6 = false;
+     bool retval = false;
+
+@@ -4990,6 +5069,16 @@ uint64_t GetTotalStatBytes(char *ip, ch
+         CcspTraceError(("[%s:%d] addr (%s) not available in ipv4 stats file\n",__FUNCTION__,__LINE__,ip));
+      }
+
++    if (ANSC_STATUS_SUCCESS == isECMModuleLoaded()) {
++        uint64_t ecm_tx = getECMStatBytes(ip, true);
++        uint64_t ecm_rx = getECMStatBytes(ip, false);
++        ecm_stat_bytes = ecm_tx + ecm_rx;
++        CcspTraceInfo(("[%s:%d] ECM stats for IP %s: TX=%lu RX=%lu Total=%lu\n",
++                       __FUNCTION__, __LINE__, ip, ecm_tx, ecm_rx, ecm_stat_bytes));
++    } else {
++        CcspTraceInfo(("[%s:%d] ECM module not loaded, skipping ECM stats\n", __FUNCTION__, __LINE__));
++    }
++
+     if (true == mac_found_ipv6)
+     {
+          ipv6_stat_bytes = getIPv6StatBytes(mac, is_tx_stat);
+@@ -5440,7 +5440,7 @@ uint64_t GetTotalStatBytes(char *ip, ch
+         return 0;
+     }
+
+-    total_stat_bytes = ipv4_stat_bytes + ipv6_stat_bytes;
+-    CcspTraceInfo(("[%s:%d] %s STATS OF %s with MAC:%s IPV4 (%lu) IPV6 (%lu) TOTAL (%lu)\n",__FUNCTION__,__LINE__,((1 == is_tx_stat)?"TX:":"RX:"),client_type,mac,ipv4_stat_bytes,ipv6_stat_bytes,total_stat_bytes));
+-    v_secure_system("echo Connected %s client, MAC:%s %s iptables:%lu ipv6tables:%lu > /dev/kmsg ",client_type,mac,((1 == is_tx_stat)?"TX:":"RX:"),ipv4_stat_bytes,ipv6_stat_bytes);
++    total_stat_bytes = ipv4_stat_bytes + ipv6_stat_bytes + ecm_stat_bytes;
++    CcspTraceInfo(("[%s:%d] %s STATS OF %s with MAC:%s IPV4 (%lu) IPV6 (%lu) ECM (%lu) TOTAL (%lu)\n",__FUNCTION__,__LINE__,((1 == is_tx_stat)?"TX:":"RX:"),client_type,mac,ipv4_stat_bytes,ipv6_stat_bytes,ecm_stat_bytes,total_stat_bytes));
++    v_secure_system("echo Connected %s client, MAC:%s %s iptables:%lu ipv6tables:%lu ecm:%lu > /dev/kmsg ",client_type,mac,((1 == is_tx_stat)?"TX:":"RX:"),ipv4_stat_bytes,ipv6_stat_bytes,ecm_stat_bytes);
+     return total_stat_bytes;

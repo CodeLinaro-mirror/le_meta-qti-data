@@ -1,0 +1,585 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: ECM Integration <ecm@qti.qualcomm.com>
+Date: Sun, 27 jul 2026 00:00:00 +0000
+Subject: [PATCH] Add ECM packet statistics integration to WAN Manager
+
+[Description]: Integrates ECM (Embedded Client Manager) with packet statistics
+framework across all phases. Handles backhaul type detection, ECM registration,
+per-IP stats collection, and cleanup operations. All ECM logic lives in
+wanmgr_network_monitor_extn_qti.c/.h.
+
+[RCA]: Packet statistics framework needed ECM integration for hardware acceleration
+across all lifecycle phases.
+
+Signed-off-by: talekhya <talekhya@qti.qualcomm.com>
+---
+
+--- git.orig/source/WanManager/wanmgr_network_monitor_extn_qti.h
++++ git/source/WanManager/wanmgr_network_monitor_extn_qti.h
+@@ -28,4 +28,21 @@
+ void handle_netlink_ipneigh_del(struct nlmsghdr *nlmsg, int len);
+ void createStatsChain(void);
+ bool isIPALanStatEnable(void);
++
++typedef enum {
++    BACKHAUL_TYPE_UNKNOWN = 0,
++    BACKHAUL_TYPE_WWAN = 1,
++    BACKHAUL_TYPE_ETHERNET = 2,
++    BACKHAUL_TYPE_USB = 3,
++    BACKHAUL_TYPE_WLAN = 4,
++    BACKHAUL_TYPE_PPP = 5,
++} backhaul_type_t;
++
++backhaul_type_t getBackhaulType(void);
++void registerECMBackhaulType(backhaul_type_t bh_type);
++void ECM_RegisterIPv4Prefix(void);
++void ECM_RegisterIPv6Prefix(const char *site_prefix);
++void resetECMStats(void);
++void unregisterECMBackhaulType(void);
++
+ #endif /* _WANMGR_NETWORK_MONITOR_EXTN_QTI_H_ */
+--- git.orig/source/WanManager/wanmgr_network_monitor_extn_qti.c
++++ git/source/WanManager/wanmgr_network_monitor_extn_qti.c
+@@ -39,6 +39,7 @@
+ #ifndef DBG_MONITOR_PRINT
+ #define DBG_MONITOR_PRINT(fmt, args...)  CcspTraceInfo((fmt, ##args))
+ #endif
++#define ECM_SYSFS_PATH "/proc/sys/net/ecm/ecm_sdx_stats"
+ extern uint ipv4_stat_client;
+ extern uint ipv6_stat_client;
+ extern int sysevent_nwm_fd;
+@@ -62,6 +63,311 @@
+ /* Forward declaration for the PacketStats helper in wanmgr_network_monitor.c */
+ extern void delClientForStats(char *file, char *type, char *addr);
+ 
++static const char* backhaul_type_to_string(backhaul_type_t type)
++{
++    switch (type) {
++        case BACKHAUL_TYPE_WWAN:      return "wwan";
++        case BACKHAUL_TYPE_ETHERNET:  return "ethernet";
++        case BACKHAUL_TYPE_USB:       return "usb";
++        case BACKHAUL_TYPE_WLAN:      return "wlan";
++        case BACKHAUL_TYPE_PPP:       return "ppp";
++        default:                      return "unknown";
++    }
++}
++
++static backhaul_type_t getBackhaulTypeFromInterface(const char *ifname)
++{
++    if (!ifname || strlen(ifname) == 0)
++        return BACKHAUL_TYPE_UNKNOWN;
++    if (strstr(ifname, "qmapmux") != NULL) return BACKHAUL_TYPE_WWAN;
++    if (strstr(ifname, "eth")     != NULL) return BACKHAUL_TYPE_ETHERNET;
++    if (strstr(ifname, "usb")     != NULL) return BACKHAUL_TYPE_USB;
++    if (strstr(ifname, "wlan")    != NULL) return BACKHAUL_TYPE_WLAN;
++    if (strstr(ifname, "ppp")     != NULL) return BACKHAUL_TYPE_PPP;
++    return BACKHAUL_TYPE_UNKNOWN;
++}
++
++static ANSC_STATUS isECMModuleLoaded(void)
++{
++    FILE *fp = NULL;
++    char path[256] = {0};
++
++    snprintf(path, sizeof(path), "%s/interface_type", ECM_SYSFS_PATH);
++    fp = fopen(path, "r");
++    if (fp) {
++        fclose(fp);
++        DBG_MONITOR_PRINT("[%s:%d] ECM module is loaded\n", __FUNCTION__, __LINE__);
++        return ANSC_STATUS_SUCCESS;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM module is NOT loaded\n", __FUNCTION__, __LINE__);
++    return ANSC_STATUS_FAILURE;
++}
++
++backhaul_type_t getBackhaulType(void)
++{
++    char wan_ifname[64] = {0};
++
++    syscfg_get(NULL, "wan_physical_ifname", wan_ifname, sizeof(wan_ifname));
++    if (strlen(wan_ifname) == 0) {
++        DBG_MONITOR_PRINT("[%s:%d] Failed to get wan_physical_ifname from syscfg\n",
++                          __FUNCTION__, __LINE__);
++        return BACKHAUL_TYPE_UNKNOWN;
++    }
++    backhaul_type_t type = getBackhaulTypeFromInterface(wan_ifname);
++    if (type == BACKHAUL_TYPE_UNKNOWN) {
++        DBG_MONITOR_PRINT("[%s:%d] Unable to determine backhaul type from interface %s\n",
++                          __FUNCTION__, __LINE__, wan_ifname);
++        return BACKHAUL_TYPE_UNKNOWN;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] Detected backhaul type: %s (ifname=%s)\n",
++                      __FUNCTION__, __LINE__, backhaul_type_to_string(type), wan_ifname);
++    return type;
++}
++
++void registerECMBackhaulType(backhaul_type_t bh_type)
++{
++    int ret = 0;
++    char _ecm_path[256];
++
++    if (bh_type != BACKHAUL_TYPE_WWAN && bh_type != BACKHAUL_TYPE_ETHERNET) {
++        DBG_MONITOR_PRINT("[%s:%d] Backhaul type %s - skipping ECM registration\n",
++                          __FUNCTION__, __LINE__, backhaul_type_to_string(bh_type));
++        return;
++    }
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) {
++        DBG_MONITOR_PRINT("[%s:%d] ECM module not loaded, cannot register backhaul type\n",
++                          __FUNCTION__, __LINE__);
++        return;
++    }
++    snprintf(_ecm_path, sizeof(_ecm_path), "%s/interface_type", ECM_SYSFS_PATH);
++    {
++        FILE *_fp = fopen(_ecm_path, "w");
++        ret = _fp ? (fprintf(_fp, "bh_type %s \n", backhaul_type_to_string(bh_type)) > 0 ? (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++    }
++    if (ret != 0) {
++        DBG_MONITOR_PRINT("[%s:%d] Failed to register ECM backhaul type %s, ret=%d errno=%d (%s)\n",
++                          __FUNCTION__, __LINE__, backhaul_type_to_string(bh_type), ret, errno, strerror(errno));
++        return;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM: Registered %s backhaul type\n",
++                      __FUNCTION__, __LINE__, backhaul_type_to_string(bh_type));
++}
++
++static ANSC_STATUS registerECMLANPrefixes(void)
++{
++    char lan_ip[64] = {0};
++    char lan_netmask[64] = {0};
++    int ret = 0;
++    char _ecm_path[256];
++
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) {
++        DBG_MONITOR_PRINT("[%s:%d] ECM module not loaded\n", __FUNCTION__, __LINE__);
++        return ANSC_STATUS_FAILURE;
++    }
++    syscfg_get(NULL, "lan_ipaddr", lan_ip, sizeof(lan_ip));
++    syscfg_get(NULL, "lan_netmask", lan_netmask, sizeof(lan_netmask));
++    if (strlen(lan_ip) > 0) {
++        snprintf(_ecm_path, sizeof(_ecm_path), "%s/lan_prefixes", ECM_SYSFS_PATH);
++        {
++            FILE *_fp = fopen(_ecm_path, "w");
++            ret = _fp ? (fprintf(_fp, "ipv4 %s %s \n", lan_ip, lan_netmask) > 0 ? (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++        }
++        if (ret != 0) {
++            DBG_MONITOR_PRINT("[%s:%d] Failed to register IPv4 prefix, ret=%d\n",
++                              __FUNCTION__, __LINE__, ret);
++            return ANSC_STATUS_FAILURE;
++        }
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM: Registered LAN prefixes\n", __FUNCTION__, __LINE__);
++    return ANSC_STATUS_SUCCESS;
++}
++
++void ECM_RegisterIPv4Prefix(void)
++{
++    char lan_ip[64] = {0};
++    char lan_netmask[64] = {0};
++    char _ecm_path[256];
++    int ret;
++
++    if (!isIPALanStatEnable()) return;
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) return;
++    syscfg_get(NULL, "lan_ipaddr", lan_ip, sizeof(lan_ip));
++    syscfg_get(NULL, "lan_netmask", lan_netmask, sizeof(lan_netmask));
++    if (strlen(lan_ip) == 0) {
++        DBG_MONITOR_PRINT("[%s:%d] lan_ipaddr not available\n", __FUNCTION__, __LINE__);
++        return;
++    }
++    snprintf(_ecm_path, sizeof(_ecm_path), "%s/lan_prefixes", ECM_SYSFS_PATH);
++    {
++        FILE *_fp = fopen(_ecm_path, "w");
++        ret = _fp ? (fprintf(_fp, "ipv4 %s %s \n", lan_ip, lan_netmask) > 0 ?
++                     (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM IPv4 LAN prefix %s/%s registration %s\n",
++                      __FUNCTION__, __LINE__, lan_ip, lan_netmask,
++                      ret == 0 ? "OK" : "FAILED");
++}
++
++void ECM_RegisterIPv6Prefix(const char *site_prefix)
++{
++    char _ecm_path[256];
++    int ret;
++
++    if (!isIPALanStatEnable()) return;
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) return;
++    if (!site_prefix || strlen(site_prefix) == 0) {
++        DBG_MONITOR_PRINT("[%s:%d] IPv6 site prefix not available\n", __FUNCTION__, __LINE__);
++        return;
++    }
++    snprintf(_ecm_path, sizeof(_ecm_path), "%s/lan_prefixes", ECM_SYSFS_PATH);
++    {
++        FILE *_fp = fopen(_ecm_path, "w");
++        ret = _fp ? (fprintf(_fp, "ipv6 %s \n", site_prefix) > 0 ?
++                     (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM IPv6 LAN prefix %s registration %s\n",
++                      __FUNCTION__, __LINE__, site_prefix,
++                      ret == 0 ? "OK" : "FAILED");
++}
++
++static ANSC_STATUS initializeECMForPacketStats(void)
++{
++    backhaul_type_t bh_type = getBackhaulType();
++    if (bh_type != BACKHAUL_TYPE_UNKNOWN)
++        registerECMBackhaulType(bh_type);
++    if (ANSC_STATUS_SUCCESS != registerECMLANPrefixes())
++        DBG_MONITOR_PRINT("[%s:%d] Failed to register ECM LAN prefixes\n",
++                          __FUNCTION__, __LINE__);
++    return ANSC_STATUS_SUCCESS;
++}
++
++static ANSC_STATUS queryECMClientStats(const char *ip_addr, uint64_t *tx_bytes, uint64_t *rx_bytes)
++{
++    char cmd[256] = {0};
++    char _ecm_path[256];
++    FILE *fp = NULL;
++    char buffer[256] = {0};
++    backhaul_type_t bh_type;
++    int ret = 0;
++
++    if (!ip_addr || strlen(ip_addr) == 0 || !tx_bytes || !rx_bytes) {
++        DBG_MONITOR_PRINT("[%s:%d] Invalid parameters\n", __FUNCTION__, __LINE__);
++        return ANSC_STATUS_FAILURE;
++    }
++    *tx_bytes = 0;
++    *rx_bytes = 0;
++    bh_type = getBackhaulType();
++    if (bh_type == BACKHAUL_TYPE_UNKNOWN || (bh_type != BACKHAUL_TYPE_WWAN && bh_type != BACKHAUL_TYPE_ETHERNET)) {
++        DBG_MONITOR_PRINT("[%s:%d] Backhaul type %s - skipping ECM query\n",
++                          __FUNCTION__, __LINE__, backhaul_type_to_string(bh_type));
++        return ANSC_STATUS_SUCCESS;
++    }
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) {
++        DBG_MONITOR_PRINT("[%s:%d] ECM module not loaded\n", __FUNCTION__, __LINE__);
++        return ANSC_STATUS_SUCCESS;
++    }
++    snprintf(_ecm_path, sizeof(_ecm_path), "%s/per_ip_stats", ECM_SYSFS_PATH);
++    {
++        FILE *_fp = fopen(_ecm_path, "w");
++        ret = _fp ? (fprintf(_fp, "PER_IP_STATS %s \n", ip_addr) > 0 ? (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++    }
++    if (ret != 0) {
++        DBG_MONITOR_PRINT("[%s:%d] Failed to query ECM stats for IP %s (write), ret=%d\n",
++                          __FUNCTION__, __LINE__, ip_addr, ret);
++        return ANSC_STATUS_SUCCESS;
++    }
++    snprintf(cmd, sizeof(cmd), "cat %s/per_ip_stats 2>/dev/null | grep -w %s",
++             ECM_SYSFS_PATH, ip_addr);
++    fp = popen(cmd, "r");
++    if (!fp) {
++        DBG_MONITOR_PRINT("[%s:%d] Failed to query ECM stats for IP %s (read)\n",
++                          __FUNCTION__, __LINE__, ip_addr);
++        return ANSC_STATUS_SUCCESS;
++    }
++    if (fgets(buffer, sizeof(buffer), fp))
++        sscanf(buffer, "%*s %*s rx_bytes=\"%lu\" tx_bytes=\"%lu\"", rx_bytes, tx_bytes);
++    pclose(fp);
++    return ANSC_STATUS_SUCCESS;
++}
++
++static ANSC_STATUS deleteECMClientIP(const char *ip_addr)
++{
++    int ret = 0;
++    char _ecm_path[256];
++    backhaul_type_t bh_type;
++
++    if (!ip_addr || strlen(ip_addr) == 0) {
++        DBG_MONITOR_PRINT("[%s:%d] Invalid IP address\n", __FUNCTION__, __LINE__);
++        return ANSC_STATUS_FAILURE;
++    }
++    bh_type = getBackhaulType();
++    if (bh_type == BACKHAUL_TYPE_UNKNOWN || (bh_type != BACKHAUL_TYPE_WWAN && bh_type != BACKHAUL_TYPE_ETHERNET)) {
++        DBG_MONITOR_PRINT("[%s:%d] Backhaul type %s - skipping ECM cleanup\n",
++                          __FUNCTION__, __LINE__, backhaul_type_to_string(bh_type));
++        return ANSC_STATUS_SUCCESS;
++    }
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) {
++        DBG_MONITOR_PRINT("[%s:%d] ECM module not loaded\n", __FUNCTION__, __LINE__);
++        return ANSC_STATUS_SUCCESS;
++    }
++    snprintf(_ecm_path, sizeof(_ecm_path), "%s/per_ip_stats", ECM_SYSFS_PATH);
++    {
++        FILE *_fp = fopen(_ecm_path, "w");
++        ret = _fp ? (fprintf(_fp, "DELETE %s \n", ip_addr) > 0 ? (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++    }
++    if (ret != 0) {
++        DBG_MONITOR_PRINT("[%s:%d] Failed to delete ECM client IP %s, ret=%d\n",
++                          __FUNCTION__, __LINE__, ip_addr, ret);
++        return ANSC_STATUS_FAILURE;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM: Deleted client IP %s\n", __FUNCTION__, __LINE__, ip_addr);
++    return ANSC_STATUS_SUCCESS;
++}
++
++void resetECMStats(void)
++{
++    int ret = 0;
++    char _ecm_path[256];
++
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) {
++        DBG_MONITOR_PRINT("[%s:%d] ECM module not loaded\n", __FUNCTION__, __LINE__);
++        return;
++    }
++    snprintf(_ecm_path, sizeof(_ecm_path), "%s/stats", ECM_SYSFS_PATH);
++    {
++        FILE *_fp = fopen(_ecm_path, "w");
++        ret = _fp ? (fprintf(_fp, "RESET_ALL \n") > 0 ? (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++    }
++    if (ret != 0) {
++        DBG_MONITOR_PRINT("[%s:%d] Failed to reset ECM stats, ret=%d\n",
++                          __FUNCTION__, __LINE__, ret);
++        return;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM: Reset all stats\n", __FUNCTION__, __LINE__);
++}
++
++void unregisterECMBackhaulType(void)
++{
++    int ret = 0;
++    char _ecm_path[256];
++
++    if (ANSC_STATUS_SUCCESS != isECMModuleLoaded()) {
++        DBG_MONITOR_PRINT("[%s:%d] ECM module not loaded\n", __FUNCTION__, __LINE__);
++        return;
++    }
++    snprintf(_ecm_path, sizeof(_ecm_path), "%s/interface_type", ECM_SYSFS_PATH);
++    {
++        FILE *_fp = fopen(_ecm_path, "w");
++        ret = _fp ? (fprintf(_fp, "bh_type NULL \n") > 0 ? (fclose(_fp), 0) : (fclose(_fp), -1)) : -1;
++    }
++    if (ret != 0) {
++        DBG_MONITOR_PRINT("[%s:%d] Failed to unregister ECM backhaul type, ret=%d\n",
++                          __FUNCTION__, __LINE__, ret);
++        return;
++    }
++    DBG_MONITOR_PRINT("[%s:%d] ECM: Unregistered backhaul type\n", __FUNCTION__, __LINE__);
++}
++
+ /*
+  * parse_rtattr_pd - parse netlink attributes for neighbor messages.
+  * Local copy since parse_rtattr in wanmgr_network_monitor.c is static.
+@@ -86,6 +392,11 @@
+     v_secure_system("ip6tables -t mangle -N TRAFFIC_ACCT");
+     v_secure_system("iptables -t mangle -A POSTROUTING -j TRAFFIC_ACCT");
+     v_secure_system("ip6tables -t mangle -A POSTROUTING -j TRAFFIC_ACCT");
++    /* Phase 2: ECM Initialization */
++    if (true == isIPALanStatEnable()) {
++        DBG_MONITOR_PRINT("[%s:%d] Phase 2: Initializing ECM for packet stats\n", __FUNCTION__, __LINE__);
++        initializeECMForPacketStats();
++    }
+ }
+ /*
+   * get mac and interface name of a client
+@@ -636,6 +947,18 @@
+     v_secure_system("echo %s client, MAC:%s iptables stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,iptables_rx_bytes,iptables_tx_bytes);
+     v_secure_system("echo %s client, MAC:%s ip6tables stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,ip6tables_total_rx_bytes,ip6tables_total_tx_bytes);
+     v_secure_system("echo %s client, MAC:%s Total stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,total_rx_bytes,total_tx_bytes);
++
++    /* Query ECM hardware acceleration stats for this client */
++    uint64_t ecm_tx_bytes = 0, ecm_rx_bytes = 0;
++    if (isIPALanStatEnable()) {
++        queryECMClientStats(addr, &ecm_tx_bytes, &ecm_rx_bytes);
++        DBG_MONITOR_PRINT("[%s:%d] ECM stats for %s: TX=%lu RX=%lu\n",
++                          __FUNCTION__, __LINE__, addr, ecm_tx_bytes, ecm_rx_bytes);
++        total_tx_bytes += ecm_tx_bytes;
++        total_rx_bytes += ecm_rx_bytes;
++        v_secure_system("echo %s client, MAC:%s ECM stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,ecm_rx_bytes,ecm_tx_bytes);
++        v_secure_system("echo %s client, MAC:%s Total stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,total_rx_bytes,total_tx_bytes);
++    }
+     return 0;
+ }
+ /*
+@@ -734,6 +1057,8 @@
+                 {
+                     DBG_MONITOR_PRINT("[%s:%d] printStatsInDmesg failed \n ",__FUNCTION__,__LINE__);
+                 }
++                /* Delete client IP from ECM after stats are collected */
++                deleteECMClientIP(addr);
+                 ret = delIpv4Rules(addr);
+                 if (-1 == ret)
+                 {
+@@ -752,6 +1077,8 @@
+                         DBG_MONITOR_PRINT("[%s:%d] printStatsInDmesg failed \n ",__FUNCTION__,__LINE__);
+                     }
+                 }
++                /* Delete client IP from ECM after stats are collected */
++                deleteECMClientIP(addr);
+                 ret = delIpv6Rules(addr);
+                 if (-1 == ret)
+                 {
+Index: git/source/WanManager/wanmgr_interface_sm.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_interface_sm.c
++++ git/source/WanManager/wanmgr_interface_sm.c
+@@ -24,5 +24,6 @@ #include <netlink/netlink.h>
+ #include "wanmgr_interface_sm.h"
++#include "wanmgr_network_monitor_extn_qti.h"
+ #include "wanmgr_utils.h"
+ #include "platform_hal.h"
+ #include "wanmgr_sysevents.h"
+ #include "wanmgr_ipc.h"
+@@ -2333,4 +2334,10 @@ static eWanState_t wan_transition_ipv4_up(WanMgr_IfaceSM_Controller_t* pWanIfaceCtrl)
+         CcspTraceError(("%s %d - Failed to configure IPv4 successfully \n", __FUNCTION__, __LINE__));
+     }
+
++    /* ECM: register backhaul type and IPv4 LAN prefix now that WAN IPv4 is up */
++    if (isIPALanStatEnable()) {
++        backhaul_type_t bh_type = getBackhaulType();
++        registerECMBackhaulType(bh_type);
++        ECM_RegisterIPv4Prefix();
++    }
+     WanMgr_SendMsgTo_ConnectivityCheck(pWanIfaceCtrl, CONNECTION_MSG_IPV4 , TRUE);
+@@ -2438,8 +2441,13 @@ static eWanState_t wan_transition_ipv4_down
+     }
+
+     WanMgr_SendMsgTo_ConnectivityCheck(pWanIfaceCtrl, CONNECTION_MSG_IPV4 , FALSE);
+
++    /* ECM: unregister and reset when both IPv4 and IPv6 are down (backhaul disconnect) */
++    if (p_VirtIf->IP.Ipv6Status != WAN_IFACE_IPV6_STATE_UP) {
++        unregisterECMBackhaulType();
++        resetECMStats();
++    }
+     char param_name[256] = {0};
+     snprintf(param_name, sizeof(param_name), "Device.X_RDK_WanManager.Interface.%d.VirtualInterface.%d.IP.IPv4Address",  p_VirtIf->baseIfIdx+1, p_VirtIf->VirIfIdx+1);
+     WanMgr_Rbus_EventPublishHandler(param_name, "",RBUS_STRING);
+
+@@ -2594,4 +2601,11 @@ static eWanState_t wan_transition_ipv6_up(WanMgr_IfaceSM_Controller_t* pWanIfaceCtrl)
+         CcspTraceError(("%s %d - Failed to configure IPv6 successfully \n", __FUNCTION__, __LINE__));
+     }
+
++    /* ECM: register backhaul type for IPv6-only WAN (IPv4-only case handled in ipv4_up) */
++    if (isIPALanStatEnable() && p_VirtIf->IP.Ipv4Status != WAN_IFACE_IPV4_STATE_UP) {
++        backhaul_type_t bh_type = getBackhaulType();
++        registerECMBackhaulType(bh_type);
++    }
++    /* ECM: register IPv6 LAN prefix using sitePrefix from DHCPv6 PD */
++    ECM_RegisterIPv6Prefix(p_VirtIf->IP.Ipv6Data.sitePrefix);
+     WanMgr_SendMsgTo_ConnectivityCheck(pWanIfaceCtrl, CONNECTION_MSG_IPV6 , TRUE);
+@@ -2723,7 +2732,12 @@ static eWanState_t wan_transition_ipv6_down
+ 	}
+ #endif
+     WanMgr_SendMsgTo_ConnectivityCheck(pWanIfaceCtrl, CONNECTION_MSG_IPV6 , FALSE);
+
++    /* ECM: unregister and reset when both IPv4 and IPv6 are down (backhaul disconnect) */
++    if (p_VirtIf->IP.Ipv4Status != WAN_IFACE_IPV4_STATE_UP) {
++        unregisterECMBackhaulType();
++        resetECMStats();
++    }
+     Update_Interface_Status();
+     sysevent_get(sysevent_fd, sysevent_token, SYSEVENT_IPV4_CONNECTION_STATE, buf, sizeof(buf));
+
+Index: git/source/WanManager/wanmgr_sysevents.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_sysevents.c
++++ git/source/WanManager/wanmgr_sysevents.c
+@@ -17,16 +17,17 @@
+  * limitations under the License.
+ */
+
+ #include <sysevent/sysevent.h>
+ #include <pthread.h>
+ #include <syscfg/syscfg.h>
+
+ #include "wanmgr_sysevents.h"
++#include "wanmgr_network_monitor_extn_qti.h"
+ #include "wanmgr_rdkbus_utils.h"
+ #include "wanmgr_ipc.h"
+ #include "secure_wrapper.h"
+
+ int sysevent_fd = -1;
+ token_t sysevent_token;
+ static int sysevent_msg_fd = -1;
+ static token_t sysevent_msg_token;
+@@ -581,16 +582,17 @@
+ {
+     CcspTraceInfo(("%s %d \n", __FUNCTION__, __LINE__));
+
+     //detach thread from caller stack
+     pthread_detach(pthread_self());
+
+     async_id_t wanamangr_status_asyncid;
+     async_id_t lan_ula_address_event_asyncid;
++    async_id_t reset_packet_stats_asyncid;
+     async_id_t default_route_change_event_asyncid;
+     async_id_t lan_ula_enable_asyncid;
+     async_id_t lan_ipv6_enable_asyncid;
+     async_id_t wan_status_asyncid;
+     async_id_t radvd_restart_asyncid;
+     async_id_t ipv6_down_asyncid;
+ #ifdef NTP_STATUS_SYNC_EVENT
+     async_id_t ntp_time_asyncid;
+@@ -632,16 +634,19 @@
+
+ #endif
+     sysevent_set_options(sysevent_msg_fd, sysevent_msg_token, SYSEVENT_IPV6_ENABLE, TUPLE_FLAG_EVENT);
+     sysevent_setnotification(sysevent_msg_fd, sysevent_msg_token, SYSEVENT_IPV6_ENABLE, &lan_ipv6_enable_asyncid);
+
+     sysevent_set_options(sysevent_msg_fd, sysevent_msg_token, SYSEVENT_WAN_STATUS, TUPLE_FLAG_EVENT);
+     sysevent_setnotification(sysevent_msg_fd, sysevent_msg_token, SYSEVENT_WAN_STATUS,  &wan_status_asyncid);
+
++    sysevent_set_options(sysevent_msg_fd, sysevent_msg_token, "reset_packet_stats", TUPLE_FLAG_EVENT);
++    sysevent_setnotification(sysevent_msg_fd, sysevent_msg_token, "reset_packet_stats", &reset_packet_stats_asyncid);
++
+ #if defined(_DT_WAN_Manager_Enable_)
+     async_id_t dibbler_restart_asyncid;
+     sysevent_set_options(sysevent_msg_fd, sysevent_msg_token, "dibbler-restart", TUPLE_FLAG_EVENT);
+     sysevent_setnotification(sysevent_msg_fd, sysevent_msg_token, "dibbler-restart",  &dibbler_restart_asyncid);
+ #endif
+
+     sysevent_set_options(sysevent_msg_fd, sysevent_msg_token, SYSEVENT_RADVD_RESTART, TUPLE_FLAG_EVENT);
+     sysevent_setnotification(sysevent_msg_fd, sysevent_msg_token, SYSEVENT_RADVD_RESTART, &radvd_restart_asyncid);
+@@ -718,17 +723,23 @@
+         if(err)
+         {
+             CcspTraceError(("%s %d sysevent_getnotification failed with error: %d \n", __FUNCTION__, __LINE__, err ));
+             sleep(2);
+         }
+         else
+         {
+             CcspTraceInfo(("%s %d - received notification event %s:%s\n", __FUNCTION__, __LINE__, name, val ));
+-            if ( strcmp(name, SYSEVENT_ULA_ADDRESS) == 0 )
++            if ( strcmp(name, "reset_packet_stats") == 0 && strcmp(val, "1") == 0 )
++            {
++                CcspTraceInfo(("%s %d - reset_packet_stats event received, resetting ECM stats\n",
++                               __FUNCTION__, __LINE__));
++                resetECMStats();
++            }
++            else if ( strcmp(name, SYSEVENT_ULA_ADDRESS) == 0 )
+             {
+ 		#if defined (_HUB4_PRODUCT_REQ_) || defined(_RDKB_GLOBAL_PRODUCT_REQ_)
+                 datamodel_value = (char *) malloc(sizeof(char) * 256);
+                 if(datamodel_value != NULL)
+                 {
+                     memset(datamodel_value, 0, 256);
+                     strncpy(datamodel_value, val, sizeof(val));
+                     result = WanMgr_RdkBus_SetParamValues( PAM_COMPONENT_NAME, PAM_DBUS_PATH, "Device.DHCPv6.Server.Pool.1.X_RDKCENTRAL-COM_DNSServersEnabled", "true", ccsp_boolean, TRUE );
+
+Index: git/source/WanManager/wanmgr_dhcpv6_apis.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_dhcpv6_apis.c
++++ git/source/WanManager/wanmgr_dhcpv6_apis.c
+@@ -19,6 +19,7 @@
+ #include "wanmgr_data.h"
+ #include "wanmgr_dhcpv6_apis.h"
+ #include "wanmgr_interface_sm.h"
++#include "wanmgr_network_monitor_extn_qti.h"
+ #include "wanmgr_sysevents.h"
+ #include "wanmgr_ipc.h"
+ #include "wanmgr_utils.h"
+@@ -1864,4 +1864,9 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_data(DML_VIRTUAL_IFACE * pVirtIf)
+         {
+             CcspTraceInfo(("IPv6 configuration has been changed \n"));
+             pVirtIf->IP.Ipv6Changed = TRUE;
++            /* ECM: register updated IPv6 LAN prefix immediately when sitePrefix changes */
++            if (strlen(Ipv6DataNew.sitePrefix) > 0 && isIPALanStatEnable()) {
++                CcspTraceInfo(("ECM: Registering IPv6 LAN prefix %s\n", Ipv6DataNew.sitePrefix));
++                ECM_RegisterIPv6Prefix(Ipv6DataNew.sitePrefix);
++            }
+ 
