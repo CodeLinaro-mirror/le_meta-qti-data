@@ -91,7 +91,7 @@ endef
 
 define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/lib/modules/
-	$(INSTALL_DIR) $(1)/etc/firewall.d $(1)/etc/init.d $(1)/usr/bin $(1)/lib/netifd/offload $(1)/etc/config $(1)/etc/uci-defaults $(1)/etc/sysctl.d
+	$(INSTALL_DIR) $(1)/etc/firewall.d $(1)/etc/init.d $(1)/usr/bin $(1)/lib/netifd/offload $(1)/etc/config $(1)/etc/uci-defaults $(1)/etc/sysctl.d $(1)/etc/data/factory
 	$(INSTALL_DATA) ./files/qca-nss-ecm.firewall $(1)/etc/firewall.d/qca-nss-ecm
 	$(INSTALL_BIN) ./files/qca-nss-ecm.init $(1)/etc/init.d/qca-nss-ecm
 	$(INSTALL_BIN) ./files/ecm_dump.sh $(1)/usr/bin/
@@ -99,6 +99,7 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_DATA) ./files/qca-nss-ecm.uci $(1)/etc/config/ecm
 	$(INSTALL_DATA) ./files/qca-nss-ecm.defaults $(1)/etc/uci-defaults/99-qca-nss-ecm
 	$(INSTALL_BIN) ./files/qca-nss-ecm.sysctl $(1)/etc/sysctl.d/qca-nss-ecm.conf
+	$(INSTALL_BIN) ./files/qca-nss-ecm.uci $(1)/etc/data/factory/factory_ecm
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm.ko $(1)/lib/modules/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/ecm.ko $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules/
