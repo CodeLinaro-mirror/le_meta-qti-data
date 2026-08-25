@@ -1,0 +1,41 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 83aeb37b96d034c8eb2d97669e1279d530ad24d7 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Tue, 25 Aug 2026 09:28:29 +0000
+Subject: [PATCH] fix for client still retains all IPv6 addresses associated
+ with the previous prefixes, and those addresses remain in the reachable
+ state.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_dhcpv6_apis.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+Index: git/source/WanManager/wanmgr_dhcpv6_apis.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_dhcpv6_apis.c
++++ git/source/WanManager/wanmgr_dhcpv6_apis.c
+@@ -1775,7 +1775,9 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_d
+                     syscfg_set_string(SYSCFG_FIELD_IPV6_PREFIX_ADDRESS, pNewIpcMsg->pdIfAddress);
+                     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_FIELD_TR_BRLAN0_DHCPV6_SERVER_ADDRESS, set_value, 0);
+                 }
+-
++#ifndef _PLATFORM_SDX_
++/* SDX: skip SYSEVENT_FIELD_IPV6_PREFIX update in this path.
++   * Prefix/address transition is handled through SDX-specific flow to avoid stale behavior. */
+                 if (strcmp(pDhcp6cInfoCur->sitePrefix, pNewIpcMsg->sitePrefix) != 0)
+                 {
+                     CcspTraceInfo(("%s %d new prefix = %s, current prefix = %s \n", __FUNCTION__, __LINE__, pNewIpcMsg->sitePrefix, pDhcp6cInfoCur->sitePrefix));
+@@ -1787,6 +1789,7 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_d
+ #endif
+                     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_FIELD_IPV6_PREFIX, prefix, 0);
+                 }
++#endif/* _PLATFORM_SDX_ */
+             }
+         }
+         else /* IFADDRCONF_REMOVE: prefix remove */
