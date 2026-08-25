@@ -21,4 +21,5 @@ SRC_URI += " \
               file://00012-lm-lite-ipa-connect-fix-for-vlan-client.patch \
               file://00013-lm-lite-Hosts-dm-update-globalip.patch \
               file://00014-lm-lite_ECM-Stats-Aggregation.patch \
+              file://00015-lm-lite-Modification-for-eth1-vlan-packetstats.patch \
 "
