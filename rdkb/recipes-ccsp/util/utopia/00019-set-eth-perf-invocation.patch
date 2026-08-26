@@ -21,8 +21,8 @@ index f2ec045..bc32ce2 100755
        fi
        ip link set "$loop" allmulticast on
 +
-+      if [ -x /etc/data/eth/set_eth_perf ]; then
-+         /etc/data/eth/set_eth_perf $loop
++      if [ -e /etc/data/eth/set_eth_perf ]; then
++         /bin/bash /etc/data/eth/set_eth_perf $loop
 +      fi
     done
  }
