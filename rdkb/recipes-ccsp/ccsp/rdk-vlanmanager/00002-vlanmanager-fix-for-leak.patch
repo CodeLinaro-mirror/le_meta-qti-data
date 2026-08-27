@@ -1,0 +1,29 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 5b83915e2af322718fc790b490bb11d728eda69a Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Wed, 28 May 2025 09:24:09 +0000
+Subject: [PATCH] vlanmanager-fix-for-leak
+
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/ethernet_apis.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/source/TR-181/middle_layer_src/ethernet_apis.c b/source/TR-181/middle_layer_src/ethernet_apis.c
+--- a/source/TR-181/middle_layer_src/ethernet_apis.c
++++ b/source/TR-181/middle_layer_src/ethernet_apis.c
+@@ -1108,6 +1108,7 @@ static ANSC_STATUS EthLink_CreateMarkingTable( PDML_ETHERNET pEntry, vlan_config
+     }
+
+     CcspTraceInfo(("%s : Successfully Created EthLinkTable\n", __FUNCTION__));
++    free(p_EthLink->pstDataModelMarking);
+     return ANSC_STATUS_SUCCESS;
+ }
+
+--
+2.34.1
