@@ -1,0 +1,101 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From d295689f714795333fc1def6da7885f9008740a9 Mon Sep 17 00:00:00 2001
+From: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+Date: Thu, 27 Aug 2026 21:59:48 +0530
+Subject: [PATCH] CellTower
+Signed-off-by: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+---
+ .../middle_layer_src/cellularmgr_rbus_dml.c   | 52 +++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index bffd40e..a84ad6b 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -211,6 +211,15 @@ rbusError_t cellularmgr_Init()
+             }
+         }
+ 
++        pstInterfaceInfo->stCellularInterfaceInfoExtn.ulCellTowerNoOfEntries  = 1;
++
++#ifdef CM_EXTN_SUPPORTED
++        CELLULAR_TABLE_TYPE celltower_tableType = CELLTOWER_TABLE_TYPE;
++        if (RBUS_ERROR_SUCCESS != Cellular_Row_Registration(celltower_tableType, i, &(pstDmlCellular->pstInterfaceInfo[i].stCellularInterfaceInfoExtn)))
++        {
++            CcspTraceError(("%s-%d : Failed to Add X_QCOM CellTower Inst \n", __FUNCTION__, __LINE__));
++        }
++#endif
+     }
+ 
+ #ifdef CM_EXTN_SUPPORTED
+@@ -1413,6 +1422,9 @@ bool AvailableNetworks_IsUpdated_rbus(void* ctx)
+     PCELLULAR_DML_INFO          pstDmlCellular =  (PCELLULAR_DML_INFO) pMyObject->pstDmlCellular;
+     PCELLULAR_INTERFACE_INFO   pstInterfaceInfo = NULL;
+     INT index = 0;
++#ifdef CM_EXTN_SUPPORTED
++    char scanStatusBuf[BUFFER_SIZE_32] = {0};
++#endif
+ 
+     if (pstDmlCellular == NULL)
+     {
+@@ -1437,6 +1449,16 @@ bool AvailableNetworks_IsUpdated_rbus(void* ctx)
+         return false;
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    if(sysevent_fd >= 0)
++    {
++        sysevent_get(sysevent_fd, sysevent_token, "celltower_scan_status", scanStatusBuf, sizeof(scanStatusBuf));
++        if (strcmp(scanStatusBuf, "scan_in_progress") == 0)
++        {
++            return false; // Blocking available network scan while celltower DM scan is running
++        }
++    }
++#endif
+     if ( ( AnscGetTickInSeconds() - pstPlmnInfo->ulAvailableNetworkListLastUpdatedTime ) < CELLULAR_AVAILABLE_NETWORK_LIST_REFRESH_THRESHOLD )
+     {
+         return false;
+@@ -3918,6 +3940,36 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.IPv6.DNSSL.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.IPv6.DNSSL.{i}.DomainName", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_IPv6_DNSSL_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #endif
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTowerNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ConnectedCellTower", RBUS_ELEMENT_TYPE_PROPERTY, {extn_xqcomGetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.CurrentAccessTechnology", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.MCC", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.MNC", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#ifdef CM_PROP_SUPPORTED
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.PCI", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#endif
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.CGI", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.TAC", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.LAC", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#ifdef CM_PROP_SUPPORTED
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.CQI", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#endif
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.RSRP", RBUS_ELEMENT_TYPE_PROPERTY, {CellTower_extn_GetParamIntValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.RSRQ", RBUS_ELEMENT_TYPE_PROPERTY, {CellTower_extn_GetParamIntValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.RSSI", RBUS_ELEMENT_TYPE_PROPERTY, {CellTower_extn_GetParamIntValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.SINR", RBUS_ELEMENT_TYPE_PROPERTY, {CellTower_extn_GetParamIntValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.EARFCN", RBUS_ELEMENT_TYPE_PROPERTY, {CellTower_extn_GetParamIntValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.ServingTime", RBUS_ELEMENT_TYPE_PROPERTY, {CellTower_extn_GetParamIntValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#ifdef CM_PROP_SUPPORTED
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.Band", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.Bandwidth", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.RxChannel", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamLongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.TxChannel", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamLongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#endif
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.ECI", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.eNB", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.CellTower.{i}.CID", RBUS_ELEMENT_TYPE_PROPERTY, {extn_Cell_Tower_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+     };
+     rc = rbus_regDataElements(handle, ARRAY_SZ(dataElements), dataElements);
+     if(rc != RBUS_ERROR_SUCCESS)
+-- 
+2.34.1
+
