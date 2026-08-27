@@ -32,6 +32,7 @@ SRC_URI += " \
     file://00018-qti-WanManager-IPPT-Default-Route-Fix.patch \
     file://00019-qti-packet-stats-changes-for-wan-manager.patch \
     file://00020-qti-wanmanager_ECM-PerIP-Stats-Integration.patch \
+    file://00021-qti-Wanmanager-DeviceMode-support.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
