@@ -36,6 +36,7 @@ SRC_URI:append = " \
     file://00030-qti-utopia-DNS_proxy_enable.patch \
     file://00031-qti-utopia-firewall-white-black-list.patch \
     file://00032-qti-utopia-DDNS.patch \
+    file://00033-qti-utopia-fix-for-ping-not-working-from-IPPT-client-to-brlan0.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
