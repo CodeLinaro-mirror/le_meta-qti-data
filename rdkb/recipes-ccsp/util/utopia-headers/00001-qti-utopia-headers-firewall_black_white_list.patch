@@ -1,0 +1,49 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From cddcb538d8b86574b7e20d5f36c4053e894415a2 Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Thu, 20 Aug 2026 11:05:32 +0530
+Subject: [PATCH] Adding ENUM for newly introduced parameters in firewall
+white and black list.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/utctx/lib/utctx_api.h | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+Index: git/source/utctx/lib/utctx_api.h
+===================================================================
+--- git.orig/source/utctx/lib/utctx_api.h
++++ git/source/utctx/lib/utctx_api.h
+@@ -608,6 +608,7 @@ typedef enum _UtopiaValue
+ 	UtopiaValue_PFR_PrevRuleEnabledState,
+ 	UtopiaValue_PRT_PrevRuleEnabledState,
+     UtopiaValue_HashPassword,
++    UtopiaValue_Firewall_RuleType,
+     #if defined(_WAN_MANAGER_ENABLED_)
+       UtopiaValue_WanMode,
+       UtopiaValue_WanConnEnabled,
+@@ -632,6 +633,19 @@ typedef enum _UtopiaValue
+     UtopiaValue_Dslite_IPv6_Frag_Enable,
+     UtopiaValue_Dslite_Tunnel_V4Addr,
+     #endif /* DSLITE_FEATURE_SUPPORT */
++    UtopiaValue_Firewall_X_QCOMRule_Count,
++    UtopiaValue_Firewall_X_QCOMRule,
++    UtopiaValue_Firewall_X_QCOMRule_InsNum,
++    UtopiaValue_Firewall_X_QCOMRule_DestinationIPAddr,
++    UtopiaValue_Firewall_X_QCOMRule_SourceIPAddr,
++    UtopiaValue_Firewall_X_QCOMRule_Enable,
++    UtopiaValue_Firewall_X_QCOMRule_Alias,
++    UtopiaValue_Firewall_X_QCOMRule_SourcePort,
++    UtopiaValue_Firewall_X_QCOMRule_DestinationPort,
++    UtopiaValue_Firewall_X_QCOMRule_Protocol,
++    UtopiaValue_Firewall_X_QCOMRule_Direction,
++    UtopiaValue_Firewall_X_QCOMRule_DestinationIPv6Addr,
++    UtopiaValue_Firewall_X_QCOMRule_SourceIPv6Addr,
+     UtopiaValue__LAST__
+ } UtopiaValue;
+ 
