@@ -35,6 +35,7 @@ SRC_URI += " \
               file://00024-qti-ccsp-p-and-m-DNS_proxy_enable.patch \
               file://00025-qti-ccsp-p-and-m-vpn-passthrough-dm-syscfg-key-fix.patch \
               file://00026-qti-ccsp-p-and-m_firewall_black_white_list.patch \
+              file://00027-qti-ccsp-p-and-m-DDNS.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
