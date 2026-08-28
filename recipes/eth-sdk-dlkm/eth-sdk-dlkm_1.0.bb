@@ -68,10 +68,15 @@ do_compile() {
 # do_install – generic install for every .ko and every .service found
 # -----------------------------------------------------------------------
 do_install() {
-	# Install all modules via the kernel modules_install target so that
-	# modules.dep / modules.alias are generated correctly.
+	# Run the kernel modules_install target so that modules.dep / modules.alias
+	# get generated, but point it at a scratch dir outside ${D}: with M=${S}
+	# (out-of-tree build) the kernel build system defaults INSTALL_MOD_DIR to
+	# "updates" and never strips (INSTALL_MOD_STRIP unset), so if this were
+	# installed under ${D} it would ship a second, unstripped copy of every
+	# .ko (under .../updates/) alongside the stripped+signed copy the loop
+	# below installs under .../extra/drivers/.
 	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} \
-		INSTALL_MOD_PATH=${D}/usr \
+		INSTALL_MOD_PATH=${WORKDIR}/modules_install_scratch \
 		modules_install
 
 	# Walk every .ko produced under ${S}, strip, sign and install it.
