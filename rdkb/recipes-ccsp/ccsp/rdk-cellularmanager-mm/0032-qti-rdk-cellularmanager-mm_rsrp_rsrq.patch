@@ -1,0 +1,64 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 1a2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0t Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Mon, 25 Aug 2026 08:30:00 +0000
+Subject: [PATCH] RSRP/RSRQ threshold configuration and state machine integration
+
+This patch adds support for configuring RSRP (Reference Signal Received Power)
+and RSRQ (Reference Signal Received Quality) thresholds for cellular signal
+strength monitoring. It includes:
+
+1. PSM definitions for persistent threshold storage
+2. RBUS DML property registration for threshold access
+3. State machine integration to apply thresholds on connection establishment
+
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_sm.c                    |  3 +++
+ source/TR-181/include/dmsb_tr181_psm_definitions.h         |  2 ++
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c      |  4 ++++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -1883,6 +1883,9 @@ static void* CellularMgr_StateMachine_Th
+                 else
+                 {
+                     CcspTraceInfo(("%s: Prefix Delegation not enabled \n", __FUNCTION__));
++                    //Pass the RSRQ and RSRP Threshold values fetched from the PSM to the Modem when connection is established
++                    CellularMgr_extn_SetThresholdRSRQ(&(gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->stCellularInterfaceInfoExtn.ssThresholdRSRQ));
++                    CellularMgr_extn_SetThresholdRSRP(&(gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->stCellularInterfaceInfoExtn.ssThresholdRSRP));
+                 }
+             }
+             /*Update Recovery Target state to manage modem state rollback*/
+
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -66,6 +66,8 @@
+ #define PSM_CELLULARMANAGER_INTERFACE_ACTIVE_DATA_USAGE             "dmsb.cellularmanager.interface.%d.x_qcom.activeDataUsage"
+ #define PSM_CELLULARMANAGER_INIT_DATE                                             "dmsb.cellularmanager.initDate"
+ #define PSM_CELLULARMANAGER_INTERFACE_USIM_PINCHECK                "dmsb.cellularmanager.interface.%d.usim.pincheck"
++#define PSM_CELLULARMANAGER_INTERFACE_SS_THRESHOLD_RSRQ                          "dmsb.cellularmanager.interface.%d.x_qcom.ssThresholdRSRQ"
++#define PSM_CELLULARMANAGER_INTERFACE_SS_THRESHOLD_RSRP                          "dmsb.cellularmanager.interface.%d.x_qcom.ssThresholdRSRP"
+ #ifdef CM_PROP_SUPPORTED
+
+ #endif
+
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3643,4 +3643,8 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.X_RDK_Uicc.{i}.MnoName", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.Iccid", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.Msisdn", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#if defined(CM_EXTN_SUPPORTED) && defined(CM_PROP_SUPPORTED)
++        {"Device.Cellular.Interface.{i}.X_QCOM.SSThresholdRSRQ", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamIntValue_rbus, Cellular_Interface_extn_SetParamIntValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.SSThresholdRSRP", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamIntValue_rbus, Cellular_Interface_extn_SetParamIntValue_rbus, NULL, NULL, NULL, NULL}},
++#endif
+         {"Device.Cellular.X_RDK_Euicc.PowerEnable", RBUS_ELEMENT_TYPE_PROPERTY, {EuiccSlot_GetParamBoolValue_rbus, EuiccSlot_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
