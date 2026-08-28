@@ -35,6 +35,7 @@ SRC_URI += " \
     file://00021-qti-Wanmanager-DeviceMode-support.patch \
     file://00022-qti-Wanmanager-DNS_proxy_enable.patch \
     file://00023-qti-Wanmanager-eth1-bringup-delay.patch \
+    file://00024-qti-wanmanager_usb_tether_interface_fix.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
