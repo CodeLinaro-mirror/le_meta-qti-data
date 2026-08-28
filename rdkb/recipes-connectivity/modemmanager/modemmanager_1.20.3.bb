@@ -35,6 +35,7 @@ SRC_URI_append += " \
     file://00012-ModemManager_qmi_ready_check.patch \
     file://00013-IPv4_Fix_for_xlat.patch \
     file://00014-modemmanager-add-support-address-reconfig.patch \
+    file://00015-ModemManager-support-for-factory-test-mode.patch \
 "
 
 S = "${UNPACKDIR}/git"
