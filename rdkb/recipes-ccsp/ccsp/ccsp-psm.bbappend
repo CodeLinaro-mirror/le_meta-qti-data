@@ -1,6 +1,7 @@
 FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
 SRC_URI += "file://bbhm_def_cfg_sdx.xml \
             file://00001-fix-psm-null-deref.patch \
+            file://00002-qti-ccsp-psm_fsync_to_avoid_data_loss.patch \
 "
 require ccsp_common.inc
 do_install_append() {
