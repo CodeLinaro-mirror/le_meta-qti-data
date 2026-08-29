@@ -36,8 +36,8 @@ stop_dropbear_echo() {
     LAN_SSHACCESS=$(syscfg get mgmt_lan_sshaccess)
 
     if [ "$LAN_SSHACCESS" = "1" ] && [ -n "$lan_ipaddr" ]; then
-        ps | grep 'dropbear -R -E -a' | grep -v "$lan_ipaddr" | sed '/grep/d' > $tmp_filename
+        ps aux | grep 'dropbear -R -E' | grep -v "$lan_ipaddr" | awk '{print $2}' > $tmp_filename
     else
-        ps | grep 'dropbear -R -E -a' | sed '/grep/d' > $tmp_filename
+        ps aux  |  grep 'dropbear -R -E' | awk '{print $2}' > $tmp_filename
     fi
 }
