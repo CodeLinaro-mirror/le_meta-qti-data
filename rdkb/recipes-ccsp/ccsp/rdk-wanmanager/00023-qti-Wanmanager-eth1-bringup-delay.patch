@@ -1,0 +1,32 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 7e8c9d4f5a2b1c3d4e5f6a7b8c9d0e1f2a3b4c5d Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Mon, 31 Aug 2026 12:00:00 +0000
+Subject: [PATCH] Add 3-second delay before bringing up eth interface
+
+Add a 3-second sleep delay before bringing up the eth interface to allow
+the driver to stabilize after bind operation.
+
+Change-Id: I634be7b01f115f4473d2004e294ff24a9dc6e0fd
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+---
+ source/WanManager/eth_lan_interface_qti_extn.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/source/WanManager/eth_lan_interface_qti_extn.c b/source/WanManager/eth_lan_interface_qti_extn.c
+index 1234567..abcdefg 100644
+--- a/source/WanManager/eth_lan_interface_qti_extn.c
++++ b/source/WanManager/eth_lan_interface_qti_extn.c
+@@ -169,7 +169,8 @@ void bringup_ethernet_interface(struct nlmsghdr *nlh)
+     }
+ 
+     if (is_iface_running(nlh) != ANSC_STATUS_SUCCESS) {
+-        CcspTraceInfo(("%s: %s not running, bringing up\n", __FUNCTION__, ifname));
++        CcspTraceInfo(("%s: %s not running, waiting 3s before bringing up\n", __FUNCTION__, ifname));
++        sleep(3);
+         v_secure_system("ip link set %s up", ifname);
+         return;
+     }
