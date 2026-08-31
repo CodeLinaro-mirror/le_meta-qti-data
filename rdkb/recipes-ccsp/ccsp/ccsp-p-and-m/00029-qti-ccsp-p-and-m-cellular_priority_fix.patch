@@ -1,0 +1,34 @@
+This patch file is from Qualcomm Technologies, Inc.
+are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 832e64ac551a7952796adbdcf13da717ed866454 Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Fri, 28 Aug 2026 11:35:20 +0000
+Subject: [PATCH] IPv6 interface name correction
+
+[Description] : Here the current_wan_ifname will be populated during the bringup of the interface and hence until the particular interface is brought up in wan manager through the setUpIPv4 function this sysevent will be empty or will hold the previously configured wan interface name but the current_wan_ipv6_interface will be populated by cellular manager itself when the modem goes to connected state and the ipv6 info is being sent to P&M. With the above in context when we are switching from eth wan to cellular wan, cellular ip info will be sent to wan manager and P&M (ipv4 and ipv6 respectively) and at this point the current_wan_ifname will be populated using the previous active wan which will be eth1. So when modem goes to connected state and cellular manager has sent the IPv6 info to P&M if we use the current_wan_ifname sysvent here in the code which is specific for the cellular ip assignment flow, the wan interface name will be eth1 but the info received will be for Cellular, so all the info for the cellular interface will be collected into a structure to be sent to wan manager to inform it but the interface name itself will be wrong so wan manager will update the cellular interface info to eth.
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -10949,10 +10949,7 @@ dhcpv6c_dbg_thrd(void * in)
+                         strlcpy(dhcpv6_data.ifname, IfaceName, sizeof(dhcpv6_data.ifname));
+ #elif defined(_PLATFORM_SDX_)
+                         char wan_ifname_val[32] = {'\0'};
+-                        commonSyseventGet("current_wan_ifname", wan_ifname_val, sizeof(wan_ifname_val));
+-                        if (wan_ifname_val[0] == '\0') {
+-                            commonSyseventGet("current_wan_ipv6_interface", wan_ifname_val, sizeof(wan_ifname_val));
+-                        }
++                        commonSyseventGet("current_wan_ipv6_interface", wan_ifname_val, sizeof(wan_ifname_val));
+                         strlcpy(dhcpv6_data.ifname, wan_ifname_val, sizeof(dhcpv6_data.ifname));
+ #else
+                         strlcpy(dhcpv6_data.ifname, CFG_TR181_DHCPv6_CLIENT_IfName, sizeof(dhcpv6_data.ifname));

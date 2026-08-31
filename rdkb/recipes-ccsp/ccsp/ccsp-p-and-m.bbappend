@@ -37,6 +37,7 @@ SRC_URI += " \
               file://00026-qti-ccsp-p-and-m_firewall_black_white_list.patch \
               file://00027-qti-ccsp-p-and-m-DDNS.patch \
               file://00028-qti-ccsp-p-and-m-ssh-dm-fix.patch \
+              file://00029-qti-ccsp-p-and-m-cellular_priority_fix.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "

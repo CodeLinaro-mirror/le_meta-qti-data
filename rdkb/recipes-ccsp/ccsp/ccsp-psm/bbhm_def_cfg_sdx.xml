@@ -1120,8 +1120,8 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.if.1.Selection.Enable" type="astr">TRUE</Record>
   <Record name="dmsb.wanmanager.if.1.Selection.ActiveLink" type="astr">FALSE</Record>
   <Record name="dmsb.wanmanager.if.1.Selection.RequiresReboot" type="astr">FALSE</Record>
-  <Record name="dmsb.wanmanager.if.1.Selection.Group" type="astr">1</Record>
-  <Record name="dmsb.wanmanager.if.1.Selection.Priority" type="astr">0</Record>
+  <Record name="dmsb.wanmanager.if.1.Selection.Group" type="astr">2</Record>
+  <Record name="dmsb.wanmanager.if.1.Selection.Priority" type="astr">1</Record>
   <Record name="dmsb.wanmanager.if.1.Selection.Timeout" type="astr">20</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterfaceifcount" type="astr">1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Enable" type="astr">TRUE</Record>
@@ -1147,8 +1147,8 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.if.2.Selection.Enable" type="astr">TRUE</Record>
   <Record name="dmsb.wanmanager.if.2.Selection.ActiveLink" type="astr">FALSE</Record>
   <Record name="dmsb.wanmanager.if.2.Selection.RequiresReboot" type="astr">FALSE</Record>
-  <Record name="dmsb.wanmanager.if.2.Selection.Group" type="astr">2</Record>
-  <Record name="dmsb.wanmanager.if.2.Selection.Priority" type="astr">1</Record>
+  <Record name="dmsb.wanmanager.if.2.Selection.Group" type="astr">1</Record>
+  <Record name="dmsb.wanmanager.if.2.Selection.Priority" type="astr">0</Record>
   <Record name="dmsb.wanmanager.if.2.Selection.Timeout" type="astr">60</Record>
   <Record name="dmsb.wanmanager.if.2.VirtualInterfaceifcount" type="astr">1</Record>
   <Record name="dmsb.wanmanager.if.2.VirtualInterface.1.Enable" type="astr">TRUE</Record>
