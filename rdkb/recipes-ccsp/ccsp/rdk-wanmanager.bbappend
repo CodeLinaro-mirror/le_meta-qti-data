@@ -34,6 +34,7 @@ SRC_URI += " \
     file://00020-qti-wanmanager_ECM-PerIP-Stats-Integration.patch \
     file://00021-qti-Wanmanager-DeviceMode-support.patch \
     file://00022-qti-Wanmanager-DNS_proxy_enable.patch \
+    file://00023-qti-Wanmanager-eth1-bringup-delay.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
