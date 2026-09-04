@@ -1,0 +1,39 @@
+From 443c92fa40384a9a3853b417de2b6d4e3ce92383 Mon Sep 17 00:00:00 2001
+From: Vatte Vishnuvardhan Reddy <vishnuvr@qti.qualcomm.com>
+Date: Wed, 10 Jun 2026 14:24:21 +0530
+Subject: [PATCH] phy: aquantia: Fix aqr_set_rxsc using get instead of set
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+aqr_set_rxsc() builds the ingress SC record (validate_frames, valid,
+fresh) then calls aqr_mss_get_ingress_sc_record() which reads from
+hardware and discards the built record. Should call
+aqr_mss_set_ingress_sc_record() to write it.
+
+Effect: ingress SC never programmed into PHY → all RX MACsec frames
+hit InPktsNoSCI counter → zero decryption.
+
+Change-Id: Ic87877b1e4656adb02b6e85a0a10431efbacdd1b
+Upstream-Status: Pending
+Signed-off-by: Vatte Vishnuvardhan Reddy <vishnuvr@qti.qualcomm.com>
+---
+ macsec/macsec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/macsec/macsec.c b/macsec/macsec.c
+index 5405988..d4843d7 100644
+--- a/macsec/macsec.c
++++ b/macsec/macsec.c
+@@ -801,7 +801,7 @@ static int aqr_set_rxsc(struct aqr107_priv *priv, const u32 rxsc_idx)
+ 	sc_record.valid = 1;
+ 	sc_record.fresh = 1;
+
+-	ret = aqr_mss_get_ingress_sc_record(port, &sc_record, hw_sc_idx);
++	ret = aqr_mss_set_ingress_sc_record(port, &sc_record, hw_sc_idx);
+ 	if (ret)
+ 		return ret;
+
+--
+2.34.1
+
