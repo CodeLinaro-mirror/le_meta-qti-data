@@ -30,6 +30,7 @@ do_install:append () {
          install -m 0644 ${UNPACKDIR}/dnsmasq_service@.service -D ${D}${systemd_unitdir}/system/dnsmasq_service@.service
          install -m 0555 ${UNPACKDIR}/qcmap_stop_dnsmasq.sh ${D}${sysconfdir}/initscripts/qcmap_stop_dnsmasq.sh
          install -m 0644 ${UNPACKDIR}/qcmap_dhcp_release.service -D ${D}${systemd_unitdir}/system/qcmap_dhcp_release.service
+         rm -f ${D}${systemd_unitdir}/system/dnsmasq.service
         else
          install -m 755 ${UNPACKDIR}/init ${D}${sysconfdir}/init.d/dnsmasq
         fi
