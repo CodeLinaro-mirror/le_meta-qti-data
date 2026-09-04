@@ -1,0 +1,62 @@
+From 4f29e21cb5c93648070098ac67a5be28bb3e9bde Mon Sep 17 00:00:00 2001
+From: Sagar Kothawar <kothawar@qti.qualcomm.com>
+Date: Mon, 31 Aug 2026 17:26:28 +0000
+Subject: [PATCH] Description:
+
+ccsp-eth-agent: Guard WAN interface bringup against syscfg wan_physical_ifname in CosaDmlEthInit
+
+In CosaDmlEthInit, under the _PLATFORM_SDX_ bringup path (both the CORE_NET_LIB and non-CORE_NET_LIB branches), GWP_GetEthWanInterfaceName() is called to populate WAN_IF_NAME_PRIMARY and the interface is unconditionally brought up. This causes the wrong interface to be brought up as WAN when the platform has two ethernet ports and one is configured as LAN.
+This patch adds a syscfg_get("wan_physical_ifname") check before the interface up call in both paths. The interface is only brought up if WAN_IF_NAME_PRIMARY matches wan_physical_ifname. If they do not match the bringup is skipped with a trace log.
+
+RCA:
+
+On platforms with two ethernet interfaces (eth0 and eth1), CosaDmlEthInit is invoked for each interface. In the _PLATFORM_SDX_ path, GWP_GetEthWanInterfaceName() always returns the configured WAN interface name (e.g. eth1) regardless of which interface context the function is currently executing for. As a result, when CosaDmlEthInit runs in the context of the LAN interface (eth0), WAN_IF_NAME_PRIMARY is still populated with eth1 and interface_up(eth1) / ifconfig eth1 up is called. This is correct for the eth1 context but becomes a problem in the reverse scenario.
+
+When wan_physical_ifname = eth0 (eth1 is LAN), GWP_GetEthWanInterfaceName() returns eth0, so WAN_IF_NAME_PRIMARY = eth0. The bringup path then calls interface_up(eth0) even when executing in the eth1 (LAN) context, causing eth0 to come up as WAN unconditionally regardless of which interface triggered the init. Without the syscfg guard there is no check to confirm that the interface being brought up is actually the one configured as WAN in syscfg, so whichever interface runs through this path last wins, leading to the wrong interface being active as WAN.
+
+Signed-off-by: Sagar Kothawar <kothawar@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_ethernet_apis.c   | 19 ++++++++++++++-----
+ 1 file changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/source/TR-181/board_sbapi/cosa_ethernet_apis.c b/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+index f9e4442..ccc71d4 100755
+--- a/source/TR-181/board_sbapi/cosa_ethernet_apis.c
++++ b/source/TR-181/board_sbapi/cosa_ethernet_apis.c
+@@ -3529,10 +3529,15 @@ CosaDmlEthInit(
+     {
+         CcspTraceInfo(("Failed to down the interface %s\n",WAN_IF_NAME_PRIMARY));
+     }
+-    status=interface_up(WAN_IF_NAME_PRIMARY);
+-    if(status != CNL_STATUS_SUCCESS)
++    char wan_phy_ifname[20] = {0};
++    syscfg_get(NULL, "wan_physical_ifname", wan_phy_ifname, sizeof(wan_phy_ifname));
++    if (strncmp(WAN_IF_NAME_PRIMARY, wan_phy_ifname, sizeof(WAN_IF_NAME_PRIMARY)) == 0)
+     {
+-        CcspTraceInfo(("Failed to up the interface %s\n",WAN_IF_NAME_PRIMARY));
++    	status=interface_up(WAN_IF_NAME_PRIMARY);
++    	if(status != CNL_STATUS_SUCCESS)
++    	{
++        	CcspTraceInfo(("Failed to up the interface %s\n",WAN_IF_NAME_PRIMARY));
++    	}
+     }
+     #else
+     status=interface_down(ETHWAN_DEF_INTF_NAME);
+@@ -3555,8 +3560,12 @@ CosaDmlEthInit(
+     	#ifdef _PLATFORM_SDX_
+     	GWP_GetEthWanInterfaceName((unsigned char*)WAN_IF_NAME_PRIMARY, sizeof(WAN_IF_NAME_PRIMARY));
+     	v_secure_system("ifconfig %s down", WAN_IF_NAME_PRIMARY);
+-    	v_secure_system("ifconfig %s up", WAN_IF_NAME_PRIMARY);
+-
++    	char wan_phy_ifname[20] = {0};
++    	syscfg_get(NULL, "wan_physical_ifname", wan_phy_ifname, sizeof(wan_phy_ifname));
++    	if (strncmp(WAN_IF_NAME_PRIMARY, wan_phy_ifname, sizeof(WAN_IF_NAME_PRIMARY)) == 0)
++	{
++    		v_secure_system("ifconfig %s up", WAN_IF_NAME_PRIMARY);
++	}
+     	#elif defined(WAN_FAILOVER_SUPPORTED)
+     	v_secure_system("ifconfig " ETHWAN_DEF_INTF_NAME" down");
+     	v_secure_system("ip link set "ETHWAN_DEF_INTF_NAME" name %s",wanPhyName);
+-- 
+2.34.1
+
