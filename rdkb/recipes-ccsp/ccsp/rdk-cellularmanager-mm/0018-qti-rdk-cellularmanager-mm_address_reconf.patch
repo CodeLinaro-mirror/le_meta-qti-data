@@ -16,11 +16,11 @@ Clear the bearer subscription on modem disconnect.
 Change-Id: I7dffe4abb18c6182d27f599ae1d2e574f6da179c
 Signed-off-by: HuaWen CHEN <huawenc@qti.qualcomm.com>
 ---
- source/CellularManager/cellular_hal_mm_apis.c | 11 +++++++++++
- 1 file changed, 11 insertions(+)
+ source/CellularManager/cellular_hal_mm_apis.c | 23 +++++++++++++++++++
+ 1 file changed, 23 insertions(+)
 
 diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
-index 63e15f4..7b3bb6a 100755
+index 72ab004..d40e6f7 100755
 --- a/source/CellularManager/cellular_hal_mm_apis.c
 +++ b/source/CellularManager/cellular_hal_mm_apis.c
 @@ -29,6 +29,9 @@
@@ -30,28 +30,60 @@ index 63e15f4..7b3bb6a 100755
 +#ifdef CM_EXTN_SUPPORTED
 +#include "cellular_hal_mm_apis_extn.h"
 +#endif
-
+ 
  #define MODEM_PATH_PREFIX   "/org/freedesktop/ModemManager1/Modem/"
  #define SIM_PATH_PREFIX   "/org/freedesktop/ModemManager1/SIM/"
-@@ -522,5 +525,8 @@ state_changed (MMModem                  *modem,
+@@ -599,6 +602,9 @@ state_changed (MMModem                  *modem,
+ #endif //CM_EXTN_SUPPORTED
               }
          }
 +#ifdef CM_EXTN_SUPPORTED
 +        cellular_hal_mm_extn_clear_connected_bearer();
 +#endif
-
+ 
          if( old_state == MODEM_STATE_CONNECTED )
          {
-@@ -2250,5 +2256,10 @@ static void cellular_hal_mm_callBack_bearer_info (MMModem *modem)
+@@ -2324,6 +2330,10 @@ static void cellular_hal_mm_callBack_bearer_info (MMModem *modem)
+     MMBearer *found = NULL;
+     BearerIpFamily ipFamily;
+     CHAR ip[16] = {0};
++#ifdef CM_EXTN_SUPPORTED
++    gboolean ipv4_initially_reported = FALSE;
++    gboolean ipv6_initially_reported = FALSE;
++#endif
+ 
+     bearers = mm_modem_list_bearers_sync (modem, NULL, &error);
+     if (!bearers)
+@@ -2382,6 +2392,9 @@ static void cellular_hal_mm_callBack_bearer_info (MMModem *modem)
+                         g_clear_object (&ipv4_config);
+                         networkStatusCB->device_network_ip_ready_cb(ipStruct, DEVICE_NETWORK_IP_READY);
+                         networkStatusCB->packet_service_status_cb("mm", ipStruct->IPType, DEVICE_NETWORK_STATUS_CONNECTED);
++#ifdef CM_EXTN_SUPPORTED
++                        ipv4_initially_reported = TRUE;
++#endif
+                     }
+                 }
+ 
+@@ -2411,10 +2424,20 @@ static void cellular_hal_mm_callBack_bearer_info (MMModem *modem)
+                         g_clear_object (&ipv6_config);
+                         networkStatusCB->device_network_ip_ready_cb(ipStruct, DEVICE_NETWORK_IP_READY);
+                         networkStatusCB->packet_service_status_cb("mm", ipStruct->IPType, DEVICE_NETWORK_STATUS_CONNECTED);
++#ifdef CM_EXTN_SUPPORTED
++                        ipv6_initially_reported = TRUE;
++#endif
+                     }
+                 }
                  g_clear_object (&properties);
              }
 +
 +#ifdef CM_EXTN_SUPPORTED
 +            /* Extension owns bearer tracking and IP config change handling. */
-+            cellular_hal_mm_extn_subscribe_bearer_ip_config(found);
++            cellular_hal_mm_extn_subscribe_bearer_ip_config(found,
++                                                             ipv4_initially_reported,
++                                                             ipv6_initially_reported);
 +#endif
              g_object_unref(found);
          }
-
---
+ 
+-- 
 2.34.1
