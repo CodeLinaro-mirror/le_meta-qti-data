@@ -18,6 +18,6 @@ else ifeq ($(BOARD),echo)
 	QTIDATA512M:=kmod-dataipa ipa-kernel-tests rmnetctl libpugixml kmod-datarmnet kmod-data-devicetree
 endif
 ifneq ($(PRPL_VERSION),)
-        QTIDATA:=locationdb ianatzdata nanopb kmod-eth-sdk-dlkm kmod-data-devicetree kmod-dataipa ipanat kmod-qca-nss-sfe kmod-smem-mailbox kmod-datarmnet kmod-datarmnet-ext libpugixml newstrongswan newstrongswan-full avahi-nodbus-daemon hostap phytool zonedetect kmod-qca-nss-ecm-premium
+        QTIDATA:=locationdb ianatzdata nanopb kmod-eth-sdk-dlkm kmod-data-devicetree kmod-dataipa ipanat kmod-qca-nss-sfe kmod-smem-mailbox kmod-datarmnet kmod-datarmnet-ext libpugixml newstrongswan newstrongswan-full avahi-nodbus-daemon hostap phytool zonedetect kmod-qca-nss-ecm-premium tc-full
         QTIDATA512M:=
 endif
