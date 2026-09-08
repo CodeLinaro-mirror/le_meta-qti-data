@@ -1,0 +1,109 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 75ec4af37eecffdf3906e56777301e441b4f6fa9 Mon Sep 17 00:00:00 2001
+From: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+Date: Tue, 8 Sep 2026 15:08:49 +0530
+Subject: [PATCH]  Changes to update dns-search-list to zebra.conf
+
+Signed-off-by: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+
+---
+ .../scripts/init/c_registration/20_routing.c  |  2 +
+ source/service_routed/service_routed.c        | 51 ++++++++++++++++++-
+ 2 files changed, 52 insertions(+), 1 deletion(-)
+
+diff --git a/source/scripts/init/c_registration/20_routing.c b/source/scripts/init/c_registration/20_routing.c
+index 9d70b2b..e7feddb 100644
+--- a/source/scripts/init/c_registration/20_routing.c
++++ b/source/scripts/init/c_registration/20_routing.c
+@@ -52,6 +52,7 @@ const char* SERVICE_CUSTOM_EVENTS[] = {
+                                         "lan-prefix-update|/etc/utopia/service.d/service_routed.sh",
+                                         "ripd-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         "zebra-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
++                                        "dns-search-list|/etc/utopia/service.d/service_routed.sh",
+                                         "staticroute-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         NULL
+                                       };
+@@ -64,6 +65,7 @@ const char* SERVICE_CUSTOM_EVENTS[] = {
+                                         "lan-prefix-update|/etc/utopia/service.d/service_routed.sh",
+                                         "ripd-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         "zebra-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
++                                        "dns-search-list|/etc/utopia/service.d/service_routed.sh",
+                                         "staticroute-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         #ifdef WAN_FAILOVER_SUPPORTED
+                                         "routeset-ula|/usr/bin/service_routed|NULL|"TUPLE_FLAG_EVENT,
+diff --git a/source/service_routed/service_routed.c b/source/service_routed/service_routed.c
+index 0abf99a..8b4a0c4 100644
+--- a/source/service_routed/service_routed.c
++++ b/source/service_routed/service_routed.c
+@@ -100,6 +100,7 @@ static const char* const service_routed_component_id = "ccsp.routed";
+ #define ZEBRA_PID_FILE  "/var/zebra.pid"
+ #define RIPD_PID_FILE   "/var/ripd.pid"
+ #define ZEBRA_CONF_FILE "/var/volatile/zebra.conf"
++#define MAX_DNSSL_STR_LEN 3825
+ #if defined (_BWG_PRODUCT_REQ_)
+ #define RIPD_CONF_FILE  "/var/ripd.conf"
+ #else
+@@ -1748,7 +1749,55 @@ STATIC int gen_zebra_conf(int sefd, token_t setok)
+                     fprintf(fp, "   ipv6 nd dnssl %s %s\n", tok, dnssl_lft);
+                 }
+ 
+-
++                char dnssl_enable[16];
++                memset(dnssl_enable,0,sizeof(dnssl_enable));
++                sysevent_get(sefd, setok, "dns-search-list", dnssl_enable, sizeof(dnssl_enable));
++                if (strncmp(dnssl_enable, "true", sizeof(dnssl_enable)) == 0)
++                {
++                    FILE *fp1 = NULL;
++                    fp1 = fopen("/tmp/dnssearchlist.txt","r"); /*comma separated list-"test1.ip,test2.net,test3.com" */
++                    if(fp1 != NULL)
++                      {
++                         char *list = NULL;
++                         char dom_name[258]="";
++                         list = (char *) malloc(sizeof(char) * MAX_DNSSL_STR_LEN);
++                         if(list != NULL)
++                         {
++                            fgets(list, (sizeof(char)*MAX_DNSSL_STR_LEN),fp1);
++                            char *tok = NULL;
++                            char *last = NULL;
++                            char*tmp = NULL;
++                            tmp = list;
++                            char *savetmp = NULL;
++                            int len = 0;
++                            tok =strtok_r(tmp,",",&savetmp);
++                            while(tok != NULL)
++                            {
++                                len = strlen(tok);
++                                last = tok;
++                                tok =strtok_r(NULL,",",&savetmp);
++                                if(tok == NULL)
++                                {
++                                   sscanf(last,"%s",dom_name);
++                                   fprintf(fp,"   ipv6 nd dnssl %.*s infinite \n",len,dom_name);
++                                   break;
++                                }
++                                fprintf(fp,"   ipv6 nd dnssl %.*s infinite \n",len,last);
++                             }
++                           free(list);
++                           }
++                           else
++                           {
++                                fprintf(stderr, "Failed to allocate memory\n");
++                           }
++                        fclose(fp1);
++                        v_secure_system("/bin/bash /etc/utopia/service.d/resolve_conf_update.sh");
++                      }
++                      else
++                      {
++                         fprintf(stderr,"Utopia %s: failed to open dnssearchlist \n",__FUNCTION__);
++                      }
++                }
+ 		}
+     }
+ 
+-- 
+2.34.1
+
