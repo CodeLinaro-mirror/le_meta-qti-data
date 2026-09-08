@@ -5,26 +5,33 @@ Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 SPDX-License-Identifier: BSD-3-Clause-Clear
 
 From: ECM Integration <ecm@qti.qualcomm.com>
-Date: Sun, 27 Jul 2026 00:00:00 +0000
+Date: Sun, 07 Sep 2026 00:00:00 +0000
 Subject: [PATCH] Add ECM stats aggregation to LM-Lite WANStats query
 
 [Description]: Integrates ECM hardware stats into LM-Lite WANStats queries.
 Aggregates iptables, ip6tables, and ECM per-IP stats for complete client
 traffic accounting during statistics retrieval (Phase 7).
 
+ECM IPv4: queried using the host primary IPv4 address.
+ECM IPv6: queried per IPv6 address by reading /tmp/ipv6_stats.txt directly,
+using the same addresses registered with ip6tables/ECM, gated on
+mac_found_ipv6 to avoid redundant I/O for IPv4-only clients.
+
+IPv6 address normalisation: the ECM kernel driver writes zero-padded hex
+groups in the stats file (e.g. 0874:074f) while inet_ntop produces
+compressed RFC 5952 form (874:74f).  A sed pass strips leading zeros from
+every hex group before the grep so both sides match regardless of which
+form the driver uses.
+
 [RCA]: LM-Lite WANStats lacked ECM hardware acceleration stats.
-Clients needed complete stats including ECM-accelerated traffic.
+IPv6 ECM stats returned 0 because grep -w failed to match zero-padded
+ECM addresses against compressed inet_ntop addresses from ipv6_stats.txt.
 
 Signed-off-by: talekhya <talekhya@qti.qualcomm.com>
 ---
- source/lm/lm_main.c | 180 +++++++++++++++++++++++++++++++++++++++++++++++++++
- 1 file changed, 180 insertions(+), 0 deletion(-)
-
-Index: git/source/lm/lm_main.c
-===================================================================
 --- git.orig/source/lm/lm_main.c
 +++ git/source/lm/lm_main.c
-@@ -158,6 +158,7 @@
+@@ -160,6 +160,7 @@
  #define DNSMASQ_FILE                    "/nvram/dnsmasq.leases"
  #define ACTION_FLAG_ADD                 (1)
  #define ACTION_FLAG_DEL                 (2)
@@ -32,10 +39,10 @@ Index: git/source/lm/lm_main.c
  #define PKT_STATS_V4_CLIENTS "/tmp/ipv4_stats.txt"
  #define PKT_STATS_V6_CLIENTS "/tmp/ipv6_stats.txt"
  #define IFACE_SIZE 20
-@@ -250,6 +251,46 @@ static pthread_cond_t LmNotifyCond = PTH
+@@ -262,6 +263,46 @@
  static pthread_t NotifyIPMonitorThread;
  static bool worker_thread_running = false;
-
+ 
 +typedef enum {
 +    BACKHAUL_TYPE_UNKNOWN = 0,
 +    BACKHAUL_TYPE_WWAN = 1,
@@ -79,19 +86,19 @@ Index: git/source/lm/lm_main.c
  #define IP_RETRY_INTERVAL              10
  #define IP_MAX_RETRIES             6
  /***********************************************************************
-@@ -363,6 +406,8 @@ static void Send_MoCA_Host_Sync_Req(void
+@@ -368,6 +409,8 @@
  #endif
-
+ 
  static char *_CloneString (const char *src);
 +static ANSC_STATUS isECMModuleLoaded(void);
 +static uint64_t getECMStatBytes(const char *ip_addr, bool is_tx_stat);
  static bool isMacAddrAvailable(char *file, char *mac);
  uint64_t getIPv6StatBytes(char *mac, bool is_tx_stat);
  static ANSC_STATUS isIPv4ClientPresent(char *addr, int *found);
-@@ -4674,6 +4719,114 @@ void readPresenceFromSyscfg(BOOL * pPres
-     }
+@@ -5469,6 +5512,118 @@
+     return value;
  }
-
+ 
 +static ANSC_STATUS isECMModuleLoaded(void)
 +{
 +    FILE *fp = NULL;
@@ -162,7 +169,11 @@ Index: git/source/lm/lm_main.c
 +        return 0;
 +    }
 +
-+    snprintf(cmd, sizeof(cmd), "cat %s/stats 2>/dev/null | grep -w %s",
++    snprintf(cmd, sizeof(cmd),
++             "cat %s/stats 2>/dev/null"
++             " | grep 'client_addr'"
++             " | sed 's/\\b0*\\([0-9a-fA-F]\\)/\\1/g'"
++             " | grep -w \"%s\"",
 +             ECM_SYSFS_PATH, ip_addr);
 +    fp = popen(cmd, "r");
 +    if (!fp) {
@@ -201,34 +212,72 @@ Index: git/source/lm/lm_main.c
 +}
 +
  /*
-   * get client type from the mac to print in WANStats and dmesg
-   * input : mac - mac address of the client to be checked
-@@ -4970,6 +5048,7 @@ uint64_t GetTotalStatBytes(char *ip, ch
+   * Get total stat byte from iptables, IPA
+   * input : ip - ip of client
+@@ -5484,6 +5639,7 @@
      uint64_t total_stat_bytes = 0, ipv4_stat_bytes = 0, ipv6_stat_bytes = 0;
      char client_type[IFACE_SIZE] = {0};
      bool mac_found_ipv4 = false;
 +    uint64_t ecm_stat_bytes = 0;
      bool mac_found_ipv6 = false;
      bool retval = false;
-
-@@ -4990,6 +5069,16 @@ uint64_t GetTotalStatBytes(char *ip, ch
+ 
+@@ -5505,6 +5661,54 @@
          CcspTraceError(("[%s:%d] addr (%s) not available in ipv4 stats file\n",__FUNCTION__,__LINE__,ip));
-      }
-
+     }
+ 
 +    if (ANSC_STATUS_SUCCESS == isECMModuleLoaded()) {
++        /* ECM: IPv4 address */
 +        uint64_t ecm_tx = getECMStatBytes(ip, true);
 +        uint64_t ecm_rx = getECMStatBytes(ip, false);
 +        ecm_stat_bytes = ecm_tx + ecm_rx;
-+        CcspTraceInfo(("[%s:%d] ECM stats for IP %s: TX=%lu RX=%lu Total=%lu\n",
++        CcspTraceInfo(("[%s:%d] ECM IPv4 stats for IP %s: TX=%lu RX=%lu Total=%lu\n",
 +                       __FUNCTION__, __LINE__, ip, ecm_tx, ecm_rx, ecm_stat_bytes));
++
++        /* ECM: IPv6 addresses - read from ipv6_stats.txt so the same addresses
++         * registered with ip6tables/ECM are queried without needing host pointer.
++         * Gated on mac_found_ipv6 to avoid redundant I/O for IPv4-only clients. */
++        if (mac_found_ipv6) {
++            FILE *v6fp = fopen(PKT_STATS_V6_CLIENTS, "r");
++            if (v6fp != NULL) {
++                char *v6line = NULL;
++                size_t v6len = 0;
++                ssize_t v6nread;
++                while ((v6nread = getline(&v6line, &v6len, v6fp)) != -1) {
++                    char *ptr2 = NULL;
++                    char *ipaddr_temp, *macaddr_temp, *ipaddr, *macaddr;
++                    char v6addr[BFR_SIZE] = {0};
++                    v6line[strlen(v6line) - 1] = '\0';
++                    strtok_r(v6line, " ", &ptr2);
++                    ipaddr_temp  = strtok_r(NULL, " ", &ptr2);
++                    macaddr_temp = strtok_r(NULL, " ", &ptr2);
++                    if (NULL == ipaddr_temp || NULL == macaddr_temp)
++                        continue;
++                    ipaddr  = strstr(ipaddr_temp,  "=");
++                    macaddr = strstr(macaddr_temp, "=");
++                    if (NULL == ipaddr || NULL == macaddr || strlen(ipaddr+1) == 0)
++                        continue;
++                    if (0 != strcasecmp(mac, macaddr+1))
++                        continue;
++                    strlcpy(v6addr, ipaddr+1, sizeof(v6addr));
++                    uint64_t ecm_v6_tx = getECMStatBytes(v6addr, true);
++                    uint64_t ecm_v6_rx = getECMStatBytes(v6addr, false);
++                    ecm_stat_bytes += ecm_v6_tx + ecm_v6_rx;
++                    CcspTraceInfo(("[%s:%d] ECM IPv6 stats for %s: TX=%lu RX=%lu\n",
++                                   __FUNCTION__, __LINE__, v6addr, ecm_v6_tx, ecm_v6_rx));
++                }
++                if (v6line) free(v6line);
++                fclose(v6fp);
++            }
++        }
 +    } else {
 +        CcspTraceInfo(("[%s:%d] ECM module not loaded, skipping ECM stats\n", __FUNCTION__, __LINE__));
 +    }
 +
      if (true == mac_found_ipv6)
      {
-          ipv6_stat_bytes = getIPv6StatBytes(mac, is_tx_stat);
-@@ -5440,7 +5440,7 @@ uint64_t GetTotalStatBytes(char *ip, ch
+          ipv6_stat_bytes = getIPv6StatBytes(mac, is_tx_stat) + readIpv6StatsFile(mac, is_tx_stat);
+@@ -5521,9 +5725,9 @@
          return 0;
      }
 
@@ -239,3 +288,5 @@ Index: git/source/lm/lm_main.c
 +    CcspTraceInfo(("[%s:%d] %s STATS OF %s with MAC:%s IPV4 (%lu) IPV6 (%lu) ECM (%lu) TOTAL (%lu)\n",__FUNCTION__,__LINE__,((1 == is_tx_stat)?"TX:":"RX:"),client_type,mac,ipv4_stat_bytes,ipv6_stat_bytes,ecm_stat_bytes,total_stat_bytes));
 +    v_secure_system("echo Connected %s client, MAC:%s %s iptables:%lu ipv6tables:%lu ecm:%lu > /dev/kmsg ",client_type,mac,((1 == is_tx_stat)?"TX:":"RX:"),ipv4_stat_bytes,ipv6_stat_bytes,ecm_stat_bytes);
      return total_stat_bytes;
+ }
+
