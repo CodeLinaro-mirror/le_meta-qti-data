@@ -22,4 +22,5 @@ SRC_URI += " \
               file://00013-lm-lite-Hosts-dm-update-globalip.patch \
               file://00014-lm-lite_ECM-Stats-Aggregation.patch \
               file://00015-lm-lite-Modification-for-eth1-vlan-packetstats.patch \
+              file://00016-lm-lite-fix-stale-ipv6-dm-update.patch \
 "
