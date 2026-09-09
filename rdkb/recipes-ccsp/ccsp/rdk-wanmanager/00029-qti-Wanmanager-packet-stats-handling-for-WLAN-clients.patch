@@ -1,0 +1,39 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d36201014e16a4f4ece4f672c1e81a926b89dcba Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Wed, 16 Sep 2026 12:47:00 +0000
+Subject: [PATCH] Enable packet-stats handling for WLAN clients
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_network_monitor_extn_qti.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/source/WanManager/wanmgr_network_monitor_extn_qti.c b/source/WanManager/wanmgr_network_monitor_extn_qti.c
+index e18be7b..f2f998a 100644
+--- a/source/WanManager/wanmgr_network_monitor_extn_qti.c
++++ b/source/WanManager/wanmgr_network_monitor_extn_qti.c
+@@ -855,6 +855,15 @@ int printStatsInDmesg(char *iface, char *addr, char *mac,char *type, char *devic
+         strlcpy(client_type, "Ethernet", sizeof(client_type));
+     else if ((0 == strcmp(iface,"rndis0")) || (0 == strcmp(iface,"ecm0")))
+         strlcpy(client_type, "USB", sizeof(client_type));
++    else if ((0 == strncmp(iface,"mld",strlen("mld"))) ||
++             (0 == strncmp(iface,"phy00-mld",strlen("phy00-mld"))) ||
++             (0 == strncmp(iface,"p0m",strlen("p0m"))) ||
++             (0 == strcmp(iface,"ath0")) || (0 == strcmp(iface,"ath1")) || (0 == strcmp(iface,"ath16")))
++        strlcpy(client_type, "WLAN", sizeof(client_type));
++#ifdef GUEST_WIFI
++    else if ((0 == strcmp(iface, "ath2")) || (0 == strcmp(iface, "ath3")) || (0 == strcmp(iface, "ath14")) || (0 == strcmp(iface, "ath15")))
++        strlcpy(client_type, "WLAN", sizeof(client_type));
++#endif
+     else
+     {
+         DBG_MONITOR_PRINT("[%s:%d] client_type not available for iface (%s)\n",__FUNCTION__,__LINE__,iface);
+-- 
+2.34.1
+

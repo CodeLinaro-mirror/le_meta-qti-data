@@ -8,7 +8,7 @@ CFLAGS_append += " -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat "
 
 DEPENDS += "systemd"
 LDFLAGS_append = " -lsystemd"
-
+CFLAGS_append += " ${@bb.utils.contains('DISTRO_FEATURES', 'guest_wifi', ' -DGUEST_WIFI ', '', d)}"
 CFLAGS_append = " ${@bb.utils.contains('DISTRO_FEATURES', 'syslog-ng', ' -D_SYSLOG_NG ', '', d)}"
 
 SRC_URI += " \
@@ -40,6 +40,7 @@ SRC_URI += " \
     file://00026-qti-Wanmanager-fix-usb-teardown-on-eth1-unplug.patch \
     file://00027-qti-Wanmanager-ippt-dummyip-status-fix.patch \
     file://00028-qti-wanmanager-Fix_for_zebra_update_issue.patch \
+    file://00029-qti-Wanmanager-packet-stats-handling-for-WLAN-clients.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
