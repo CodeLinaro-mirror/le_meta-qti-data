@@ -38,6 +38,7 @@ SRC_URI += " \
     file://00024-qti-wanmanager_usb_tether_interface_fix.patch \
     file://00025-qti-wanmanager-fix-for-ip-neighbor-table-showing-deprecated-ipv6-as-reachable.patch \
     file://00026-qti-Wanmanager-fix-usb-teardown-on-eth1-unplug.patch \
+    file://00027-qti-Wanmanager-ippt-dummyip-status-fix.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
