@@ -1,0 +1,207 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 4a61824b793e41e15520d376fbbd2347b9208a3f Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Fri, 11 Sep 2026 08:07:32 +0000
+Subject: [PATCH] IPPT fix for packet drops - tunnel mode
+
+[Description]: Added implementation to support IPPT with tunnel mode
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/firewall/firewall.c                    |  3 +
+ source/firewall/firewall_extn_qti.c           | 30 +++++++
+ source/firewall/firewall_extn_qti.h           |  1 +
+ source/scripts/init/service.d/service_lan.sh  |  9 ++
+ .../init/service.d/service_lan_extn_qti.sh    | 84 +++++++++++++++++++
+ 5 files changed, 127 insertions(+)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 9aa4159..2112c51 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -12294,6 +12294,9 @@ static int prepare_subtables(FILE *raw_fp, FILE *mangle_fp, FILE *nat_fp, FILE *
+    syscfg_get( NULL, "IPPT_Mode", tmpBuf, sizeof(tmpBuf));
+    sysevent_get(sysevent_fd, sysevent_token, "wan-status", wanStatus, sizeof(wanStatus));
+    ippt_mode = _ansc_atoi(tmpBuf);
++
++   //Adds mangle rules to mark DHCP packets for IP Passthrough routing
++   ippt_mark_dhcp_pkts(mangle_fp, ippt_enable, current_wan_ifname, wanStatus, lan_ifname);
+    //SNAT rule for IPPT with NAT
+    if ((strcmp(ippt_enable, "true") == 0) && (ippt_mode == IPPT_MODE_WITH_NAT) && (strstr(current_wan_ifname,"qmapmux")!=NULL) && (strcmp(wanStatus,"started") == 0))
+    {
+diff --git a/source/firewall/firewall_extn_qti.c b/source/firewall/firewall_extn_qti.c
+index 8812b3d..f68554c 100644
+--- a/source/firewall/firewall_extn_qti.c
++++ b/source/firewall/firewall_extn_qti.c
+@@ -113,4 +113,34 @@ void add_if_mss_clamping_HW_path(FILE *mangle_fp,int family, char* lan_ifname)
+    return ;
+ }
+ 
++/*
++ *  Procedure     : ippt_mark_dhcp_pkts
++ *  Purpose       : to mark DHCP packets for IP Passthrough routing via mangle rules
++ *  Parameters    :
++ *    mangle_fp          : An open file for mangle subtables
++ *    ippt_enable        : IPPT enable flag
++ *    current_wan_ifname : current WAN interface name
++ *    wanStatus          : current WAN status
++ *    lan_ifname         : LAN interface name
++ */
++void ippt_mark_dhcp_pkts(FILE *mangle_fp, char* ippt_enable, char* current_wan_ifname, char* wanStatus, char* lan_ifname){
++    char ippt_fwmark_str[16] = {0};
++    syscfg_get(NULL, "IPPT_fwmark",  ippt_fwmark_str,  sizeof(ippt_fwmark_str));
++    if ((strcmp(ippt_enable, "true") == 0) &&
++        (strstr(current_wan_ifname, "qmapmux") != NULL) &&
++        (strcmp(wanStatus, "started") == 0) &&
++        (ippt_fwmark_str[0] != '\0'))
++    {
++        // Mark DHCP Discover/Request from LAN client, route via custom_rt
++        fprintf(mangle_fp,
++            "-A PREROUTING -i %s -p udp --dport 67 -j MARK --set-mark %s\n",
++            lan_ifname, ippt_fwmark_str);
++
++        // Mark DHCP Release from router toward LAN client, route via custom_rt
++        fprintf(mangle_fp,
++            "-A OUTPUT -o %s -p udp --dport 67 -j MARK --set-mark %s\n",
++            lan_ifname, ippt_fwmark_str);
++    }
++}
++
+ #endif
+diff --git a/source/firewall/firewall_extn_qti.h b/source/firewall/firewall_extn_qti.h
+index 901f4a6..dcdc89c 100644
+--- a/source/firewall/firewall_extn_qti.h
++++ b/source/firewall/firewall_extn_qti.h
+@@ -11,5 +11,6 @@ extern token_t  sysevent_token;
+ extern char     current_wan_ifname[50];
+ 
+ void add_if_mss_clamping_HW_path(FILE *mangle_fp,int family, char* lan_ifname);
++void ippt_mark_dhcp_pkts(FILE *mangle_fp, char* ippt_enable, char* current_wan_ifname, char* wanStatus, char* lan_ifname);
+ 
+ #endif
+diff --git a/source/scripts/init/service.d/service_lan.sh b/source/scripts/init/service.d/service_lan.sh
+index 47a7780..1124436 100755
+--- a/source/scripts/init/service.d/service_lan.sh
++++ b/source/scripts/init/service.d/service_lan.sh
+@@ -791,6 +791,10 @@ service_start ()
+       if [ "$ERR" -ne "0" ] ; then
+          check_err $? "Unable to bringup lan"
+       elif [ "" = "$SYSCFG_lan_dhcp_client" -o "0" = "$SYSCFG_lan_dhcp_client" ] ; then
++         if [ "$IPPT_Enable" = "true" ]; then
++            # Enables IPPT policy routing for DHCP packets via fwmark and a custom routing table
++            ippt_add_dhcp_pkt_mark
++         fi
+          sysevent set ${SERVICE_NAME}-errinfo
+          sysevent set ${SERVICE_NAME}-status started
+ #song:         add_docsis_bridge
+@@ -843,6 +847,11 @@ service_stop ()
+       elif [ "" = "$SYSCFG_lan_dhcp_client" -o "0" = "$SYSCFG_lan_dhcp_client" ] ; then
+          sysevent set ${SERVICE_NAME}-errinfo
+          sysevent set ${SERVICE_NAME}-status stopped
++      fi
++      IPPT_Enable=$(syscfg get IPPT_Enable)
++      if [ x"$IPPT_Enable" = x"false" ]; then
++         # Removes IPPT policy routing rules and restores the original routing state
++         ippt_del_dhcp_pkt_mark
+       fi
+ 	  #unregister wecb_master from pmon to let this script to bring it up when lan restart.
+ 	  /etc/utopia/service.d/pmon.sh unregister wecb_master 
+diff --git a/source/scripts/init/service.d/service_lan_extn_qti.sh b/source/scripts/init/service.d/service_lan_extn_qti.sh
+index 028fe38..84b11be 100644
+--- a/source/scripts/init/service.d/service_lan_extn_qti.sh
++++ b/source/scripts/init/service.d/service_lan_extn_qti.sh
+@@ -102,3 +102,87 @@ qti_interface_teardown()
+           syscfg commit
+       fi
+ }
++
++# ippt_add_dhcp_pkt_mark
++# Brief  : Configures policy-based routing to steer fwmark-tagged DHCP packets
++#          through a custom routing table when IP Passthrough (IPPT) is enabled.
++# Details: - Enables proxy ARP on the LAN interface.
++#          - Assigns a firewall mark (fwmark) and a custom routing table ID via syscfg.
++#          - Installs an ip rule so that packets carrying the fwmark are looked up
++#            in the custom routing table instead of the main table.
++#          - Moves the cellular WAN gateway route from the kernel local table to the
++#            custom table, ensuring only fwmark-tagged DHCP packets can reach the
++#            bridge gateway.
++# Params : None
++# Return : None  (returns early if IPPT is not enabled or gateway route is absent)
++ippt_add_dhcp_pkt_mark()
++{
++   lan_iface=$(syscfg get lan_ifname)
++   echo 1 > /proc/sys/net/ipv4/conf/$lan_iface/proxy_arp
++
++   wan_ipaddr=$(sysevent get cellular_wan_v4_gw)
++   IPPT_fwmark="0x100"
++   custom_rt="100"
++
++   syscfg set IPPT_fwmark $IPPT_fwmark
++   syscfg set custom_rt $custom_rt
++
++   local is_rule_present=$(ip rule show | grep $custom_rt)
++   if [ -z "$is_rule_present" ]; then
++      # Adds a policy routing rule — any packet with fwmark will be looked up in the custom_rt routing table instead of the main table
++      ip rule add fwmark $IPPT_fwmark table $custom_rt
++   fi
++
++   #Get the public gateway based route of ippt_bridge
++   local gw_route=$(ip route show table local | grep "local $wan_ipaddr")
++   if [ -z "$gw_route" ]; then
++      echo_t "ippt_add_dhcp_mark_pkts: Gateway route for bridge in main routing table not found"
++      return
++   fi
++
++   # Shift bridge gateway IP from the kernel's local table to the custom table, so only fwmark-tagged DHCP packets can reach the bridge gateway
++   ip route del $gw_route table local
++   ip route add $gw_route table $custom_rt
++}
++
++# ippt_del_dhcp_pkt_mark
++# Brief  : Tears down the policy-based routing configuration installed by
++#          ippt_add_dhcp_pkt_mark when IP Passthrough (IPPT) is disabled.
++# Details: - Disables proxy ARP on the LAN interface.
++#          - Restores the cellular WAN gateway route from the custom routing table
++#            back to the kernel local table.
++#          - Removes the ip rule that directed fwmark-tagged packets to the custom
++#            routing table.
++#          - Clears the persisted fwmark and custom routing table ID from syscfg.
++# Params : None
++# Return : None  (returns early if fwmark or custom_rt are not set in syscfg)
++ippt_del_dhcp_pkt_mark()
++{
++   lan_iface=$(syscfg get lan_ifname)
++   echo 0 > /proc/sys/net/ipv4/conf/$lan_iface/proxy_arp
++
++   wan_ipaddr=$(sysevent get cellular_wan_v4_gw)
++   IPPT_fwmark=$(syscfg get IPPT_fwmark)
++   custom_rt=$(syscfg get custom_rt)
++
++   if [ -z "$IPPT_fwmark" ] || [ -z "$custom_rt" ]; then
++      echo_t "ippt_del_dhcp_pkt_mark: fwmark or custom_rt not set, nothing to clean up"
++      return
++   fi
++
++   local gw_route=$(ip route show table $custom_rt | grep "local $wan_ipaddr")
++   if [ -n "$gw_route" ]; then
++      ip route del $gw_route table $custom_rt
++      ip route add $gw_route table local
++   else
++      echo_t "ippt_del_dhcp_pkt_mark: Gateway route not found in $custom_rt table, skipping route restore"
++   fi
++
++   local is_rule_present=$(ip rule show | grep $custom_rt)
++   if [ -n "$is_rule_present" ]; then
++      ip rule del fwmark $IPPT_fwmark table $custom_rt
++   fi
++
++   syscfg set IPPT_fwmark ""
++   syscfg set custom_rt ""
++}
+-- 
+2.34.1
+
