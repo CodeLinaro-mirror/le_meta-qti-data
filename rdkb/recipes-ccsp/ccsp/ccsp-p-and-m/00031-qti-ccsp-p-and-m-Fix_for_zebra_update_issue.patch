@@ -1,0 +1,45 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 0e48448ac0adf27ef4f4039bfca4aa0211ced89d Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Fri, 11 Sep 2026 14:45:33 +0530
+Subject: [PATCH] v6_zebra_update_issue_fix
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+index f902254..648d971 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -11041,7 +11041,11 @@ dhcpv6c_dbg_thrd(void * in)
+ 
+ #endif //FEATURE_MAPT
+                         tempDhcpData.Ipv6Changed = TRUE;
+-                        if (dhcpv6_data.isExpired != TRUE) {
++                        //Check for address_reconf enabled or not.
++                        char addr_reconf_enable[BUFLEN_32] = {0};
++                        sysevent_get(sysevent_fd_global, sysevent_token_global, "address-reconf-update", addr_reconf_enable, sizeof(addr_reconf_enable));
++                        CcspTraceInfo(("%s %d - address-reconf-update = %s\n", __FUNCTION__, __LINE__, addr_reconf_enable));
++                        if (dhcpv6_data.isExpired != TRUE && strcmp(addr_reconf_enable, "true") == 0) {
+                             tempDhcpData.Ipv6Changed = FALSE;
+                             if ((strcmp(dhcpv6_data.nameserver, tempDhcpData.nameserver) != 0) ||
+                                 (strcmp(dhcpv6_data.nameserver1, tempDhcpData.nameserver1) != 0) ||
+@@ -11052,7 +11056,9 @@ dhcpv6c_dbg_thrd(void * in)
+                                 strlcpy(tempDhcpData.nameserver1, dhcpv6_data.nameserver1, sizeof(tempDhcpData.nameserver1));
+                             }
+                         }
++                        CcspTraceInfo((" %s %d - Ipv6Changed=%d\n", __FUNCTION__, __LINE__, tempDhcpData.Ipv6Changed));
+                         if (tempDhcpData.Ipv6Changed == TRUE) {
++                            CcspTraceInfo((" %s %d - Sending DHCPv6 to wanmanager: sitePrefix=%s ns1=%s ns2=%s pltime=%d vltime=%d isExpired=%d\n", __FUNCTION__, __LINE__, dhcpv6_data.sitePrefix, dhcpv6_data.nameserver, dhcpv6_data.nameserver1, dhcpv6_data.prefixPltime, dhcpv6_data.prefixVltime, dhcpv6_data.isExpired));
+                             if (send_dhcp_data_to_wanmanager(&dhcpv6_data, DHCP6C_STATE_CHANGED) != ANSC_STATUS_SUCCESS) {
+                                 CcspTraceError(("[%s-%d] Failed to send dhcpv6 data to wanmanager!!! \n", __FUNCTION__, __LINE__));
+                             }
+-- 
+2.34.1
+
