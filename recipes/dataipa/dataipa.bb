@@ -57,14 +57,12 @@ do_compile() {
 		KBUILD_EXTRA_SYMBOLS=${S}/Module.symvers modules
 }
 do_install() {
-   install -d ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
    install -d ${D}/usr/lib/modules/${KERNEL_VERSION}/extra
 
    module_path="${UNPACKDIR}/dataipa/drivers/platform/msm"
 
    module_list="gsi/gsim.ko ipa/ipam.ko ipa/ipanetm.ko"
 	 for module in ${module_list}; do
-     cp ${module_path}/${module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
 		# Strip debug symbols
 		${STRIP} --strip-debug ${module_path}/${module}
 		#Signing and installing the dataipa module
@@ -76,7 +74,6 @@ do_install() {
 
    # Stats manager generic-netlink kernel module
    stats_module="${UNPACKDIR}/dataipa/stats_mgr/ipa_stats.ko"
-   cp ${stats_module} ${DEPLOY_DIR_IMAGE}/kernel_modules/ipa
    # Strip debug symbols
    ${STRIP} --strip-debug ${stats_module}
    #Signing and installing the stats manager module
@@ -123,6 +120,17 @@ do_install() {
 pkg_postinst:${PN}(){
     chown -Rh 1001:1001 $D${sysconfdir}/data/ipa_config.txt
 }
+
+do_deploy() {
+    install -d ${DEPLOYDIR}/kernel_modules/ipa
+
+    module_path="${UNPACKDIR}/dataipa/drivers/platform/msm"
+    install -m 0644 ${module_path}/gsi/gsim.ko      ${DEPLOYDIR}/kernel_modules/ipa/
+    install -m 0644 ${module_path}/ipa/ipam.ko      ${DEPLOYDIR}/kernel_modules/ipa/
+    install -m 0644 ${module_path}/ipa/ipanetm.ko   ${DEPLOYDIR}/kernel_modules/ipa/
+    install -m 0644 ${UNPACKDIR}/dataipa/stats_mgr/ipa_stats.ko ${DEPLOYDIR}/kernel_modules/ipa/
+}
+addtask do_deploy after do_install before do_build
 
 FILES:${PN}+="${includedir}/*"
 #FILES:${PN}+="${libdir}/modules/*"
