@@ -1,0 +1,67 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From ffc68a6b8719fc97a833aba321f1e227d30b65cf Mon Sep 17 00:00:00 2001
+From: Venkata Pavan Karthikeya Koppala <vkoppala@qti.qualcomm.com>
+Date: Mon, 31 Aug 2026 00:00:00 +0530
+Subject: [PATCH] with-changes
+
+Signed-off-by: Venkata Pavan Karthikeya Koppala <vkoppala@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/vlan_apis.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+Index: git/source/TR-181/middle_layer_src/vlan_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/vlan_apis.c
++++ git/source/TR-181/middle_layer_src/vlan_apis.c
+@@ -46,6 +46,7 @@
+ #include "ethernet_apis.h"
+ #include "ethernet_dml.h"
+ #include "vlan_eth_hal.h"
++#include <syscfg/syscfg.h>
+
+ #ifdef FEATURE_MAPT
+ #include "sysevent/sysevent.h"
+@@ -70,6 +71,11 @@ static ANSC_STATUS Vlan_DeleteInterface(
+ static ANSC_STATUS Vlan_SetMacAddr(PDML_VLAN pEntry);
+ #endif
+
++//Device Mode Values
++#define IPV4_MODE "1"
++#define IPV6_MODE "2"
++#define DUAL_MODE "3"
++
+ /*****************************************************************/
+ //VLAN APIs
+
+@@ -575,6 +581,26 @@ static ANSC_STATUS Vlan_CreateTaggedInte
+         return ANSC_STATUS_FAILURE;
+     }
+
++    int ret = 0;
++    char deviceMode[64]={0};
++    // Enable accept_ra via sysctl for IPv6 in Dual Mode and IPv6 mode only
++    if (!syscfg_get(NULL, "last_erouter_mode", deviceMode, sizeof(deviceMode)))
++    {
++        AnscTraceWarning(("%s %d :Device Mode is %s !\n",__FUNCTION__,__LINE__,deviceMode));
++    }
++    if( (strstr(deviceMode, IPV6_MODE)) || (strstr(deviceMode, DUAL_MODE)))
++    {
++        ret = v_secure_system("sysctl -w net.ipv6.conf.%s.accept_ra=%d", pEntry->Name, 2);
++        if(ret != 0)
++        {
++            CcspTraceWarning(("%s : Failure in executing command to enable accept_ra via v_secure_system. ret:[%d] \n",__FUNCTION__, ret));
++        }
++        ret = v_secure_system("sysctl -w net.ipv6.conf.%s.accept_dad=%d", pEntry->Name, 0);
++        if(ret != 0)
++        {
++            CcspTraceWarning(("%s : Failure in executing command to enable accept_ra via v_secure_system. ret:[%d] \n",__FUNCTION__, ret));
++        }
++    }
+     return returnStatus;
+ }
+ #endif

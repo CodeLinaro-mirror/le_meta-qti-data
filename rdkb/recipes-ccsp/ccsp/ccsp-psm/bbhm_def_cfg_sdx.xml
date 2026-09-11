@@ -1126,7 +1126,7 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.if.1.VirtualInterfaceifcount" type="astr">1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Enable" type="astr">TRUE</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Alias" type="astr">WANOE</Record>
-  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Name" type="astr">eth1</Record>
+  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Name" type="astr">eth1.200</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.EnableMAPT" type="astr">FALSE</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.EnableDSLite" type="astr">FALSE</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.EnableIPoE" type="astr">FALSE</Record>
@@ -1135,9 +1135,9 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.IP.Mode" type="astr">3</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.IP.IPv4Source" type="astr">2</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.IP.IPv6Source" type="astr">2</Record>
-  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.VlanInUse" type="astr"></Record>
+  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.VlanInUse" type="astr">Device.X_RDK_Ethernet.VLANTermination.1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.Timeout" type="astr">20</Record>
-  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.VlanCount" type="astr">0</Record>
+  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.VlanCount" type="astr">1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.VLAN.1.Interface" type="astr">Device.X_RDK_Ethernet.VLANTermination.1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.MarkingCount" type="astr">0</Record>
   <Record name="dmsb.wanmanager.if.2.Name" type="astr">qmapmux0.0</Record>
@@ -1225,20 +1225,20 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="eRT.com.cisco.spvtg.ccsp.Device.WiFi.Radio.SSID.23.MLDUnit" type="astr">13</Record>
   <Record name="eRT.com.cisco.spvtg.ccsp.Device.WiFi.Radio.SSID.24.MLDUnit" type="astr">-1</Record>
   <Record name="dmsb.vlanmanager.ifcount" type="astr">1</Record>
-  <Record name="dmsb.vlanmanager.1.name" type="astr">eth0.200</Record>
+  <Record name="dmsb.vlanmanager.1.name" type="astr">eth1.200</Record>
   <Record name="dmsb.vlanmanager.1.VlanEnable" type="astr">FALSE</Record>
   <Record name="dmsb.vlanmanager.1.lowerlayers" type="astr">Device.X_RDK_Ethernet.Link.1</Record>
   <Record name="dmsb.vlanmanager.1.path" type="astr">Device.X_RDK_WanManager.Interface.1.VirtualInterface.1</Record>
-  <Record name="dmsb.vlanmanager.1.baseinterface" type="astr">eth0</Record>
-  <Record name="dmsb.vlanmanager.1.alias" type="astr">eth0</Record>
+  <Record name="dmsb.vlanmanager.1.baseinterface" type="astr">eth1</Record>
+  <Record name="dmsb.vlanmanager.1.alias" type="astr">eth1</Record>
   <Record name="dmsb.vlanmanager.1.vlanid" type="astr">200</Record>
   <Record name="dmsb.ethlink.ifcount" type="astr">1</Record>
   <Record name="dmsb.ethlink.1.path" type="astr">Device.X_RDK_WanManager.Interface.1.VirtualInterface.1</Record>
   <Record name="dmsb.ethlink.1.Enable" type="astr">False</Record>
   <Record name="dmsb.ethlink.1.alias" type="astr">WANOE</Record>
-  <Record name="dmsb.ethlink.1.baseiface" type="astr">eth0</Record>
+  <Record name="dmsb.ethlink.1.baseiface" type="astr">eth1</Record>
   <Record name="dmsb.ethlink.1.lowerlayers" type="astr"></Record>
-  <Record name="dmsb.ethlink.1.name" type="astr">eth0.200</Record>
+  <Record name="dmsb.ethlink.1.name" type="astr">eth1.200</Record>
   <Record name="Device.WiFi.AccessPoint.1.WPS.Enable" type="astr">0</Record>
   <Record name="Device.WiFi.AccessPoint.2.WPS.Enable" type="astr">0</Record>
   <Record name="Device.WiFi.AccessPoint.3.WPS.Enable" type="astr">0</Record>

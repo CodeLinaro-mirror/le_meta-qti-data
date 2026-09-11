@@ -1,0 +1,141 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 591c4d67d3aedc635d52fff10f0b4aefaaaf4c7f Mon Sep 17 00:00:00 2001
+From: Venkata Pavan Karthikeya Koppala <vkoppala@qti.qualcomm.com>
+Date: Mon, 31 Aug 2026 00:00:00 +0530
+Subject: [PATCH] Vlanmanager crash fix: type mismatch, format string, buffer fixes
+
+Signed-off-by: Venkata Pavan Karthikeya Koppala <vkoppala@qti.qualcomm.com>
+
+diff --git a/source/RdkVlanManager/ssp_messagebus_interface.c b/source/RdkVlanManager/ssp_messagebus_interface.c
+--- a/source/RdkVlanManager/ssp_messagebus_interface.c
++++ b/source/RdkVlanManager/ssp_messagebus_interface.c
+@@ -94,7 +94,7 @@
+         return returnStatus;
+     }
+ 
+-    CcspTraceInfo(("INFO: bus_handle: 0x%8p \n", bus_handle));
++    CcspTraceInfo(("INFO: bus_handle: 0x%p \n", bus_handle));
+     g_MessageBusHandle_Irep = bus_handle;
+     AnscCopyString(g_SubSysPrefix_Irep, g_Subsystem);
+ 
+@@ -130,7 +130,7 @@
+ 
+     if ( returnStatus != CCSP_Message_Bus_OK )
+     {
+-         CcspTraceError((" !!! CCSP_Message_Bus_Register_Event: CurrentSessionIDSignal ERROR returnStatus: %ld!!!\n", returnStatus));
++         CcspTraceError((" !!! CCSP_Message_Bus_Register_Event: CurrentSessionIDSignal ERROR returnStatus: %lu!!!\n", returnStatus));
+ 
+         return returnStatus;
+     }
+diff --git a/source/TR-181/include/ethernet_apis.h b/source/TR-181/include/ethernet_apis.h
+--- a/source/TR-181/include/ethernet_apis.h
++++ b/source/TR-181/include/ethernet_apis.h
+@@ -69,7 +69,7 @@
+ //PAM
+ #define RDKB_PAM_COMPONENT_NAME           "eRT.com.cisco.spvtg.ccsp.pam"
+ #define RDKB_PAM_DBUS_PATH                "/com/cisco/spvtg/ccsp/pam"
+-#define PAM_BASE_MAC_ADDRESS              "Device.DeviceInfo.X_CISCO_COM_BaseMacAddress"
++#define PAM_BASE_MAC_ADDRESS              "Device.Ethernet.Interface.1.MACAddress"
+ 
+ /***********************************
+     Actual definition declaration
+diff --git a/source/TR-181/include/vlan_apis.h b/source/TR-181/include/vlan_apis.h
+--- a/source/TR-181/include/vlan_apis.h
++++ b/source/TR-181/include/vlan_apis.h
+@@ -38,6 +38,7 @@
+ #include "vlan_mgr_apis.h"
+ #include "ssp_global.h"
+ #include "secure_wrapper.h"
++#include "ccsp_psm_helper.h"
+ 
+ /* * Telemetry Markers */
+ #define VLAN_MARKER_VLAN_IF_CREATE          "RDKB_VLAN_CREATE"
+diff --git a/source/TR-181/middle_layer_src/ethernet_apis.c b/source/TR-181/middle_layer_src/ethernet_apis.c
+--- a/source/TR-181/middle_layer_src/ethernet_apis.c
++++ b/source/TR-181/middle_layer_src/ethernet_apis.c
+@@ -1024,7 +1024,7 @@
+     //Get status of VLAN link
+     while(iIterator < 10)
+     {
+-        char interface_name[IF_NAMESIZE] = {0};
++        char interface_name[70] = {0};
+ 
+         snprintf(interface_name, sizeof(interface_name), "%s", pEntry->Name);
+ 
+@@ -1179,7 +1179,7 @@
+ 
+ static ANSC_STATUS EthLink_GetVlanIdAndTPId(const PDML_ETHERNET pEntry, INT *pVlanId, ULONG *pTPId)
+ {
+-    INT VLANInstance = -1;
++    ULONG VLANInstance = -1;
+     ULONG VlanCount = 0;
+     ANSC_HANDLE pNewEntry = NULL;
+     CHAR BaseInterface[64] = {0};
+@@ -1207,7 +1207,7 @@
+     }
+ 
+     //Get VLAN Term.
+-    CcspTraceInfo(("%s VLANInstance=%d \n", __FUNCTION__, VLANInstance));
++    CcspTraceInfo(("%s VLANInstance=%lu \n", __FUNCTION__, VLANInstance));
+     if ((-1 == VLANInstance) || (pNewEntry == NULL))
+     {
+         CcspTraceError(("%s Failed to get VLAN Instance \n", __FUNCTION__));
+@@ -1241,7 +1241,7 @@
+ 
+     if (pEntry->InstanceNumber <= 0)
+     {
+-        CcspTraceError(("%s-%d: Failed to get Mac Address, EthLinkInstance=%ld ", __FUNCTION__, __LINE__, pEntry->InstanceNumber));
++        CcspTraceError(("%s-%d: Failed to get Mac Address, EthLinkInstance=%lu ", __FUNCTION__, __LINE__, pEntry->InstanceNumber));
+         return ANSC_STATUS_FAILURE;
+     }
+ 
+diff --git a/source/TR-181/middle_layer_src/vlan_apis.c b/source/TR-181/middle_layer_src/vlan_apis.c
+--- a/source/TR-181/middle_layer_src/vlan_apis.c
++++ b/source/TR-181/middle_layer_src/vlan_apis.c
+@@ -213,7 +213,7 @@
+ static ANSC_STATUS Vlan_SetEthLink(PDML_VLAN pEntry, BOOL enable, BOOL PriTag)
+ {
+     INT iEthLinkInstance = -1;
+-    INT EthLinkInstance = -1;
++    ULONG EthLinkInstance = -1;
+     ANSC_HANDLE pNewEntry = NULL;
+ 
+ 
+@@ -415,7 +415,7 @@
+ static ANSC_STATUS Vlan_GetEthLinkMacOffSet(PDML_VLAN pEntry, int* pOffSet)
+ {
+     INT iEthLinkInstance = -1;
+-    INT EthLinkInstance = -1;
++    ULONG EthLinkInstance = -1;
+     ANSC_HANDLE pNewEntry = NULL;
+ 
+ 
+diff --git a/source/TR-181/middle_layer_src/vlan_dml.c b/source/TR-181/middle_layer_src/vlan_dml.c
+--- a/source/TR-181/middle_layer_src/vlan_dml.c
++++ b/source/TR-181/middle_layer_src/vlan_dml.c
+@@ -813,7 +813,7 @@
+         AnscCopyString( p_Vlan->Alias, p_Vlan->Alias );
+ 
+      DML_VLAN_INIT(p_Vlan);
+-    _ansc_sprintf(p_Vlan->Name, "vlan%ld", p_Vlan->InstanceNumber);
++    _ansc_sprintf(p_Vlan->Name, "vlan%lu", p_Vlan->InstanceNumber);
+ 
+     return returnStatus;
+ }
+diff --git a/source/TR-181/middle_layer_src/vlan_eth_hal.h b/source/TR-181/middle_layer_src/vlan_eth_hal.h
+--- a/source/TR-181/middle_layer_src/vlan_eth_hal.h
++++ b/source/TR-181/middle_layer_src/vlan_eth_hal.h
+@@ -112,7 +112,7 @@
+ 
+ typedef struct _VLAN_SKB_CONFIG
+ {
+-     char alias[32]; /* Indicates DATA or VOICE */
++     char alias[300]; /* Indicates DATA or VOICE */
+      unsigned int skbMark;  /* SKB Marking Value. */
+      unsigned int skbPort; /* SKB Marking Port */
+      unsigned int skbEthPriorityMark; /* SKB Ethernet Priority. */
