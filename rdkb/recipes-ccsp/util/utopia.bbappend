@@ -42,6 +42,7 @@ SRC_URI:append = " \
     file://00036-qti-utopia-WLAN-client-IPPT-support.patch \
     file://00037-qti-utopia-IPPT-tunnel-mode-support.patch \
     file://00038-qti-utopia-Changes-to-update-dns-search-list-to-zebra.conf.patch \
+    file://00039-qti-utopia-logupload.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
