@@ -39,6 +39,7 @@ SRC_URI:append = " \
     file://00033-qti-utopia-fix-for-ping-not-working-from-IPPT-client-to-brlan0.patch \
     file://00034-utopia-ssh-filter-accept-rule-for-platform-sdx.patch \
     file://00035-qti-utopia-fix-for-stale-conntrack-entries.patch \
+    file://00036-qti-utopia-WLAN-client-IPPT-support.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
