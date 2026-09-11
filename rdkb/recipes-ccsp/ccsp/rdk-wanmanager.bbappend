@@ -37,6 +37,7 @@ SRC_URI += " \
     file://00023-qti-Wanmanager-eth1-bringup-delay.patch \
     file://00024-qti-wanmanager_usb_tether_interface_fix.patch \
     file://00025-qti-wanmanager-fix-for-ip-neighbor-table-showing-deprecated-ipv6-as-reachable.patch \
+    file://00026-qti-Wanmanager-fix-usb-teardown-on-eth1-unplug.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "

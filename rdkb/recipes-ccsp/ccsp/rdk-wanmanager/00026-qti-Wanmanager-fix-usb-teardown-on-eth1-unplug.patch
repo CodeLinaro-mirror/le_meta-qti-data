@@ -1,0 +1,103 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 0c6ac2883fb93ef1e876c00a7cb4665bc25e8f00 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 10 Sep 2026 11:39:24 +0000
+Subject: [PATCH] Fixes IPv6 USB tethered traffic drop when ETH1 is unplugged
+ by adding interface name check (rndis0/ecm0) before calling
+ teardown_usb_tether_interface() to prevent incorrect teardown on non-USB
+ RTM_DELLINK events
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_network_monitor.c | 64 +++++++++++++++++++---
+ 1 file changed, 57 insertions(+), 7 deletions(-)
+
+Index: git/source/WanManager/wanmgr_network_monitor.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_network_monitor.c
++++ git/source/WanManager/wanmgr_network_monitor.c
+@@ -63,7 +63,7 @@ static bool g_toggle_flag = TRUE;
+ #define SE_VERSION                  1
+ #define NETMONITOR_SYSNAME          "netmonitor"
+ #define SYS_IP_ADDR                 "127.0.0.1"
+-
++#define IFACE_SIZE 20
+ #if defined(FEATURE_MAPT) && defined(NAT46_KERNEL_SUPPORT)
+ #define SYSEVENT_MAP_BR_IPV6_PREFIX "map_br_ipv6_prefix"
+ #define SYSEVENT_MAPT_CONFIG_FLAG "mapt_config_flag"
+@@ -477,16 +477,66 @@ static void NetMonitor_ProcessNetlinkRou
+                 }
+             case RTM_NEWLINK:
+                  {
+-                     bringup_usb_tether_interface();
+-                     bringup_ethernet_interface(nl_msgHdr);
++                    char interface_name[IFACE_SIZE] = {0};
++                    struct ifinfomsg *ifi_msg = NLMSG_DATA(nl_msgHdr);
++                    if (NULL != ifi_msg)
++                    {
++                       if (nl_msgHdr->nlmsg_len < NLMSG_LENGTH(sizeof(*ifi_msg)))
++                       {
++                             CcspTraceWarning(("%s: RTM_NEWLINK: nlmsg too short, skipping\n", __FUNCTION__));
++                             break;
++                       }
++                       int length = nl_msgHdr->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi_msg));
++                       struct rtattr *attr_msg = NULL;
++                       for (attr_msg = IFLA_RTA(ifi_msg); RTA_OK(attr_msg, length); attr_msg = RTA_NEXT(attr_msg, length))
++                       {
++                          if (IFLA_IFNAME == attr_msg->rta_type)
++                          {
++                             strlcpy(interface_name, (char *)RTA_DATA(attr_msg), sizeof(interface_name));
++                          }
++                       }
++                     }
++                     if ((0 == strcmp(interface_name, "rndis0")) || (0 == strcmp(interface_name, "ecm0")))
++                     {
++                        bringup_usb_tether_interface();
++                     }
++                     else if (0 == strcmp(interface_name, "eth1"))
++                     {
++                        bringup_ethernet_interface(nl_msgHdr);
++                     }
+                  }
+-                break;
++                 break;
+             case RTM_DELLINK:
+                  {
+-                     teardown_usb_tether_interface();
+-                     teardown_ethernet_interface(nl_msgHdr);
++                    char interface_name[IFACE_SIZE] = {0};
++                    struct ifinfomsg *ifi_msg = NLMSG_DATA(nl_msgHdr);
++                    if (NULL != ifi_msg)
++                    {
++                       if (nl_msgHdr->nlmsg_len < NLMSG_LENGTH(sizeof(*ifi_msg)))
++                       {
++                         CcspTraceWarning(("%s: RTM_DELLINK: nlmsg too short, skipping\n", __FUNCTION__));
++                         break;
++                       }
++                       int length = nl_msgHdr->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi_msg));
++                        struct rtattr *attr_msg = NULL;
++                        for (attr_msg = IFLA_RTA(ifi_msg); RTA_OK(attr_msg, length); attr_msg = RTA_NEXT(attr_msg, length))
++                        {
++                            if (IFLA_IFNAME == attr_msg->rta_type)
++                            {
++                                strlcpy(interface_name, (char *)RTA_DATA(attr_msg), sizeof(interface_name));
++                            }
++                        }
++                    }
++                    if ((0 == strcmp(interface_name, "rndis0")) || (0 == strcmp(interface_name, "ecm0")))
++                    {
++                        teardown_usb_tether_interface();
++                    }
++                    else if (0 == strcmp(interface_name, "eth1"))
++                    {
++                        teardown_ethernet_interface(nl_msgHdr);
++                    }
+                  }
+-                break;
++                 break;
+             case RTM_NEWNEIGH:
+             case RTM_DELNEIGH:
+                  {
