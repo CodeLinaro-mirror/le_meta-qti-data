@@ -38,6 +38,7 @@ SRC_URI += " \
               file://00027-qti-ccsp-p-and-m-DDNS.patch \
               file://00028-qti-ccsp-p-and-m-ssh-dm-fix.patch \
               file://00029-qti-ccsp-p-and-m-cellular_priority_fix.patch \
+              file://00030-qti-ccsp-p-and-m_skip-dhcpv6-stateful-autoswitch.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
