@@ -1,0 +1,87 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 191a18d1b26c57f5fa20c159d6c0da03c6a4c403 Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Thu, 17 Sep 2026 10:20:52 +0530
+Subject: [PATCH] rdklogger_timestamp_fix
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ src/rdk_logger_onboard.c | 22 +++++++++++++---------
+ 1 file changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/src/rdk_logger_onboard.c b/src/rdk_logger_onboard.c
+index ae35294..14b8dda 100644
+--- a/src/rdk_logger_onboard.c
++++ b/src/rdk_logger_onboard.c
+@@ -17,6 +17,7 @@
+ * limitations under the License.
+ */
+ #include <stdio.h>
++#include <sys/time.h>
+ #include <time.h>
+ #include <string.h>
+ #include <unistd.h>
+@@ -39,9 +40,9 @@ void rdk_logger_log_onboard(const char *module, const char *msg, ...)
+     va_list arg_ptr;
+     char buf[MAX_BUF_SIZE];
+     int nbytes;
+-    struct tm * l_sTimeInfo;
++    struct tm l_sTimeInfo;
+     char l_cLocalTime[32] = {0};
+-    time_t l_sNowTime;
++    struct timeval l_sNowTime;
+     FILE *l_fOnBoardingLogFile = NULL;
+ 
+     if (access(DEVICE_ONBOARDED, F_OK) != -1 || access(DISABLE_ONBOARDING, F_OK) != -1)
+@@ -49,10 +50,10 @@ void rdk_logger_log_onboard(const char *module, const char *msg, ...)
+         return;
+     }
+ 
+-    time(&l_sNowTime);
+-    l_sTimeInfo = localtime(&l_sNowTime);
++    gettimeofday(&l_sNowTime, NULL);
++    gmtime_r(&l_sNowTime.tv_sec, &l_sTimeInfo);
+ 
+-    strftime(l_cLocalTime,32, "%y%m%d-%X",l_sTimeInfo);
++    strftime(l_cLocalTime, sizeof(l_cLocalTime), "%y%m%d-%T", &l_sTimeInfo);
+     va_start(arg_ptr, msg);
+     nbytes = vsnprintf(buf, MAX_BUF_SIZE, msg, arg_ptr);
+     va_end(arg_ptr);
+@@ -71,11 +72,13 @@ void rdk_logger_log_onboard(const char *module, const char *msg, ...)
+     {
+         if(module != NULL)
+         {
+-            fprintf(l_fOnBoardingLogFile, "%s [%s] %s", l_cLocalTime, module, buf);
++            fprintf(l_fOnBoardingLogFile, "%s.%06ld [%s] %s",
++                    l_cLocalTime, (long)l_sNowTime.tv_usec, module, buf);
+         }
+         else
+         {
+-            fprintf(l_fOnBoardingLogFile, "%s %s", l_cLocalTime, buf);
++            fprintf(l_fOnBoardingLogFile, "%s.%06ld %s",
++                    l_cLocalTime, (long)l_sNowTime.tv_usec, buf);
+         }
+         fclose(l_fOnBoardingLogFile);
+     }
+@@ -83,11 +86,12 @@ void rdk_logger_log_onboard(const char *module, const char *msg, ...)
+     {
+         if(module != NULL)
+         {
+-            printf("%s [%s] %s", l_cLocalTime, module, buf);
++            printf("%s.%06ld [%s] %s",
++                   l_cLocalTime, (long)l_sNowTime.tv_usec, module, buf);
+         }
+         else
+         {
+-            printf("%s %s", l_cLocalTime, buf);
++            printf("%s.%06ld %s", l_cLocalTime, (long)l_sNowTime.tv_usec, buf);
+         }
+     }
+ }
+-- 
+2.34.1
+
