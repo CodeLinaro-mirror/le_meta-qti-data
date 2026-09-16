@@ -1,0 +1,62 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 471bf849fe44138c837d5cc0ba9d601515ac45c2 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Wed, 16 Sep 2026 06:37:12 +0000
+Subject: [PATCH] Fix VPN passthrough flags (IPSec/L2TP/PPTP) defaulting to
+ TRUE when syscfg keys are empty by initializing them to FALSE
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/utapi/lib/utapi.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+Index: git/source/utapi/lib/utapi.c
+===================================================================
+--- git.orig/source/utapi/lib/utapi.c
++++ git/source/utapi/lib/utapi.c
+@@ -2106,9 +2106,9 @@ int Utopia_GetFirewallSettings (UtopiaCo
+         rule_count = 0;
+     }
+ 
+-    fw->allow_ipsec_passthru = TRUE;
+-    fw->allow_pptp_passthru = TRUE;
+-    fw->allow_l2tp_passthru = TRUE;
++    fw->allow_ipsec_passthru = FALSE;
++    fw->allow_pptp_passthru = FALSE;
++    fw->allow_l2tp_passthru = FALSE;
+     fw->allow_ssl_passthru = TRUE;
+ 
+     memset(buf, 0, sizeof(buf));
+@@ -2120,23 +2120,23 @@ int Utopia_GetFirewallSettings (UtopiaCo
+ 
+     memset(buf, 0, sizeof(buf));
+     syscfg_get(NULL, "blockipsec::result", buf, sizeof(buf));
+-    if (0 == strcmp("DROP",buf))
++    if (0 == strcmp("ACCEPT",buf))
+     {
+-           fw->allow_ipsec_passthru = FALSE;
++           fw->allow_ipsec_passthru = TRUE;
+     }
+ 
+     memset(buf, 0, sizeof(buf));
+     syscfg_get(NULL, "blockl2tp::result", buf, sizeof(buf));
+-    if (0 == strcmp("DROP",buf))
++    if (0 == strcmp("ACCEPT",buf))
+     {
+-           fw->allow_l2tp_passthru = FALSE;
++           fw->allow_l2tp_passthru = TRUE;
+     }
+ 
+     memset(buf, 0, sizeof(buf));
+     syscfg_get(NULL, "blockpptp::result", buf, sizeof(buf));
+-    if (0 == strcmp("DROP",buf))
++    if (0 == strcmp("ACCEPT",buf))
+     {
+-           fw->allow_pptp_passthru = FALSE;
++           fw->allow_pptp_passthru = TRUE;
+     }
+ 
+     return SUCCESS;
