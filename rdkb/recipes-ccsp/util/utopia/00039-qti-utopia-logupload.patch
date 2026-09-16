@@ -1,0 +1,36 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From bbbbfdad112ae96b06ad6aa45db772ea7818ae83 Mon Sep 17 00:00:00 2001
+From: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+Date: Thu, 10 Sep 2026 04:00:24 +0000
+Subject: [PATCH] log_upload
+
+Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/log_env_var.sh | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/source/scripts/init/service.d/log_env_var.sh b/source/scripts/init/service.d/log_env_var.sh
+index e8be949..6abf480 100644
+--- a/source/scripts/init/service.d/log_env_var.sh
++++ b/source/scripts/init/service.d/log_env_var.sh
+@@ -24,9 +24,9 @@ UPLOAD_THRESHOLD=""
+ 
+ 
+ TMP_UPLOAD="/tmp/logs/"
+-LOG_SYNC_PATH="/nvram2/logs/"
+-LOG_SYNC_BACK_UP_PATH="/nvram2/logs/"
+-LOG_SYNC_BACK_UP_REBOOT_PATH="/nvram2/logs/"
++LOG_SYNC_PATH="/data/logs/"
++LOG_SYNC_BACK_UP_PATH="/data/logs/"
++LOG_SYNC_BACK_UP_REBOOT_PATH="/data/logs/"
+ 
+ . /etc/device.properties
+ 
+-- 
+2.34.1
+
