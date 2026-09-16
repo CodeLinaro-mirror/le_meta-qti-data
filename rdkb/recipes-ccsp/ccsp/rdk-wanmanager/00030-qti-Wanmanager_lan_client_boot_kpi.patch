@@ -1,0 +1,196 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From c62da1a15e3ee1ee0a773fc284536dfc3f4338ad Mon Sep 17 00:00:00 2001
+From: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+Date: Wed, 16 Sep 2026 10:31:47 +0000
+Subject: [PATCH] Lan client boot KPI
+
+Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+---
+ .../wanmgr_network_monitor_extn_qti.c         | 122 +++++++++++++++++-
+ 1 file changed, 119 insertions(+), 3 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_network_monitor_extn_qti.c b/source/WanManager/wanmgr_network_monitor_extn_qti.c
+index e18be7b..5a121ab 100644
+--- a/source/WanManager/wanmgr_network_monitor_extn_qti.c
++++ b/source/WanManager/wanmgr_network_monitor_extn_qti.c
+@@ -46,6 +46,20 @@ extern int sysevent_nwm_fd;
+ extern token_t sysevent_token;
+ #define sysevent_fd sysevent_nwm_fd
+ static uint ipv6_clients_count = 0;
++typedef enum {
++     KPI_UNKNOWN_CLIENT = 0,
++     KPI_ETH_CLIENT,
++     KPI_WIFI_CLIENT,
++     KPI_USB_CLIENT,
++}kpi_if_type_t;
++
++static bool log_kpi_first_eth_local_ipv4 = true;
++static bool log_kpi_first_eth_local_ipv6 = true;
++static bool log_kpi_first_wlan_local_ipv4 = true;
++static bool log_kpi_first_wlan_local_ipv6 = true;
++static bool log_kpi_first_usb_local_ipv4 = true;
++static bool log_kpi_first_usb_local_ipv6 = true;
++static bool create_iptables_chain_for_stat = true;
+ /*
+  * isIPALanStatEnable - check whether per-client packet-stats are enabled.
+  */
+@@ -1317,6 +1331,72 @@ int get_interface_details(char *if_name , uint if_index)
+     fp = NULL;
+     return 0;
+ }
++void set_boot_kpi(kpi_if_type_t if_type, uint16_t address_family)
++{
++     int ret = 0;
++
++     switch (if_type)
++     {
++        case KPI_ETH_CLIENT:
++             if((address_family == AF_INET) && (log_kpi_first_eth_local_ipv4)) {
++                ret = v_secure_system("echo -n M - ETH Local IPV4 Assignment > /sys/kernel/boot_kpi/kpi_values ");
++                if (ret) {
++                    DBG_MONITOR_PRINT(" M - ETH Local IPV4 Assignment command execution failed ");
++                    return;
++                }
++                log_kpi_first_eth_local_ipv4 = false;
++             }
++             if((address_family == AF_INET6) && (log_kpi_first_eth_local_ipv6 )) {
++                ret = v_secure_system("echo -n M - ETH Local IPV6 Assignment > /sys/kernel/boot_kpi/kpi_values ");
++                if (ret) {
++                    DBG_MONITOR_PRINT(" M - ETH Local IPV6 Assignment command  execution failed ");
++                    return;
++                }
++                log_kpi_first_eth_local_ipv6 = false;
++             }
++        break;
++
++        case KPI_WIFI_CLIENT:
++             if((address_family == AF_INET) && (log_kpi_first_wlan_local_ipv4)) {
++                ret = v_secure_system("echo -n M - WLAN Local IPV4 Assignment  > /sys/kernel/boot_kpi/kpi_values");
++                if (ret) {
++                    DBG_MONITOR_PRINT("M - WLAN Local IPV4 Assignment command execution failed ");
++                    return;
++                }
++                log_kpi_first_wlan_local_ipv4 = false;
++             }
++             if((address_family == AF_INET6) && (log_kpi_first_wlan_local_ipv6)) {
++                ret = v_secure_system("echo -n M - WLAN Local IPV6 Assignment > /sys/kernel/boot_kpi/kpi_values");
++                if (ret) {
++                    DBG_MONITOR_PRINT("M - WLAN Local IPV6 Assignment command execution failed ");
++                    return;
++                }
++                log_kpi_first_wlan_local_ipv6= false;
++             }
++        break;
++
++        case KPI_USB_CLIENT:
++             if((address_family == AF_INET) && (log_kpi_first_usb_local_ipv4 )) {
++                ret = v_secure_system("echo -n M - USB Local IPV4 Assignment > /sys/kernel/boot_kpi/kpi_values");
++                if (ret) {
++                    DBG_MONITOR_PRINT("'M - USB Local IPV4 Assignment command execution failed ");
++                    return;
++                }
++                log_kpi_first_usb_local_ipv4 = false;
++             }
++             if((address_family == AF_INET6) && (log_kpi_first_usb_local_ipv6)) {
++                ret = v_secure_system("echo -n M - USB Local IPV6 Assignment > /sys/kernel/boot_kpi/kpi_values");
++                if (ret) {
++                    DBG_MONITOR_PRINT(" M - USB Local IPV6 Assignment command execution failed ");
++                    return;
++                }
++                log_kpi_first_usb_local_ipv6 = false;
++             }
++        break;
++        default:
++            break;
++     }
++}
+ /*
+  * Packet-stats entry for NEWNEIGH.
+  * Common IPv6 LLA/PD file-maintenance logic is not duplicated here;
+@@ -1329,7 +1409,8 @@ void handle_netlink_ipneigh_new(struct nlmsghdr *nlmsg, int len)
+     char addr[BUFLEN_256] = {0};
+     char interface_name[BFR_SIZE] = {0};
+     char mac_address[BFR_SIZE] = {0};
+-
++    char if_name[80]={0};
++    kpi_if_type_t if_type = 0;
+     ndm = NLMSG_DATA(nlmsg);
+ 
+     /* Neighbor messages: parse NDA attributes */
+@@ -1348,6 +1429,23 @@ void handle_netlink_ipneigh_new(struct nlmsghdr *nlmsg, int len)
+         DBG_MONITOR_PRINT("RTM_NEWNEIGH len %d ip %s %d family %d IF (%u) \n",
+                           len, addr, nlmsg->nlmsg_type,
+                           ndm->ndm_family, ndm->ndm_ifindex);
++        get_interface_details(if_name, ndm->ndm_ifindex);
++        if(strlen(if_name) !=0 ) {
++            if ((strstr(if_name,"brlan") != NULL) || (strstr(if_name,"eth") != NULL)) {
++                 if_type = KPI_ETH_CLIENT;
++            }
++            else if ((strstr(if_name,"ath") != NULL) || (strstr(if_name,"mld") != NULL)) {
++                 if_type = KPI_WIFI_CLIENT ;
++            }
++            else if (strstr(if_name,"rndis") != NULL) {
++                 if_type = KPI_USB_CLIENT ;
++            }
++            else {
++                 if_type = KPI_UNKNOWN_CLIENT ;
++            }
++        }
++        if (if_type != KPI_UNKNOWN_CLIENT)
++            set_boot_kpi(if_type, AF_INET);
+ 
+         if (true == isIPALanStatEnable())
+         {
+@@ -1381,9 +1479,25 @@ void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
+     struct rtattr *tb[NDA_MAX + 1] = {NULL};
+     char addr[BUFLEN_256] = {0};
+     int ret = -1;
++    char if_name[80]={0};
++    kpi_if_type_t if_type = 0;
+ 
+     ndm = NLMSG_DATA(nlmsg);
+-
++    get_interface_details(if_name, ndm->ndm_ifindex);
++    if(strlen(if_name) !=0 ) {
++       if ((strstr(if_name,"brlan") != NULL) || (strstr(if_name,"eth") != NULL)) {
++            if_type = KPI_ETH_CLIENT;
++       }
++       else if ((strstr(if_name,"ath") != NULL) || (strstr(if_name,"mld") != NULL)) {
++            if_type = KPI_WIFI_CLIENT ;
++       }
++       else if (strstr(if_name,"rndis") != NULL) {
++            if_type = KPI_USB_CLIENT ;
++       }
++       else {
++            if_type = KPI_UNKNOWN_CLIENT ;
++       }
++    }
+     /* Parse attributes and extract fields of interest. */
+     parse_rtattr_pd(tb, NDA_MAX, NDA_RTA(ndm), len);
+ 
+@@ -1479,6 +1593,8 @@ void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
+                 fp = NULL;
+             }
+         }
++        if (if_type != KPI_UNKNOWN_CLIENT)
++            set_boot_kpi(if_type, AF_INET6);
+         ret = v_secure_system("echo %s >> /tmp/ipv6_neighbor.txt", addr);
+         if (ret == 0) {
+             ipv6_clients_count++;
+@@ -1683,7 +1799,7 @@ void handle_pd_neigh_event(struct nlmsghdr *nl_msgHdr)
+         }
+     }
+ 
+-    if ((strcmp(pd_enable, "1") == 0) || (isIPALanStatEnable() == true))
++    if ((strcmp(pd_enable, "1") == 0) || (log_kpi_first_eth_local_ipv4) || (log_kpi_first_eth_local_ipv6) || (log_kpi_first_wlan_local_ipv4) || (log_kpi_first_wlan_local_ipv6) || (log_kpi_first_usb_local_ipv4) || (log_kpi_first_usb_local_ipv6) || (isIPALanStatEnable() == true))
+     {
+         len = nl_msgHdr->nlmsg_len - NLMSG_LENGTH(sizeof(struct ndmsg));
+         if (len < 0)
+-- 
+2.34.1
+
