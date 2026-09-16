@@ -9,3 +9,5 @@ SRC_URI += " \
 DEPENDS += " ccsp-psm libsyswrapper utopia "
 
 LDFLAGS_aarch64 += " -lutctx -lprivilege  -lbreakpadwrapper "
+
+CFLAGS_append += " -Wno-error=stringop-truncation -Wno-error=stringop-overflow "
