@@ -11,14 +11,35 @@ Subject: [PATCH] Lan client boot KPI
 
 Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
 ---
- .../wanmgr_network_monitor_extn_qti.c         | 122 +++++++++++++++++-
- 1 file changed, 119 insertions(+), 3 deletions(-)
+ .../wanmgr_network_monitor_extn_qti.c         | 230 ++++++++++++++++--
+ 1 file changed, 213 insertions(+), 17 deletions(-)
 
 diff --git a/source/WanManager/wanmgr_network_monitor_extn_qti.c b/source/WanManager/wanmgr_network_monitor_extn_qti.c
-index e18be7b..5a121ab 100644
+index f2f998a..3d5ded4 100644
 --- a/source/WanManager/wanmgr_network_monitor_extn_qti.c
 +++ b/source/WanManager/wanmgr_network_monitor_extn_qti.c
-@@ -46,6 +46,20 @@ extern int sysevent_nwm_fd;
+@@ -6,9 +6,11 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <strings.h>
+ #include <errno.h>
+ #include <unistd.h>
+ #include <arpa/inet.h>
++#include <linux/if_ether.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/neighbour.h>
+ #include <stdbool.h>
+@@ -36,6 +38,8 @@
+ #define DUAL_MODE            "3"
+ #define BUFSIZE 100
+ #define COMMAND_SIZE 200
++#define FDB_LINE_SIZE 256
++#define LAN_BRIDGE_NAME "brlan0"
+ #ifndef DBG_MONITOR_PRINT
+ #define DBG_MONITOR_PRINT(fmt, args...)  CcspTraceInfo((fmt, ##args))
+ #endif
+@@ -46,6 +50,20 @@ extern int sysevent_nwm_fd;
  extern token_t sysevent_token;
  #define sysevent_fd sysevent_nwm_fd
  static uint ipv6_clients_count = 0;
@@ -39,10 +60,140 @@ index e18be7b..5a121ab 100644
  /*
   * isIPALanStatEnable - check whether per-client packet-stats are enabled.
   */
-@@ -1317,6 +1331,72 @@ int get_interface_details(char *if_name , uint if_index)
-     fp = NULL;
+@@ -1303,28 +1321,187 @@ int delIpv6Rules(char *addr)
+     }
      return 0;
  }
+-/*
+-  * To get interface details from bridge fdb show
+-  * update in if_name
+-  */
+-int get_interface_details(char *if_name , uint if_index)
++static int find_interface_in_fdb(FILE *fdb_stream, const char *mac_address,
++                                 const char *bridge_name, char *if_name,
++                                 size_t if_name_size)
+ {
+-    char cmd[BUFSIZE]= {0};
+-    char cmd2[BUFSIZE]={0};
++    char line[FDB_LINE_SIZE] = {0};
++
++    if ((fdb_stream == NULL) || (mac_address == NULL) ||
++        (bridge_name == NULL) || (if_name == NULL) ||
++        (if_name_size == 0))
++    {
++        return -1;
++    }
++
++    if_name[0] = '\0';
++
++    while (fgets(line, sizeof(line), fdb_stream) != NULL)
++    {
++        char *saveptr = NULL;
++        char *token = NULL;
++        char *entry_mac = NULL;
++        char *entry_interface = NULL;
++        char *entry_bridge = NULL;
++        int permanent = 0;
++
++        token = strtok_r(line, " \t\r\n", &saveptr);
++        if (token == NULL)
++        {
++            continue;
++        }
++        entry_mac = token;
++
++        while ((token = strtok_r(NULL, " \t\r\n", &saveptr)) != NULL)
++        {
++            if (strcasecmp(token, "permanent") == 0)
++            {
++                permanent = 1;
++            }
++            else if (strcmp(token, "dev") == 0)
++            {
++                entry_interface = strtok_r(NULL, " \t\r\n", &saveptr);
++            }
++            else if (strcmp(token, "master") == 0)
++            {
++                entry_bridge = strtok_r(NULL, " \t\r\n", &saveptr);
++            }
++        }
++
++        if (!permanent && (entry_interface != NULL) &&
++            (entry_bridge != NULL) &&
++            (strcasecmp(entry_mac, mac_address) == 0) &&
++            (strcasecmp(entry_bridge, bridge_name) == 0))
++        {
++            snprintf(if_name, if_name_size, "%s", entry_interface);
++            return 0;
++        }
++    }
++
++    return -1;
++}
++
++/* Resolve the bridge port for the MAC carried by this neighbor event. */
++static int get_interface_details(char *if_name, size_t if_name_size,
++                                 const struct rtattr *lladdr)
++{
++    const unsigned char *mac = NULL;
++    char mac_address[18] = {0};
+     FILE *fp = NULL;
+-    snprintf(cmd ,sizeof(cmd), "bridge fdb show | grep -m 1 -v permanent | grep -i 'master brlan0' | awk '{print$3}'");
+-    fp=popen(cmd,"r");
+-    if (fp == NULL)
++    int ret = -1;
++
++    if ((if_name == NULL) || (if_name_size == 0) || (lladdr == NULL) ||
++        (RTA_PAYLOAD(lladdr) < ETH_ALEN))
+     {
+         return -1;
+     }
+-    if (NULL != fgets(cmd2,100,fp))
++
++    mac = RTA_DATA(lladdr);
++    snprintf(mac_address, sizeof(mac_address),
++             "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2],
++             mac[3], mac[4], mac[5]);
++
++    fp = popen("bridge fdb show", "r");
++    if (fp == NULL)
+     {
+-        strlcpy(if_name,cmd2,sizeof(cmd2));
++        return -1;
+     }
++
++    ret = find_interface_in_fdb(fp, mac_address, LAN_BRIDGE_NAME,
++                                if_name, if_name_size);
+     pclose(fp);
+-    fp = NULL;
+-    return 0;
++    return ret;
++}
++
++static kpi_if_type_t get_kpi_interface_type(const char *if_name)
++{
++    if ((if_name == NULL) || (if_name[0] == '\0'))
++    {
++        return KPI_UNKNOWN_CLIENT;
++    }
++
++    if ((strstr(if_name, "brlan") != NULL) ||
++        (strstr(if_name, "eth") != NULL))
++    {
++        return KPI_ETH_CLIENT;
++    }
++    if ((strstr(if_name, "ath") != NULL) ||
++        (strstr(if_name, "mld") != NULL))
++    {
++        return KPI_WIFI_CLIENT;
++    }
++    if (strstr(if_name, "rndis") != NULL)
++    {
++        return KPI_USB_CLIENT;
++    }
++
++    return KPI_UNKNOWN_CLIENT;
++}
 +void set_boot_kpi(kpi_if_type_t if_type, uint16_t address_family)
 +{
 +     int ret = 0;
@@ -108,11 +259,10 @@ index e18be7b..5a121ab 100644
 +        default:
 +            break;
 +     }
-+}
+ }
  /*
   * Packet-stats entry for NEWNEIGH.
-  * Common IPv6 LLA/PD file-maintenance logic is not duplicated here;
-@@ -1329,7 +1409,8 @@ void handle_netlink_ipneigh_new(struct nlmsghdr *nlmsg, int len)
+@@ -1338,7 +1515,8 @@ void handle_netlink_ipneigh_new(struct nlmsghdr *nlmsg, int len)
      char addr[BUFLEN_256] = {0};
      char interface_name[BFR_SIZE] = {0};
      char mac_address[BFR_SIZE] = {0};
@@ -122,31 +272,22 @@ index e18be7b..5a121ab 100644
      ndm = NLMSG_DATA(nlmsg);
  
      /* Neighbor messages: parse NDA attributes */
-@@ -1348,6 +1429,23 @@ void handle_netlink_ipneigh_new(struct nlmsghdr *nlmsg, int len)
+@@ -1357,6 +1535,14 @@ void handle_netlink_ipneigh_new(struct nlmsghdr *nlmsg, int len)
          DBG_MONITOR_PRINT("RTM_NEWNEIGH len %d ip %s %d family %d IF (%u) \n",
                            len, addr, nlmsg->nlmsg_type,
                            ndm->ndm_family, ndm->ndm_ifindex);
-+        get_interface_details(if_name, ndm->ndm_ifindex);
-+        if(strlen(if_name) !=0 ) {
-+            if ((strstr(if_name,"brlan") != NULL) || (strstr(if_name,"eth") != NULL)) {
-+                 if_type = KPI_ETH_CLIENT;
-+            }
-+            else if ((strstr(if_name,"ath") != NULL) || (strstr(if_name,"mld") != NULL)) {
-+                 if_type = KPI_WIFI_CLIENT ;
-+            }
-+            else if (strstr(if_name,"rndis") != NULL) {
-+                 if_type = KPI_USB_CLIENT ;
-+            }
-+            else {
-+                 if_type = KPI_UNKNOWN_CLIENT ;
-+            }
++        if (tb[NDA_LLADDR] != NULL)
++        {
++            (void)get_interface_details(if_name, sizeof(if_name),
++                                        tb[NDA_LLADDR]);
 +        }
++        if_type = get_kpi_interface_type(if_name);
 +        if (if_type != KPI_UNKNOWN_CLIENT)
 +            set_boot_kpi(if_type, AF_INET);
  
          if (true == isIPALanStatEnable())
          {
-@@ -1381,9 +1479,25 @@ void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
+@@ -1390,15 +1576,23 @@ void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
      struct rtattr *tb[NDA_MAX + 1] = {NULL};
      char addr[BUFLEN_256] = {0};
      int ret = -1;
@@ -155,25 +296,23 @@ index e18be7b..5a121ab 100644
  
      ndm = NLMSG_DATA(nlmsg);
 -
-+    get_interface_details(if_name, ndm->ndm_ifindex);
-+    if(strlen(if_name) !=0 ) {
-+       if ((strstr(if_name,"brlan") != NULL) || (strstr(if_name,"eth") != NULL)) {
-+            if_type = KPI_ETH_CLIENT;
-+       }
-+       else if ((strstr(if_name,"ath") != NULL) || (strstr(if_name,"mld") != NULL)) {
-+            if_type = KPI_WIFI_CLIENT ;
-+       }
-+       else if (strstr(if_name,"rndis") != NULL) {
-+            if_type = KPI_USB_CLIENT ;
-+       }
-+       else {
-+            if_type = KPI_UNKNOWN_CLIENT ;
-+       }
-+    }
      /* Parse attributes and extract fields of interest. */
      parse_rtattr_pd(tb, NDA_MAX, NDA_RTA(ndm), len);
  
-@@ -1479,6 +1593,8 @@ void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
+     if (!tb[NDA_DST])
+         return;
+ 
++    if (tb[NDA_LLADDR] != NULL)
++    {
++        (void)get_interface_details(if_name, sizeof(if_name),
++                                    tb[NDA_LLADDR]);
++    }
++    if_type = get_kpi_interface_type(if_name);
++
+     inet_ntop(AF_INET6, RTA_DATA(tb[NDA_DST]), addr, INET6_ADDRSTRLEN);
+     DBG_MONITOR_PRINT("RTM_NEWNEIGH len %d ip %s %d family %d IF (%u) \n",
+                    len, addr, nlmsg->nlmsg_type, ndm->ndm_family,
+@@ -1488,6 +1682,8 @@ void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
                  fp = NULL;
              }
          }
@@ -182,7 +321,7 @@ index e18be7b..5a121ab 100644
          ret = v_secure_system("echo %s >> /tmp/ipv6_neighbor.txt", addr);
          if (ret == 0) {
              ipv6_clients_count++;
-@@ -1683,7 +1799,7 @@ void handle_pd_neigh_event(struct nlmsghdr *nl_msgHdr)
+@@ -1692,7 +1888,7 @@ void handle_pd_neigh_event(struct nlmsghdr *nl_msgHdr)
          }
      }
  
@@ -193,4 +332,3 @@ index e18be7b..5a121ab 100644
          if (len < 0)
 -- 
 2.34.1
-
