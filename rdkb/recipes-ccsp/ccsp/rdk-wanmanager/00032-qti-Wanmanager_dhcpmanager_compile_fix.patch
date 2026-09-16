@@ -1,0 +1,64 @@
+This patch file is from Qualcomm Technologies, Inc.
+are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d31c152c9e4dd1bb059942bd279592cc6ee06fde Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Tue, 8 Sep 2026 06:56:43 +0000
+Subject: [PATCH] WanManager compilation fix with DHCP manager and MTU default fix
+
+[Description] : In WanManager some of the variable defination in the .h file is blocked with flag FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE but the usage of this is not blocked with the same flag causing compilation issue hence added the flag gaurding the code which is using this variables as well. Added code to take the default MTU size when MTU passed is zero.
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_dhcp_event_handler.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+Index: git/source/WanManager/wanmgr_dhcp_event_handler.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_dhcp_event_handler.c
++++ git/source/WanManager/wanmgr_dhcp_event_handler.c
+@@ -55,11 +55,13 @@ static void copyDhcpv4Data(WANMGR_IPV4_D
+     strncpy(pDhcpv4Data->gateway, leaseInfo->gateway, sizeof(pDhcpv4Data->gateway) - 1);
+     strncpy(pDhcpv4Data->dnsServer, leaseInfo->dnsServer, sizeof(pDhcpv4Data->dnsServer) - 1);
+     strncpy(pDhcpv4Data->dnsServer1, leaseInfo->dnsServer1, sizeof(pDhcpv4Data->dnsServer1) - 1);
++    pDhcpv4Data->mtuSize = (leaseInfo->mtuSize != 0) ? leaseInfo->mtuSize : WANMNGR_INTERFACE_DEFAULT_MTU_SIZE;
++#if defined(FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE)
+     strncpy(pDhcpv4Data->timeZone, leaseInfo->timeZone, sizeof(pDhcpv4Data->timeZone) - 1);
+-    pDhcpv4Data->mtuSize = leaseInfo->mtuSize;
+     pDhcpv4Data->timeOffset = leaseInfo->timeOffset;
+     pDhcpv4Data->isTimeOffsetAssigned = leaseInfo->isTimeOffsetAssigned;
+     pDhcpv4Data->upstreamCurrRate = leaseInfo->upstreamCurrRate;
++#endif
+ }
+ 
+ static void copyDhcpv6Data(WANMGR_IPV6_DATA* pDhcpv6Data, const DHCP_MGR_IPV6_MSG* leaseInfo) 
+@@ -100,9 +102,11 @@ static void copyDhcpv6Data(WANMGR_IPV6_D
+     strncpy(pDhcpv6Data->sitePrefix, leaseInfo->sitePrefix, sizeof(pDhcpv6Data->sitePrefix) - 1);
+     pDhcpv6Data->prefixPltime = leaseInfo->prefixPltime;
+     pDhcpv6Data->prefixVltime = leaseInfo->prefixVltime;
++#if defined(FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE)
+     pDhcpv6Data->addrAssigned = leaseInfo->addrAssigned;
+     pDhcpv6Data->prefixAssigned = leaseInfo->prefixAssigned;
+     pDhcpv6Data->domainNameAssigned = leaseInfo->domainNameAssigned;
++#endif
+     pDhcpv6Data->ipv6_TimeOffset = leaseInfo->ipv6_TimeOffset;
+ }
+ 
+@@ -207,12 +211,14 @@ void WanMgr_ProcessDhcpClientEvent(DhcpE
+                 case DHCP_LEASE_RENEW:
+                     pVirtIf->IP.Ipv6Renewed = TRUE;
+                     //TODO: Check for sysevents
++#if defined(FEATURE_RDKB_CONFIGURABLE_WAN_INTERFACE)
+                     if(pVirtIf->IP.Ipv6Data.prefixAssigned == TRUE)
+                     {
+                         WanManager_Ipv6PrefixUtil(pVirtIf->Name, SET_LFT, pVirtIf->IP.Ipv6Data.prefixPltime, pVirtIf->IP.Ipv6Data.prefixVltime);
+                         sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_RADVD_RESTART, NULL, 0);
+                     }
+                     CcspTraceInfo(("%s-%d : DHCPv6 lease renewed for %s\n", __FUNCTION__, __LINE__, pVirtIf->Name));
++#endif
+                     WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_CONNECTION_IPV6_UP);
+                     break;
+ 
