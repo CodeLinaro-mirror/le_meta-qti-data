@@ -1,0 +1,441 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 55024698bc09906ddc2bfd5bbfde906ce94e02f3 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Tue, 15 Sep 2026 14:14:32 +0000
+Subject: Added KPI marker for cellular manager
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.c         |  27 +++-
+ source/CellularManager/cellular_hal.h         |  34 +++++
+ source/CellularManager/cellular_hal_mm_apis.c |  51 +++++++
+ source/CellularManager/cellular_hal_mm_apis.h |   3 +
+ .../cellularmgr_cellular_apis.c               |   4 +
+ source/CellularManager/cellularmgr_sm.c       | 137 +++++++++++++-----
+ 6 files changed, 216 insertions(+), 40 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.c b/source/CellularManager/cellular_hal.c
+index c4231cc..a75a509 100755
+--- a/source/CellularManager/cellular_hal.c
++++ b/source/CellularManager/cellular_hal.c
+@@ -41,6 +41,8 @@
+     GLOBAL or LOCAL DEFINITIONS and STRUCTURE or ENUM DECLARATION
+ **********************************************************************/
+ #ifdef CM_EXTN_SUPPORTED
++int g_KpiRecordFlag;
++
+ #ifdef CM_PROP_SUPPORTED
+ int cellular_hal_prop_event_update_cb( hal_qmi_event_payload_t qmi_event_info );
+ 
+@@ -390,7 +392,7 @@ int cellular_hal_start_network(CellularNetworkIPType_t ip_request_type, Cellular
+     cellular_hal_qmi_start_network( ip_request_type, pstProfileInput, pstCBStruct );
+ #elif defined MM_SUPPORT  
+     cellular_hal_mm_send_network_status(pstCBStruct);
+-    cellular_hal_mm_connect_bearer (NULL, TRUE);
++    return cellular_hal_mm_connect_bearer (NULL, TRUE);
+ #elif defined HYBRID_SUPPORT
+     cellular_hal_device_start_network(ip_request_type, pstProfileInput, pstCBStruct);
+ #endif
+@@ -791,6 +793,10 @@ int cellular_hal_prop_event_update_cb( hal_qmi_event_payload_t qmi_event_info )
+ {
+     if((HAL_QMI_SSR_EV == qmi_event_info.event) && (HAL_QMI_IS_EV == qmi_event_info.data.ssr_event_info.event_type))
+     {
++        /* Clearing g_KpiRecordFlag to 0.
++        * This will ensure that kpi marker will update on every ssr recovery */
++        g_KpiRecordFlag = 0;
++
+         CELLULAR_HAL_DBG_PRINT("%s:%d - Received IS Event from modem! \n", __FUNCTION__, __LINE__);
+         cellular_hal_extn_prop_handle_modem_ssr(HAL_MODEM_IS_EV);
+     }
+@@ -809,4 +815,23 @@ int cellular_hal_prop_event_update_cb( hal_qmi_event_payload_t qmi_event_info )
+     return RETURN_OK;
+ }
+ #endif //CM_PROP_SUPPORTED
++
++/* cellular_hal_get_data_profileId function */
++/**
++* @description - This function used to get profileId.
++*
++* @param[in]  None
++* @param[out] ProfileID - profile id, ipType - ipfamily;
++*
++* @return status of the operation.
++*  RETURN_OK for sucess.
++*  RETURN_ERROR for failure.
++*/
++int cellular_hal_get_data_profileId(int *profileid, int *ipType)
++{
++#ifdef MM_SUPPORT
++    return cellular_hal_mm_get_bearer_data_profileId(profileid, ipType);
++#endif
++    return RETURN_OK;
++}
+ #endif //CM_EXTN_SUPPORTED
+diff --git a/source/CellularManager/cellular_hal.h b/source/CellularManager/cellular_hal.h
+index 073ef84..33adc06 100755
+--- a/source/CellularManager/cellular_hal.h
++++ b/source/CellularManager/cellular_hal.h
+@@ -60,6 +60,13 @@
+ #ifdef CM_EXTN_SUPPORTED
+ #include "cellular_hal_extn.h"
+ #endif
++
++/**********************************************************************
++                GLOBAL VARAIBLE DECLARATIONS
++**********************************************************************/
++#ifdef CM_EXTN_SUPPORTED
++extern int g_KpiRecordFlag;
++#endif //CM_EXTN_SUPPORTED
+ /**********************************************************************
+                 STRUCTURE AND CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -1184,6 +1191,33 @@ int cellular_hal_get_device_information(CellularDeviceInfoStruct *devInfo);
+ */
+ int cellular_hal_get_data_interface(char *data_interface);
+ 
++#ifdef CM_EXTN_SUPPORTED
++/* getBackhaulConnectStatus function */
++/**
++* @description - This API return status of backhaul connect.
++*
++* @param[out] None
++*
++* @return backhaul connect values
++* @retval if backhaul is true return true else return false.
++*
++*/
++bool getBackhaulConnectStatus(void);
++
++/* cellular_hal_get_data_profileId function */
++/**
++* @description - This function used to get profileId.
++*
++* @param[in]  None
++* @param[out] ProfileID - profile id. ipType - ip family.
++*
++* @return status of the operation.
++*  RETURN_OK for sucess.
++*  RETURN_ERROR for failure.
++*/
++int cellular_hal_get_data_profileId(int *profileId, int *ipType);
++#endif //CM_EXTN_SUPPORTED
++
+ /* cellular_hal_get_modem_device_type function */
+ /**
+ * @description - This API gets the type of the modem detected
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 7cbf50e..47ac611 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -2047,7 +2047,14 @@ INT cellular_hal_mm_connect_bearer (CHAR *index, BOOLEAN connect)
+         else
+         {
+             if( connect )
++#ifdef CM_EXTN_SUPPORTED
++            {
++                updateBootKPI(KPI_RECORD_TYPE_BRINGUP_IP, 0, 0);
++#endif
+                 mm_bearer_connect(ctx->bearer, NULL, NULL, NULL);
++#ifdef CM_EXTN_SUPPORTED
++            }
++#endif
+             else
+                 mm_bearer_disconnect(ctx->bearer, NULL, NULL, NULL);
+         }
+@@ -2859,6 +2866,50 @@ INT cellular_hal_mm_extn_re_register_g_signal(CHAR *index)
+     return res;
+ }
+ #endif //CM_PROP_SUPPORTED
++
++/* cellular_hal_mm_get_bearer_data_profileId function */
++/**
++* @description - This function used to get profileId.
++*
++* @param[in]  None
++* @param[out] ProfileId - profile id, ipType - ip family.
++*
++* @return status of the operation.
++*  RETURN_OK for sucess.
++*  RETURN_ERROR for failure.
++*/
++INT cellular_hal_mm_get_bearer_data_profileId(int *ProfileId, int *ipType)
++{
++    int ret = RETURN_ERROR;
++    Context *ctx;
++    MMBearerProperties *properties = NULL;
++    CHAR bearerIndex[IDX_SIZE], *bearPath;
++    char *index = NULL;
++
++    if((NULL == ProfileId) || (NULL == ipType))
++    {
++        CELLULAR_HAL_DBG_PRINT("%s Error - Bad pointer\n",__FUNCTION__);
++        return ret;
++    }
++
++    ctx = g_new0 (Context, 1);
++    ctx->bearer = get_bearer_context(index);
++    if (ctx->bearer)
++    {
++        properties  = mm_bearer_get_properties (ctx->bearer);
++        if( properties )
++        {
++            *ProfileId = mm_bearer_properties_get_profile_id(properties);
++            *ipType = mm_bearer_properties_get_ip_type (properties);
++            g_clear_object (&properties);
++            ret = RETURN_OK;
++        }
++    }
++
++    context_free(ctx);
++
++    return ret;
++}
+ #endif //CM_EXTN_SUPPORTED
+ 
+ void on_modem_manager_vanished(GDBusConnection *connection, const gchar *name, gpointer user_data)
+diff --git a/source/CellularManager/cellular_hal_mm_apis.h b/source/CellularManager/cellular_hal_mm_apis.h
+index e58bb42..daabbe5 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.h
++++ b/source/CellularManager/cellular_hal_mm_apis.h
+@@ -385,6 +385,9 @@ void cellular_hal_mm_trigger_state_change_on_ssr();
+ INT cellular_hal_mm_extn_re_register_g_signal(CHAR *index);
+ void cellular_hal_mm_extn_trigger_state_change_from_sm(ModemState old_state, ModemState new_state);
+ #endif
++#ifdef CM_EXTN_SUPPORTED
++int cellular_hal_mm_get_bearer_data_profileId (int *profileid, int *ipType);
++#endif //CM_EXTN_SUPPORTED
+ #endif
+ void on_modem_manager_vanished(GDBusConnection *connection, const gchar *name, gpointer user_data);
+ void cellular_hal_mm_resource_release(void);
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 78c6d3f..a6d3f5d 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -68,6 +68,7 @@
+ 
+ #ifdef CM_EXTN_SUPPORTED
+ extern state_chg_sem;
++extern int g_KpiRecordFlag;
+ #endif //CM_EXTN_SUPPORTED
+ 
+ #ifdef HYBRID_SUPPORT
+@@ -522,6 +523,9 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+     snprintf(stCtxInputStruct.stIfInput.Proxy, sizeof(stCtxInputStruct.stIfInput.Proxy), "%s", "");
+ #ifdef CM_EXTN_SUPPORTED
+     CellularMgr_extn_InitializeContextApnProfile(&stCtxInputStruct);
++
++    /* set g_KpiRecordFlag = 0 to ensure that kpi marker will update on first bootup*/
++    g_KpiRecordFlag = 0;
+ #else
+     CellularMgr_InitializeContextDefaultProfile( &stCtxInputStruct );
+ #endif
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index e11e250..fc63e69 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -367,11 +367,29 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+     }
+     else
+     {
++#ifdef CM_EXTN_SUPPORTED
++        if(strlen(pstIPStruct->IPAddress))
++        {
++            /*Update the KPI marker only the first time the modem enters the connected state.*/
++            if(CELLULAR_STATE_CONNECTED != CellularMgr_getPolicyStructureRecoveryState())
++            {
++                int profileId = 0;
++                int ipType = 0;
++                int kpiRecordType = ( CELLULAR_NETWORK_IP_FAMILY_IPV4 == pstIPStruct->IPType ) ?
++                        KPI_RECORD_TYPE_WAN_CONNECTED_V4 : KPI_RECORD_TYPE_WAN_CONNECTED_V6 ;
++
++                if( RETURN_OK == cellular_hal_get_data_profileId(&profileId, &ipType))
++                {
++                    updateBootKPI(kpiRecordType, profileId, ipType);
++                }
++            }
++        }
++#endif //CM_EXTN_SUPPORTED
+ 
+-        CcspTraceInfo(("%s - Received IP configuration - IPType[IPv%d] Address[%s] GW[%s] Subnet[%s] NS1[%s] NS2[%s] MTU[%d]\n", 
+-                                                        __FUNCTION__, 
++        CcspTraceInfo(("%s - Received IP configuration - IPType[IPv%d] Address[%s] GW[%s] Subnet[%s] NS1[%s] NS2[%s] MTU[%d]\n",
++                                                        __FUNCTION__,
+                                                         ( ( CELLULAR_NETWORK_IP_FAMILY_IPV4 == pstIPStruct->IPType ) ?  4 : 6 ) ,
+-                                                        pstIPStruct->IPAddress, 
++                                                        pstIPStruct->IPAddress,
+                                                         pstIPStruct->DefaultGateWay,
+                                                         pstIPStruct->SubnetMask,
+                                                         pstIPStruct->DNSServer1,
+@@ -712,13 +730,16 @@ int CellularMgrPacketServiceStatusCBForSM( char *device_name, CellularNetworkIPT
+ /* Cellular Transitions */
+ static CellularPolicySmState_t TransitionDown( void )
+ {
++    /* Reset max_wait for down state transition, */
++    /* It will be set from the next connection establishment */
++    max_wait = 0;
+     CcspTraceInfo(("%s %d - State changed to CELLULAR_STATE_DOWN \n", __FUNCTION__, __LINE__));
++    CELLULAR_RDK_STATUS  enRDKStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
+ #ifdef HYBRID_SUPPORT
+     // Reset the DML
+     DmlCellularResetDefaults();
+ #endif
+ #if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
+-    CELLULAR_RDK_STATUS  enRDKStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
+     if(enRDKStatus == RDK_STATUS_CONNECTED)
+     {
+         PCELLULAR_INTERFACE_INFO_EXTN pstInterfaceExtnInfo = NULL;
+@@ -935,40 +956,45 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+     int currentModemState = 0;
+ 
+ #ifdef CM_EXTN_SUPPORTED
+-    /*For IP Continuity case bearer info is known for both Ipv4 and v6 from CM start itself*/
+-    /*Hence cellular_hal_start_network need to be called only once */
+-    if(CELLULAR_STATE_CONNECTED == CellularMgr_getPolicyStructureRecoveryState())
++    /*
++     * Network Start Logic KPI Optimization:
++     * 1. Single HAL Call: usage of CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED allows activating
++     *    both IPv4 and IPv6 in one pass. The underlying MM HAL handles the IP family internally.
++     *    (Note: QMI-supported devices require separate calls per IP family and must use the #else path).
++     *
++     * 2. Boot Optimization: Removed link status updates and the 3-second delay.
++     *    linkstatus update already handled in IPReadyCBForSM callback.
++     */
++    if( ( CELLULAR_PDP_TYPE_IPV4 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
++        ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++    )
+     {
+-        if( ( CELLULAR_PDP_TYPE_IPV4 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
+-            ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++        gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress        = TRUE;
++        gpstCellularPolicyCtrl->bIPv4WaitingForPacketStatus        = TRUE;
++        gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
++        gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus         = DEVICE_NETWORK_IP_NOT_READY;
++    }
++    if( ( CELLULAR_PDP_TYPE_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
++        ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
+         )
+-        {
+-            gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress        = TRUE;
+-            gpstCellularPolicyCtrl->bIPv4WaitingForPacketStatus        = TRUE;
+-            gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
+-            gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus         = DEVICE_NETWORK_IP_NOT_READY;
+-        }
+-        if( ( CELLULAR_PDP_TYPE_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
+-            ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
+-            )
+-        {
+-            gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress        = TRUE;
+-            gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus        = TRUE;
+-            gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
+-            gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus         = DEVICE_NETWORK_IP_NOT_READY;
+-        }
+-        stNetworkCB.device_network_ip_ready_cb = CellularMgrIPReadyCBForSM;
+-        stNetworkCB.packet_service_status_cb   = CellularMgrPacketServiceStatusCBForSM;
+-
+-        CcspTraceInfo(("%s %d - Starting IP Network\n", __FUNCTION__, __LINE__));
+-        /*CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED is used as IPv4 and/or IPv6 data is sent*/
+-        /*In hal with MM_SUPPORT first parameter (CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED)is not used.*/
+-        /*This need to be addressed seperately for QMI_SUPPORT*/
+-        cellular_hal_start_network( CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED, NULL, &stNetworkCB );
++    {
++        gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress        = TRUE;
++        gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus        = TRUE;
++        gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
++        gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus         = DEVICE_NETWORK_IP_NOT_READY;
++    }
++    stNetworkCB.device_network_ip_ready_cb = CellularMgrIPReadyCBForSM;
++    stNetworkCB.packet_service_status_cb   = CellularMgrPacketServiceStatusCBForSM;
+ 
+-        return CELLULAR_STATE_REGISTERED;
++    CcspTraceInfo(("%s %d - Starting IP Network\n", __FUNCTION__, __LINE__));
++    /*CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED is used as IPv4 and/or IPv6 data is sent*/
++    /*In hal with MM_SUPPORT first parameter (CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED)is not used.*/
++    /*This need to be addressed seperately for QMI_SUPPORT or use #else case for QMI supported device*/
++    if( RETURN_OK != cellular_hal_start_network( CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED, NULL, &stNetworkCB ))
++    {
++        CcspTraceError(("%s %d: Failed to Start IP Network\n", __FUNCTION__, __LINE__));
+     }
+-#endif
++#else
+ #ifndef HYBRID_SUPPORT
+     //LinkStatus should be Up
+     CcspTraceInfo(("%s - Updating link status to UP for this '%s' interface \n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
+@@ -979,12 +1005,12 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+ 
+     /*
+      * Provided Delay,
+-     * Needs to give some delay before starting network since WanManager needs to settle in Optaining IP address 
++     * Needs to give some delay before starting network since WanManager needs to settle in Optaining IP address
+      * state to receive lease information since WAN manager won't start DHCP client so that should be provide some delay
+      * here to avoid syncrhonization issue between cellular and wan manager states
+-     
+-    
+-     sleep(3);*/
++     */
++
++     sleep(3);
+ #endif
+ 
+     //Request to start Network IPv4
+@@ -1020,7 +1046,7 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+         CcspTraceInfo(("%s %d - Starting IPv6 Network\n", __FUNCTION__, __LINE__));
+         cellular_hal_start_network( CELLULAR_NETWORK_IP_FAMILY_IPV6, NULL, &stNetworkCB );
+     }
+-
++#endif
+     return CELLULAR_STATE_REGISTERED;
+ }
+ 
+@@ -1506,6 +1532,17 @@ static CellularPolicySmState_t StateDeregistered( void )
+     if( DEVICE_NAS_STATUS_REGISTERED == gpstCellularPolicyCtrl->enDeviceNASRegisterStatus )
+     {
+         CellularMgrSMSetCurrentState(CELLULAR_STATE_REGISTERED);
++#ifdef CM_EXTN_SUPPORTED
++        CellularPolicySmState_t targetRecoveryState = CellularMgr_getPolicyStructureRecoveryState();
++
++        /*Update the KPI marker only the first time the modem enters the registered state.*/
++        if((CELLULAR_STATE_REGISTERED != targetRecoveryState ) &&
++           (CELLULAR_STATE_CONNECTED != targetRecoveryState )
++        )
++        {
++            updateBootKPI(KPI_RECORD_TYPE_INSERVICE, 0, 0);
++        }
++#endif //CM_EXTN_SUPPORTED
+         CcspTraceInfo(("%s %d - State changed to CELLULAR_STATE_REGISTERED \n", __FUNCTION__, __LINE__));
+ #ifdef CM_EXTN_SUPPORTED
+         sem_post(&mm_sm_sync_sem);
+@@ -2219,6 +2256,28 @@ bool IsRoamingStatusConverged()
+ 
+ }
+ 
++#ifdef CM_EXTN_SUPPORTED
++/* getBackhaulConnectStatus */
++/**
++* @description - This API check backhaulconnect true or false
++*
++* @param[in] None
++* @param[out] None
++*
++* @retval True/False
++*
++*/
++bool getBackhaulConnectStatus(void)
++{
++     if(TRUE == gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul)
++     {
++         return TRUE;
++     }
++
++     return FALSE;
++}
++#endif //CM_EXTN_SUPPORTED
++
+ /* modem_discovery_timeout_handler function */
+ /**
+ * @description - This used to restart and MM and trigger state change
+-- 
+2.34.1
+

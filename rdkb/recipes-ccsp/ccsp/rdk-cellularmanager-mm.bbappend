@@ -40,6 +40,7 @@ SRC_URI += " \
     file://0033-qti-rdk-cellularmanager-mm_CellTower_DM.patch \
     file://0034-qti-rdk-cellularmanager-mm_carrier_aggregation.patch \
     file://0035-qti-rdk-cellularmanager-mm_factory_test_mode_fix.patch \
+    file://0036-qti-rdk-cellularmanager-mm_KPI_marker.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
