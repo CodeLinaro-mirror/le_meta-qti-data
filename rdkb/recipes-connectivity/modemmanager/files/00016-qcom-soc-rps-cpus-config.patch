@@ -1,0 +1,508 @@
+From 83143089bd24874d2a5da71dc5d5629733d5f2a3 Mon Sep 17 00:00:00 2001
+From: HuaWen CHEN <huawenc@qti.qualcomm.com>
+Date: Fri, 4 Sep 2026 19:29:04 +0800
+Subject: [PATCH] qcom-soc: configure RPS on mux links
+
+Change-Id: I57e74f6e638e5ad1270f7c548aaa1606dec21345
+Signed-off-by: HuaWen CHEN <huawenc@qti.qualcomm.com>
+---
+ data/ModemManager.service.in                  |   2 +
+ plugins/Makefile.am                           |   5 +
+ plugins/meson.build                           |  12 +-
+ .../mm-broadband-modem-qmi-qcom-soc.c         | 216 ++++++++++++++++++
+ .../mm-broadband-modem-qmi-qcom-soc.h         |   5 +
+ plugins/qcom-soc/mm-qcom-soc-rps-cpus.conf    |  14 ++
+ plugins/tests/test-keyfiles.c                 |  11 +
+ src/mm-bearer-qmi.c                           |  26 +++
+ src/mm-broadband-modem-qmi.c                  |   1 +
+ src/mm-broadband-modem-qmi.h                  |   4 +
+ 10 files changed, 295 insertions(+), 1 deletion(-)
+ create mode 100644 plugins/qcom-soc/mm-qcom-soc-rps-cpus.conf
+
+diff --git a/data/ModemManager.service.in b/data/ModemManager.service.in
+index 02fbd963..f58582f2 100644
+--- a/data/ModemManager.service.in
++++ b/data/ModemManager.service.in
+@@ -8,6 +8,8 @@ ConditionVirtualization=!container
+ Type=dbus
+ BusName=org.freedesktop.ModemManager1
+ ExecStartPre=/bin/sh -c '\
++  sysctl -w net.core.rmem_max=16777216; \
++  sysctl -w net.core.wmem_max=16777216; \
+   for i in $(seq 1 15); do \
+     qmicli -d qrtr://3 --dms-get-operating-mode >/dev/null 2>&1 && exit 0; \
+     sleep 2; \
+diff --git a/plugins/Makefile.am b/plugins/Makefile.am
+index 53d09f35..d2566eee 100644
+--- a/plugins/Makefile.am
++++ b/plugins/Makefile.am
+@@ -1304,13 +1304,18 @@ libmm_plugin_qcom_soc_la_SOURCES = \
+ 	$(NULL)
+ libmm_plugin_qcom_soc_la_CPPFLAGS = \
+ 	$(PLUGIN_COMMON_COMPILER_FLAGS) \
++	-DMM_QCOM_SOC_RPS_CPUS_CONFIG_FILE=\"${pkgsysconfdir}/mm-qcom-soc-rps-cpus.conf\" \
++	-DMM_QCOM_SOC_RPS_CPUS_CONFIG_FALLBACK_FILE=\"${pkgdatadir}/mm-qcom-soc-rps-cpus.conf\" \
+ 	-DMM_MODULE_NAME=\"qcom-soc\" \
+ 	$(NULL)
+ libmm_plugin_qcom_soc_la_LDFLAGS  = $(PLUGIN_COMMON_LINKER_FLAGS)
+ 
+ dist_udevrules_DATA += qcom-soc/77-mm-qcom-soc.rules
++dist_pkgdata_DATA += qcom-soc/mm-qcom-soc-rps-cpus.conf
++dist_pkgsysconf_DATA += qcom-soc/mm-qcom-soc-rps-cpus.conf
+ 
+ AM_CFLAGS += -DTESTUDEVRULESDIR_QCOM_SOC=\"${srcdir}/qcom-soc/\"
++AM_CFLAGS += -DTESTKEYFILE_QCOM_SOC_RPS_CPUS=\"${srcdir}/qcom-soc/mm-qcom-soc-rps-cpus.conf\"
+ endif
+ endif
+ 
+diff --git a/plugins/meson.build b/plugins/meson.build
+index 9e081beb..d1bf067b 100644
+--- a/plugins/meson.build
++++ b/plugins/meson.build
+@@ -38,6 +38,7 @@ endif
+ # plugins
+ plugins = {}
+ plugins_data = []
++plugins_config = []
+ plugins_udev_rules = []
+ plugins_test_udev_rules_dir_c_args = []
+ plugins_test_keyfile_c_args = []
+@@ -699,6 +700,8 @@ endif
+ if plugins_options['qcom-soc']
+   test_udev_rules_dir_c_args = ['-DTESTUDEVRULESDIR_QCOM_SOC="@0@"'.format(plugins_dir / 'qcom-soc')]
+   plugins_test_udev_rules_dir_c_args += test_udev_rules_dir_c_args
++  test_keyfile_c_args = ['-DTESTKEYFILE_QCOM_SOC_RPS_CPUS="@0@"'.format(plugins_dir / 'qcom-soc' / 'mm-qcom-soc-rps-cpus.conf')]
++  plugins_test_keyfile_c_args += test_keyfile_c_args
+ 
+   sources = files(
+     'qcom-soc/mm-broadband-modem-qmi-qcom-soc.c',
+@@ -707,9 +710,11 @@ if plugins_options['qcom-soc']
+ 
+   plugins += {'plugin-qcom-soc': {
+     'plugin': true,
+-    'module': {'sources': sources, 'include_directories': plugins_incs, 'c_args': test_udev_rules_dir_c_args + ['-DMM_MODULE_NAME="qcom-soc"']},
++    'module': {'sources': sources, 'include_directories': plugins_incs, 'c_args': test_udev_rules_dir_c_args + ['-DMM_QCOM_SOC_RPS_CPUS_CONFIG_FILE="@0@"'.format(mm_pkgsysconfdir / 'mm-qcom-soc-rps-cpus.conf')] + ['-DMM_QCOM_SOC_RPS_CPUS_CONFIG_FALLBACK_FILE="@0@"'.format(mm_pkgdatadir / 'mm-qcom-soc-rps-cpus.conf')] + ['-DMM_MODULE_NAME="qcom-soc"']},
+   }}
+ 
++  plugins_data += files('qcom-soc/mm-qcom-soc-rps-cpus.conf')
++  plugins_config += files('qcom-soc/mm-qcom-soc-rps-cpus.conf')
+   plugins_udev_rules += files('qcom-soc/77-mm-qcom-soc.rules')
+ endif
+ 
+@@ -1003,6 +1008,11 @@ install_data(
+   install_dir: mm_pkgdatadir,
+ )
+ 
++install_data(
++  plugins_config,
++  install_dir: mm_pkgsysconfdir,
++)
++
+ install_data(
+   plugins_udev_rules,
+   install_dir: udev_rulesdir,
+diff --git a/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.c b/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.c
+index 21d62c12..dfb495ee 100644
+--- a/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.c
++++ b/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.c
+@@ -20,12 +20,22 @@
+ #include <string.h>
+ #include <unistd.h>
+ #include <ctype.h>
++#include <errno.h>
+ 
+ #include "ModemManager.h"
+ #include "mm-log.h"
+ #include "mm-iface-modem.h"
++#include "mm-broadband-modem-qmi.h"
+ #include "mm-broadband-modem-qmi-qcom-soc.h"
+ 
++#ifndef MM_QCOM_SOC_RPS_CPUS_CONFIG_FILE
++#define MM_QCOM_SOC_RPS_CPUS_CONFIG_FILE "/etc/ModemManager/mm-qcom-soc-rps-cpus.conf"
++#endif
++
++#ifndef MM_QCOM_SOC_RPS_CPUS_CONFIG_FALLBACK_FILE
++#define MM_QCOM_SOC_RPS_CPUS_CONFIG_FALLBACK_FILE "/usr/share/ModemManager/mm-qcom-soc-rps-cpus.conf"
++#endif
++
+ G_DEFINE_TYPE (MMBroadbandModemQmiQcomSoc, mm_broadband_modem_qmi_qcom_soc, MM_TYPE_BROADBAND_MODEM_QMI)
+ 
+ /*****************************************************************************/
+@@ -140,6 +150,195 @@ peek_port_qmi_for_data (MMBroadbandModemQmi  *self,
+     return NULL;
+ }
+ 
++/*****************************************************************************/
++/* RPS CPU mask configuration for data interfaces */
++
++static void
++load_rps_cpus_config (MMBroadbandModemQmiQcomSoc *self)
++{
++    GError *error = NULL;
++
++    if (self->priv->rps_cpus_config_loaded)
++        return;
++
++    self->priv->rps_cpus_config_loaded = TRUE;
++    self->priv->rps_cpus_config = g_key_file_new ();
++
++    if (g_key_file_load_from_file (self->priv->rps_cpus_config,
++                                   MM_QCOM_SOC_RPS_CPUS_CONFIG_FILE,
++                                   G_KEY_FILE_NONE,
++                                   &error))
++        return;
++
++    if (error && (error->domain != G_FILE_ERROR || error->code != G_FILE_ERROR_NOENT))
++        mm_obj_warn (self, "couldn't load RPS configuration '%s': %s",
++                     MM_QCOM_SOC_RPS_CPUS_CONFIG_FILE,
++                     error->message);
++    g_clear_error (&error);
++
++    if (g_strcmp0 (MM_QCOM_SOC_RPS_CPUS_CONFIG_FILE,
++                   MM_QCOM_SOC_RPS_CPUS_CONFIG_FALLBACK_FILE) != 0 &&
++        g_key_file_load_from_file (self->priv->rps_cpus_config,
++                                   MM_QCOM_SOC_RPS_CPUS_CONFIG_FALLBACK_FILE,
++                                   G_KEY_FILE_NONE,
++                                   &error))
++        return;
++
++    if (error && (error->domain != G_FILE_ERROR || error->code != G_FILE_ERROR_NOENT))
++        mm_obj_warn (self, "couldn't load fallback RPS configuration '%s': %s",
++                     MM_QCOM_SOC_RPS_CPUS_CONFIG_FALLBACK_FILE,
++                     error->message);
++    g_clear_error (&error);
++    g_clear_pointer (&self->priv->rps_cpus_config, g_key_file_unref);
++}
++
++static gboolean
++rps_cpus_config_matches (const gchar *interface_name,
++                         const gchar *configured_name)
++{
++    gsize configured_name_len;
++
++    configured_name_len = strlen (configured_name);
++    if (configured_name_len > 0 && configured_name[configured_name_len - 1] == '*')
++        return strncmp (interface_name, configured_name, configured_name_len - 1) == 0;
++
++    return g_strcmp0 (interface_name, configured_name) == 0;
++}
++
++static gboolean
++get_rps_cpus_config (MMBroadbandModemQmiQcomSoc *self,
++                     const gchar                *interface_name,
++                     gchar                     **out_path,
++                     gchar                     **out_mask)
++{
++    gchar **groups;
++    gsize   n_groups;
++    gsize   i;
++
++    *out_path = NULL;
++    *out_mask = NULL;
++
++    load_rps_cpus_config (self);
++    if (!self->priv->rps_cpus_config || !interface_name)
++        return FALSE;
++
++    groups = g_key_file_get_groups (self->priv->rps_cpus_config, &n_groups);
++    for (i = 0; i < n_groups; i++) {
++        g_autofree gchar *configured_name = NULL;
++        g_autofree gchar *path_template = NULL;
++        g_autofree gchar *mask = NULL;
++        GError *error = NULL;
++
++        configured_name = g_key_file_get_string (self->priv->rps_cpus_config,
++                                                 groups[i],
++                                                 "interface_name",
++                                                 &error);
++        if (error) {
++            mm_obj_warn (self, "invalid RPS configuration group '%s': %s",
++                         groups[i], error->message);
++            g_clear_error (&error);
++            continue;
++        }
++
++        if (!rps_cpus_config_matches (interface_name, configured_name))
++            continue;
++
++        path_template = g_key_file_get_string (self->priv->rps_cpus_config,
++                                               groups[i],
++                                               "rps_cpus_file",
++                                               &error);
++        if (!error)
++            mask = g_key_file_get_string (self->priv->rps_cpus_config,
++                                           groups[i],
++                                           "mask",
++                                           &error);
++        if (error || !path_template || !mask || !path_template[0] || !mask[0]) {
++            mm_obj_warn (self, "invalid RPS configuration group '%s'%s%s",
++                         groups[i],
++                         error ? ": " : "",
++                         error ? error->message : "missing value");
++            g_clear_error (&error);
++            break;
++        }
++
++        if (strstr (path_template, "%s"))
++            *out_path = g_strdup_printf (path_template, interface_name);
++        else
++            *out_path = g_strdup (path_template);
++        *out_mask = g_steal_pointer (&mask);
++        break;
++    }
++    g_strfreev (groups);
++
++    return *out_path && *out_mask;
++}
++
++static gboolean
++write_rps_cpus (MMBroadbandModemQmiQcomSoc *self,
++                const gchar                *ifname,
++                const gchar                *path,
++                const gchar                *mask)
++{
++    g_autofree gchar *value = NULL;
++    FILE             *f;
++    gsize             len;
++    gsize             written;
++
++    value = g_strdup_printf ("%s\n", mask);
++    f = fopen (path, "we");
++    if (!f) {
++        mm_obj_dbg (self, "rps_cpus not available for %s: %s",
++                    ifname, g_strerror (errno));
++        return FALSE;
++    }
++    len = strlen (value);
++    written = fwrite (value, 1, len, f);
++    if (written != len)
++        mm_obj_warn (self, "partial write to %s (%lu of %lu)",
++                     path, (gulong)written, (gulong)len);
++    fclose (f);
++    mm_obj_dbg (self, "set rps_cpus for %s to %s", ifname, mask);
++    return TRUE;
++}
++
++static void
++notify_link_up (MMBroadbandModemQmi *self,
++                const gchar         *link_name,
++                MMPort              *data)
++{
++    MMKernelDevice *lower;
++    const gchar    *lower_name;
++    gchar          *path = NULL;
++    gchar          *mask = NULL;
++
++    if (get_rps_cpus_config (MM_BROADBAND_MODEM_QMI_QCOM_SOC (self),
++                             link_name,
++                             &path,
++                             &mask)) {
++        write_rps_cpus (MM_BROADBAND_MODEM_QMI_QCOM_SOC (self),
++                        link_name,
++                        path,
++                        mask);
++        g_clear_pointer (&path, g_free);
++        g_clear_pointer (&mask, g_free);
++    }
++
++    lower = mm_kernel_device_peek_lower_device (mm_port_peek_kernel_device (data));
++    lower_name = lower ? mm_kernel_device_get_name (lower) : NULL;
++    if (lower_name && g_strcmp0 (lower_name, link_name) != 0 &&
++        get_rps_cpus_config (MM_BROADBAND_MODEM_QMI_QCOM_SOC (self),
++                             lower_name,
++                             &path,
++                             &mask)) {
++        write_rps_cpus (MM_BROADBAND_MODEM_QMI_QCOM_SOC (self),
++                        lower_name,
++                        path,
++                        mask);
++        g_clear_pointer (&path, g_free);
++        g_clear_pointer (&mask, g_free);
++    }
++}
++
+ /*****************************************************************************/
+ 
+ MMBroadbandModemQmiQcomSoc *
+@@ -165,12 +364,29 @@ mm_broadband_modem_qmi_qcom_soc_new (const gchar  *device,
+ static void
+ mm_broadband_modem_qmi_qcom_soc_init (MMBroadbandModemQmiQcomSoc *self)
+ {
++    self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
++                                              MM_TYPE_BROADBAND_MODEM_QMI_QCOM_SOC,
++                                              MMBroadbandModemQmiQcomSocPrivate);
++}
++
++static void
++finalize (GObject *object)
++{
++    MMBroadbandModemQmiQcomSoc *self = MM_BROADBAND_MODEM_QMI_QCOM_SOC (object);
++
++    g_clear_pointer (&self->priv->rps_cpus_config, g_key_file_unref);
++    G_OBJECT_CLASS (mm_broadband_modem_qmi_qcom_soc_parent_class)->finalize (object);
+ }
+ 
+ static void
+ mm_broadband_modem_qmi_qcom_soc_class_init (MMBroadbandModemQmiQcomSocClass *klass)
+ {
++    GObjectClass              *object_class = G_OBJECT_CLASS (klass);
+     MMBroadbandModemQmiClass *broadband_modem_qmi_class = MM_BROADBAND_MODEM_QMI_CLASS (klass);
+ 
++    g_type_class_add_private (object_class, sizeof (MMBroadbandModemQmiQcomSocPrivate));
++
++    object_class->finalize = finalize;
+     broadband_modem_qmi_class->peek_port_qmi_for_data = peek_port_qmi_for_data;
++    broadband_modem_qmi_class->notify_link_up = notify_link_up;
+ }
+diff --git a/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.h b/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.h
+index 92c37beb..8ddc4d46 100644
+--- a/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.h
++++ b/plugins/qcom-soc/mm-broadband-modem-qmi-qcom-soc.h
+@@ -38,6 +38,11 @@ struct _MMBroadbandModemQmiQcomSocClass{
+     MMBroadbandModemQmiClass parent;
+ };
+ 
++struct _MMBroadbandModemQmiQcomSocPrivate {
++    GKeyFile *rps_cpus_config;
++    gboolean  rps_cpus_config_loaded;
++};
++
+ GType mm_broadband_modem_qmi_qcom_soc_get_type (void);
+ 
+ MMBroadbandModemQmiQcomSoc *mm_broadband_modem_qmi_qcom_soc_new (const gchar  *device,
+diff --git a/plugins/qcom-soc/mm-qcom-soc-rps-cpus.conf b/plugins/qcom-soc/mm-qcom-soc-rps-cpus.conf
+new file mode 100644
+index 00000000..b40688eb
+--- /dev/null
++++ b/plugins/qcom-soc/mm-qcom-soc-rps-cpus.conf
+@@ -0,0 +1,14 @@
++# RPS CPU masks for Qualcomm SoC data interfaces.
++#
++# interface_name accepts an exact interface name or a trailing '*' prefix
++# match. In rps_cpus_file, '%s' is replaced with the matched interface name.
++
++[qmapmux]
++interface_name=qmapmux*
++rps_cpus_file=/sys/class/net/%s/queues/rx-0/rps_cpus
++mask=6
++
++[rmnet_ipa0]
++interface_name=rmnet_ipa0
++rps_cpus_file=/sys/class/net/%s/queues/rx-0/rps_cpus
++mask=8
+diff --git a/plugins/tests/test-keyfiles.c b/plugins/tests/test-keyfiles.c
+index f92df9c3..5122eb36 100644
+--- a/plugins/tests/test-keyfiles.c
++++ b/plugins/tests/test-keyfiles.c
+@@ -62,6 +62,14 @@ test_foxconn_t77w968 (void)
+ }
+ #endif
+ 
++#if defined ENABLE_PLUGIN_QCOM_SOC
++static void
++test_qcom_soc_rps_cpus (void)
++{
++    common_test (TESTKEYFILE_QCOM_SOC_RPS_CPUS);
++}
++#endif
++
+ /************************************************************/
+ 
+ int main (int argc, char **argv)
+@@ -74,6 +82,9 @@ int main (int argc, char **argv)
+ #if defined ENABLE_PLUGIN_FOXCONN
+     g_test_add_func ("/MM/test-keyfiles/foxconn/t77w968", test_foxconn_t77w968);
+ #endif
++#if defined ENABLE_PLUGIN_QCOM_SOC
++    g_test_add_func ("/MM/test-keyfiles/qcom-soc/rps-cpus", test_qcom_soc_rps_cpus);
++#endif
+ 
+     return g_test_run ();
+ }
+diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
+index f43f8cc2..fc3c2d13 100644
+--- a/src/mm-bearer-qmi.c
++++ b/src/mm-bearer-qmi.c
+@@ -37,6 +37,7 @@
+ #include "mm-log-object.h"
+ #include "mm-modem-helpers.h"
+ #include "mm-context.h"
++#include "mm-broadband-modem-qmi.h"
+ 
+ G_DEFINE_TYPE (MMBearerQmi, mm_bearer_qmi, MM_TYPE_BASE_BEARER)
+ 
+@@ -2032,6 +2033,25 @@ set_ip_family_ready (QmiClientWds *client,
+     connect_context_step (task);
+ }
+ 
++static void
++notify_modem_link_up (ConnectContext *ctx)
++{
++    MMBroadbandModemQmiClass *qmi_klass;
++
++    if (!MM_IS_BROADBAND_MODEM_QMI (ctx->modem))
++        return;
++
++    qmi_klass = MM_BROADBAND_MODEM_QMI_GET_CLASS (ctx->modem);
++    if (qmi_klass->notify_link_up) {
++        g_autofree gchar *ctx_link_name = NULL;
++
++        ctx_link_name = g_strdup (ctx->link_name);
++        qmi_klass->notify_link_up (MM_BROADBAND_MODEM_QMI (ctx->modem),
++                                   ctx_link_name,
++                                   ctx->link);
++    }
++}
++
+ static void
+ bind_data_port_ready (QmiClientWds *client,
+                       GAsyncResult *res,
+@@ -2062,6 +2082,9 @@ bind_data_port_ready (QmiClientWds *client,
+         return;
+     }
+ 
++    /* Notify the modem that a new link is up */
++    notify_modem_link_up (ctx);
++
+     /* Keep on */
+     ctx->step++;
+     connect_context_step (task);
+@@ -2088,6 +2111,9 @@ bind_mux_data_port_ready (QmiClientWds *client,
+         return;
+     }
+ 
++    /* Notify the modem that a new multiplexed link is up */
++    notify_modem_link_up (ctx);
++
+     /* Keep on */
+     ctx->step++;
+     connect_context_step (task);
+diff --git a/src/mm-broadband-modem-qmi.c b/src/mm-broadband-modem-qmi.c
+index 7bb1f185..f58616a1 100644
+--- a/src/mm-broadband-modem-qmi.c
++++ b/src/mm-broadband-modem-qmi.c
+@@ -13928,6 +13928,7 @@ mm_broadband_modem_qmi_class_init (MMBroadbandModemQmiClass *klass)
+     g_type_class_add_private (object_class, sizeof (MMBroadbandModemQmiPrivate));
+ 
+     klass->peek_port_qmi_for_data = peek_port_qmi_for_data;
++    klass->notify_link_up = NULL;
+ 
+     object_class->finalize = finalize;
+     object_class->dispose = dispose;
+diff --git a/src/mm-broadband-modem-qmi.h b/src/mm-broadband-modem-qmi.h
+index e324d793..5738d4e0 100644
+--- a/src/mm-broadband-modem-qmi.h
++++ b/src/mm-broadband-modem-qmi.h
+@@ -37,6 +37,10 @@ struct _MMBroadbandModemQmi {
+ struct _MMBroadbandModemQmiClass {
+     MMBroadbandModemClass parent;
+ 
++    void     (* notify_link_up)        (MMBroadbandModemQmi  *self,
++                                                      const gchar          *link_name,
++                                                      MMPort               *data);
++
+     MMPortQmi * (* peek_port_qmi_for_data) (MMBroadbandModemQmi  *self,
+                                             MMPort               *data,
+                                             MMQmiDataEndpoint    *out_endpoint,
+-- 
+2.34.1
