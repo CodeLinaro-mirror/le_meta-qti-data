@@ -44,6 +44,7 @@ SRC_URI:append = " \
     file://00038-qti-utopia-Changes-to-update-dns-search-list-to-zebra.conf.patch \
     file://00039-qti-utopia-logupload.patch \
     file://00040-qti-utopia-fix-vpn-passthrough-default-to-false-when-syscfg-unset.patch \
+    file://00041-qti-utopia-lan_IP_DM_fix.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \

@@ -1,0 +1,37 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e1448dc51d3d9dc69f6a61053231d9467afe3845 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Thu, 17 Sep 2026 15:23:22 +0000
+Subject: [PATCH] lan IP DM fix
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/lan_handler.sh | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/source/scripts/init/service.d/lan_handler.sh b/source/scripts/init/service.d/lan_handler.sh
+index 1aa7962..183377f 100755
+--- a/source/scripts/init/service.d/lan_handler.sh
++++ b/source/scripts/init/service.d/lan_handler.sh
+@@ -204,7 +204,12 @@ case "$1" in
+     fi
+ 
+             sysevent set current_lan_ipaddr `sysevent get ipv4_${INST}-ipv4addr`
+-
++            # gw Lan refresh utility alternative - Restarts LAN service to update the LAN configurations for the clients
++            if [ "$BOX_TYPE" = "echo" ]; then
++                if ! /etc/utopia/service.d/service_lan.sh lan-restart; then
++                    echo_t "LAN HANDLER : LAN service restart failed"
++                fi
++            fi
+             if [ "$RG_MODE" = "2" -a x"ready" != x`sysevent get start-misc` ]; then
+ 				echo_t "LAN HANDLER : Triggering DHCP server using LAN status based on RG_MODE:2"
+                 sysevent set lan-status started
+-- 
+2.34.1
+

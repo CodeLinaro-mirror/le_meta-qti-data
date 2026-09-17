@@ -41,6 +41,7 @@ SRC_URI += " \
               file://00030-qti-ccsp-p-and-m_skip-dhcpv6-stateful-autoswitch.patch \
               file://00031-qti-ccsp-p-and-m-Fix_for_zebra_update_issue.patch \
               file://00032-qti-ccsp-p-and-m_firewall_X_QCOM_delTable_fix.patch \
+              file://00033-qti-ccsp-p-and-m-lan_IP_DM_fix.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
