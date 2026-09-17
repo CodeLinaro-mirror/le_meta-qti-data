@@ -1,0 +1,47 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a663babf3a229dd66a84e2941c278163a422eca0 Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Wed, 16 Sep 2026 15:28:51 +0530
+Subject: [PATCH] Fix for deltable (Device.Firewall.X_QCOM.Rule.{i}.) fails with error 9005 on an uncommitted table entry.
+
+[Description]:
+ When dmcli eRT addtable Device.Firewall.X_QCOM.Rule. is called, X_QCOMRule_AddEntry runs and sets pLinkObj->bNew = TRUE. At this point the entry exists only in memory — syscfg is NOT updated (X_QCOMRule_Count remains 0). The entry is only written to syscfg when X_QCOMRule_Commit fires, which is triggered only when a setv or Enable is called on that instance. so X_QCOMRule_DelEntryunconditionally calls  CosaDmlQcomRuleDelEntry even when bNew=TRUE, but a bNew=TRUE entry was never persisted to syscfg — so thesyscfg lookup finds X_QCOMRule_Count=0, fails to locate the instance number, and returns failure.
+
+[Fix]:
+ Skip CosaDmlQcomRuleDelEntry when bNew=TRUE (entry not yet persisted to syscfg) and proceed directly to in-memory cleanup, allowing deltable to succeed regardless of whether the entry was ever committed.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/cosa_firewall_dml.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/source/TR-181/middle_layer_src/cosa_firewall_dml.c b/source/TR-181/middle_layer_src/cosa_firewall_dml.c
+index abe2fa2..80fdbf6 100644
+--- a/source/TR-181/middle_layer_src/cosa_firewall_dml.c
++++ b/source/TR-181/middle_layer_src/cosa_firewall_dml.c
+@@ -2061,9 +2061,15 @@ X_QCOMRule_DelEntry
+ 
+     AnscTraceWarning(("%s...\n", __FUNCTION__));
+ 
+-    if (CosaDmlQcomRuleDelEntry(pLinkObj->InstanceNumber) != ANSC_STATUS_SUCCESS)
++    /* If bNew is TRUE the entry was never committed to syscfg (no setv/Commit
++     * was called after addtable). Skip the syscfg delete for such entries and
++     * proceed directly to in-memory cleanup to allow deltable to succeed. */
++    if (!pLinkObj->bNew)
+     {
+-        return -1;
++        if (CosaDmlQcomRuleDelEntry(pLinkObj->InstanceNumber) != ANSC_STATUS_SUCCESS)
++        {
++            return -1;
++        }
+     }
+ 
+     AnscSListPopEntryByLink((PSLIST_HEADER)&pCosaDMFirewall->FirewallX_QCOMRuleList, &pLinkObj->Linkage);
+-- 
+2.34.1
+
