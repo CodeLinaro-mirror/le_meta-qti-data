@@ -175,6 +175,13 @@ do_install() {
     sed -i "s|^ECM_FRONT_END_SELECTION=.*|ECM_FRONT_END_SELECTION=${ECM_FRONT_END_SELECTION}|" \
         ${D}${sysconfdir}/qca-nss-ecm/config
 
+    # Install factory default copy so restoreFactoryConfig.sh or rdkb p-and-m module can restore this
+    # file to its out-of-box value on a factory reset.
+    install -d ${D}/etc/data/
+    install -m 0644 ${UNPACKDIR}/qca-nss-ecm-config ${D}/etc/data/factory_qca-nss-ecm-config
+    sed -i "s|^ECM_FRONT_END_SELECTION=.*|ECM_FRONT_END_SELECTION=${ECM_FRONT_END_SELECTION}|" \
+        ${D}/etc/data/factory_qca-nss-ecm-config
+
     # Install helper script (converted from OpenWRT init script)
     install -d ${D}${sbindir}/
     install -m 0755 ${UNPACKDIR}/qca-nss-ecm.sh ${D}${sbindir}/qca-nss-ecm.sh
@@ -195,6 +202,7 @@ FILES:${PN} += "/usr/lib/modules/${KERNEL_VERSION}/extra/*"
 FILES:${PN} += "${includedir}/qca-nss-ecm/*"
 FILES:${PN} += "${sysconfdir}/sysctl.d/qca-nss-ecm.conf"
 FILES:${PN} += "${sysconfdir}/qca-nss-ecm/config"
+FILES:${PN} += "/etc/data/factory_qca-nss-ecm-config"
 FILES:${PN} += "${sbindir}/qca-nss-ecm.sh"
 FILES:${PN} += "${bindir}/ecm_dump.sh"
 FILES:${PN} += "${systemd_unitdir}/system/qca-nss-ecm.service"
