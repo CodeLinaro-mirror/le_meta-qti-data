@@ -41,6 +41,7 @@ SRC_URI += " \
     file://00027-qti-Wanmanager-ippt-dummyip-status-fix.patch \
     file://00028-qti-wanmanager-Fix_for_zebra_update_issue.patch \
     file://00029-qti-Wanmanager-packet-stats-handling-for-WLAN-clients.patch \
+    file://00030-qti-Wanmanager_lan_client_boot_kpi.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
