@@ -46,6 +46,7 @@ SRC_URI += " \
     file://0039-qti-rdk-cellularmanager-mm_utc_timestamp_log_update.patch \
     file://0040-qti-rdk-cellularmanager-mm_USIM_pin_retry_attempt_left.patch \
     file://0041-qti-rdk-cellularmanager-mm_IPPT_transition.patch \
+    file://0042-qti-rdk-cellularmanager-mm_code_optimization.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
