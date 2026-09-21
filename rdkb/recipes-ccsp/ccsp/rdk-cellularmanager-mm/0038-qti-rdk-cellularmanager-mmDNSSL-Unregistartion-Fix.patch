@@ -1,0 +1,94 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From d6c0d0580bd11f73ae04c11e7dcc2cfb6620f7a4 Mon Sep 17 00:00:00 2001
+From: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+Date: Wed, 12 Aug 2026 16:43:10 +0530
+Subject: DNSSL-Unregistartion-Fix
+Signed-off-by: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+
+---
+ source/CellularManager/cellularmgr_sm.c       |  7 ------
+ .../middle_layer_src/cellularmgr_rbus_dml.c   | 23 +++++++++++--------
+ 2 files changed, 14 insertions(+), 16 deletions(-)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 1f927cd..3226676 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -1865,13 +1865,6 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+             CcspTraceInfo(("%s %d - New state: %d ,Previous state :%d  \n", __FUNCTION__, __LINE__,policy_sm_state,policy_sm_state_old));
+ 
+ #ifdef CM_PROP_SUPPORTED
+-            /* Register HAL callback and manage WWAN_STATUS_IND subscription */
+-            if (gpstCellularPolicyCtrl != NULL)
+-            {
+-                CellularMgr_extn_SM_OnStateChange(
+-                    policy_sm_state, policy_sm_state_old,
+-                    (void *)gpstCellularPolicyCtrl->pstDmlCellular, 0);
+-            }
+             /* Direct DNSSL fetch/clear using policy_sm_state — avoids
+              * CellularMgrSMGetCurrentState() timing issue */
+             if (policy_sm_state == CELLULAR_STATE_CONNECTED &&
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index bffd40e..36e2298 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -245,16 +245,18 @@ rbusError_t cellularmgr_Init()
+     if (Sample_RegisterRow(CELLULARMGR_ACCESSPOINT_TABLE, apindex[0], NULL, NULL) != RBUS_ERROR_SUCCESS) //starting with row index as read from PSM
+     {
+         CcspTraceError(("%s-%d : Failed to Add AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (apindex[0]), CELLULARMGR_ACCESSPOINT_TABLE));
++    }
+ #ifdef CM_PROP_SUPPORTED
+     {
+         pstDmlCellular->pstAPInfo->stCellularAccessPointInfoExtn.stDnsslInfo.ulDNSSLNoOfEntries = 1;
+         char dnssl_param[256] = {0};
+         snprintf(dnssl_param, sizeof(dnssl_param), "Device.Cellular.AccessPoint.%d.X_QCOM.IPv6.DNSSL.", apindex[0]);
+         if (Sample_RegisterRow(dnssl_param, 1, NULL, NULL) != RBUS_ERROR_SUCCESS)
++        {
+             CcspTraceError(("%s-%d : Failed to Add DNSSL Inst Table(%s) \n", __FUNCTION__, __LINE__, dnssl_param));
++        }
+     }
+ #endif /* CM_PROP_SUPPORTED */
+-    }
+ 
+     if (apindex != NULL)
+     {
+@@ -354,6 +356,17 @@ rbusError_t cellularmgr_Unload()
+         {
+             CcspTraceError(("%s-%d : Failed to Del AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (k+1), paramName));
+         }
++#ifdef CM_PROP_SUPPORTED
++        {
++            CELLULAR_TABLE_TYPE tableType = X_QCOM_IPv6_DNSSL_TABLE_TYPE;
++            if (RBUS_ERROR_SUCCESS != Cellular_Row_Unregistration(tableType, k,
++                                          &(pstAPInfo->stCellularAccessPointInfoExtn)))
++            {
++                CcspTraceError(("%s-%d : Failed to Delete DNSSL Inst for AP %d\n",
++                               __FUNCTION__, __LINE__, k));
++            }
++        }
++#endif /* CM_PROP_SUPPORTED */
+     }
+ #else
+     for(int k = 0; k < pstDmlCellular->ulAccessPointNoOfEntries; k++)
+@@ -361,14 +374,6 @@ rbusError_t cellularmgr_Unload()
+         if (Sample_UnregisterRow(CELLULARMGR_ACCESSPOINT_TABLE, (k+1)) != RBUS_ERROR_SUCCESS)
+         {
+              CcspTraceError(("%s-%d : Failed to Del AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (k+1), paramName));
+-#ifdef CM_PROP_SUPPORTED
+-        {
+-            char dnssl_param[256] = {0};
+-            snprintf(dnssl_param, sizeof(dnssl_param), "Device.Cellular.AccessPoint.%d.X_QCOM.IPv6.DNSSL.", 1);
+-            if (Sample_UnregisterRow(dnssl_param, 1) != RBUS_ERROR_SUCCESS)
+-                CcspTraceError(("%s-%d : Failed to Del DNSSL Inst Table(%s) \n", __FUNCTION__, __LINE__, dnssl_param));
+-        }
+-#endif /* CM_PROP_SUPPORTED */
+         }
+     }
+ #endif
+-- 
+2.34.1
+

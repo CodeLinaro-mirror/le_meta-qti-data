@@ -1,0 +1,78 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 089aa65a5d046a329b213c661168062617ff0c9a Mon Sep 17 00:00:00 2001
+From: Venkata Pavan Karthikeya Koppala <vkoppala@qti.qualcomm.com>
+Date: Wed, 9 Sep 2026 11:05:58 +0530
+Subject: [PATCH] Cellular Manager RefCount Changes
+Signed-off-by: Venkata Pavan Karthikeya Koppala <vkoppala@qti.qualcomm.com>
+
+---
+source/CellularManager/Makefile.am                    | 2 +-
+ source/CellularManager/cellularmgr_sm.c               | 4 ++--
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c | 5 +++++
+ 3 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/source/CellularManager/Makefile.am b/source/CellularManager/Makefile.am
+index 6476f7d..2c84d40 100755
+--- a/source/CellularManager/Makefile.am
++++ b/source/CellularManager/Makefile.am
+@@ -46,7 +46,7 @@ if HYBRID_SUPPORT
+ cellularmanager_SOURCES += cellular_hal_device_abstraction.c cellular_hal_device_manager.c cellular_hal_rndis_apis.c cellular_hal_modem_apis.c
+ cellularmanager_CFLAGS += -DHYBRID_SUPPORT
+ else
+-cellularmanager_SOURCES += cellular_hal_qmi_apis.c cellular_hal_mm_apis.c cellular_hal_mm_apis_extn.c cellular_hal_extn.c cellularmgr_cellular_apis_extn.c cellularmgr_sm_extn.c
++cellularmanager_SOURCES += cellular_hal_qmi_apis.c cellular_hal_mm_apis.c cellular_hal_mm_apis_extn.c cellular_hal_extn.c cellularmgr_cellular_apis_extn.c cellularmgr_sm_extn.c cellularmgr_bh_refcount.c
+ cellularmanager_CFLAGS += -DMM_SUPPORT
+ endif
+ cellularmanager_LDFLAGS = -lccsp_common -ldl $(SYSTEMD_LDFLAGS) -lrdkloggers -lsyscfg -lnanomsg -lsysevent -lwebconfig_framework -lsecure_wrapper -lmsgpackc -lcurl -ltrower-base64
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index e11e250..20bec4c 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -779,7 +779,7 @@ static CellularPolicySmState_t TransitionDown( void )
+     {
+         CcspTraceInfo(("%s %d: Failed to set LinkStatus in Interface table\n", __FUNCTION__, __LINE__));
+     }
+-
++    CellularMgr_extn_OnBearerDown();
+     return CELLULAR_STATE_DOWN;
+ }
+ 
+@@ -1158,7 +1158,7 @@ static CellularPolicySmState_t TransitionConnectedStopNetwork( void )
+         CcspTraceInfo(("%s %d - State changed to CELLULAR_STATE_REGISTERED \n", __FUNCTION__, __LINE__));
+         CellularMgrSMSetCurrentState(CELLULAR_STATE_REGISTERED);
+     }
+-
++    CellularMgr_extn_OnBearerDown();
+     return CELLULAR_STATE_REGISTERED;
+ }
+ 
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index b498acc..6bbac23 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3726,6 +3726,8 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.X_RDK_Status", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_GetParamStringValue_rbus, NULL, NULL, NULL, CellularMgrDmlPublishEventHandler, NULL}},
+ #ifdef CM_EXTN_SUPPORTED
+         {"Device.Cellular.X_QCOM.AutoConnect", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamBoolValue_rbus, Cellular_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.X_QCOM.AllowInternalClientCall", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_AllowInternalClientCall_GetHandler_rbus, Cellular_extn_AllowInternalClientCall_SetHandler_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.FlushQcmapClients", RBUS_ELEMENT_TYPE_METHOD, {NULL, NULL, NULL, NULL, NULL, Cellular_extn_FlushQcmapClients_MethodHandler_rbus}},
+         {"Device.Cellular.RoamingStatus", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #endif
+ #ifdef CM_PROP_SUPPORTED
+@@ -3941,6 +3943,9 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.AccessPoint.{i}.IPv6Address", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.Type", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.ConnectBackHaul", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamBoolValue_rbus, Cellular_AccessPoint_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.connect_backhaul", RBUS_ELEMENT_TYPE_METHOD, {NULL, NULL, NULL, NULL, NULL, Cellular_AccessPoint_extn_ConnectBackhaul_MethodHandler_rbus}},
++        {"Device.Cellular.AccessPoint.{i}.disconnect_backhaul", RBUS_ELEMENT_TYPE_METHOD, {NULL, NULL, NULL, NULL, NULL, Cellular_AccessPoint_extn_DisconnectBackhaul_MethodHandler_rbus}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.ClientCount", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_extn_GetClientCount_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #ifdef CM_PROP_SUPPORTED
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.DataUsage.Reset", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_extn_GetParamBoolValue_rbus, Data_Usage_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.DataUsage.LTE.TotalReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_4G_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+-- 
+2.34.1
+

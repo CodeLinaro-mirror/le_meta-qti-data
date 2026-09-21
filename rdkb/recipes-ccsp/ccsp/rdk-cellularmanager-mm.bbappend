@@ -41,6 +41,8 @@ SRC_URI += " \
     file://0034-qti-rdk-cellularmanager-mm_carrier_aggregation.patch \
     file://0035-qti-rdk-cellularmanager-mm_factory_test_mode_fix.patch \
     file://0036-qti-rdk-cellularmanager-mm_KPI_marker.patch \
+    file://0037-qti-rdk-cellularmanager-mm_refcount.patch \
+    file://0038-qti-rdk-cellularmanager-mmDNSSL-Unregistartion-Fix.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
@@ -78,6 +80,7 @@ do_configure:prepend() {
 
     cp ${UNPACKDIR}/RdkCellularManager-MM/CellularManager_extn/CellularManager/* ${S}/source/CellularManager/
     cp ${UNPACKDIR}/RdkCellularManager-MM/CellularManager_extn/TR-181/middle_layer_src/* ${S}/source/TR-181/middle_layer_src/
+
     if ${@bb.utils.contains_any('DISTRO_FEATURES', 'WanFailOverSupportEnable rdkb_cellular_manager', 'true', 'false', d)}; then
         (${PYTHON} ${STAGING_BINDIR_NATIVE}/dm_pack_code_gen.py ${S}/config/RdkCellularManager.xml ${S}/source/CellularManager/dm_pack_datamodel.c)
     fi
