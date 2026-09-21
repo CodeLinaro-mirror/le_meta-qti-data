@@ -1,0 +1,49 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From c78985790af98a179ee38a1e407cad8fe136b118 Mon Sep 17 00:00:00 2001
+From: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+Date: Mon, 21 Sep 2026 04:34:25 +0000
+Subject: [PATCH] Stale ip fix in CDI
+
+Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index 78307fe..a7037f8 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -2980,6 +2980,25 @@ static void releaseIPOnDisconnect()
+             CcspTraceWarning(("%s:%d DHCP release IP %s MAC %s \n", __FUNCTION__, __LINE__, dnsmasqIP,dnsmasqMAC));
+             v_secure_system("dhcp_release brlan0 %s %s",dnsmasqIP,dnsmasqMAC);
+             counter--;
++            /* dhcp_release is a no-op once no-dhcp-interface=brlan0 is set
++             * (DHCP server disabled); verify the lease line is actually
++             * gone and force-remove it directly if dhcp_release failed. */
++            {
++                char checkCmd[192] = {0};
++                char stillPresent[8] = {0};
++                snprintf(checkCmd, sizeof(checkCmd), "grep -ci %s /nvram/dnsmasq.leases", dnsmasqMAC);
++                fp1 = popen(checkCmd, "r");
++                if (fp1 != NULL)
++                {
++                    fgets(stillPresent, sizeof(stillPresent), fp1);
++                    pclose(fp1);
++                }
++                if (atoi(stillPresent) > 0)
++                {
++                    CcspTraceWarning(("%s:%d dhcp_release no-op, purging stale lease for MAC %s directly\n", __FUNCTION__, __LINE__, dnsmasqMAC));
++                    v_secure_system("sed -i '/%s/Id' /nvram/dnsmasq.leases", dnsmasqMAC);
++                }
++            }
+         }
+     }
+ }
+-- 
+2.34.1
+
