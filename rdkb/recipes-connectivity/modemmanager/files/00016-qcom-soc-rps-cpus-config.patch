@@ -384,7 +384,7 @@ index 00000000..b40688eb
 +[qmapmux]
 +interface_name=qmapmux*
 +rps_cpus_file=/sys/class/net/%s/queues/rx-0/rps_cpus
-+mask=6
++mask=c
 +
 +[rmnet_ipa0]
 +interface_name=rmnet_ipa0
