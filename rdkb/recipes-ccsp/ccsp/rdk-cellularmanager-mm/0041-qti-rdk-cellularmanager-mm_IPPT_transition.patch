@@ -1,0 +1,30 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 89eacdcb9bab2df18799f7180661687970a6c0b9 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Tue, 22 Sep 2026 09:45:16 +0000
+Subject: Added fix to set ippt_transition back to 0 after reboot/LPM/SSR while IPPT is still enabled
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/cellularmgr_utils.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+Index: git/source/TR-181/middle_layer_src/cellularmgr_utils.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cellularmgr_utils.c
++++ git/source/TR-181/middle_layer_src/cellularmgr_utils.c
+@@ -51,6 +51,10 @@ int CellularMgr_Util_SendIPToWanMgr( Cel
+         CcspTraceInfo(("%s - Invalid params received \n", __FUNCTION__));
+         return RETURN_ERROR;
+     }
++  #ifdef CM_EXTN_SUPPORTED
++    //The 'ippt_transition' sysevent will be set to 1 when IPPT is enabled, and reset to 0 after reboot/LPM/SSR while IPPT is still enabled.
++    sysevent_set(sysevent_fd, sysevent_token, "ippt_transition", "0", 0);
++  #endif
+ 
+     if( CELLULAR_NETWORK_IP_FAMILY_IPV4 == pstIPStruct->IPType )
+     {
