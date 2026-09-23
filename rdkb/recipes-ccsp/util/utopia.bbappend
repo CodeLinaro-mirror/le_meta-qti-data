@@ -46,6 +46,7 @@ SRC_URI:append = " \
     file://00040-qti-utopia-fix-vpn-passthrough-default-to-false-when-syscfg-unset.patch \
     file://00041-qti-utopia-lan_IP_DM_fix.patch \
     file://00042-qti-utopia-timestamp_Fix.patch \
+    file://00044-qti-utopia-connmark_entry_empty_tcp_udp_fix.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
