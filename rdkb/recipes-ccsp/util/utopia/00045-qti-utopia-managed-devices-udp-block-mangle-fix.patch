@@ -1,0 +1,89 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Wed, 16 Sep 2026 00:00:00 +0000
+Subject: [PATCH] Block UDP uplink traffic for managed devices when AllowAll is false
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+---
+ source/firewall/firewall.c | 22 +++++++++++++++++++---
+ 1 file changed, 19 insertions(+), 3 deletions(-)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -9292,7 +9292,7 @@ int do_dns_route(FILE *nat_fp, int iptyp
+  *     0               : done
+  */
+ 
+-static int do_parcon_mgmt_device(FILE *fp, int iptype, FILE *cron_fp);
++static int do_parcon_mgmt_device(FILE *fp, FILE *mangle_fp, int iptype, FILE *cron_fp);
+ static int do_parcon_device_cloud_mgmt(FILE *fp, int iptype, FILE *cron_fp);
+ static int do_parcon_mgmt_service(FILE *fp, FILE *mangle_fp, FILE *raw_fp, int iptype, FILE *cron_fp);
+ static int do_parcon_mgmt_site_keywd(FILE *raw_fp, FILE *fp, FILE *mangle_fp, FILE *nat_fp, int iptype, FILE *cron_fp);
+@@ -9325,7 +9325,7 @@ int do_parental_control(FILE *fp,FILE *n
+ 			do_parcon_device_cloud_mgmt(nat_fp, iptype, cron_fp);
+ 		}
+ 		else
+-    		do_parcon_mgmt_device(nat_fp, iptype, cron_fp);
++                do_parcon_mgmt_device(nat_fp, mangle_fp, iptype, cron_fp);
+ 	}
+ 	else
+ 	{
+@@ -9334,7 +9334,7 @@ int do_parental_control(FILE *fp,FILE *n
+ 		do_parcon_device_cloud_mgmt(nat_fp,iptype, NULL);
+ 		}
+ 		else
+-		do_parcon_mgmt_device(nat_fp,iptype, NULL);
++                do_parcon_mgmt_device(nat_fp, mangle_fp, iptype, NULL);
+ 		
+ 	}
+ #ifndef CONFIG_CISCO_FEATURE_CISCOCONNECT
+@@ -9352,7 +9352,7 @@ int do_parental_control(FILE *fp,FILE *n
+ /*
+  * add parental control managed device rules
+  */
+-static int do_parcon_mgmt_device(FILE *fp, int iptype, FILE *cron_fp)
++static int do_parcon_mgmt_device(FILE *fp, FILE *mangle_fp, int iptype, FILE *cron_fp)
+ {
+    int rc,flag = 0;
+    char query[MAX_QUERY];
+@@ -9404,6 +9404,8 @@ static int do_parcon_mgmt_device(FILE *f
+          if(flag == 1)
+          {
+             fprintf(fp, "-A prerouting_devices -p tcp -m mac --mac-source %s -j ACCEPT\n",query);
++            //When managed device is given blockall and particular device or devices is ACCEPTED based on MAC provided
++            fprintf(mangle_fp, "-A PREROUTING -i brlan0 -m mac --mac-source %s -j ACCEPT\n",query);
+          }
+          else
+          {
+@@ -9416,6 +9418,11 @@ static int do_parcon_mgmt_device(FILE *f
+ 			fprintf(fp, "-A LOG_DeviceBlocked_%d_DROP -j prerouting_redirect\n", idx);
+ 			fprintf(fp, "-A prerouting_devices -p tcp -m mac --mac-source %s -j LOG_DeviceBlocked_%d_DROP\n",query,idx);
+ 			fprintf(fp, "-A prerouting_devices -p udp -m mac --mac-source %s -j LOG_DeviceBlocked_%d_DROP\n",query,idx);
++                        fprintf(mangle_fp, "-A PREROUTING -i brlan0 -p tcp -m mac --mac-source %s -j DROP\n",query);
++                        fprintf(mangle_fp, "-A PREROUTING -i brlan0 -p udp -m mac --mac-source %s -j DROP\n",query);
++                        fprintf(mangle_fp, "-I PREROUTING -i brlan0 -p tcp --dport 80 -m mac --mac-source %s -j ACCEPT\n",query);
++                        fprintf(mangle_fp, "-I PREROUTING -i brlan0 -p tcp --dport 443 -m mac --mac-source %s -j ACCEPT\n",query);
++                        fprintf(mangle_fp, "-I PREROUTING -i brlan0 -p udp -m multiport --dport 67,68 -m mac --mac-source %s -j ACCEPT\n",query);
+ #endif /* 0 */
+             if(cron_fp)
+             {
+@@ -9435,6 +9442,11 @@ static int do_parcon_mgmt_device(FILE *f
+ 		fprintf(fp, "-A LOG_DeviceBlocked_DROP -j prerouting_redirect\n");
+ 
+         fprintf(fp, "-A prerouting_devices -p tcp -j LOG_DeviceBlocked_DROP\n");
++        fprintf(mangle_fp, "-A PREROUTING -i brlan0 -p tcp -j DROP\n");
++        fprintf(mangle_fp, "-A PREROUTING -i brlan0 -p udp -j DROP\n");
++        fprintf(mangle_fp, "-I PREROUTING -i brlan0 -p tcp --dport 80 -j ACCEPT\n");
++        fprintf(mangle_fp, "-I PREROUTING -i brlan0 -p tcp --dport 443 -j ACCEPT\n");
++        fprintf(mangle_fp, "-I PREROUTING -i brlan0 -p udp -m multiport --dport 67,68 -j ACCEPT\n");
+ #endif /* 0 */
+       }
+    }

@@ -47,6 +47,7 @@ SRC_URI:append = " \
     file://00041-qti-utopia-lan_IP_DM_fix.patch \
     file://00042-qti-utopia-timestamp_Fix.patch \
     file://00044-qti-utopia-connmark_entry_empty_tcp_udp_fix.patch \
+    file://00045-qti-utopia-managed-devices-udp-block-mangle-fix.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
