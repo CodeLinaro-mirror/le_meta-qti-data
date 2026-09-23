@@ -1,0 +1,33 @@
+This patch file is from Qualcomm Technologies, Inc.
+are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 41c833c0c5ef2f1ca2b474b9290874a1ba2fc726 Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Tue, 22 Sep 2026 11:08:10 +0000
+Subject: [PATCH] Eth WAN SLAAC default route addition fix
+
+[Description] : Here the WanMgr_Configure_accept_ra is called with FALSE which sets the accept_ra_defrtr proc to 0 which blocks the default route from getting added when the RA is received. hence when the ip source is SLAAC we are passing WanMgr_Configure_accept_ra with TRUE so that all the proc is properly set.
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+Index: git/source/WanManager/wanmgr_interface_sm.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_interface_sm.c
++++ git/source/WanManager/wanmgr_interface_sm.c
+@@ -2625,6 +2625,10 @@ static eWanState_t wan_transition_wan_va
+              CcspTraceInfo(("%s %d - Started dhcpc on interface %s, dhcpv4_pid %d \n",
+                            __FUNCTION__, __LINE__, p_VirtIf->Name, p_VirtIf->IP.Dhcp4cPid));
+         }
++        if (p_VirtIf->IP.IPv6Source == DML_WAN_IP_SOURCE_SLAAC && (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK || p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV6_ONLY))
++        {
++             WanMgr_Configure_accept_ra(p_VirtIf, TRUE);
++        }
+         if (p_VirtIf->IP.IPv6Source == DML_WAN_IP_SOURCE_DHCP && (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK || p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV6_ONLY))
+         {
+               p_VirtIf->IP.Dhcp6cPid = WanManager_StartDhcpv6Client(p_VirtIf, pInterface->IfaceType);
