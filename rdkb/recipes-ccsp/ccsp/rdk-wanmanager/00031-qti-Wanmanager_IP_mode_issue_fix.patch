@@ -1,0 +1,64 @@
+This patch file is from Qualcomm Technologies, Inc.
+are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 691cec8da9aad7fa9e003dd64818a3a2343f5a50 Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Fri, 11 Sep 2026 05:02:19 +0000
+Subject: [PATCH] IP_mode_issue_fix
+
+[Description] : Here the WanMgr_UpdateIpFromCellularMgr function will resend the IP info from the wan manager, which can be triggered even when the modem itself is not in connected state causing the wan manager state machine to end up in the wrong state, hence removed this code. Now IP.Mode for cellular should be completely handled from the Cellular manager itself as we are only informed Cellular manager of the IP.Mode change.
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 25 -------------------------
+ 1 file changed, 25 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index 3599972..0c4e3d7 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -4108,24 +4108,6 @@ static eWanState_t wan_state_obtaining_ip_addresses(WanMgr_IfaceSM_Controller_t*
+     // Ip source changed changed to TRUE
+     if (p_VirtIf->IP.RefreshDHCP == TRUE)
+     {
+-        /* Cellular-specific IP mode change handling.
+-         * Cellular does not use DHCPv4 (IPv4 is fetched directly from cellular manager).
+-         * IPv6 uses DHCPv6 client as a transport to receive FIFO data from P&M. */
+-        if(strstr(pInterface->BaseInterface, "Cellular") != NULL)
+-        {
+-            /* IPv4: fetch from cellular manager if mode requires it */
+-            if(p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV4_ONLY ||
+-               p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK)
+-            {
+-                /* Re-fetch IPv4 from cellular manager. pIpcIpv4Data was already
+-                 * freed in wan_tearDownIPv4 so the guard inside the function is satisfied. */
+-                WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
+-                CcspTraceInfo(("%s %d - Cellular: re-fetching IPv4 from cellular manager\n", __FUNCTION__, __LINE__));
+-            }
+-            p_VirtIf->IP.RefreshDHCP = FALSE;
+-            return WAN_STATE_OBTAINING_IP_ADDRESSES;
+-        }
+-
+         if(p_VirtIf->IP.IPv4Source == DML_WAN_IP_SOURCE_DHCP &&
+            (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV4_ONLY || p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK))
+         {
+@@ -4422,13 +4404,6 @@ static eWanState_t wan_state_ipv6_leased(WanMgr_IfaceSM_Controller_t* pWanIfaceC
+         WanManager_StartDhcpv4Client(p_VirtIf, pInterface->Name, pInterface->IfaceType);
+         CcspTraceInfo(("%s %d - Started dhcpc on interface %s\n", __FUNCTION__, __LINE__, p_VirtIf->Name));
+         CcspTraceInfo(("%s %d - Interface '%s' - Running in Dual Stack IP Mode\n", __FUNCTION__, __LINE__, pInterface->Name));
+-        if(strstr(pInterface->BaseInterface, "Cellular") != NULL)
+-        {
+-            /* Cellular does not use DHCPv4. Fetch IPv4 directly from cellular manager.
+-             * pIpcIpv4Data is NULL and Ipv4Status is DOWN since we were in IPv6-only mode. */
+-            WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
+-            CcspTraceInfo(("%s %d - Cellular: fetching IPv4 from cellular manager for DualStack mode\n", __FUNCTION__, __LINE__));
+-        }
+     }
+ 
+     // Start DHCP apps if not started
+-- 
+2.34.1
+
