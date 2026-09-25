@@ -1,0 +1,51 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 19cdf533f961fed42e9ddcbd5e788475a88a3dd8 Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Wed, 23 Sep 2026 15:15:45 +0530
+Subject: [PATCH] FORWARD_chain_empty
+
+[Description]:
+Addressed for tcp_udp rules with wildcard IPs and ports, rule_form was not set to 1, preventing the required iptables FORWARD marking rule from being created.
+
+[Fix]:
+Added rule_form = 1 inside the tcp_udp branch in both firewall.c and
+firewall_ipv6.c, making it consistent with how tcp and udp already handle the same flag.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/firewall/firewall.c      | 1 +
+ source/firewall/firewall_ipv6.c | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 5a7b5f6..72b6942 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -3240,6 +3240,7 @@ static int do_x_qcomrule_firewall(FILE* mangle_fp)
+                 strlcpy(rule_udp, rule, sizeof(rule_udp));
+                 strlcat(rule, " -p tcp",sizeof(rule));
+                 strlcat(rule_udp, " -p udp",sizeof(rule_udp));
++                rule_form = 1;
+             }
+             char source_port[15]={0};
+             rc = syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
+diff --git a/source/firewall/firewall_ipv6.c b/source/firewall/firewall_ipv6.c
+index 115cb49..84de61d 100644
+--- a/source/firewall/firewall_ipv6.c
++++ b/source/firewall/firewall_ipv6.c
+@@ -2137,6 +2137,7 @@ int do_x_qcomrule_firewall_v6(FILE* mangle_fp)
+                 strlcpy(rule_udp, rule, sizeof(rule_udp));
+                 strlcat(rule, " -p tcp",sizeof(rule));
+                 strlcat(rule_udp, " -p udp",sizeof(rule_udp));
++                rule_form = 1;
+             }
+             char source_port[15]={0};
+             rc = syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
+-- 
+2.34.1
+

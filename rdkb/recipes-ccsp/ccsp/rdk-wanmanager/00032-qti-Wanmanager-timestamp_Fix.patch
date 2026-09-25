@@ -1,0 +1,60 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 4f8bdb6dac0b8890904767b244d5416f3c505bda Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Thu, 17 Sep 2026 10:02:03 +0530
+Subject: [PATCH] WM_TimeStamp_Fix
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_network_monitor.c | 24 ++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_network_monitor.c b/source/WanManager/wanmgr_network_monitor.c
+index d4f4542..fb1ef11 100644
+--- a/source/WanManager/wanmgr_network_monitor.c
++++ b/source/WanManager/wanmgr_network_monitor.c
+@@ -23,6 +23,9 @@
+ #include <linux/netlink.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/if_addr.h>
++#include <stdio.h>
++#include <sys/time.h>
++#include <time.h>
+ #include <net/if.h>
+ #include "ipc_msg.h"
+ #include "wanmgr_network_monitor.h"
+@@ -45,14 +48,19 @@ static fd_set errorFdsMaster;
+ static bool g_toggle_flag = TRUE;
+ #define CONSOLE_LOG_FILE       "/rdklogs/logs/WANMANAGERLog.txt.0"
+ 
+-#define DBG_MONITOR_PRINT(fmt ...)     {\
+-    FILE     *fp        = NULL;\
+-    fp = fopen ( CONSOLE_LOG_FILE, "a+");\
+-    if (fp)\
+-    {\
+-        fprintf(fp,fmt);\
+-        fclose(fp);\
+-    }\
++#define DBG_MONITOR_PRINT(fmt ...) { \
++    struct timeval _dbg_tv; \
++    struct tm _dbg_tm; \
++    char _dbg_ts[32] = {0}; \
++    gettimeofday(&_dbg_tv, NULL); \
++    gmtime_r(&_dbg_tv.tv_sec, &_dbg_tm); \
++    strftime(_dbg_ts, sizeof(_dbg_ts), "%y%m%d-%T", &_dbg_tm); \
++    FILE *fp = fopen(CONSOLE_LOG_FILE, "a+"); \
++    if (fp) { \
++        fprintf(fp, "%s.%06ld ", _dbg_ts, (long)_dbg_tv.tv_usec); \
++        fprintf(fp, fmt); \
++        fclose(fp); \
++    } \
+ }
+ #define UPDATE_MAXFD(f) (maxFd = (f > maxFd) ? f : maxFd)
+ 
+-- 
+2.34.1
+

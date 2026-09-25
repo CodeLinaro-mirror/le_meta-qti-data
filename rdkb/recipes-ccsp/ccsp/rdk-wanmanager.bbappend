@@ -43,6 +43,7 @@ SRC_URI += " \
     file://00029-qti-Wanmanager-packet-stats-handling-for-WLAN-clients.patch \
     file://00030-qti-Wanmanager_lan_client_boot_kpi.patch \
     file://00031-qti-Wanmanager_IP_mode_issue_fix.patch \
+    file://00032-qti-Wanmanager-timestamp_Fix.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "
