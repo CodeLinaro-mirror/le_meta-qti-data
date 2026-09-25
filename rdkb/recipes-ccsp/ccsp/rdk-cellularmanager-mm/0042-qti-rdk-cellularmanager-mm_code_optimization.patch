@@ -1,0 +1,288 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From a543dcb17160b704da942e09980aba936d2cef92 Mon Sep 17 00:00:00 2001
+From: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+Date: Wed, 23 Sep 2026 11:08:15 +0000
+Subject: Cellular Manager code optimization changes
+Signed-off-by: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal_mm_apis.c | 47 +++++++++++++++++--
+ .../CellularManager/cellular_hal_modem_apis.c |  2 +-
+ .../CellularManager/cellular_hal_qmi_apis.c   |  3 +-
+ .../cellularmgr_cellular_apis.c               | 16 +++++++
+ .../cellularmgr_cellular_internal.c           |  4 +-
+ .../cellularmgr_cellular_dml.c                |  4 +-
+ .../middle_layer_src/cellularmgr_rbus_dml.c   | 20 ++++++--
+ 7 files changed, 80 insertions(+), 16 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 8d714a1..60e91a4 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -948,7 +948,12 @@ static void register_signal(MMModem *modem)
+             /* Old modem could later be invalid, so untrack it here */
+             g_object_add_weak_pointer(G_OBJECT(savedModem), (gpointer *)&savedModem);
+             /*This code piece is used to watch dbus interface to detect MM failure*/
+-            mm_watch_id =  g_bus_watch_name(
++            if(mm_watch_id > 0)
++            {
++                 g_bus_unwatch_name(mm_watch_id);
++                 mm_watch_id = 0;
++            }
++           mm_watch_id =  g_bus_watch_name(
+                 G_BUS_TYPE_SYSTEM,
+                 "org.freedesktop.ModemManager1",
+                 G_BUS_NAME_WATCHER_FLAGS_NONE,
+@@ -1733,7 +1738,7 @@ INT cellular_hal_mm_get_bearer_properties_list (CHAR *modemIndex, CellularProfil
+                 totalCount = g_list_length(bearers);
+                 pfStruct = (CellularProfileStruct*)malloc(sizeof(CellularProfileStruct)*totalCount);
+                 if(NULL == pfStruct)
+-                    return RETURN_ERROR;
++                    goto cleanup;
+ 
+                 memset(pfStruct, 0, sizeof(CellularProfileStruct)*totalCount);
+                 for (list = bearers, i = 0; list, i < totalCount; list = g_list_next (list), i++)
+@@ -1810,14 +1815,17 @@ INT cellular_hal_mm_get_bearer_properties_list (CHAR *modemIndex, CellularProfil
+                                         }
+ 
+                                         if(profiles)
++                                        {
+                                             g_list_free_full(profiles , g_object_unref);
++                                            profiles = NULL;
++                                        }
+                                     }
+ #else
+                                     strlcpy(bearerIndex, bearPath+strlen(BEARER_PATH_PREFIX), IDX_SIZE);
+                                     pfStruct[i].ProfileID = atoi(bearerIndex);
+ #endif
+-                                    g_clear_object (&properties);
+                                 }
++                                g_clear_object (&properties);
+                             }
+                         }
+                     }
+@@ -1825,10 +1833,39 @@ INT cellular_hal_mm_get_bearer_properties_list (CHAR *modemIndex, CellularProfil
+                 *pstProfileOutput = pfStruct;
+                 *profile_count = totalCount;
+                 res = RETURN_OK;
+-                g_list_free_full (bearers, g_object_unref);
+             }
+         }
+     }
++
++cleanup:
++    if (properties)
++        g_clear_object (&properties);
++
++    if (profiles)
++    {
++        g_list_free_full(profiles, g_object_unref);
++        profiles = NULL;
++    }
++
++    if (bearers)
++    {
++        g_list_free_full (bearers, g_object_unref);
++        bearers = NULL;
++    }
++
++#ifdef CM_EXTN_SUPPORTED
++    if (modem_3gpp_profile_manager)
++    {
++        g_object_unref(modem_3gpp_profile_manager);
++        modem_3gpp_profile_manager = NULL;
++    }
++#endif
++
++    if ((RETURN_OK != res) && (NULL != pfStruct))
++    {
++        free(pfStruct);
++        pfStruct = NULL;
++    }
+     context_free(ctx);
+     return res;
+ }
+@@ -2932,6 +2969,7 @@ void on_modem_manager_vanished(GDBusConnection *connection, const gchar *name, g
+     gulong stateId = 0;
+ 
+     g_bus_unwatch_name(mm_watch_id);
++    mm_watch_id = 0;
+ 
+ #ifdef CM_EXTN_SUPPORTED
+     pthread_mutex_lock(&hashTableMutex);
+@@ -3036,6 +3074,7 @@ void cellular_hal_unwatch_modem_interface(void)
+     if(0 < mm_watch_id)
+     {
+         g_bus_unwatch_name(mm_watch_id);
++        mm_watch_id = 0;
+         CELLULAR_HAL_DBG_PRINT("%s:%d - unwatching modem dbus inteface\n", __FUNCTION__, __LINE__);
+     }
+ }
+diff --git a/source/CellularManager/cellular_hal_modem_apis.c b/source/CellularManager/cellular_hal_modem_apis.c
+index 0104a81..ef0f8f5 100644
+--- a/source/CellularManager/cellular_hal_modem_apis.c
++++ b/source/CellularManager/cellular_hal_modem_apis.c
+@@ -554,7 +554,7 @@ static bool get_bearer_info (CHAR *index)
+             g_clear_object (&ipv6_config);
+         }
+     }
+-
++    return res;
+ }
+ 
+ // Function to get the connected bearer info.
+diff --git a/source/CellularManager/cellular_hal_qmi_apis.c b/source/CellularManager/cellular_hal_qmi_apis.c
+index 66dd865..a53c250 100644
+--- a/source/CellularManager/cellular_hal_qmi_apis.c
++++ b/source/CellularManager/cellular_hal_qmi_apis.c
+@@ -3047,6 +3047,7 @@ int cellular_hal_qmi_get_uicc_slot_info(unsigned int slot_id, CellularUICCSlotIn
+         CELLULAR_HAL_DBG_PRINT("%s - QMI(%s) not ready so can't be query UICC slot info\n", __FUNCTION__, gpstQMIContext->modem_device_name);
+         return RETURN_ERROR;
+     }
++    return RETURN_OK;
+ }
+ 
+ int cellular_hal_qmi_get_active_card_status(CellularUICCStatus_t *card_status)
+@@ -5325,7 +5326,7 @@ static void cellular_hal_qmi_profile_operation_step( GTask *task )
+                 {
+                     if( WDS_PROFILE_OPERATION_DELETE == pProfileCrCtx->enProfileOperationRequest )
+                     {
+-                        CELLULAR_HAL_DBG_PRINT("%s - Profile(%d, %s) %s now deleted and sending status via CB\n", __FUNCTION__,pstInputProfile->ProfileID,pstInputProfile->ProfileName);
++                        CELLULAR_HAL_DBG_PRINT("%s - Profile(%d, %s) now deleted and sending status via CB\n", __FUNCTION__,pstInputProfile->ProfileID,pstInputProfile->ProfileName);
+                         pProfileCrCtx->device_profile_status_cb( pstInputProfile->ProfileName, pstInputProfile->PDPType, DEVICE_PROFILE_STATUS_DELETED );
+                     }
+                     else
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index a6d3f5d..6d92f31 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -449,6 +449,8 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+     pstDmlCellular->pstInterfaceInfo = (PCELLULAR_INTERFACE_INFO)AnscAllocateMemory(sizeof(CELLULAR_INTERFACE_INFO) * pstDmlCellular->ulInterfaceNoEntries);
+     if ( pstDmlCellular->pstInterfaceInfo == NULL )
+     {
++        AnscFreeMemory(pstDmlCellular);
++        pstDmlCellular = NULL;
+         return  ANSC_STATUS_FAILURE;
+     }
+ 
+@@ -479,6 +481,10 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+         pstInterfaceInfo->pstContextProfileInfo = (PCELLULAR_INTERFACE_CONTEXTPROFILE_INFO)AnscAllocateMemory(sizeof(CELLULAR_INTERFACE_CONTEXTPROFILE_INFO) * pstInterfaceInfo->ulContextProfileNoOfEntries);
+         if ( pstInterfaceInfo->pstContextProfileInfo == NULL )
+         {
++            AnscFreeMemory(pstDmlCellular->pstInterfaceInfo);
++            pstDmlCellular->pstInterfaceInfo = NULL;
++            AnscFreeMemory(pstDmlCellular);
++            pstDmlCellular = NULL;
+             return  ANSC_STATUS_FAILURE;
+         }
+ 
+@@ -1562,6 +1568,16 @@ int CellularMgr_GetAvailableNetworksInformation( PCELLULAR_PLMN_AVAILABLENETWORK
+ 
+             pstTmpInfo = (CELLULAR_PLMN_AVAILABLENETWORK_INFO*) malloc( sizeof(CELLULAR_PLMN_AVAILABLENETWORK_INFO) * total_network_count );
+ 
++            if( NULL == pstTmpInfo )
++            {
++                if( NULL != network_info )
++                {
++                    free(network_info);
++                    network_info = NULL;
++                }
++                return RETURN_ERROR;
++            }
++
+             for( i = 0; i < total_network_count; i++ )
+             {
+                 snprintf( pstTmpInfo[i].MCC, sizeof(pstTmpInfo[i].MCC), "%d", network_info[i].MCC );
+diff --git a/source/CellularManager/cellularmgr_cellular_internal.c b/source/CellularManager/cellularmgr_cellular_internal.c
+index d6ab47b..5e7196d 100755
+--- a/source/CellularManager/cellularmgr_cellular_internal.c
++++ b/source/CellularManager/cellularmgr_cellular_internal.c
+@@ -185,11 +185,9 @@ ANSC_STATUS CellularMgr_CellularRemove ( ANSC_HANDLE hThisObject )
+     /* Remove necessary resource */
+     if (pMyObject != NULL)
+     {
+-        AnscFreeMemory(pMyObject);
+-        pMyObject = NULL;
++        pstDmlCellular = pMyObject->pstDmlCellular;
+     }
+ 
+-    pstDmlCellular = pMyObject->pstDmlCellular;
+     if (pstDmlCellular != NULL)
+     {
+         if( pstDmlCellular->pstInterfaceInfo != NULL ) 
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_cellular_dml.c b/source/TR-181/middle_layer_src/cellularmgr_cellular_dml.c
+index f6b433c..039fb7e 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_cellular_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_cellular_dml.c
+@@ -4342,11 +4342,11 @@ ULONG Cellular_AccessPoint_DeleteEntry(ANSC_HANDLE hInsContext, ANSC_HANDLE hIns
+     //Check if this is default profile or not
+     if( TRUE == pstProfileInfo->X_RDK_Default )
+     {
+-        CcspTraceError(("%s Failed to delete default profile\n",__FUNCTION__))
++        CcspTraceError(("%s Failed to delete default profile\n",__FUNCTION__));
+         return -1;
+     }
+ 
+-    CcspTraceError(("%s Deleting this '%d' Profile\n",__FUNCTION__,pstProfileInfo->ProfileIndex))
++    CcspTraceError(("%s Deleting this '%d' Profile\n",__FUNCTION__,pstProfileInfo->ProfileIndex));
+ 
+     //Delete Profile
+     CellularMgr_AccessPointDeleteProfile( pstProfileInfo );
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 3b4c2df..9a20ae8 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -394,7 +394,13 @@ rbusError_t cellularmgr_Unload()
+             CcspTraceError(("%s-%d : Failed to Del AccessPoint Inst(%d) Table(%s) \n", __FUNCTION__, __LINE__, (l+1), CELLULARMGR_UICC_TABLE));
+         }
+     }
+-
++    /* Free UICC slot memory allocated by UiccSlot_Synchronize_rbus(). */
++    if (pstDmlCellular->pstUICCSlotInfo != NULL)
++    {
++        free(pstDmlCellular->pstUICCSlotInfo);
++        pstDmlCellular->pstUICCSlotInfo = NULL;
++        pstDmlCellular->ulUICCNoOfEntries = 0;
++    }
+ exit:
+     if(gBusHandle)
+     {
+@@ -2335,8 +2341,12 @@ rbusError_t UiccSlot_Synchronize_rbus(void* ctx)
+             ( uiTotalSlots > 0 ) )
+         {
+             pstDmlCellular->ulUICCNoOfEntries = uiTotalSlots;
+-            pstDmlCellular->pstUICCSlotInfo = (PCELLULAR_DML_INFO) malloc( sizeof(CELLULAR_DML_INFO) * uiTotalSlots );
+-            memset(pstDmlCellular->pstUICCSlotInfo, 0, sizeof(CELLULAR_DML_INFO) * uiTotalSlots);
++            pstDmlCellular->pstUICCSlotInfo = (PCELLULAR_UICC_SLOT_INFO) malloc( sizeof(CELLULAR_UICC_SLOT_INFO) * uiTotalSlots );
++            if (pstDmlCellular->pstUICCSlotInfo == NULL)
++            {
++                return RBUS_ERROR_BUS_ERROR;
++            }
++            memset(pstDmlCellular->pstUICCSlotInfo, 0, sizeof(CELLULAR_UICC_SLOT_INFO) * uiTotalSlots);
+         }
+     }
+ 
+@@ -2345,7 +2355,7 @@ rbusError_t UiccSlot_Synchronize_rbus(void* ctx)
+     {
+         for(int j = 0; j < pstDmlCellular->ulUICCNoOfEntries; j++)
+         {
+-            PCELLULAR_UICC_SLOT_INFO *pstSlotInfo = &(pstDmlCellular->pstUICCSlotInfo[j]);
++            PCELLULAR_UICC_SLOT_INFO pstSlotInfo = &(pstDmlCellular->pstUICCSlotInfo[j]);
+             if (Sample_RegisterRow(CELLULARMGR_UICC_TABLE, (j+1), NULL, pstSlotInfo) == RBUS_ERROR_SUCCESS)
+             {
+                 CcspTraceInfo(("%s-%d : Add UICC Table:Inst(%s%d) \n", __FUNCTION__, __LINE__, CELLULARMGR_UICC_TABLE, (j+1)));
+@@ -2359,7 +2369,7 @@ rbusError_t UiccSlot_Synchronize_rbus(void* ctx)
+ 
+         for( i = 0; i < pstDmlCellular->ulUICCNoOfEntries; i++ )
+         {
+-            PCELLULAR_UICC_SLOT_INFO *pstSlotInfo = &(pstDmlCellular->pstUICCSlotInfo[i]);
++            PCELLULAR_UICC_SLOT_INFO pstSlotInfo = &(pstDmlCellular->pstUICCSlotInfo[i]);
+             CellularMgr_GetUICCSlotInfo( i, pstSlotInfo );
+             SetRowContext(CELLULARMGR_UICC_TABLE, (i+1), NULL, pstSlotInfo);
+         }
+-- 
+2.34.1
+
