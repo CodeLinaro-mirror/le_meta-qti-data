@@ -11,6 +11,7 @@ DEPENDS += "libnl glib-2.0 pkgconfig-native"
 SRC_URI = "git://github.com/CasperVector/6brd.git;protocol=https;branch=master \
            file://00001-6brd-IPv6.patch \
            file://00002-6brd-sed-command-elimination.patch \
+           file://00003-6brd-Eth_Toggle_DAD_Fix.patch \
           "
 
 SRCREV = "7d73a89a055d8f470e81ddd9554d7f4c523b5b70"

@@ -1,0 +1,24 @@
+From c876c5a59ea1587ee36ec4f5ebfc37cc3698096e Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Tue, 22 Sep 2026 21:51:13 +0530
+Subject: [PATCH] DAD_Fix_NDP_brlan0
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ ndp.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ndp.c b/ndp.c
+index ab20b77..86d155c 100644
+--- a/ndp.c
++++ b/ndp.c
+@@ -402,6 +402,8 @@ int ndp_setup_interface(struct interface *iface, bool enable)
+ 	char procbuf[64];
+ 
+         enable = enable && (iface->ndp == MODE_RELAY);
++       //Fix - Disable brlan0 ndp_proxy
++        enable = 0;
+ 
+ 	snprintf(procbuf, sizeof(procbuf), "/proc/sys/net/ipv6/conf/%s/proxy_ndp", iface->ifname);
+ 	procfd = open(procbuf, O_WRONLY);
+-- 
+2.34.1
