@@ -1,0 +1,28 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 40ac742ed5069231fb8f821429ccaa1ecc8ad76b Mon Sep 17 00:00:00 2001
+From: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+Date: Mon, 31 Aug 2026 09:49:38 +0000
+Subject: Cellular manager DM support for USIM remaining
+ attempts left for PUK and PIN
+Signed-off-by: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+Index: git/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ git/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3861,6 +3861,8 @@ rbusError_t registerGeneratedDataElement
+         {"Device.Cellular.Interface.{i}.USIM.NEWPIN", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, USIM_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.USIM.CURRENTPIN", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, USIM_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.USIM.PUK", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamStringValue_rbus, USIM_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.PINRemainingAttempts", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.USIM.PUKRemainingAttempts", RBUS_ELEMENT_TYPE_PROPERTY, {USIM_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #ifdef CM_PROP_SUPPORTED
+         {"Device.Cellular.Interface.{i}.X_QCOM.DataUsage.RefreshTime", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_extn_GetParamUlongValue_rbus, Data_Usage_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif //CM_PROP_SUPPORTED
