@@ -1,0 +1,154 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+From 07f338a6cd28132795db809febf9b33e7bddbba8 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Sat, 26 Sep 2026 05:56:55 +0000
+Subject: Gate VENDOR_Init on WAN readiness via sysevent and fix multi-digit DM instance validation
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ src/vendor/vendor.c | 85 +++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 83 insertions(+), 2 deletions(-)
+
+diff --git a/vendor.c b/vendor.c
+index 9fbba8f..3aaa5cd 100644
+--- a/vendor.c
++++ b/vendor.c
+@@ -70,6 +70,31 @@
+ #include "text_utils.h"
+ #include "os_utils.h"
+ 
++#include <sysevent/sysevent.h>
++//-------------------------------------------------------------------------------------------------
++//Max Size for Sysevent current_wan_status
++#define MAX_SYSEVENT_SIZE 16
++#define SLEEP_DURATION_SEC 5
++#define SYSEVENT_SERVER_IP "127.0.0.1"
++#define SYSEVENT_CLIENT_NAME "usp-pa"
++//-------------------------------------------------------------------------------------------------
++//Sysevent utility to handle sysevent connection
++static int s_sysevent_connect (token_t *out_se_token)
++{
++    static int     sysevent_fd = -1;
++    static token_t sysevent_token = 0;
++
++    if (0 > sysevent_fd) {
++        unsigned short sysevent_port = SE_SERVER_WELL_KNOWN_PORT;
++        char          *sysevent_ip = SYSEVENT_SERVER_IP;
++        char          *sysevent_name = SYSEVENT_CLIENT_NAME;
++ 
++        sysevent_fd =  sysevent_open(sysevent_ip, sysevent_port, SE_VERSION, sysevent_name, &sysevent_token);
++
++    }
++    *out_se_token = sysevent_token;
++    return sysevent_fd;
++}
+ //-------------------------------------------------------------------------------------------------
+ // Handle for connection to RBus
+ rbusHandle_t bus_handle = NULL;
+@@ -88,6 +113,7 @@ rbusHandle_t bus_handle = NULL;
+ 
+ //-------------------------------------------------------------------------------------------------
+ // Forward declarations. Note these are not static, because we need them in the symbol table for USP_LOG_Callstack() to show them
++static void WaitForCurrentWanStateUp(void);
+ int FixupRebootCause(void);
+ int RegisterRdkParams(char *filename);
+ int RegisterRdkObjects(char *filename);
+@@ -114,6 +140,7 @@ void Add_ParamToDM(char *instantiated_path, char *schema_path, char *write_statu
+ void ConvertInstantiatedToSchemaPath(char *src, char *dest, int len);
+ int WriteDMConfig(char *filename, char *mode, kv_vector_t *kvv, char *comment);
+ 
++static bool IsValidObject(char *pName, int len);
+ #ifdef    INCLUDE_LCM_DATAMODEL
+ #include "lcm_rbus_datamodel.c"
+ #endif
+@@ -422,7 +449,8 @@ int VENDOR_Init(void)
+         USP_ERR_SetMessage("%s: rbus_open() failed (%d - %s)", __FUNCTION__, rbus_err, ToRbusErrString(rbus_err));
+         return USP_ERR_INTERNAL_ERROR;
+     }
+-
++    
++    WaitForCurrentWanStateUp();
+     // Override data model paths from environment variable
+     usp_pa_dm_dir = getenv("USP_PA_DM_DIR");
+     if (usp_pa_dm_dir == NULL)
+@@ -501,6 +529,41 @@ int VENDOR_Init(void)
+     return USP_ERR_OK;
+ }
+ 
++static void WaitForCurrentWanStateUp(void)
++{
++    token_t se_token;
++    int se_fd = -1;
++    static char wan_status[MAX_SYSEVENT_SIZE] = "down";
++    int err = -1;
++
++    USP_ERR_SetMessage("%s: Checking WAN Status ---\n", __FUNCTION__);
++
++    while (strcmp(wan_status, "up") != 0) {
++        if ((se_fd = s_sysevent_connect(&se_token)) >= 0)
++        {
++            err = sysevent_get(se_fd, se_token, "current_wan_state", wan_status, MAX_SYSEVENT_SIZE);
++
++            if (err != 0)
++                USP_ERR_SetMessage("%s: Error retrieving WAN state: --- %d\n", __FUNCTION__, err);
++        }
++        else
++        {
++            USP_ERR_SetMessage("%s: Error connecting to sysevent ---\n", __FUNCTION__);
++        }
++
++        if (strcmp(wan_status, "up") != 0)
++        {
++            sleep(SLEEP_DURATION_SEC);
++        }
++    }
++
++    USP_ERR_SetMessage("%s: WAN status is UP ---\n", __FUNCTION__);
++
++    if (se_fd >= 0)
++    {
++        sysevent_close(se_fd, se_token);
++    }
++}
+ /*********************************************************************//**
+ **
+ ** VENDOR_Start
+@@ -1483,7 +1546,7 @@ int RDK_RefreshInstances(int group_id, char *path, int *expiry_period)
+         len = strlen(name);
+ 
+         // If this is an object instance, then refresh it in the data model
+-        if ((len >= 2) && (name[len-1] == '.') && (IS_NUMERIC(name[len-2])))
++        if(IsValidObject(name, len))
+         {
+             if (USP_DM_IsRegistered(name))
+             {
+@@ -1988,3 +2051,21 @@ exit:
+     fclose(fp);
+     return err;
+ }
++
++static bool IsValidObject(char *pName, int len)
++{
++    bool isValidObj = false;
++    int i = len-2;
++
++    if((pName == NULL) || (len < 2) || (pName[len-1] != '.'))
++        return false;
++
++    while(i >= 0 && IS_NUMERIC(pName[i]))
++        i--;
++
++    if(i >= 0 && pName[i] == '.')
++        isValidObj = true;
++
++    return isValidObj;
++}
++
+-- 
+2.34.1
+
