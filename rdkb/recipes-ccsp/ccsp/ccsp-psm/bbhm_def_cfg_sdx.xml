@@ -1089,6 +1089,10 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="eRT.com.cisco.spvtg.ccsp.Device.WiFi.X_RDKCENTRAL-COM_BandSteering.BandSetting.1.RSSIThreshold" type="astr">-100</Record>
   <Record name="eRT.com.cisco.spvtg.ccsp.Device.WiFi.X_RDKCENTRAL-COM_BandSteering.BandSetting.2.RSSIThreshold" type="astr">-100</Record>
   <Record name="dmsb.selfheal.rebootstatus"  type="astr">0</Record>
+  <Record name="dmsb.dhcpmanager.ClientNoOfEntries" type="astr">1</Record>
+  <Record name="dmsb.dhcpmanager.dhcpv6.ClientNoOfEntries" type="astr">0</Record>
+  <Record name="dmsb.dhcpmanager.dhcpv6.Client.1.ReqAddr" type="astr">FALSE</Record>
+  <Record name="dmsb.dhcpmanager.dhcpv6.Client.1.ReqPrefix" type="astr">FALSE</Record>
   <Record name="dmsb.wanmanager.wanifcount" type="astr">2</Record>
   <Record name="dmsb.wanmanager.wanpolicy" type="astr">6</Record>
   <Record name="dmsb.wanmanager.if.1.Enable" type="astr">TRUE</Record>
@@ -1140,6 +1144,8 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.VlanCount" type="astr">1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.VLAN.1.Interface" type="astr">Device.X_RDK_Ethernet.VLANTermination.1</Record>
   <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.MarkingCount" type="astr">0</Record>
+  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.IP.DHCPV4Interface" type="astr">Device.DHCPv4.Client.1</Record>
+  <Record name="dmsb.wanmanager.if.1.VirtualInterface.1.IP.DHCPV6Interface" type="astr"></Record>
   <Record name="dmsb.wanmanager.if.2.Name" type="astr">qmapmux0.0</Record>
   <Record name="dmsb.wanmanager.if.2.DisplayName" type="astr">LTE</Record>
   <Record name="dmsb.wanmanager.if.2.Type" type="astr">2</Record>
@@ -1166,6 +1172,8 @@ SPDX-License-Identifier: BSD-3-Clause-Clear
   <Record name="dmsb.wanmanager.if.2.VirtualInterface.1.Timeout" type="astr">0</Record>
   <Record name="dmsb.wanmanager.if.2.VirtualInterface.1.VlanCount" type="astr">0</Record>
   <Record name="dmsb.wanmanager.if.2.VirtualInterface.1.MarkingCount" type="astr">0</Record>
+  <Record name="dmsb.wanmanager.if.2.VirtualInterface.1.IP.DHCPV4Interface" type="astr"></Record>
+  <Record name="dmsb.wanmanager.if.2.VirtualInterface.1.IP.DHCPV6Interface" type="astr"></Record>
   <Record name="eRT.com.cisco.spvtg.ccsp.webpa.Device.X_RDK_WebConfig.RfcEnable" type="astr">false</Record>
   <Record name="eRT.com.cisco.spvtg.ccsp.webpa.WebConfigRfcEnable" type="astr">false</Record>
   <Record name="dmsb.device.deviceinfo.X_RDKCENTRAL-COM_WHIX.RxRetryList" type="astr">1,2,5,6,9,10</Record>
