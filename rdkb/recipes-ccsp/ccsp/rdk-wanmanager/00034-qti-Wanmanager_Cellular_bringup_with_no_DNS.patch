@@ -1,0 +1,37 @@
+This patch file is from Qualcomm Technologies, Inc.
+are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 09c399b0357a0c250e3503e4d4212d1fa205fa41 Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Fri, 25 Sep 2026 07:09:46 +0000
+Subject: [PATCH] Cellular wan bring up when no DNS is present
+
+[Description] : Here if the DNS value is absent from the cellular manager then this check will assigned the address assigned as false which will be checked by wan manager to assign the IP to the interface and as it is false it will not assign the IP to the interface. Here we are blocking the Setting of address assigned to false if DNS is absent.
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_dhcpv4_apis.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/source/WanManager/wanmgr_dhcpv4_apis.c b/source/WanManager/wanmgr_dhcpv4_apis.c
+index 66b2e28..ffa4d38 100644
+--- a/source/WanManager/wanmgr_dhcpv4_apis.c
++++ b/source/WanManager/wanmgr_dhcpv4_apis.c
+@@ -383,8 +383,11 @@ void WanMgr_UpdateIpFromCellularMgr (WanMgr_IfaceSM_Controller_t* pWanIfaceCtrl)
+                 }
+                 else
+                 {
++#ifndef _PLATFORM_SDX_
+                     strncpy (p_VirtIf->IP.pIpcIpv4Data->dhcpState, DHCP_STATE_DOWN, BUFLEN_64);
+                     p_VirtIf->IP.pIpcIpv4Data->addressAssigned = FALSE;
++#endif
++                    CcspTraceWarning(("%s %d: Cellular IPv4 has no primary DNS; continuing with address assignment. possible DNS resolution failure\n", __FUNCTION__, __LINE__));
+                 }
+ 
+                 memset( acTmpReturnValue, 0, sizeof( acTmpReturnValue ) );
+-- 
+2.34.1
+
