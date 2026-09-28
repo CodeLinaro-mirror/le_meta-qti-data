@@ -36,18 +36,26 @@ Index: 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0/dibbler-ini
 ===================================================================
 --- 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0.orig/dibbler-init.sh
 +++ 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0/dibbler-init.sh
-@@ -37,12 +37,15 @@ if [ ! -e /var/lib/dibbler ]; then
+@@ -37,12 +37,23 @@ if [ ! -e /var/lib/dibbler ]; then
     ln -s /tmp/dibbler /var/lib/dibbler
  fi
  else
 -   if [ ! -h /tmp/dibbler ];then
 -      ln -s /etc/dibbler /tmp/dibbler
-+   if [ -h /tmp/dibbler ]; then
-+      rm -f /tmp/dibbler
++   # /tmp is a shared mount on RDK-B. Repeating the bind mount below causes
++   # mount propagation to replicate the /etc/dibbler tree recursively.
++   # Only create the bind mount once.
++   if ! mountpoint -q /etc/dibbler; then
++      if [ -h /tmp/dibbler ]; then
++         rm -f /tmp/dibbler
++      fi
++      mkdir -p /tmp/dibbler
++      cp -a /etc/dibbler/. /tmp/dibbler/ 2>/dev/null
++      if ! mount --bind /tmp/dibbler /etc/dibbler; then
++         echo "Failed to bind mount /tmp/dibbler on /etc/dibbler" >&2
++         exit 1
++      fi
     fi
-+   mkdir -p /tmp/dibbler
-+   cp -a /etc/dibbler/. /tmp/dibbler/ 2>/dev/null
-+   mount --bind /tmp/dibbler /etc/dibbler
     if [ -f /tmp/dibbler/radvd.conf ];then
         chmod 644 /tmp/dibbler/radvd.conf
 -   fi 
