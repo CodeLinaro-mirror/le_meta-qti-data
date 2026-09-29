@@ -1,0 +1,31 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 218ad81f2488f52150cd0f38aa2f136ab42716ba Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Tue, 29 Sep 2026 07:55:03 +0000
+Subject: added fix to correctly identify VLAN interface in Device.hosts.Host
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index 2eeeb76..afe8ace 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -3978,7 +3978,7 @@ static int get_interface_from_fdb(const char *mac_addr, char *iface_out, size_t
+             if (end) {
+                 size_t len = end - dev_ptr;
+                 if (len < sizeof(iface_full)) {
+-                    strlcpy(iface_full, dev_ptr, len);
++                    strlcpy(iface_full, dev_ptr, len + 1);
+                     iface_full[len] = '\0';
+ 
+                     char *dot = strchr(iface_full, '.');
+-- 
+2.34.1
+

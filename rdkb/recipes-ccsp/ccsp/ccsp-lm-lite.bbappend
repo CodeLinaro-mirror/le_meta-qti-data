@@ -25,4 +25,5 @@ SRC_URI += " \
               file://00016-lm-lite-fix-stale-ipv6-dm-update.patch \
               file://00017-lm-lite-packet-stats-wlan-changes.patch \
               file://00018-lm-lite-fix-stale-ip-in-cdi.patch \
+              file://00019-lm-lite-fix-vlan-interface-update-cdi.patch \
 "
