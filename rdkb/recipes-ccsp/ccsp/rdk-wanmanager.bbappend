@@ -46,6 +46,8 @@ SRC_URI += " \
     file://00032-qti-Wanmanager-timestamp_Fix.patch \
     file://00032-qti-Wanmanager_dhcpmanager_compile_fix.patch \
     file://00034-qti-Wanmanager_Cellular_bringup_with_no_DNS.patch \
+    file://00035-qti-Wanmanager_ethwan_slaac_support.patch \
+    file://00036-qti-Wanmanager-skip-eth1-bridge-add-when-vlan-enabled.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "

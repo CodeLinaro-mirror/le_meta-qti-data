@@ -1,0 +1,41 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 6b12c1db39c2cc150d79099c05c68f2f3295c65c Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Fri, 25 Sep 2026 12:21:50 +0000
+Subject: [PATCH] Skip automatic addition of eth1 to brlan0 bridge when LAN
+ VLAN is enabled
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/WanManager/eth_lan_interface_qti_extn.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+Index: git/source/WanManager/eth_lan_interface_qti_extn.c
+===================================================================
+--- git.orig/source/WanManager/eth_lan_interface_qti_extn.c
++++ git/source/WanManager/eth_lan_interface_qti_extn.c
+@@ -100,6 +100,7 @@ void bringup_ethernet_interface(struct n
+ {
+     char ifname[IFNAMSIZ]     = {0};
+     char lan_bridge[IFNAMSIZ] = {0};
++    char vlan_enable[8]       = {0};
+     int  ret                  = 0;
+ 
+     if (nlh == NULL) {
+@@ -109,6 +110,13 @@ void bringup_ethernet_interface(struct n
+     if (get_lan_ifname(nlh, ifname, sizeof(ifname)) != ANSC_STATUS_SUCCESS)
+         return;
+ 
++    syscfg_get(NULL, "lan_vlan_enable", vlan_enable, sizeof(vlan_enable));
++    if (strcmp(vlan_enable, "1") == 0) {
++        CcspTraceInfo(("%s: VLAN enabled, skipping bridge add for %s\n",
++                       __FUNCTION__, ifname));
++        return;
++   }
++
+     syscfg_get(NULL, "lan_ifname", lan_bridge, sizeof(lan_bridge));
+     if (lan_bridge[0] == '\0') {
+         CcspTraceError(("%s: lan_ifname not set in syscfg, aborting\n", __FUNCTION__));
