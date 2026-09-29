@@ -1,0 +1,170 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From a8f45b7bb70ab6b37fa9dcbfc6f55c3b2b308077 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 25 Sep 2026 11:09:59 +0000
+Subject: Bearer connect failure handling
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.h         |  3 ++
+ source/CellularManager/cellular_hal_mm_apis.c | 36 ++++++++++++++++-
+ source/CellularManager/cellularmgr_sm.c       | 40 +++++++++++++++++++
+ 3 files changed, 78 insertions(+), 1 deletion(-)
+
+diff --git a/source/CellularManager/cellular_hal.h b/source/CellularManager/cellular_hal.h
+index 33adc06..c102bbd 100755
+--- a/source/CellularManager/cellular_hal.h
++++ b/source/CellularManager/cellular_hal.h
+@@ -832,10 +832,13 @@ typedef int (*cellular_network_packet_service_status_api_callback)( char *device
+ */
+ typedef int (*cellular_device_network_ip_ready_api_callback)( CellularIPStruct *pstIPStruct, CellularDeviceIPReadyStatus_t ip_ready_status );
+ 
++typedef int (*cellular_bearer_connect_failed_api_callback)( void );
++
+ typedef  struct                                     
+ {
+     cellular_device_network_ip_ready_api_callback           device_network_ip_ready_cb;
+     cellular_network_packet_service_status_api_callback     packet_service_status_cb;
++    cellular_bearer_connect_failed_api_callback             bearer_connect_failed_cb;
+ 
+ } CellularNetworkCBStruct;
+  
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 8d714a1..374d5d4 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -2029,6 +2029,40 @@ INT cellular_hal_mm_create_bearer_properties (CHAR *index, CellularProfileStruct
+ 
+ /*======================== connect bearer ===================================*/
+ 
++static void
++bearer_connect_ready (MMBearer     *bearer,
++                      GAsyncResult *result,
++                      gpointer      nothing)
++{
++    GError *error = NULL;
++
++    if(!mm_bearer_connect_finish (bearer, result, &error))
++    {
++        CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't connect bearer: '%s'\n",
++                                __FUNCTION__, error ? error->message : "unknown error");
++
++        if(networkStatusCB && networkStatusCB->bearer_connect_failed_cb)
++        {
++            networkStatusCB->bearer_connect_failed_cb ();
++        }
++        else
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - bearer_connect_failed_cb not registered\n", __FUNCTION__);
++        }
++
++        if(error)
++        {
++            g_error_free (error);
++        }
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT ("%s - bearer connected successfully\n", __FUNCTION__);
++    }
++
++    return;
++}
++
+ INT cellular_hal_mm_connect_bearer (CHAR *index, BOOLEAN connect)
+ {
+     Context *ctx;
+@@ -2051,7 +2085,7 @@ INT cellular_hal_mm_connect_bearer (CHAR *index, BOOLEAN connect)
+             {
+                 updateBootKPI(KPI_RECORD_TYPE_BRINGUP_IP, 0, 0);
+ #endif
+-                mm_bearer_connect(ctx->bearer, NULL, NULL, NULL);
++                mm_bearer_connect(ctx->bearer, NULL, (GAsyncReadyCallback)bearer_connect_ready, NULL);
+ #ifdef CM_EXTN_SUPPORTED
+             }
+ #endif
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index dcda3d4..6253bd1 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -43,6 +43,8 @@ void set_sm_roaming_dynamic_value(bool val);
+ bool IsRoamingStatusConverged();
+ static void modem_discovery_timeout_handler(int signum);
+ static bool is_modem_restart_required();
++int CellularMgr_extn_ResetConnectBackHaulOnConnectFailure(void);
++int CellularMgrBearerConnectFailedCBForSM( void );
+ 
+ typedef enum
+ {
+@@ -994,6 +996,7 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+     }
+     stNetworkCB.device_network_ip_ready_cb = CellularMgrIPReadyCBForSM;
+     stNetworkCB.packet_service_status_cb   = CellularMgrPacketServiceStatusCBForSM;
++    stNetworkCB.bearer_connect_failed_cb   = CellularMgrBearerConnectFailedCBForSM;
+ 
+     CcspTraceInfo(("%s %d - Starting IP Network\n", __FUNCTION__, __LINE__));
+     /*CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED is used as IPv4 and/or IPv6 data is sent*/
+@@ -1053,6 +1056,7 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+ 
+         stNetworkCB.device_network_ip_ready_cb = CellularMgrIPReadyCBForSM;
+         stNetworkCB.packet_service_status_cb   = CellularMgrPacketServiceStatusCBForSM;
++        stNetworkCB.bearer_connect_failed_cb   = CellularMgrBearerConnectFailedCBForSM;
+ 
+         CcspTraceInfo(("%s %d - Starting IPv4 Network\n", __FUNCTION__, __LINE__));
+         cellular_hal_start_network( CELLULAR_NETWORK_IP_FAMILY_IPV4, NULL, &stNetworkCB );
+@@ -1070,6 +1074,7 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+ 
+         stNetworkCB.device_network_ip_ready_cb = CellularMgrIPReadyCBForSM;
+         stNetworkCB.packet_service_status_cb   = CellularMgrPacketServiceStatusCBForSM;
++        stNetworkCB.bearer_connect_failed_cb   = CellularMgrBearerConnectFailedCBForSM;
+ 
+         CcspTraceInfo(("%s %d - Starting IPv6 Network\n", __FUNCTION__, __LINE__));
+         cellular_hal_start_network( CELLULAR_NETWORK_IP_FAMILY_IPV6, NULL, &stNetworkCB );
+@@ -2598,6 +2603,41 @@ static void CellularMgr_setPolicyStructureRecoveryState(CellularPolicySmState_t
+     }
+ }
+ 
++int CellularMgrBearerConnectFailedCBForSM( void )
++{
++    BOOLEAN autoConnect;
++    BOOLEAN connectBackHaul;
++
++    if (NULL == gpstCellularPolicyCtrl || NULL == gpstCellularPolicyCtrl->pstDmlCellular)
++    {
++        CcspTraceError (("%s %d: sm controller/dml object is empty\n", __FUNCTION__, __LINE__));
++        return RETURN_ERROR;
++    }
++
++    gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress = FALSE;
++    gpstCellularPolicyCtrl->bIPv4WaitingForPacketStatus  = FALSE;
++    gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress = FALSE;
++    gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus  = FALSE;
++
++    autoConnect     = gpstCellularPolicyCtrl->pstDmlCellular->stCellularDmlInfoExtn.stCellular.AutoConnect;
++    connectBackHaul = gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul;
++    CcspTraceError (("%s - bearer connect failed, AutoConnect=%d ConnectBackHaul=%d\n",
++                      __FUNCTION__, autoConnect, connectBackHaul));
++
++    /* Reset is triggered only when autoconnect is FALSE */
++    if (FALSE == autoConnect && TRUE == connectBackHaul)
++    {
++        CellularMgr_extn_ResetConnectBackHaulOnConnectFailure();
++    }
++    else
++    {
++        CcspTraceInfo (("%s %d: ConnectBackHaul reset skipped, AutoConnect=%d ConnectBackHaul=%d\n",
++                          __FUNCTION__, __LINE__, autoConnect, connectBackHaul));
++    }
++
++    return RETURN_OK;
++}
++
+ #endif //CM_EXTN_SUPPORTED
+ 
+ /* cellumanager_get_wanifname function */
+-- 
+2.34.1
+
