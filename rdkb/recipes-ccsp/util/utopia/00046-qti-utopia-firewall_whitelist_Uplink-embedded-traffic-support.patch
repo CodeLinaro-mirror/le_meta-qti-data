@@ -1,0 +1,51 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 03f6fd64f08ff399ddf6a9899ce32b49279f75ae Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Thu, 24 Sep 2026 22:41:25 +0530
+Subject: [PATCH] Uplink embedded traffic support
+
+[Description]:
+Updated IPv4 and IPv6 firewall Whitelist handling to cover device-originated uplink traffic through the OUTPUT chain.
+
+[Fix]:
+The new rules ensure that WAN-bound device traffic is marked with connmark 53 and accepted, while unmarked device traffic is dropped under Whitelist mode. This keeps IPv4 and IPv6 device traffic behavior consistent with existing uplink and downlink firewall enforcement.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/firewall/firewall.c      |  4 ++++
+ source/firewall/firewall_ipv6.c | 13 ++++++++++---
+ 2 files changed, 14 insertions(+), 3 deletions(-)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -3169,6 +3169,9 @@ static int do_x_qcomrule_firewall(FILE*
+         fprintf(mangle_fp,"-I POSTROUTING -o %s -j DROP\n",current_wan_ifname);
+         fprintf(mangle_fp,"-I POSTROUTING -m connmark --mark 53 -j ACCEPT\n");
+         fprintf(mangle_fp,"-I PREROUTING -m connmark --mark 53 -j ACCEPT\n");
++        fprintf(mangle_fp,"-A OUTPUT -o %s -j DROP\n", current_wan_ifname);
++        fprintf(mangle_fp,"-I OUTPUT -m connmark --mark 53 -j ACCEPT\n");
++        fprintf(mangle_fp,"-I OUTPUT -o %s -j CONNMARK --set-mark 53\n", current_wan_ifname);
+     }
+     else
+     {
+Index: git/source/firewall/firewall_ipv6.c
+===================================================================
+--- git.orig/source/firewall/firewall_ipv6.c
++++ git/source/firewall/firewall_ipv6.c
+@@ -2062,6 +2062,9 @@ int do_x_qcomrule_firewall_v6(FILE* mang
+         fprintf(mangle_fp,"-I POSTROUTING -o %s -j DROP\n",current_wan_ifname);
+         fprintf(mangle_fp,"-I POSTROUTING -m connmark --mark 53 -j ACCEPT\n");
+         fprintf(mangle_fp,"-I PREROUTING -m connmark --mark 53 -j ACCEPT\n");
++        fprintf(mangle_fp,"-A OUTPUT -o %s -j DROP\n", current_wan_ifname);
++        fprintf(mangle_fp,"-I OUTPUT -m connmark --mark 53 -j ACCEPT\n");
++        fprintf(mangle_fp,"-I OUTPUT -o %s -j CONNMARK --set-mark 53\n", current_wan_ifname);
+     }
+     else
+     {
