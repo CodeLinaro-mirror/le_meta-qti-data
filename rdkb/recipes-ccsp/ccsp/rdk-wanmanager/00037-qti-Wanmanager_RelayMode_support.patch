@@ -1,0 +1,251 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 0ad3487ccd6068a33a7c2d4e91d1e53d35c8b958 Mon Sep 17 00:00:00 2001
+From: Amirthavarshini N <amirthav@qti.qualcomm.com>
+Date: Mon, 28 Sep 2026 17:43:06 +0000
+Subject: [PATCH] qti-Wanmanager_RelayMode_support
+
+Signed-off-by: Amirthavarshini N <amirthav@qti.qualcomm.com>
+---
+ config/RdkWanManager_v2.xml                   |   6 +
+ .../include/dmsb_tr181_psm_definitions.h      |   1 +
+ source/TR-181/include/wanmgr_dml.h            |   1 +
+ .../wanmgr_dml_iface_v2_apis.c                | 103 ++++++++++++++++++
+ .../middle_layer_src/wanmgr_rdkbus_apis.c     |  28 +++++
+ 5 files changed, 139 insertions(+)
+
+diff --git a/config/RdkWanManager_v2.xml b/config/RdkWanManager_v2.xml
+index 6e1ec3a..a64f4c4 100644
+--- a/config/RdkWanManager_v2.xml
++++ b/config/RdkWanManager_v2.xml
+@@ -442,6 +442,12 @@
+                                     <syntax>bool</syntax>
+                                     <writable>true</writable>
+                                 </parameter>
++                                <parameter>
++                                    <name>X_QCOM_RelayModeEnable</name>
++                                    <type>boolean</type>
++                                    <syntax>bool</syntax>
++                                    <writable>true</writable>
++                                </parameter>
+                               </parameters>
+                               <objects>
+                                 <object>
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index c85c1a4..6765a21 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -66,6 +66,7 @@
+ #define PSM_WANMANAGER_IF_VIRIF_IP_MODE_FORCE_ENABLE        "dmsb.wanmanager.if.%d.VirtualInterface.%d.IP.ModeForceEnable"
+ #define PSM_WANMANAGER_CONNECTIVITY_CHECK_TYPE              "dmsb.wanmanager.if.%d.VirtualInterface.%d.IP.ConnectivityCheckType"
+ 
++#define PSM_WANMANAGER_IF_VIRIF_RELAYMODEENABLE             "dmsb.wanmanager.if.%d.VirtualInterface.%d.X_QCOM_RelayModeEnable"
+ #if defined(WAN_MANAGER_UNIFICATION_ENABLED)
+ #define PSM_WANMANAGER_IF_SELECTION_ENABLE                  "dmsb.wanmanager.if.%d.Selection.Enable"
+ #define PSM_WANMANAGER_IF_SELECTION_ACTIVELINK              "dmsb.wanmanager.if.%d.Selection.ActiveLink"
+diff --git a/source/TR-181/include/wanmgr_dml.h b/source/TR-181/include/wanmgr_dml.h
+index 7f314c8..91f6cea 100644
+--- a/source/TR-181/include/wanmgr_dml.h
++++ b/source/TR-181/include/wanmgr_dml.h
+@@ -572,6 +572,7 @@ typedef struct _DML_VIRTUAL_IFACE
+     CHAR                        Name[BUFLEN_64];
+     CHAR                        Alias[BUFLEN_64];
+     BOOL                        Enable; 
++    BOOL                        RelayModeEnable;
+     BOOL                        EnableMAPT;
+     BOOL                        EnableDSLite;
+     DML_WAN_IFACE_STATUS        Status;
+diff --git a/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c b/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c
+index cdf6909..c59c1b6 100644
+--- a/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c
++++ b/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c
+@@ -41,12 +41,44 @@
+ #include "wanmgr_dhcpv4_apis.h"
+ #include "wanmgr_dhcpv6_apis.h"
+ #include "wanmgr_data.h"
++#include <sys/syscall.h>
++#include <ctype.h>
+ #if defined (_XB6_PRODUCT_REQ_) || defined (_CBR2_PRODUCT_REQ_) || defined(_PLATFORM_RASPBERRYPI_)
+ #include "wanmgr_utils.h"
+ #endif
+ #include "wanmgr_telemetry.h"
+ 
+ extern WANMGR_DATA_ST gWanMgrDataBase;
++/***********************************************************************
++ Function to check whether a process is running
++***********************************************************************/
++BOOL IsProcessRunning(const char* process_name)
++{
++    char command[256] = {0};
++    FILE *fp = NULL;
++    BOOL process_running = FALSE;
++
++    if (process_name == NULL)
++    {
++        CcspTraceError(("%s %d NULL process name\n", __FUNCTION__, __LINE__));
++        return FALSE;
++    }
++
++    snprintf(command, sizeof(command), "pgrep -f %s", process_name);
++    fp = popen(command, "r");
++    if (fp != NULL)
++    {
++        process_running = (fgetc(fp) != EOF);
++        pclose(fp);
++        fp = NULL;
++    }
++    else
++    {
++        CcspTraceError(("%s %d Failed to execute command: %s\n", __FUNCTION__, __LINE__, command));
++    }
++
++    return process_running;
++}
+ /***********************************************************************
+ 
+  APIs for Object:
+@@ -1548,6 +1580,12 @@ BOOL WanVirtualIf_GetParamBoolValue(ANSC_HANDLE hInsContext, char* ParamName, BO
+             *pBool = p_VirtIf->VLAN.Reset;
+             ret = TRUE;
+         }
++        if (strcmp(ParamName, "X_QCOM_RelayModeEnable") == 0)
++        {
++            //This DM is used for Switching between Relay and Router mode.
++            *pBool = p_VirtIf->RelayModeEnable;
++            ret = TRUE;
++        }
+         WanMgr_VirtualIfaceData_release(p_VirtIf);
+     }
+ 
+@@ -1581,6 +1619,9 @@ BOOL WanVirtualIf_GetParamBoolValue(ANSC_HANDLE hInsContext, char* ParamName, BO
+ BOOL WanVirtualIf_SetParamBoolValue(ANSC_HANDLE hInsContext, char* ParamName, BOOL bValue)
+ {
+     BOOL ret = FALSE;
++    char ifname[16] = {0};
++    FILE *fp = NULL;
++    int valid_ifname = 0;
+ 
+     DML_VIRTUAL_IFACE* p_VirtIf = WanMgr_getVirtualIface_locked(((DML_VIRTUAL_IFACE*) hInsContext)->baseIfIdx, ((DML_VIRTUAL_IFACE*) hInsContext)->VirIfIdx);
+     if(p_VirtIf != NULL)
+@@ -1645,6 +1686,68 @@ BOOL WanVirtualIf_SetParamBoolValue(ANSC_HANDLE hInsContext, char* ParamName, BO
+             p_VirtIf->VLAN.Reset = bValue;
+             ret = TRUE;
+         }
++        sysevent_get(sysevent_fd, sysevent_token, "current_wan_ifname", ifname, sizeof(ifname));
++        if (ifname[0] != '\0' && strlen(ifname) < sizeof(ifname) - 1)
++        {
++            valid_ifname = 1;
++            for (int i = 0; ifname[i] != '\0'; i++)
++            {
++                if (!isalnum(ifname[i]) && ifname[i] != '_' && ifname[i] != '.')
++                {
++                    valid_ifname = 0;
++                    break;
++                }
++            }
++        }
++        if ((strcmp(ParamName, "X_QCOM_RelayModeEnable") == 0) && (strstr(ifname,"eth1") != NULL))
++        {
++            if (bValue == TRUE)
++            {
++               if(!IsProcessRunning("6brd") && valid_ifname)
++               {
++                   int status = v_secure_system("6brd -f !%s ~brlan0 &",ifname);
++                   if ( status == -1 )
++                       CcspTraceInfo(("%s %d v_secure_system failed \n", __FUNCTION__, __LINE__));
++               }
++               else
++               {
++                   CcspTraceInfo(("%s %d 6brd is already running \n", __FUNCTION__, __LINE__));
++               }
++               if(IsProcessRunning("zebra"))
++               {
++                   int process_killed = v_secure_system("killall zebra");
++                   if (process_killed == -1)
++                       CcspTraceError(("%s %d v_secure_system failed to kill zebra\n", __FUNCTION__, __LINE__));
++               }
++               v_secure_system("sysevent set relay_mode_enable true");
++               p_VirtIf->RelayModeEnable = bValue;
++               ret = TRUE;
++            }
++            else if (bValue == FALSE)
++            {
++               if(!IsProcessRunning("zebra") && valid_ifname)
++               {
++                   int status = v_secure_system("sysevent set zebra-restart");
++                   if ( status == -1 )
++                       CcspTraceInfo(("%s %d v_secure_system failed \n", __FUNCTION__, __LINE__));
++               }
++               else
++               {
++                   CcspTraceInfo(("%s %d zebra is already running \n", __FUNCTION__, __LINE__));
++               }
++               if(IsProcessRunning("6brd"))
++               {
++                   int process_killed = v_secure_system("killall 6brd");
++                   if (process_killed == -1)
++                       CcspTraceError(("%s %d v_secure_system failed to kill 6brd\n", __FUNCTION__, __LINE__));
++               }
++               v_secure_system("sysevent set relay_mode_enable false");
++               p_VirtIf->RelayModeEnable = bValue;
++               ret = TRUE;
++            }
++            else
++               ret = FALSE;
++        }
+         WanMgr_VirtualIfaceData_release(p_VirtIf);
+     }
+ 
+diff --git a/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c b/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
+index adccac5..905e904 100644
+--- a/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
++++ b/source/TR-181/middle_layer_src/wanmgr_rdkbus_apis.c
+@@ -428,6 +428,21 @@ int get_Virtual_Interface_FromPSM(ULONG instancenum, ULONG virtInsNum ,DML_VIRTU
+         pVirtIf->IP.ModeForceEnable = TRUE;
+     }
+ 
++    _ansc_memset(param_name, 0, sizeof(param_name));
++    _ansc_memset(param_value, 0, sizeof(param_value));
++    _ansc_sprintf(param_name, PSM_WANMANAGER_IF_VIRIF_RELAYMODEENABLE, instancenum, (virtInsNum + 1));
++    retPsmGet = WanMgr_RdkBus_GetParamValuesFromDB(param_name,param_value,sizeof(param_value));
++
++    if(strcmp(param_value, PSM_ENABLE_STRING_TRUE) == 0)
++    {
++        pVirtIf->RelayModeEnable = TRUE;
++        v_secure_system("sysevent set relay_mode_enable true");
++    }
++    else
++    {
++        v_secure_system("sysevent set relay_mode_enable false");
++    }
++
+     _ansc_memset(param_name, 0, sizeof(param_name));
+     _ansc_memset(param_value, 0, sizeof(param_value));
+     _ansc_sprintf(param_name, PSM_WANMANAGER_CONNECTIVITY_CHECK_TYPE, instancenum, (virtInsNum + 1));
+@@ -708,6 +723,19 @@ int write_Virtual_Interface_ToPSM(ULONG instancenum, ULONG virtInsNum ,DML_VIRTU
+     _ansc_sprintf(param_name, PSM_WANMANAGER_IF_VIRIF_IP_MODE_FORCE_ENABLE, instancenum, (virtInsNum + 1));
+     WanMgr_RdkBus_SetParamValuesToDB(param_name,param_value);
+ #endif
++    memset(param_value, 0, sizeof(param_value));
++    memset(param_name, 0, sizeof(param_name));
++    if(pVirtIf->RelayModeEnable == TRUE)
++    {
++        _ansc_sprintf(param_value, "TRUE");
++    }
++    else
++    {
++        _ansc_sprintf(param_value, "FALSE");
++    }
++    _ansc_sprintf(param_name, PSM_WANMANAGER_IF_VIRIF_RELAYMODEENABLE, instancenum, (virtInsNum + 1));
++    WanMgr_RdkBus_SetParamValuesToDB(param_name,param_value);
++
+     return 0;
+ }
+ 
+-- 
+2.34.1
+
