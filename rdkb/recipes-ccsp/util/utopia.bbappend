@@ -51,6 +51,7 @@ SRC_URI:append = " \
     file://00046-qti-utopia-firewall_whitelist_Uplink-embedded-traffic-support.patch \
     file://00047-qti-utopia-RelayMode_support.patch \
     file://00048-qti-utopia-zebra_BH_Toggle_Fix.patch \
+    file://00049-qti-utopia-UDP_conntrack_deletion_timing_issue.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
