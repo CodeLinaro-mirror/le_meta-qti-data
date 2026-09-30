@@ -5,20 +5,20 @@ Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 SPDX-License-Identifier: BSD-3-Clause-Clear
 
 From a36a8cc3dca0f1b66c16589f87a0183a82749ae9 Mon Sep 17 00:00:00 2001
-From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
-Date: Wed, 16 Sep 2026 12:39:48 +0000
+From: Ramanasarvesh Sadula<ramanasa@qti.qualcomm.com>
+Date: Thu, 01 oct 2026 12:39:48 +0000
 Subject: [PATCH] packet-stats-wlan-changes
 
-Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Signed-off-by: Ramanasarvesh Sadula<ramanasa@qti.qualcomm.com>
 ---
  source/lm/lm_main.c | 10 ++++++++--
  1 file changed, 8 insertions(+), 2 deletions(-)
 
-diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
-index b7ddfdc..78307fe 100644
---- a/source/lm/lm_main.c
-+++ b/source/lm/lm_main.c
-@@ -5282,7 +5282,10 @@ static bool getClientType(char *mac,bool mac_found_ipv4,bool mac_found_ipv6,char
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -5282,7 +5282,10 @@ static bool getClientType(char *mac,bool
                  strlcpy(client_type, "Ethernet", IFACE_SIZE);
              else if ((0 == strcmp(ifname+1,"rndis0")) || (0 == strcmp(ifname+1,"ecm0")))
                  strlcpy(client_type, "USB", IFACE_SIZE);
@@ -30,7 +30,7 @@ index b7ddfdc..78307fe 100644
                  strlcpy(client_type, "WLAN", IFACE_SIZE);
  #ifdef GUEST_WIFI
              else if ((0 == strcmp(ifname+1,"ath2")) || (0 == strcmp(ifname+1,"ath3")) || (0 == strcmp(ifname+1,"ath14")) || (0 == strcmp(ifname+1,"ath15")))
-@@ -5384,7 +5387,10 @@ ANSC_STATUS getInterfaceFromMac(char *mac, char *ifname)
+@@ -5384,7 +5387,10 @@ ANSC_STATUS getInterfaceFromMac(char *ma
              strlcpy(ifname, "eth1", (strlen(iface_name)+1));
          if ((0 == strcmp(iface_name, "rndis0")) || (0 == strcmp(iface_name, "ecm0")))
              strlcpy(ifname, "usb", (strlen(iface_name)+1));
@@ -42,6 +42,36 @@ index b7ddfdc..78307fe 100644
              strlcpy(ifname, "wlan", (strlen(iface_name)+1));
  #ifdef GUEST_WIFI
          if ((0 == strcmp(iface_name, "ath2")) || (0 == strcmp(iface_name, "ath3")) || (0 == strcmp(iface_name, "ath14")) || (0 == strcmp(iface_name, "ath15")))
--- 
-2.34.1
-
+@@ -5671,11 +5677,10 @@ uint64_t GetTotalStatBytes(char *ip, cha
+ 
+     if (ANSC_STATUS_SUCCESS == isECMModuleLoaded()) {
+         /* ECM: IPv4 address */
+-        uint64_t ecm_tx = getECMStatBytes(ip, true);
+-        uint64_t ecm_rx = getECMStatBytes(ip, false);
+-        ecm_stat_bytes = ecm_tx + ecm_rx;
+-        CcspTraceInfo(("[%s:%d] ECM IPv4 stats for IP %s: TX=%lu RX=%lu Total=%lu\n",
+-                       __FUNCTION__, __LINE__, ip, ecm_tx, ecm_rx, ecm_stat_bytes));
++        ecm_stat_bytes = getECMStatBytes(ip, is_tx_stat);
++        CcspTraceInfo(("[%s:%d] ECM IPv4 stats for IP %s: %s=%lu\n",
++                       __FUNCTION__, __LINE__, ip,
++                       is_tx_stat ? "TX" : "RX",ecm_stat_bytes));
+ 
+         /* ECM: IPv6 addresses - read from ipv6_stats.txt so the same addresses
+          * registered with ip6tables/ECM are queried without needing host pointer.
+@@ -5703,11 +5708,11 @@ uint64_t GetTotalStatBytes(char *ip, cha
+                     if (0 != strcasecmp(mac, macaddr+1))
+                         continue;
+                     strlcpy(v6addr, ipaddr+1, sizeof(v6addr));
+-                    uint64_t ecm_v6_tx = getECMStatBytes(v6addr, true);
+-                    uint64_t ecm_v6_rx = getECMStatBytes(v6addr, false);
+-                    ecm_stat_bytes += ecm_v6_tx + ecm_v6_rx;
+-                    CcspTraceInfo(("[%s:%d] ECM IPv6 stats for %s: TX=%lu RX=%lu\n",
+-                                   __FUNCTION__, __LINE__, v6addr, ecm_v6_tx, ecm_v6_rx));
++                    uint64_t ecm_v6_bytes = getECMStatBytes(v6addr, is_tx_stat);
++                    ecm_stat_bytes += ecm_v6_bytes;
++                    CcspTraceInfo(("[%s:%d] ECM IPv6 stats for %s: %s=%lu\n",
++                                  __FUNCTION__, __LINE__, v6addr,
++                                  is_tx_stat ? "TX" : "RX",ecm_v6_bytes));
+                 }
+                 if (v6line) free(v6line);
+                 fclose(v6fp);
