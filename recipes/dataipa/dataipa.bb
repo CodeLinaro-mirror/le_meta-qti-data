@@ -94,6 +94,7 @@ do_install() {
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
    install -d ${D}${sysconfdir}/data/ipa_be/
    install -m 0444 ${UNPACKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
+   install -m 0444 ${UNPACKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/factory_ipa_ini_file.ini
    install -d ${D}${nonarch_base_libdir}/firmware/ipa_be
    ln -sf ${sysconfdir}/data/ipa_be/ipa_ini_file.ini ${D}${nonarch_base_libdir}/firmware/ipa_be/ipa_ini_file.ini
 

@@ -82,6 +82,7 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./files/start_dataipa_le  $(1)/etc/initscripts/
 	$(INSTALL_DIR) $(1)/etc/data/ipa_be
 	$(INSTALL_DATA) ./files/ipa_ini_file.ini $(1)/etc/data/ipa_be/ipa_ini_file.ini
+	$(INSTALL_DATA) ./files/ipa_ini_file.ini $(1)/etc/data/ipa_be/factory_ipa_ini_file.ini
 	$(INSTALL_DIR) $(1)/lib/firmware/ipa_be
 	ln -s /etc/data/ipa_be/ipa_ini_file.ini $(1)/lib/firmware/ipa_be/ipa_ini_file.ini
 
