@@ -1,0 +1,79 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d8f62613f0a56aae9437b534ccfd543c974135a2 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Thu, 2 Jul 2026 14:02:11 +0000
+Subject: [PATCH] It enables correct SDX full-factory-reset behavior by adding _PLATFORM_SDX_ support and triggering ipa reset when full FR mask is set (FR_ROUTER + FR_WIFI + FR_FW + FR_CELL), so IPA/hardware path is reset cleanly.It adds safe DHCPv4 file-pointer handling (fclose + fp=NULL) to prevent stale file-handle issues that can cause instability during/after reset.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c     | 10 ++++++++--
+ .../cosa_x_cisco_com_devicecontrol_apis.c            | 13 ++++++++++++-
+ 2 files changed, 20 insertions(+), 3 deletions(-)
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c b/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c
+index bfe32a0..16ca740 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_dhcpv4_apis.c
+@@ -3455,7 +3455,11 @@ int _cosa_get_dhcps_client(ULONG instancenum, UCHAR *ifName, ULONG minAddress, U
+     fclose(fpTmp);
+     fp = NULL;
+     fpTmp = NULL;
+-
++    if(fp)
++    {
++        fclose(fp);
++        fp = NULL;
++    }
+     fp = fopen(COSA_DML_DHCP_LEASES_FILE_TMP, "r");
+     if (!fp){
+         /* failed to open tmp lease file */
+@@ -3734,8 +3738,10 @@ int _cosa_get_dhcps_client(ULONG instancenum, UCHAR *ifName, ULONG minAddress, U
+         }
+     }
+     AnscTraceFlow(("%s, Done with Option parameters\n", __FUNCTION__));
+-    if (fp)
++    if (fp){
+         fclose(fp);
++        fp = NULL;
++    }
+ #if 0
+     gettimeofday(&tval, NULL);
+     tm = *localtime(&tval.tv_sec);
+diff --git a/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c b/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+index 6542b0b..2e9c4b1 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+@@ -2383,7 +2383,7 @@ CosaDmlDcSetFactoryReset
+ 	   	CcspTraceError(("FactoryReset:%s BAD parameter passed to factory defaults parameter ...\n",__FUNCTION__));
+ 		return ANSC_STATUS_BAD_PARAMETER;
+ 	    }
+-#if (defined (_XB6_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)) && defined (_COSA_BCM_ARM_) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined(_COSA_BCM_MIPS_) || defined(_XER5_PRODUCT_REQ_) || defined (_PLATFORM_BANANAPI_R4_)
++#if (defined (_XB6_PRODUCT_REQ_) || defined (_CBR_PRODUCT_REQ_)) && defined (_COSA_BCM_ARM_) || defined (_HUB4_PRODUCT_REQ_) || defined (_PLATFORM_RASPBERRYPI_) || defined(_COSA_BCM_MIPS_) || defined(_XER5_PRODUCT_REQ_) || defined (_PLATFORM_BANANAPI_R4_) || defined (_PLATFORM_SDX_)
+                 {
+                         unsigned int dbValue = 0;
+                         FILE *pdbFile = NULL;
+@@ -2670,6 +2670,17 @@ CosaDmlDcSetFactoryReset
+ 	}
+ 	if (factory_reset_mask & FR_NONE){
+ 	}
++#if defined(_PLATFORM_SDX_)
++        // IPA Hardware path and ECM config reset triggered for complete factory reset
++        if ((factory_reset_mask & FR_ROUTER) &&
++            (factory_reset_mask & FR_WIFI) &&
++            (factory_reset_mask & FR_FW) &&
++            (factory_reset_mask & FR_CELL))
++        {
++           v_secure_system("ipa reset");
++           v_secure_system("cp /etc/data/factory_qca-nss-ecm-config /etc/qca-nss-ecm/config");
++        }
++#endif
+ 	// Delete rfc agent files & do backup logs 
+ 	if (factory_reset_mask & FR_ROUTER) {
+         if ( access("/nvram/rfc.json", F_OK) == 0 )
+--
+2.34.1

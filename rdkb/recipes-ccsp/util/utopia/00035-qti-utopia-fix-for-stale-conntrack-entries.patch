@@ -1,0 +1,271 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 77ee80984c8cf347d7e7cdb7d85b281353bbbba8 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Wed, 2 Sep 2026 04:26:29 +0000
+Subject: [PATCH] Added fix to delete stale conntrack entries when DMZ is disabled
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/firewall/firewall.c | 174 ++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 171 insertions(+), 3 deletions(-)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -463,6 +463,7 @@ char cellular_ifname[32];
+ #define SET "set"
+ #define RESET "reset"
+ #define UP "up"
++#define CMD_BFR_SIZE 30
+ 
+ #if defined (FEATURE_MAPT) || defined (FEATURE_SUPPORT_MAPT_NAT46)
+ #define SYSEVENT_MAPT_CONFIG_FLAG "mapt_config_flag"
+@@ -508,12 +509,14 @@ BOOL isMAPEReady = 0;
+ char *sysevent_name = "firewall";
+ 
+ #define IP_SIZE 20
++#define BUFFER_SIZE 256
+ #define DMZ_ENABLE '1'
+ int firewall_lib_init(void *bus_handle, int sysevent_fd, token_t sysevent_token);
+ #if defined(CONFIG_KERNEL_NETFILTER_XT_TARGET_CT)
+ static int do_lan2wan_helpers(FILE *raw_fp);
+ #endif
+ FILE *firewallfp = NULL;
++char *fwStatus = "/tmp/.firewallStatus";
+ 
+ //#define CONFIG_BUILD_TRIGGER 1
+ /*
+@@ -648,6 +651,7 @@ static char redirectionFlag[50]; //Capti
+ 
+ static char iptables_pri_level[IPT_PRI_MAX];
+ static char lxcBridgeName[20];
++static char dmz_dest_ip[IP_SIZE];
+ //static int  portmapping_pri;        
+ //static int  porttriggering_pri;
+ //static int  firewall_pri;
+@@ -989,7 +993,7 @@ void do_xlat_rule(FILE *nat_fp)
+ static void add_dslite_mss_clamping(FILE *fp);
+ #endif
+ 
+-#if defined(FEATURE_MAPT) || defined(FEATURE_SUPPORT_MAPT_NAT46)
++
+ static int IsValidIPv4Addr(char* ip_addr_string)
+ {
+     int ret = 1;
+@@ -1015,6 +1019,7 @@ static int IsValidIPv4Addr(char* ip_addr
+     return ret;
+ }
+ 
++#if defined(FEATURE_MAPT) || defined(FEATURE_SUPPORT_MAPT_NAT46)
+ /*
+  ==========================================================================
+                      HUB4 MAPT Feature
+@@ -1671,6 +1676,93 @@ static char *trim(char *in)
+    return(start);
+ }
+ 
++/*
++ * Procedure     : getKeyValue
++ * Purpose       : get the value from /tmp/.firewallStatus
++ * Parameters    :
++ *    in         : keyword
++ *    out        : keyVal
++ * Return Value  : -1 for error, 0 for success
++ */
++int getKeyValue(char *keyword, char *keyVal)
++{
++    char line[BUFFER_SIZE];
++    char *ip = NULL;
++    if ((NULL == keyword) || (NULL == keyVal))
++    {
++        FIREWALL_DEBUG("%s:%d params NULL\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    FILE *fp = fopen(fwStatus,"r");
++    if (NULL == fp)
++        return -1;
++
++    while(NULL != fgets(line,BUFFER_SIZE,fp))
++    {
++        char *lineTrim = trim(line);
++        if(0 == strncmp(lineTrim,keyword,strlen(keyword)))
++        {
++            ip = strstr(lineTrim,"=");
++            break;
++        }
++    }
++    fclose(fp);
++
++    if (ip == NULL)
++    {
++        FIREWALL_DEBUG("%s:%d ip is NULL\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    strlcpy(keyVal,ip,IP_SIZE);
++
++    return 0;
++}
++
++/*
++ * Procedure     : writeFirewallState
++ * Purpose       : writes into /tmp/.firewallStatus
++ * Parameters    :
++ *    in         : None
++ * Return Value  : 0 if success, else -1
++ */
++static int writeFirewallState()
++{
++    char tempIP[IP_SIZE] = {'\0'};
++    char *keyVal;
++    int ret = -1;
++    FILE *fwfp = NULL;
++
++    if (isDmzEnabled)
++    {
++        keyVal = (char *)malloc(IP_SIZE * sizeof(char));
++        if (NULL == keyVal)
++            return ret;
++        ret = getKeyValue("prevDmzIP=",keyVal);
++        if (-1 != ret)
++        {
++            strlcpy(tempIP,keyVal+1,sizeof(tempIP));
++        }
++        free(keyVal);
++        keyVal = NULL;
++    }
++    fwfp = fopen(fwStatus,"w");
++    if (NULL == fwfp)
++        return -1;
++    fprintf(fwfp, "isDmzEnabled=%d\n",isDmzEnabled);
++    fprintf(fwfp, "prevDmzIP=%s\n",dmz_dest_ip);
++    fclose(fwfp);
++    if (isDmzEnabled)
++    {
++        if(IsValidIPv4Addr(tempIP) && !(IS_EMPTY_STRING(tempIP)) && (0 != strcmp(tempIP,dmz_dest_ip)))
++        {
++            v_secure_system("iptables -I FORWARD -d %s -m tcp -p tcp -j DROP", tempIP);
++            v_secure_system("iptables -I FORWARD -d %s -m udp -p udp -j DROP", tempIP);
++            v_secure_system(" conntrack -D --reply-src %s ",tempIP);
++            v_secure_system(" conntrack -D --orig-src %s ",tempIP);
++        }
++    }
++    return 0;
++}
+ 
+ /*
+  * Procedure     : token_get
+@@ -4895,6 +4987,31 @@ static int do_dmz(FILE *nat_fp, FILE *fi
+    int  src_type = 0; // 0 is all networks, 1 is an ip[/netmask], 2 is ip range
+            FIREWALL_DEBUG("Entering do_dmz\n");       
+    if (!isDmzEnabled) {
++      char str = '\0';
++      char *keyVal = NULL;
++      int ret = -1;
++
++      keyVal = (char *)malloc(IP_SIZE * sizeof(char));
++      if (NULL != keyVal)
++      {
++          ret = getKeyValue("isDmzEnabled=",keyVal);
++          if (-1 != ret)
++          {
++              if (keyVal)
++              {
++                  str = keyVal[1];
++              }
++              if (DMZ_ENABLE == str)
++              {
++                  if (IsValidIPv4Addr(dmz_dest_ip) && !(IS_EMPTY_STRING(dmz_dest_ip)))
++                  {
++                      v_secure_system("iptables -I FORWARD -d %s -m tcp -p tcp -j DROP", dmz_dest_ip);
++                      v_secure_system("iptables -I FORWARD -d %s -m udp -p udp -j DROP", dmz_dest_ip);
++                  }
++              }
++          }
++          free(keyVal);
++      }
+       return(0);
+    } 
+  
+@@ -15430,6 +15547,11 @@ static int service_start ()
+    BOOL needs_flush = FALSE;
+    char temp[20];
+    //int res_rfcfile = -1, res_rfclock = -1;
++   char str = '\0';
++   char *keyVal = NULL;
++   int ret = -1;
++   FILE *fp=NULL;
++   char cmd[CMD_BFR_SIZE];
+ 
+    /* If firewall is starting for the first time, we need to flush connection tracking */
+    temp[0] = '\0';
+@@ -15438,6 +15560,25 @@ static int service_start ()
+       needs_flush = TRUE;
+    }
+ 
++   memset(cmd,0,sizeof(cmd));
++   memset(dmz_dest_ip,0,sizeof(dmz_dest_ip));
++   snprintf(cmd,sizeof(cmd)-1, "syscfg get dmz_dst_ip_addr");
++   fp = popen(cmd,"r");
++   if (fp != NULL)
++   {
++       if (fgets(dmz_dest_ip,sizeof(dmz_dest_ip)-1,fp) != NULL)
++           dmz_dest_ip[strlen(dmz_dest_ip) - 1] = '\0';
++       pclose(fp);
++   }
++
++   if (isDmzEnabled)
++   {
++       v_secure_system(" echo 0 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose ");
++       ret = writeFirewallState();
++       if (-1 == ret)
++           FIREWALL_DEBUG("[%s] writeFirewallState failed\n" COMMA __FUNCTION__);
++   }
++
+    //clear content in firewall cron file.
+    char *cron_file = crontab_dir"/"crontab_filename;
+    FILE *cron_fp = NULL; // the crontab file we use to set wakeups for timed firewall events
+@@ -15500,6 +15641,38 @@ static int service_start ()
+ #endif
+    FIREWALL_DEBUG("iptables-restore for ipv6 ends\n");
+ 
++   if (!isDmzEnabled)
++   {
++       keyVal = (char *)malloc(IP_SIZE * sizeof(char));
++       if (NULL != keyVal)
++       {
++           ret = getKeyValue("isDmzEnabled=",keyVal);
++           if (-1 != ret)
++           {
++               if (keyVal)
++               {
++                   str = keyVal[1];
++               }
++               if (DMZ_ENABLE == str)
++               {
++                   if (!IS_EMPTY_STRING(dmz_dest_ip))
++                   {
++                       /*conntrack entry deletion when dmz is disabled*/
++                       v_secure_system(" conntrack -D --reply-src %s ",dmz_dest_ip);
++                       v_secure_system(" conntrack -D --orig-src %s ",dmz_dest_ip);
++                       if (0 != writeFirewallState())
++                           FIREWALL_DEBUG("[%s] writeFirewallState failed\n" COMMA __FUNCTION__);
++                   }
++               }
++           }
++           free(keyVal);
++       }
++       memset(temp,0,sizeof(temp));
++       sysevent_get(sysevent_fd, sysevent_token, "firewall_rule_type", temp, sizeof(temp));
++       if (strcmp(temp, "None") == 0)
++           v_secure_system(" echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose ");
++   }
++
+    #ifdef _PLATFORM_RASPBERRYPI_
+        /* Apply Mac Filtering rules for RPI-Device */
+        v_secure_system("/bin/sh -c /tmp/mac_filter.sh");

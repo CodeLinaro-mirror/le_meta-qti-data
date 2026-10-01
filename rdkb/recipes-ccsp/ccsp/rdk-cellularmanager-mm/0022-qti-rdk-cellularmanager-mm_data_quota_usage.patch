@@ -1,0 +1,139 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 5901b22fed7450733dd155b8634aea5993eef13d Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Tue, 28 Jul 2026 00:00:00 +0000
+Subject: DM implementation for X_QCOM DataUsageQuota: struct field, PSM param definitions, DM registration, and periodic refresh
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_cellular_apis.h        |  3 +++
+ source/CellularManager/cellularmgr_sm.c                   | 11 +++++++++-
+ source/TR-181/include/dmsb_tr181_psm_definitions.h        |  8 ++++++++
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c     |  8 ++++++++
+ 4 files changed, 29 insertions(+), 1 deletion(-)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 2094308..b1d1fb8 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -58,6 +58,10 @@ extern ModemState mmState;
+                 CONSTANT DEFINITIONS
+ **********************************************************************/
+
++#ifdef CM_EXTN_SUPPORTED
++#define DATA_USAGE_REFRESH_PERIOD 120000000 //2 min delay specified in microsec
++#endif
++
+ #define LOOP_TIMEOUT            500000 // timeout in milliseconds. This is the state machine loop interval
+
+ #define SYSEVENT_CM_WAN_V4_IPADDR   "cellular_wan_v4_ip"
+@@ -1465,7 +1469,12 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+         tv.tv_nsec +=  1000*LOOP_TIMEOUT;
+         tv.tv_sec += tv.tv_nsec / 1000000000;
+         tv.tv_nsec %= 1000000000;
+         elapsedNanosec += (1000 * (uint64_t)LOOP_TIMEOUT);
++        if ( elapsedNanosec >= (1000 * (uint64_t)DATA_USAGE_REFRESH_PERIOD))
++        {
++            CellularMgr_extn_X_QCOM_GetDataUsageQuotaInfo(&(gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->stCellularInterfaceInfoExtn.stDataUsageQuota));
++            elapsedNanosec = 0;
++        }
+         //Wait upto 500 ms for any MM signalling
+         sem_timedwait(&mm_sm_sync_sem, &tv);
+ #else
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index 1abb265..da0c44b 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -57,6 +57,15 @@
+ #define PSM_CELLULARMANAGER_INTERFACE_ALIAS                                       "dmsb.cellularmanager.interface.%d.alias"
+ #define PSM_CELLULARMANAGER_INTERFACE_PRAT                         "dmsb.cellularmanager.interface.%d.prat"
+
++#ifdef CM_EXTN_SUPPORTED
++//Device.Cellular.Interface.{i}.X_QCOM.
++#define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_MONTHLY_DATA_USAGE_QUOTA           "dmsb.cellularmanager.interface.%d.x_qcom.monthlyDataUsageQuota"
++#define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_DAILY_DATA_USAGE_QUOTA            "dmsb.cellularmanager.interface.%d.x_qcom.dailyDataUsageQuota"
++#define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_SAVED_MONTH_DATA_USAGE            "dmsb.cellularmanager.interface.%d.x_qcom.savedMonthlyDataUsage"
++#define PSM_CELLULARMANAGER_INTERFACE_X_QCOM_SAVED_DAY_DATA_USAGE              "dmsb.cellularmanager.interface.%d.x_qcom.savedDailyDataUsage"
++#define PSM_CELLULARMANAGER_INIT_DATE                                             "dmsb.cellularmanager.initDate"
++#endif
++
+ #endif
+
+ #endif
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 38e6afc..ad18f63 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3629,6 +3629,14 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #endif
++#ifdef CM_EXTN_SUPPORTED
++        {"Device.Cellular.Interface.{i}.X_QCOM.MonthlyDataUsageQuota", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_Data_Usage_Quota_GetParamUlongValue_rbus, X_QCOM_Data_Usage_Quota_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.PresentMonthDataUsage", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_Data_Usage_Quota_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.MonthlyQuotaExceeded", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_GetParamBoolValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DailyDataUsageQuota", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_Data_Usage_Quota_GetParamUlongValue_rbus, X_QCOM_Data_Usage_Quota_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.PresentDayDataUsage", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_Data_Usage_Quota_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DailyQuotaExceeded", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_GetParamBoolValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#endif
+         {"Device.Cellular.X_RDK_UiccNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.Enable", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetParamBoolValue_rbus, UiccSlot_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 70608c4..c0fec0a 100644
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -35,6 +35,8 @@
+
+ #ifdef CM_EXTN_SUPPORTED
+ #include "cellular_hal_mm_apis.h"
++void CellularMgr_extn_DataQuotaMetaInfoManageMutexInitDeInit(bool mutexMode);
++void CellularMgr_extn_FetchSavedDataFromDB(void);
+ void dump_state_variables();
+ void set_sm_roaming_init_value(bool val);
+ void set_sm_roaming_dynamic_value(bool val);
+@@ -1500,6 +1502,7 @@ static ANSC_STATUS CellularMgr_ControllerInit( CellularMgrSMInputStruct    *pstI
+ #ifdef CM_PROP_SUPPORTED
+         set_sm_roaming_init_value(gpstCellularPolicyCtrl->pstDmlCellular->RoamingEnabled);
+ #endif //CM_PROP_SUPPORTED
++        CellularMgr_extn_DataQuotaMetaInfoManageMutexInitDeInit(TRUE);
+ #endif //CM_EXTN_SUPPORTED
+
+         retStatus = ANSC_STATUS_SUCCESS;
+@@ -1579,6 +1582,21 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+                 }
+             }
+ #endif // CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
++
++#ifdef CM_EXTN_SUPPORTED
++            if (policy_sm_state == CELLULAR_STATE_CONNECTED)
++            {
++                if (linkFailureDetected == TRUE)
++                {
++                    CellularMgr_extn_FetchSavedDataFromDB();
++                    linkFailureDetected = FALSE;
++                }
++            }
++            else if (policy_sm_state_old == CELLULAR_STATE_CONNECTED)
++            {
++                linkFailureDetected = TRUE;
++            }
++#endif
+             policy_sm_state_old = policy_sm_state;
+             CellularMgrSMCheckAndSetWWANConnectionStatus( policy_sm_state );
+ #ifdef CM_EXTN_SUPPORTED
+@@ -1631,6 +1649,9 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+
+     if(gpstCellularPolicyCtrl)
+     {
++#ifdef CM_EXTN_SUPPORTED
++        CellularMgr_extn_DataQuotaMetaInfoManageMutexInitDeInit(FALSE);
++#endif
+         free( gpstCellularPolicyCtrl );
+         gpstCellularPolicyCtrl = NULL;
+     }
+--
+2.34.1

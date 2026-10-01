@@ -1,0 +1,46 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Wed, 23 Jul 2026 00:00:00 +0000
+Subject: Add full Device.Cellular.Interface.{i}.Stats.* DM registration and error stats fields
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_cellular_apis.h        | 4 ++++
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c     | 6 ++++++
+ 2 files changed, 10 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index ff15918..1fbca25 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -193,6 +193,10 @@ _CELLULAR_INTERFACE_STATS_INFO
+     ULONG               PacketsReceivedDrop;
+     ULONG               UpStreamMaxBitRate;
+     ULONG               DownStreamMaxBitRate;
++#ifdef CM_PROP_SUPPORTED
++    ULONG               ErrorsSent;
++    ULONG               ErrorsReceived;
++#endif
+ }
+ CELLULAR_INTERFACE_STATS_INFO,  *PCELLULAR_INTERFACE_STATS_INFO;
+ 
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3634,6 +3634,12 @@
+ #ifdef CM_EXTN_SUPPORTED
+         {"Device.Cellular.Interface.{i}.Stats.BytesSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.BytesReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Stats.PacketsSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Stats.PacketsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Stats.ErrorsSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Stats.ErrorsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.X_QCOM.ModemStatus", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamStringValue_rbus, Cellular_Interface_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif
+         {"Device.Cellular.X_RDK_UiccNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},

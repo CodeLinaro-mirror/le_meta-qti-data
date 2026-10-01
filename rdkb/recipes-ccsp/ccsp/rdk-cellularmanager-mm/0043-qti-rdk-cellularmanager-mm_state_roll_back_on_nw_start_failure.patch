@@ -1,0 +1,63 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 8d82396a07ecd5e1e0bc76399f5561222d2f66e7 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Wed, 23 Sep 2026 05:20:21 +0000
+Subject: Fix state inconsistency during network start hal failure
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_sm.c | 28 +++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 0acb59e..dcda3d4 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -956,6 +956,15 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+     int currentModemState = 0;
+ 
+ #ifdef CM_EXTN_SUPPORTED
++    /* Backup current network state to allow rollback if the cellular HAL start fails */
++    bool savedIPv4NetworkStartInProgress = gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress;
++    bool savedIPv4WaitingForPacketStatus = gpstCellularPolicyCtrl->bIPv4WaitingForPacketStatus;
++    bool savedIPv6NetworkStartInProgress = gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress;
++    bool savedIPv6WaitingForPacketStatus = gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus;
++    CellularNetworkPacketStatus_t savedNetworkIPv4PacketServiceStatus = gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus;
++    CellularDeviceIPReadyStatus_t savedNetworkIPv4IPReadyStatus = gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus;
++    CellularNetworkPacketStatus_t savedNetworkIPv6PacketServiceStatus = gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus;
++    CellularDeviceIPReadyStatus_t savedNetworkIPv6IPReadyStatus = gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus;
+     /*
+      * Network Start Logic KPI Optimization:
+      * 1. Single HAL Call: usage of CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED allows activating
+@@ -993,6 +1002,25 @@ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+     if( RETURN_OK != cellular_hal_start_network( CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED, NULL, &stNetworkCB ))
+     {
+         CcspTraceError(("%s %d: Failed to Start IP Network\n", __FUNCTION__, __LINE__));
++        /* Rollback network parameters on failure */
++        if( ( CELLULAR_PDP_TYPE_IPV4 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
++            ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++        )
++        {
++            gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress        = savedIPv4NetworkStartInProgress;
++            gpstCellularPolicyCtrl->bIPv4WaitingForPacketStatus        = savedIPv4WaitingForPacketStatus;
++            gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus   = savedNetworkIPv4PacketServiceStatus;
++            gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus         = savedNetworkIPv4IPReadyStatus;
++        }
++        if( ( CELLULAR_PDP_TYPE_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
++            ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++        )
++        {
++            gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress        = savedIPv6NetworkStartInProgress;
++            gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus        = savedIPv6WaitingForPacketStatus;
++            gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus   = savedNetworkIPv6PacketServiceStatus;
++            gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus         = savedNetworkIPv6IPReadyStatus;
++        }
+     }
+ #else
+ #ifndef HYBRID_SUPPORT
+-- 
+2.34.1
+

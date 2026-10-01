@@ -1,0 +1,57 @@
+From: Saravanan B <saravb@qti.qualcomm.com>
+Date: Tue, 14 Nov 2023 11:16:52 +0000
+Subject: [PATCH] Fix for updating wan-interface dynamically and update server.conf content properly.
+
+[Description]:
+1. prepare_dhcpv6_config.sh changes is to overcome interface updation as RDK_ESTB-IF
+   The shell script changes is update wan-interface dynamically.
+
+2. dibbler-init.sh changes is to overcome the write permission issue. 
+   The shell script changes replace the symlink-based config directory approach with a bind-mount setup, providing a writable runtime config directory without modifying the read-only rootfs.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+Index: 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0/prepare_dhcpv6_config.sh
+===================================================================
+--- 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0.orig/prepare_dhcpv6_config.sh
++++ 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0/prepare_dhcpv6_config.sh
+@@ -29,14 +29,12 @@ DHCP_CONFIG_FILE_RUNTIME="/tmp/dibbler/c
+ DHCP_CONFIG_FILE_TMP="/tmp/dibbler/client-tmp.conf"
+ DHCP_CONFIG_FILE_DIBBLER_TMP="/tmp/dibbler/dibbler-client-tmp.conf"
+ RDK_PATH="/lib/rdk"
+-interface=$ARM_INTERFACE
++interface=$(sysevent get current_wan_ifname)
+ 
+ ethWanMode=`syscfg get eth_wan_enabled`
+ DSLite_Enabled=`syscfg get dslite_enable`
+ isMaptEnabled=`syscfg get MAPT_Enable`
+-if [ "$interface" ] && [ -f /etc/dibbler/client_back.conf ];then
+-    sed -i "s/RDK-ESTB-IF/${interface}/g" /etc/dibbler/client_back.conf
+-fi
++sed -i "s/RDK-ESTB-IF/${interface}/g" /etc/dibbler/client_back.conf
+ if [ ! -f /etc/dibbler/radvd.conf ];then touch /etc/dibbler/radvd.conf; fi
+ if [ ! -f /etc/dibbler/radvd.conf.old ];then touch /etc/dibbler/radvd.conf.old; fi
+ if [ -f /etc/os-release ];then
+Index: 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0/dibbler-init.sh
+===================================================================
+--- 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0.orig/dibbler-init.sh
++++ 1.0.1+1.0.2RC1+gita7c6cf58a88a510cb00841351e75030ce78d36bf-r0/dibbler-init.sh
+@@ -37,12 +37,15 @@ if [ ! -e /var/lib/dibbler ]; then
+    ln -s /tmp/dibbler /var/lib/dibbler
+ fi
+ else
+-   if [ ! -h /tmp/dibbler ];then
+-      ln -s /etc/dibbler /tmp/dibbler
++   if [ -h /tmp/dibbler ]; then
++      rm -f /tmp/dibbler
+    fi
++   mkdir -p /tmp/dibbler
++   cp -a /etc/dibbler/. /tmp/dibbler/ 2>/dev/null
++   mount --bind /tmp/dibbler /etc/dibbler
+    if [ -f /tmp/dibbler/radvd.conf ];then
+        chmod 644 /tmp/dibbler/radvd.conf
+-   fi 
++   fi
+    mkdir -p /var/log/dibbler
+ fi
+ 

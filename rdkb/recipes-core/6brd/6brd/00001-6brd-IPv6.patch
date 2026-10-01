@@ -1,0 +1,1007 @@
+From f7f93180de6d3de668cfba77c74c7f0e3499d000 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Mon, 10 Aug 2026 12:37:38 +0000
+Subject: [PATCH] IPv6 6brd changes
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ 6brd.c    |  13 +-
+ 6brd.h    |  43 +++-
+ ndp.c     | 627 +++++++++++++++++++++++++++++++++++++++++++++++-------
+ netlink.c |   6 +-
+ 4 files changed, 597 insertions(+), 92 deletions(-)
+
+Index: git/6brd.c
+===================================================================
+--- git.orig/6brd.c
++++ git/6brd.c
+@@ -121,7 +121,7 @@ int main(int argc, char **argv)
+ 	if (!config.foreground) {
+ 		openlog ("odhcpd", LOG_PID, LOG_DAEMON);
+ 		if (daemon (0, 0)) do_log
+-			(LOG_ERR, "Failed to daemonize: %s", strerror (errno));
++                       (LOG_ERR, "6brd-Failed to daemonize: %s", strerror (errno));
+ 	}
+ 	uloop_init();
+ 
+@@ -134,7 +134,10 @@ int main(int argc, char **argv)
+ 		return 4;
+ 
+ 	for (i = 0; i < config.cnt; ++i)
++        {
++                (interfaces+i)->ndp = MODE_RELAY;
+ 		ndp_setup_interface (interfaces + i, 1);
++        }
+ 	uloop_run ();
+ 	for (i = 0; i < config.cnt; ++i)
+ 		ndp_setup_interface (interfaces + i, 0);
+@@ -203,10 +206,10 @@ ssize_t odhcpd_send(int socket, struct s
+ 
+ 	ssize_t sent = sendmsg(socket, &msg, MSG_DONTWAIT);
+ 	if (sent < 0)
+-		do_log (LOG_NOTICE, "Failed to send to %s%%%s: %s",
++               do_log (LOG_NOTICE, "6brd-Failed to send to %s%%%s: %s",
+ 				ipbuf, iface->ifname, strerror (errno));
+ 	else
+-		do_log (LOG_DEBUG, "Sent %li bytes to %s%%%s",
++               do_log (LOG_DEBUG, "6brd-Sent %li bytes to %s%%%s",
+ 				(long)sent, ipbuf, iface->ifname);
+ 	return sent;
+ }
+@@ -317,7 +320,7 @@ static void odhcpd_receive_packets(struc
+ 
+ 		/* From netlink */
+ 		if (addr.nl.nl_family == AF_NETLINK) {
+-			do_log (LOG_DEBUG, "Received %li Bytes from %s%%%s", (long)len,
++                       do_log (LOG_DEBUG, "6brd-Received %li Bytes from %s%%%s", (long)len,
+ 					ipbuf, "netlink");
+ 			e->handle_dgram(&addr, data_buf, len, NULL);
+ 			return;
+@@ -325,7 +328,7 @@ static void odhcpd_receive_packets(struc
+ 			for (int i = 0; i < config.cnt; ++i) {
+ 				struct interface *iface = interfaces + i;
+ 				if (iface->ifindex != destiface) continue;
+-				do_log (LOG_DEBUG, "Received %li Bytes from %s%%%s", (long)len,
++                               do_log (LOG_DEBUG, "6brd-Received %li Bytes from %s%%%s", (long)len,
+ 						ipbuf, iface->ifname);
+ 				e->handle_dgram(&addr, data_buf, len, iface);
+ 			}
+Index: git/6brd.h
+===================================================================
+--- git.orig/6brd.h
++++ git/6brd.h
+@@ -32,13 +32,30 @@ struct odhcpd_event {
+ 	void (*recv_msgs)(struct odhcpd_event *e);
+ };
+ 
++union if_addr {
++        struct in_addr in;
++        struct in6_addr in6;
++};
++
+ struct netevent_handler_info {
+ 	struct interface *iface;
+-	struct {
+-		struct in6_addr dst;
+-		uint16_t state;
+-		uint8_t flags;
+-	} neigh;
++        union {
++                struct {
++                        union if_addr dst;
++                        uint8_t dst_len;
++                        union if_addr gateway;
++                } rt;
++                struct {
++                        union if_addr dst;
++                        uint16_t state;
++                        uint8_t flags;
++                } neigh;
++                struct {
++                        struct odhcpd_ipaddr *addrs;
++                        size_t len;
++                } addrs_old;
++                union if_addr addr;
++        };
+ };
+ 
+ void ndp_netevent_cb
+@@ -53,16 +70,30 @@ struct config {
+ 	bool foreground;
+ 	int log_level;
+ 	int cnt;
++        bool dad_forward;
+ };
+ 
+ extern struct config config;
+ 
++enum odhcpd_mode {
++        MODE_DISABLED,
++        MODE_SERVER,
++        MODE_RELAY,
++        MODE_HYBRID
++};
++
+ struct interface {
+ 	int ifindex;
+ 	char *ifname;
+ 	int learn_routes;
+ 	int external;
+ 	struct odhcpd_event ndp_event;
++        int ndp_fd;
++        int ndp_ping_fd;
++        const char *name;
++        bool master;
++        enum odhcpd_mode ndp;
++        bool sta_bridge_mode;
+ };
+ 
+ extern struct interface *interfaces;
+@@ -89,4 +120,4 @@ void netlink_dump_neigh_table(const int
+ // Exported module initializers
+ int netlink_init(void);
+ int ndp_init(void);
+-int ndp_setup_interface(struct interface *iface, int enable);
++int ndp_setup_interface(struct interface *iface, bool enable);
+Index: git/ndp.c
+===================================================================
+--- git.orig/ndp.c
++++ git/ndp.c
+@@ -15,6 +15,8 @@
+ #include <stdio.h>
+ #include <string.h>
+ #include <syslog.h>
++#include <stdlib.h>
++#include <signal.h>
+ #include <errno.h>
+ 
+ #include <fcntl.h>
+@@ -31,14 +33,48 @@
+ #include <linux/filter.h>
+ #include <linux/neighbour.h>
+ 
+-#include "nloop.h"
++#include <linux/in6.h>
++#include <net/if.h>
++#include <sys/ioctl.h>
++#include <linux/sockios.h>
+ #include "6brd.h"
+ 
+-static void setup_route(struct in6_addr *addr, struct interface *iface, int add);
+-static void setup_addr_for_relaying(struct in6_addr *addr, struct interface *iface, int add);
+-static void handle_solicit(void *addr, void *data, size_t len, struct interface *iface);
++#define _unused __attribute__((unused))
++struct ipv6_mreq_test {
++        /* IPv6 multicast address group */
++        struct in6_addr ipv6mr_multicast;
++
++        /* ifindex of the interface */
++        int ipv6mr_ifindex;
++ };
+ 
+-static int ping_socket = -1;
++struct list_head {
++        struct list_head *next, *prev;
++};
++
++struct netevent_handler {
++        struct list_head head;
++        void (*cb) (unsigned long event, struct netevent_handler_info *info);
++  };
++
++#define LIST_HEAD_INIT(name) { &(name), &(name) }
++struct list_head netevent_handler_list = LIST_HEAD_INIT(netevent_handler_list);
++
++
++#define ALL_ROUTERS_MGROUP "FF02::2"
++#define ALL_ROUTERS_MLD2 "FF02::16"
++#define ALL_HOSTS_MGROUP "FF02::1"
++
++
++void ndp_netevent_cb(unsigned long event, struct netevent_handler_info *info);
++static void setup_route(struct in6_addr *addr, struct interface *iface, bool add);
++static void setup_addr_for_relaying(struct in6_addr *addr, struct interface *iface, bool add);
++static void handle_solicit(void *addr, void *data, size_t len,
++        struct interface *iface, void *dest);
++
++static struct in6_addr all_routers_in6_addr;
++static struct in6_addr all_mld2_routers_in6_addr;
++static struct in6_addr all_hosts_in6_addr;
+ 
+ /* Filter ICMPv6 messages of type neighbor soliciation */
+ static struct sock_filter bpf[] = {
+@@ -50,94 +86,415 @@ static struct sock_filter bpf[] = {
+ 	BPF_STMT(BPF_RET | BPF_K, 0xffffffff),
+ 	BPF_STMT(BPF_RET | BPF_K, 0),
+ };
++struct sock_filter bpf_ns_na[] =
++{
++    /* offsets are adjusted assuming message is captured at IPv6 header */
++    /* goto first byte and compare version 6 with first 4 bits */
++    { 0x30, 0, 0, 0x00000000 },
++    { 0x74, 0, 0, 0x00000004 },
++    { 0x15, 0, 3, 0x00000006 },
++    /* go further 6 bytes ahead and compare ICMPv6 type 0x3a */
++    { 0x30, 0, 0, 0x00000006},
++    { 0x15, 0, 1, 0x0000003a},
++    /* return */
++    { 0x6, 0, 0, 0x00000500}, /* PASS - return upto 1280 bytes */
++    { 0x6, 0, 0, 0x00000000}  /* FAIL - return no bytes */
++};
++#define MAC_ADDR_LEN 6
++#define IPV6_ADDR_LEN 16
++
+ static const struct sock_fprog bpf_prog = {sizeof(bpf) / sizeof(*bpf), bpf};
++static const struct sock_fprog bpf_prog_ns_na = {sizeof(bpf_ns_na) / sizeof(*bpf_ns_na), bpf_ns_na};
++static struct netevent_handler ndp_netevent_handler = { .cb = ndp_netevent_cb, };
++
++static inline void __node_add(struct list_head *new,
++                              struct list_head *prev,
++                              struct list_head *next)
++{
++        next->prev = new;
++        new->next = next;
++        new->prev = prev;
++        prev->next = new;
++}
++
++static inline void node_add(struct list_head *new, struct list_head *head)
++{
++        __node_add(new, head, head->next);
++}
++
++int netlink_add_netevent_handler(struct netevent_handler *handler)
++{
++        if (!handler->cb)
++                return -1;
++        node_add(&handler->head, &netevent_handler_list);
++        return 0;
++}
+ 
+ /* Initialize NDP-proxy */
+ int ndp_init(void)
+ {
+-	struct icmp6_filter filt;
+-	int val = 2, ret = 0;
++    int ret = 0;
++
++    if (netlink_add_netevent_handler(&ndp_netevent_handler) < 0) {
++        do_log(LOG_ERR, "6brd-Failed to add ndp netevent handler");
++        ret = -1;
++    }
+ 
+-	/* Open ICMPv6 socket */
+-	ping_socket = socket(AF_INET6, SOCK_RAW | SOCK_CLOEXEC, IPPROTO_ICMPV6);
+-	if (ping_socket < 0) {
+-		do_log (LOG_ERR, "socket(AF_INET6): %s", strerror (errno));
++    return ret;
++}
++
++static void odhcpd_add_128_bit_route(struct interface *iface, struct ip6_hdr *ip6)
++{
++    struct nd_neighbor_solicit *icmp6 = (struct nd_neighbor_solicit*)&ip6[1];
++
++    char ipbuff[INET6_ADDRSTRLEN];
++    inet_ntop(AF_INET6, &icmp6->nd_ns_target, ipbuff, sizeof(ipbuff));
++
++    netlink_setup_proxy_neigh(&icmp6->nd_ns_target, iface->ifindex, true);
++    netlink_setup_route(&icmp6->nd_ns_target, 128, iface->ifindex, NULL, 1024, true);
++    netlink_dump_neigh_table(false);
++}
++
++static int create_nd_socket(struct interface *iface)
++{
++    int nd_true = 1;
++    int nd_false = 0;
++    int ret = 0;
++    struct ipv6_mreq_test mreq_test;
++    int val = 2;
++
++    struct ifreq ifr;
++    memset(&ifr, 0, sizeof(ifr));
++
++    /* Create socket -> ndp_fd */
++    iface->ndp_fd = socket(AF_INET6, SOCK_RAW, IPPROTO_RAW);
++    if (iface->ndp_fd < 0)
++    {
++        do_log(LOG_ERR, "6brd-socket(AF_INET6): %mfor ifname:%s, errno: %d",
++                iface->ifname, errno);
+ 		ret = -1;
+ 		goto out;
+ 	}
+ 
+-	if (setsockopt(ping_socket, IPPROTO_RAW, IPV6_CHECKSUM,
+-				&val, sizeof(val)) < 0) {
+-		do_log (LOG_ERR, "setsockopt(IPV6_CHECKSUM): %s", strerror (errno));
++    if (setsockopt(iface->ndp_fd, SOL_SOCKET, SO_BINDTODEVICE,
++            iface->ifname, strlen(iface->ifname)) < 0) {
++        do_log(LOG_ERR, "6brd-setsockopt(SO_BINDTODEVICE): %m");
++        ret = -1;
++        goto out;
++    }
++
++    inet_pton(AF_INET6, ALL_ROUTERS_MGROUP, &all_routers_in6_addr);
++    inet_pton(AF_INET6, ALL_ROUTERS_MLD2, &all_mld2_routers_in6_addr);
++    inet_pton(AF_INET6, ALL_HOSTS_MGROUP, &all_hosts_in6_addr);
++
++    if (setsockopt(iface->ndp_fd,IPPROTO_IPV6, IPV6_MULTICAST_IF,
++                &iface->ifindex, sizeof(iface->ifindex)) < 0)
++    {
++        do_log(LOG_ERR, "6brd-setsocketopt(IPV6_MULTICAST_IF): %m for ifname:%s, errno: %d",
++                iface->ifname, errno);
++        ret = -1;
++        goto out;
++    }
++
++    memset(&mreq_test, 0, sizeof(mreq_test));
++    mreq_test.ipv6mr_multicast = all_routers_in6_addr;
++    mreq_test.ipv6mr_ifindex = iface->ifindex;
++    if (setsockopt(iface->ndp_fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
++                &mreq_test, sizeof(mreq_test)) < 0)
++    {
++        do_log(LOG_ERR, "6brd-setsocketopt IPV6_ADD_MEMBERSHIP(FF02::2): %m"
++                "for ifname: %s, errno: %d", iface->ifname, errno);
++        ret = -1;
++        goto out;
++    }
++
++    memset(&mreq_test, 0, sizeof(mreq_test));
++    mreq_test.ipv6mr_multicast = all_hosts_in6_addr;
++    mreq_test.ipv6mr_ifindex = iface->ifindex;
++    if (setsockopt(iface->ndp_fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
++                &mreq_test,sizeof(mreq_test)) < 0)
++    {
++        do_log(LOG_ERR, "6brd-setsocketopt IPV6_ADD_MEMBERSHIP(FF02::1): %m"
++                "for ifname: %s, err num: %d", iface->ifname, errno);
++        ret = -1;
++        goto out;
++    }
++
++    memset(&mreq_test, 0, sizeof(mreq_test));
++    mreq_test.ipv6mr_multicast = all_mld2_routers_in6_addr;
++    mreq_test.ipv6mr_ifindex = iface->ifindex;
++    if (setsockopt(iface->ndp_fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
++                &mreq_test, sizeof(mreq_test)) < 0)
++    {
++        do_log(LOG_ERR, "6brd-setsocketopt IPV6_ADD_MEMBERSHIP(FF02::16): %"
++                "for ifname: %s, err num: %d", iface->ifname, errno);
+ 		ret = -1;
+ 		goto out;
+ 	}
+ 
+ 	/* This is required by RFC 4861 */
+ 	val = 255;
+-	if (setsockopt(ping_socket, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+-				&val, sizeof(val)) < 0) {
+-		do_log (LOG_ERR, "setsockopt(IPV6_MULTICAST_HOPS): %s", strerror (errno));
++       if (setsockopt(iface->ndp_fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &val, sizeof(val)) < 0) {
++               do_log(LOG_ERR, "6brd-setsockopt(IPV6_MULTICAST_HOPS): %m"
++                       "for ifname: %s, err num: %d", iface->ifname, errno);
+ 		ret = -1;
+ 		goto out;
+ 	}
+ 
+-	if (setsockopt(ping_socket, IPPROTO_IPV6, IPV6_UNICAST_HOPS,
+-				&val, sizeof(val)) < 0) {
+-		do_log (LOG_ERR, "setsockopt(IPV6_UNICAST_HOPS): %s", strerror (errno));
++    if (setsockopt(iface->ndp_fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &val, sizeof(val)) < 0) {
++        do_log(LOG_ERR, "6brd-setsockopt(IPV6_UNICAST_HOPS): %m"
++                "for ifname: %s, err num: %d", iface->ifname, errno);
+ 		ret = -1;
+ 		goto out;
+ 	}
+ 
+-	/* Filter all packages, we only want to send */
+-	ICMP6_FILTER_SETBLOCKALL(&filt);
+-	if (setsockopt(ping_socket, IPPROTO_ICMPV6, ICMP6_FILTER,
+-				&filt, sizeof(filt)) < 0) {
+-		do_log (LOG_ERR, "setsockopt(ICMP6_FILTER): %s", strerror (errno));
++    if (setsockopt(iface->ndp_fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &nd_false, sizeof(nd_false)) < 0)
++    {
++        do_log(LOG_ERR, "6brd-setsocketopt(IPV6_MULTICAST_LOOP): %m"
++                "for ifname: %s, err num: %d", iface->ifname, errno);
+ 		ret = -1;
+ 		goto out;
+ 	}
+ 
++    if (setsockopt(iface->ndp_fd,IPPROTO_IPV6,IPV6_RECVPKTINFO,&nd_true,sizeof(nd_true)) < 0)
++    {
++        do_log(LOG_ERR, "6brd-setsocketopt(IPV6_RECVPKTINFO): %m"
++                "for ifname: %s, err num: %d", iface->ifname, errno);
++        ret = -1;
++        goto out;
++	}
++
++    strlcpy(ifr.ifr_name, iface->ifname, IFNAMSIZ);
++
++    if (ioctl(iface->ndp_fd, SIOCGIFFLAGS, &ifr) < 0)
++    {
++        do_log(LOG_ERR, "6brd-ioctl failed: %m for ifname: %s, err num: %d",
++                        iface->ifname, errno);
++        ret = -1;
++        goto out;
++    }
++
++    ifr.ifr_flags |= IFF_PROMISC;
++    if (ioctl(iface->ndp_fd, SIOCGIFFLAGS, &ifr) < 0)
++    {
++        do_log(LOG_ERR, "6brd-Failed to set PROMISC mode: %m for ifname: %s, err num: %d",
++                        iface->ifname, errno);
++        ifr.ifr_flags = ifr.ifr_flags & ~IFF_PROMISC;
++        ret = -1;
++        goto out;
++    }
++    else
++    {
++        do_log(LOG_ERR, "6brd-PROMISC mode set for iface: %s", iface->ifname);
++    }
++
++    ifr.ifr_flags |= IFF_ALLMULTI;
++    if (ioctl(iface->ndp_fd, SIOCGIFFLAGS, &ifr) < 0) {
++        do_log(LOG_ERR, "6brd-Failed to set IFF_ALLMULTI mode: %m for ifname: %s, err num: %d",
++                        iface->ifname, errno);
++        ret = -1;
++        goto out;
++    }
++    else
++    {
++        do_log(LOG_ERR, "6brd-IFF_ALLMULTI mode set for iface: %s", iface->ifname);
++    }
++    return 0;
+ out:
+-	if (ret < 0 && ping_socket > 0) {
+-		close(ping_socket);
+-		ping_socket = -1;
+-	}
+-
++    if (ret < 0 && iface->ndp_fd >= 0) {
++        close(iface->ndp_fd);
++        iface->ndp_fd = -1;
++    }
+ 	return ret;
+ }
+ 
+-int ndp_setup_interface(struct interface *iface, int enable)
++static void forward_dad_packet(struct interface *iface,
++        struct sockaddr_ll *ll, struct ip6_hdr *ip6,
++        uint8_t *data_buf, uint64_t data_buf_length)
++{
++    char ipbuffer[INET6_ADDRSTRLEN];
++
++    /* NULL checks */
++    if (iface == NULL || ll == NULL || ip6 == NULL || (data_buf_length == 0 || data_buf == NULL)) {
++        return;
++    }
++
++    /** NOTE: Indicates NS packet received is DAD */
++    do_log(LOG_DEBUG, "6brd-NS-DAD packet found");
++
++    /** NOTE: Indicates dad packets needs to be forwarded to rmnet_dataX interface */
++    /* Additional check to confirm destination iface has ndp parameter set to relay mode
++    and iface is set as master(Ideal Configurations of rmnet_dataX interface) */
++
++    /* Check if packet is of type AF_PACKET */
++    if (ll->sll_family != AF_PACKET)
++        return;
++
++    /** Construct the message */
++    /* Use the existing ip6_hdr structure to populate the destination address */
++    struct sockaddr_in6 destn = { .sin6_family = AF_INET6, .sin6_addr = ip6->ip6_dst, .sin6_scope_id = iface->ifindex };
++
++    /** NOTE: Total bytes to copy from the received raw message is the sum of IPv6 header length and ICMPv6 header length.
++     *  As per spec: IPv6 header length is 40 bytes. And IPv6 header contains a Payload length field indicating ICMPv6 header length
++     *  plus optional parameters */
++    uint16_t total_bytes_to_copy = 40 + (uint16_t)ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
++    do_log(LOG_DEBUG, "6brd-Total bytes to copy from the received raw message: %d",total_bytes_to_copy);
++
++    uint8_t data_buf_copied[total_bytes_to_copy];
++    for (int i = 0; i < total_bytes_to_copy; i++) {
++        data_buf_copied[i] = data_buf[i];
++    }
++
++    /* Construct iovector */
++    struct iovec iov3 = { data_buf_copied, sizeof(data_buf_copied) };
++
++    struct msghdr msg1 = {
++        .msg_name = (void *) &destn,
++        .msg_namelen = sizeof(destn),
++        .msg_iov = &iov3,
++        .msg_iovlen = 1
++    };
++
++    inet_ntop(AF_INET6, &ip6->ip6_dst, ipbuffer, sizeof(ipbuffer));
++
++    ssize_t sent = sendmsg(iface->ndp_fd, &msg1, MSG_DONTWAIT);
++    if (sent < 0)
++        do_log(LOG_ERR, "6brd-Failed to send to %s%%%s@%s (%m); errno: %d",
++                ipbuffer, iface->name, iface->ifname, errno);
++    else
++        do_log(LOG_DEBUG, "6brd-Sent %zd bytes to %s%%%s@%s",
++                sent, ipbuffer, iface->name, iface->ifname);
++
++} /* End odhcpd_process_dad_packet() */
++
++/* Send a Neighbor Advertisement. */
++static void send_dad_na(struct in6_addr *to_addr,
++        const struct interface *iface, struct in6_addr *for_addr,
++        const uint8_t *mac)
++{
++    struct sockaddr_in6 dest = { .sin6_family = AF_INET6, .sin6_addr = *to_addr };
++    char pbuf[sizeof(struct nd_neighbor_advert) + sizeof(struct nd_opt_hdr) + 6];
++    struct nd_neighbor_advert *adv = (struct nd_neighbor_advert*)pbuf;
++    struct nd_opt_hdr *opt = (struct nd_opt_hdr*) &pbuf[sizeof(struct nd_neighbor_advert)];
++    struct iovec iov = { .iov_base = &pbuf, .iov_len = sizeof(pbuf) };
++    char ipbuf[INET6_ADDRSTRLEN];
++
++    memset(pbuf, 0, sizeof(pbuf));
++    adv->nd_na_hdr = (struct icmp6_hdr) {
++        .icmp6_type = ND_NEIGHBOR_ADVERT,
++        .icmp6_dataun.icmp6_un_data32 = {0}
++    };
++    adv->nd_na_target = *for_addr;
++    *opt = (struct nd_opt_hdr) { .nd_opt_type = ND_OPT_TARGET_LINKADDR, .nd_opt_len = 1 };
++    memcpy(&pbuf[sizeof(struct nd_neighbor_advert) + sizeof(struct nd_opt_hdr)], mac, 6);
++
++    inet_ntop(AF_INET6, to_addr, ipbuf, sizeof(ipbuf));
++    do_log(LOG_DEBUG, "6brd-Answering NS to %s on %s", ipbuf, iface->ifname);
++
++    odhcpd_send(iface->ndp_ping_fd, &dest, &iov, 1, iface);
++}
++
++
++int ndp_setup_interface(struct interface *iface, bool enable)
+ {
+ 	int ret = 0, procfd;
+-	int dump_neigh = 0;
++        bool dump_neigh = false;
+ 	char procbuf[64];
+ 
++        enable = enable && (iface->ndp == MODE_RELAY);
++
+ 	snprintf(procbuf, sizeof(procbuf), "/proc/sys/net/ipv6/conf/%s/proxy_ndp", iface->ifname);
+ 	procfd = open(procbuf, O_WRONLY);
++        if (strstr(iface->ifname,"qmapmux")!=NULL)
++        {
++                iface->master=true;
++        }
+ 
+ 	if (procfd < 0) {
+ 		ret = -1;
+ 		goto out;
+ 	}
+ 
+-	if (iface->ndp_event.uloop.fd > 0) {
++        if (iface->ndp_ping_fd >= 0) {
++                close(iface->ndp_ping_fd);
++                iface->ndp_ping_fd = -1;
++        }
++
++        if (iface->ndp_fd >= 0) {
++                close(iface->ndp_fd);
++                iface->ndp_fd = -1;
++        }
++
++        if (iface->ndp_event.uloop.fd >= 0) {
+ 		uloop_fd_delete(&iface->ndp_event.uloop);
+ 		close(iface->ndp_event.uloop.fd);
+ 		iface->ndp_event.uloop.fd = -1;
+-		if (!enable && write (procfd, "0\n", 2) < 0) {}
+-		dump_neigh = 1;
++
++                if (!enable)
++                    if (write(procfd, "0\n", 2) < 0) {}
++                dump_neigh = true;
+ 	}
+ 
+ 	if (enable) {
+ 		struct sockaddr_ll ll;
+ 		struct packet_mreq mreq;
++                struct icmp6_filter filt;
++                int val = 2;
++                config.dad_forward=true;
+ 
+ 		if (write(procfd, "1\n", 2) < 0) {}
+ 
++        /* Open ICMPv6 socket */
++        iface->ndp_ping_fd = socket(AF_INET6, SOCK_RAW | SOCK_CLOEXEC, IPPROTO_ICMPV6);
++        if (iface->ndp_ping_fd < 0) {
++            do_log(LOG_ERR, "6brd-socket(AF_INET6): %m");
++            ret = -1;
++            goto out;
++        }
++
++        if (setsockopt(iface->ndp_ping_fd, SOL_SOCKET, SO_BINDTODEVICE,
++                   iface->ifname, strlen(iface->ifname)) < 0) {
++            do_log(LOG_ERR, "6brd-setsockopt(SO_BINDTODEVICE): %m");
++            ret = -1;
++            goto out;
++        }
++
++        if (setsockopt(iface->ndp_ping_fd, IPPROTO_RAW, IPV6_CHECKSUM,
++                &val, sizeof(val)) < 0) {
++            do_log(LOG_ERR, "6brd-setsockopt(IPV6_CHECKSUM): %m");
++            ret = -1;
++            goto out;
++        }
++
++        /* This is required by RFC 4861 */
++        val = 255;
++        if (setsockopt(iface->ndp_ping_fd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
++                   &val, sizeof(val)) < 0) {
++            do_log(LOG_ERR, "6brd-setsockopt(IPV6_MULTICAST_HOPS): %m");
++            ret = -1;
++            goto out;
++        }
++
++        if (setsockopt(iface->ndp_ping_fd, IPPROTO_IPV6, IPV6_UNICAST_HOPS,
++                   &val, sizeof(val)) < 0) {
++            do_log(LOG_ERR, "6brd-setsockopt(IPV6_UNICAST_HOPS): %m");
++            ret = -1;
++            goto out;
++        }
++
++        /* Filter all packages, we only want to send */
++        ICMP6_FILTER_SETBLOCKALL(&filt);
++        if (setsockopt(iface->ndp_ping_fd, IPPROTO_ICMPV6, ICMP6_FILTER,
++                   &filt, sizeof(filt)) < 0) {
++            do_log(LOG_ERR, "6brd-setsockopt(ICMP6_FILTER): %m");
++            ret = -1;
++            goto out;
++        }
++
++
+ 		iface->ndp_event.uloop.fd = socket(AF_PACKET, SOCK_DGRAM | SOCK_CLOEXEC, htons(ETH_P_IPV6));
+ 		if (iface->ndp_event.uloop.fd < 0) {
+-			do_log (LOG_ERR, "socket(AF_PACKET): %s", strerror (errno));
++                       do_log(LOG_ERR, "6brd-socket(AF_PACKET): %m");
+ 			ret = -1;
+ 			goto out;
+ 		}
+@@ -146,15 +503,27 @@ int ndp_setup_interface(struct interface
+ 		int pktt = 1 << PACKET_MULTICAST;
+ 		if (setsockopt(iface->ndp_event.uloop.fd, SOL_PACKET, PACKET_RECV_TYPE,
+ 				&pktt, sizeof(pktt)) < 0) {
+-			do_log (LOG_ERR, "setsockopt(PACKET_RECV_TYPE): %s", strerror (errno));
++                       do_log(LOG_ERR, "6brd-setsockopt(PACKET_RECV_TYPE): %m");
+ 			ret = -1;
+ 			goto out;
+ 		}
+ #endif
+ 
++        if ((config.dad_forward && iface->master) || (iface->sta_bridge_mode))
++        {
++            //need receive NA message from master in case DAD forward
++            if (setsockopt(iface->ndp_event.uloop.fd, SOL_SOCKET, SO_ATTACH_FILTER,
++                    &bpf_prog_ns_na, sizeof(bpf_prog_ns_na)))
++            {
++                do_log(LOG_ERR, "6brd-setsockopt(SO_ATTACH_FILTER) for NS/NA: %m");
++                ret = -1;
++                goto out;
++            }
++        }
++        else
+ 		if (setsockopt(iface->ndp_event.uloop.fd, SOL_SOCKET, SO_ATTACH_FILTER,
+ 				&bpf_prog, sizeof(bpf_prog))) {
+-			do_log (LOG_ERR, "setsockopt(SO_ATTACH_FILTER): %s", strerror (errno));
++                       do_log(LOG_ERR, "6brd-setsockopt(SO_ATTACH_FILTER): %m");
+ 			ret = -1;
+ 			goto out;
+ 		}
+@@ -165,11 +534,12 @@ int ndp_setup_interface(struct interface
+ 		ll.sll_protocol = htons(ETH_P_IPV6);
+ 
+ 		if (bind(iface->ndp_event.uloop.fd, (struct sockaddr*)&ll, sizeof(ll)) < 0) {
+-			do_log (LOG_ERR, "bind(): %s", strerror (errno));
++                       do_log(LOG_ERR, "6brd-bind(): %m");
+ 			ret = -1;
+ 			goto out;
+ 		}
+ 
++        if (!iface->master) {
+ 		memset(&mreq, 0, sizeof(mreq));
+ 		mreq.mr_ifindex = iface->ifindex;
+ 		mreq.mr_type = PACKET_MR_ALLMULTI;
+@@ -177,28 +547,45 @@ int ndp_setup_interface(struct interface
+ 
+ 		if (setsockopt(iface->ndp_event.uloop.fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
+ 				&mreq, sizeof(mreq)) < 0) {
+-			do_log (LOG_ERR, "setsockopt(PACKET_ADD_MEMBERSHIP): %s", strerror (errno));
++                       do_log(LOG_ERR, "6brd-ndp_setup_interface#setsockopt(PACKET_ADD_MEMBERSHIP): %m"
++                       "for ifname: %s, errno: %d", iface->ifname, errno);
+ 			ret = -1;
+ 			goto out;
+ 		}
++        }
++
++        if (config.dad_forward) {
++            if (create_nd_socket(iface) < 0) {
++                do_log(LOG_ERR, "6brd-create_nd_socket failed for %s", iface->ifname);
++                ret = -1;
++                goto out;
++            }
++        }
+ 
+ 		iface->ndp_event.handle_dgram = handle_solicit;
+ 		odhcpd_register(&iface->ndp_event);
+ 
+ 		/* If we already were enabled dump is unnecessary, if not do dump */
+ 		if (!dump_neigh)
+-			netlink_dump_neigh_table(0);
++                       netlink_dump_neigh_table(false);
+ 		else
+-			dump_neigh = 0;
++                       dump_neigh = false;
+ 	}
+ 
+ 	if (dump_neigh)
+-		netlink_dump_neigh_table(1);
++               netlink_dump_neigh_table(true);
+ 
+  out:
+-	if (ret < 0 && iface->ndp_event.uloop.fd > 0) {
+-		close(iface->ndp_event.uloop.fd);
+-		iface->ndp_event.uloop.fd = -1;
++    if (ret < 0) {
++        if (iface->ndp_event.uloop.fd >= 0) {
++            close(iface->ndp_event.uloop.fd);
++            iface->ndp_event.uloop.fd = -1;
++        }
++
++        if (iface->ndp_ping_fd >= 0) {
++            close(iface->ndp_ping_fd);
++            iface->ndp_ping_fd = -1;
++        }
+ 	}
+ 
+ 	if (procfd >= 0)
+@@ -207,23 +594,24 @@ int ndp_setup_interface(struct interface
+ 	return ret;
+ }
+ 
+-void ndp_netevent_cb (unsigned long event, struct netevent_handler_info *info)
++void ndp_netevent_cb(unsigned long event, struct netevent_handler_info *info)
+ {
+ 	struct interface *iface = info->iface;
+-	int add = 1;
++        bool add = true;
+ 
+-	if (!iface) return;
++        if (!iface || iface->ndp == MODE_DISABLED)
++                return;
+ 
+ 	switch (event) {
+ 	case NETEV_NEIGH6_DEL:
+-		add = 0;
++               add = false;
+ 		/* fall through */
+ 	case NETEV_NEIGH6_ADD:
+ 		if (info->neigh.flags & NTF_PROXY) {
+ 			if (add) {
+-				netlink_setup_proxy_neigh (&info->neigh.dst, iface->ifindex, 0);
+-				setup_route (&info->neigh.dst, iface, 0);
+-				netlink_dump_neigh_table(0);
++                               netlink_setup_proxy_neigh(&info->neigh.dst.in6, iface->ifindex, false);
++                               setup_route(&info->neigh.dst.in6, iface, false);
++                               netlink_dump_neigh_table(false);
+ 			}
+ 			break;
+ 		}
+@@ -233,11 +621,11 @@ void ndp_netevent_cb (unsigned long even
+ 		      (NUD_REACHABLE|NUD_STALE|NUD_DELAY|NUD_PROBE|NUD_PERMANENT|NUD_NOARP)))
+ 			break;
+ 
+-		setup_addr_for_relaying (&info->neigh.dst, iface, add);
+-		setup_route (&info->neigh.dst, iface, add);
++               setup_addr_for_relaying(&info->neigh.dst.in6, iface, add);
++               setup_route(&info->neigh.dst.in6, iface, add);
+ 
+ 		if (!add)
+-			netlink_dump_neigh_table(0);
++                       netlink_dump_neigh_table(false);
+ 		break;
+ 	default:
+ 		break;
+@@ -249,34 +637,40 @@ void ndp_netevent_cb (unsigned long even
+ static void ping6(struct in6_addr *addr,
+ 		const struct interface *iface)
+ {
+-	struct sockaddr_in6 dest = { .sin6_family = AF_INET6, .sin6_addr = *addr, .sin6_scope_id = iface->ifindex, };
++#if(0)
++       struct sockaddr_in6 dest = { .sin6_family = AF_INET6, .sin6_addr = *addr , };
+ 	struct icmp6_hdr echo = { .icmp6_type = ICMP6_ECHO_REQUEST };
+ 	struct iovec iov = { .iov_base = &echo, .iov_len = sizeof(echo) };
+ 	char ipbuf[INET6_ADDRSTRLEN];
+ 
+ 	inet_ntop(AF_INET6, addr, ipbuf, sizeof(ipbuf));
+-	do_log(LOG_NOTICE, "Pinging for %s%%%s", ipbuf, iface->ifname);
++       do_log(LOG_DEBUG, "6brd-Pinging for %s on %s", ipbuf, iface->ifname);
+ 
+-	netlink_setup_route(addr, 128, iface->ifindex, NULL, 128, 1);
+-	odhcpd_send(ping_socket, &dest, &iov, 1, iface);
+-	netlink_setup_route(addr, 128, iface->ifindex, NULL, 128, 0);
++       netlink_setup_route(addr, 128, iface->ifindex, NULL, 128, true);
++       odhcpd_send(iface->ndp_ping_fd, &dest, &iov, 1, iface);
++       netlink_setup_route(addr, 128, iface->ifindex, NULL, 128, false);
++#endif
+ }
+ 
+ /* Handle solicitations */
+-static void handle_solicit(void *addr, void *data, size_t len, struct interface *iface)
++static void handle_solicit(void *addr, void *data, size_t len,
++        struct interface *iface, _unused void *dest)
+ {
+ 	struct ip6_hdr *ip6 = data;
+ 	struct nd_neighbor_solicit *req = (struct nd_neighbor_solicit*)&ip6[1];
+ 	struct sockaddr_ll *ll = addr;
++        struct interface *c;
+ 	char ipbuf[INET6_ADDRSTRLEN];
+ 	uint8_t mac[6];
+ 
+ 	/* Solicitation is for duplicate address detection */
+-	int ns_is_dad = IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_src);
++        bool ns_is_dad = IN6_IS_ADDR_UNSPECIFIED(&ip6->ip6_src);
+ 
+-	/* Don't forward any non-DAD solicitation for external ifaces
++    /* Don't process solicit messages on non relay interfaces
++     * Don't forward any non-DAD solicitation for external ifaces
+ 	 * TODO: check if we should even forward DADs for them */
+-	if (iface->external && !ns_is_dad) return;
++        if (iface->ndp != MODE_RELAY || (iface->external && !ns_is_dad))
++                return;
+ 
+ 	if (len < sizeof(*ip6) + sizeof(*req))
+ 		return; // Invalid reqicitation
+@@ -286,47 +680,110 @@ static void handle_solicit(void *addr, v
+ 			IN6_IS_ADDR_MULTICAST(&req->nd_ns_target))
+ 		return; /* Invalid target */
+ 
+-	inet_ntop(AF_INET6, &req->nd_ns_target, ipbuf, sizeof(ipbuf));
+-	do_log (LOG_DEBUG, "Got a NS for %s%%%s", ipbuf, iface->ifname);
++        if (req->nd_ns_hdr.icmp6_type == ND_NEIGHBOR_SOLICIT)
++        {
++                inet_ntop(AF_INET6, &req->nd_ns_target, ipbuf, sizeof(ipbuf));
++                do_log(LOG_DEBUG, "6brd-Got a NS for %s on %s", ipbuf, iface->ifname);
++        }
++        else if (req->nd_ns_hdr.icmp6_type == ND_NEIGHBOR_ADVERT)
++        {
++                do_log(LOG_DEBUG, "6brd-handle_solicit: Got NA message on %s", iface->ifname);
++        }
++        else
++        {
++                inet_ntop(AF_INET6, &req->nd_ns_target, ipbuf, sizeof(ipbuf));
++                do_log(LOG_DEBUG, "6brd-handle_solicit: discard Neighbor Mesasge with type %d on %s",req->nd_ns_hdr.icmp6_type, iface->ifname);
++                return;
++        }
++
++    /* QCMAP changes:
++     * receive a DAD response from master, send NA response to slave
++     */
++    if(config.dad_forward && iface->master &&
++        req->nd_ns_hdr.icmp6_type == ND_NEIGHBOR_ADVERT)
++    {
++        inet_pton(AF_INET6, ALL_HOSTS_MGROUP, &all_hosts_in6_addr);
++        if(memcmp(&all_hosts_in6_addr, &ip6->ip6_dst, sizeof(ip6->ip6_dst)) == 0)
++        {
++            uint8_t slave_mac[6];
++            /* check and forward dad packet to master*/
++            for (int i = 0; i < config.cnt; ++i) {
++                struct interface *c = interfaces + i;
++                if((c->master == 0) && (c->ndp == MODE_RELAY))
++                {
++                    inet_ntop(AF_INET6,&req->nd_ns_target, ipbuf, sizeof(ipbuf));
++                    do_log(LOG_DEBUG, "6brd-QCMAP#handle_solicit#Send DAD-Response for target addr %s on %s ",
++                            ipbuf, c->name);
++                    odhcpd_get_mac(c, slave_mac);
++                    send_dad_na(&all_hosts_in6_addr, c, &req->nd_ns_target, slave_mac);
++                }
++            }
++        }
++    }
+ 
+ 	odhcpd_get_mac(iface, mac);
+ 	if (!memcmp(ll->sll_addr, mac, sizeof(mac)))
+ 		return; /* Looped back */
+ 
++    /* QCMAP changes:
++     * receive a DAD packet from slave, forwat it to master
++     */
++    if(config.dad_forward && ns_is_dad && !iface->master)
++    {
++        /* Need to add 128 bit route */
++        odhcpd_add_128_bit_route(iface, ip6);
++
++        /* check and forward dad packet to master*/
++                for (int i = 0; i < config.cnt; ++i) {
++                struct interface *c = interfaces + i;
++            if(c->master)
++                forward_dad_packet(c, ll, ip6, data, len);
++        }
++    }
++
+ 	for (int i = 0; i < config.cnt; ++i) {
+ 		struct interface *c = interfaces + i;
+-		if (iface != c && (ns_is_dad || !c->external))
++        if (iface != c && c->ndp == MODE_RELAY &&
++                (ns_is_dad || !c->external))
++        {
+ 			ping6(&req->nd_ns_target, c);
++        }
+ 	}
+ }
+ 
+ /* Use rtnetlink to modify kernel routes */
+-static void setup_route(struct in6_addr *addr, struct interface *iface, int add)
++static void setup_route(struct in6_addr *addr, struct interface *iface, bool add)
+ {
+ 	char ipbuf[INET6_ADDRSTRLEN];
+ 
+ 	inet_ntop(AF_INET6, addr, ipbuf, sizeof(ipbuf));
+-	do_log (LOG_NOTICE, "%s about %s%s%%%s",
++        do_log(LOG_DEBUG, "6brd-%s about %s%s on %s",
+ 			(add) ? "Learning" : "Forgetting",
+ 			iface->learn_routes ? "proxy routing for " : "",
+-			ipbuf, iface->ifname);
++            ipbuf, iface->ifname);
+ 
+ 	if (iface->learn_routes)
+ 		netlink_setup_route(addr, 128, iface->ifindex, NULL, 1024, add);
+ }
+ 
+-static void setup_addr_for_relaying(struct in6_addr *addr, struct interface *iface, int add)
++static void setup_addr_for_relaying(struct in6_addr *addr, struct interface *iface, bool add)
+ {
++        struct interface *c;
+ 	char ipbuf[INET6_ADDRSTRLEN];
++
+ 	inet_ntop(AF_INET6, addr, ipbuf, sizeof(ipbuf));
++
+ 	for (int i = 0; i < config.cnt; ++i) {
+ 		struct interface *c = interfaces + i;
+-		if (iface == c) continue;
+-		if (netlink_setup_proxy_neigh (addr, c->ifindex, add))
+-			do_log (LOG_DEBUG, "Failed to %s proxy neighbour entry %s%%%s",
+-				add ? "add" : "delete", ipbuf, c->ifname);
+-		else
+-			do_log (LOG_DEBUG, "%s proxy neighbour entry %s%%%s",
+-				add ? "Added" : "Deleted", ipbuf, c->ifname);
++        if (iface == c || c->ndp != MODE_RELAY)
++            continue;
++
++        if (netlink_setup_proxy_neigh(addr, c->ifindex, add)) {
++            if (add)
++                do_log(LOG_ERR, "6brd-Failed to add proxy neighbour entry %s on %s",
++                       ipbuf, c->ifname);
++        } else
++            do_log(LOG_DEBUG, "6brd-%s proxy neighbour entry %s on %s",
++                   add ? "Added" : "Deleted", ipbuf, c->ifname);
+ 	}
+ }
+Index: git/netlink.c
+===================================================================
+--- git.orig/netlink.c
++++ git/netlink.c
+@@ -50,13 +50,13 @@ int netlink_init(void)
+ {
+ 	rtnl_socket = create_socket(NETLINK_ROUTE);
+ 	if (!rtnl_socket) {
+-		do_log (LOG_ERR, "Unable to open nl socket: %s", strerror (errno));
++               do_log (LOG_ERR, "6brd-Unable to open nl socket: %s", strerror (errno));
+ 		goto err;
+ 	}
+ 
+ 	rtnl_event.sock = create_socket(NETLINK_ROUTE);
+ 	if (!rtnl_event.sock) {
+-		do_log (LOG_ERR, "Unable to open nl event socket: %s", strerror (errno));
++               do_log (LOG_ERR, "6brd-Unable to open nl event socket: %s", strerror (errno));
+ 		goto err;
+ 	}
+ 
+@@ -159,7 +159,7 @@ static int cb_rtnl_valid(struct nl_msg *
+ 			return NL_SKIP;
+ 
+ 		inet_ntop(AF_INET6, &event_info.neigh.dst, ipbuf, sizeof(ipbuf));
+-		do_log (LOG_DEBUG, "Netlink %s %s%%%s", add ? "newneigh" : "delneigh",
++               do_log (LOG_DEBUG, "6brd-Netlink %s %s%%%s", add ? "newneigh" : "delneigh",
+ 			ipbuf, event_info.iface->ifname);
+ 
+ 		event_info.neigh.state = ndm->ndm_state;

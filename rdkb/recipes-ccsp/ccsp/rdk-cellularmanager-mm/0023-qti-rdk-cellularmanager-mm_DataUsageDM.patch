@@ -1,0 +1,197 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a5cec5a37b912ab2ab03bc5173dd0b3138271e0d Mon Sep 17 00:00:00 2001
+From: Athul D <athud@qti.qualcomm.com>
+Date: Tue, 20 May 2025 08:11:02 +0000
+Subject: [PATCH] DataUsage DM Restructuring
+Signed-off-by: Athul D <athud@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_cellular_apis.c |   3 +
+ source/CellularManager/cellularmgr_sm.c             |  84 +++++++++++++++++++
+ .../include/dmsb_tr181_psm_definitions.h            |   3 +
+ .../middle_layer_src/cellularmgr_rbus_dml.c         |  10 +++
+ 4 files changed, 100 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index e02aec8..6824372 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -532,6 +532,9 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+     //HAL Init
+     cellular_hal_init( &stCtxInputStruct );
+ 
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    CellularMgr_extn_RegisterHalIndicationCB();
++#endif
+     //Start Cellular Manager SM
+     stStateMachineInput.bModemEnable = pstDmlCellular->X_RDK_Enable;
+     stStateMachineInput.pCmIfData = &(pMyObject->pstDmlCellular->pstInterfaceInfo[0]);
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index c0fec0a..50429ee 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -514,6 +514,15 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+         CcspTraceInfo(("%s %d - Updated X_RDK_LinkAvailableStatus to false \n", __FUNCTION__, __LINE__));
+     }
+ #endif
++
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    /* Update the Current linkID to accesspoint table */
++    if(CellularMgr_extn_UpdateLinkIDToAPTree(pstIPStruct->WANIFName) != RETURN_OK)
++    {
++        CcspTraceError(("%s Failed to update linkID to AccessPointTable for %s\n", __FUNCTION__,pstIPStruct->WANIFName));
++    }
++#endif
++
+     return RETURN_OK;
+ }
+ 
+@@ -678,6 +687,32 @@ static CellularPolicySmState_t TransitionDown( void )
+ #ifdef HYBRID_SUPPORT
+     // Reset the DML
+     DmlCellularResetDefaults();
++#endif
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    CELLULAR_RDK_STATUS  enRDKStatus = (CELLULAR_RDK_STATUS)CellularMgrSMGetCurrentState();
++    if(enRDKStatus == RDK_STATUS_CONNECTED)
++    {
++        PCELLULAR_INTERFACE_INFO_EXTN pstInterfaceExtnInfo = NULL;
++
++        if( RETURN_OK != CellularMgr_extn_GetDataUsageTimer(&pstInterfaceExtnInfo))
++        {
++            CcspTraceError(("%s %d: Failed to get datausage refresh time\n", __FUNCTION__, __LINE__));
++        }
++        else
++        {
++            if(pstInterfaceExtnInfo->dataUsageRefreshTime > 0)
++            {
++                /* Disabling datausage indication on Transition Down*/
++                if(RETURN_OK != CellularMgr_extn_RegisterForDataUsageIndication(FALSE))
++                {
++                    CcspTraceError(("%s %d: Failed to deregister per leg stats indication\n", __FUNCTION__, __LINE__));
++                }
++
++                /* Update saved datausage to legacy on ssr */
++                CellularMgr_extn_UpdateLegacyDataUsageStruct();
++            }
++        }
++    }
+ #endif
+     CellularMgrSMSetCurrentState(CELLULAR_STATE_DOWN);
+ 
+@@ -874,6 +909,26 @@ static CellularPolicySmState_t TransitionConnected( void )
+ {
+     max_wait = 3;
+ 
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    PCELLULAR_INTERFACE_INFO_EXTN pstInterfaceExtnInfo = NULL;
++
++    if( RETURN_OK != CellularMgr_extn_GetDataUsageTimer(&pstInterfaceExtnInfo))
++    {
++        CcspTraceError(("%s %d: Failed to get datausage refresh time\n", __FUNCTION__, __LINE__));
++    }
++    else
++    {
++        if(pstInterfaceExtnInfo->dataUsageRefreshTime >= 0)
++        {
++            CcspTraceInfo(("%s %d: Registering for data usage stats indication\n", __FUNCTION__, __LINE__));
++            if(RETURN_OK != CellularMgr_extn_RegisterForDataUsageIndication(TRUE))
++            {
++                CcspTraceError(("%s %d: Failed to register data usage stats indication from STATE_CONNECTED\n", __FUNCTION__, __LINE__));
++            }
++        }
++    }
++#endif
++
+     return CELLULAR_STATE_CONNECTED;
+ }
+ 
+@@ -890,6 +945,28 @@ static CellularPolicySmState_t TransitionConnectedStopNetwork( void )
+         CcspTraceInfo(("%s %d: Failed to set LinkStatus in Interface table\n", __FUNCTION__, __LINE__));
+     }
+ 
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++    {
++        PCELLULAR_INTERFACE_INFO_EXTN pstInterfaceExtnInfo = NULL;
++
++        if( RETURN_OK != CellularMgr_extn_GetDataUsageTimer(&pstInterfaceExtnInfo))
++        {
++            CcspTraceError(("%s %d: Failed to get datausage refresh time\n", __FUNCTION__, __LINE__));
++        }
++        else
++        {
++            if(pstInterfaceExtnInfo->dataUsageRefreshTime > 0)
++            {
++                CcspTraceInfo(("%s %d: Deregistering for datausage stats indication\n", __FUNCTION__, __LINE__));
++                if(RETURN_OK != CellularMgr_extn_RegisterForDataUsageIndication(FALSE))
++                {
++                    CcspTraceError(("%s %d: Failed to deregister datausage stats indication\n", __FUNCTION__, __LINE__));
++                }
++            }
++        }
++    }
++#endif
++
+     if( ( CELLULAR_PDP_TYPE_IPV4 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) || 
+         ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
+         )
+@@ -1082,6 +1159,13 @@ static CellularPolicySmState_t StateDown( void )
+         /*PRAT is not persistent in modem. Hence,. setting it from CM on modem bringup*/
+         CellularMgr_extn_SetInitVal(CELLULAR_INIT_PARAM_PRAT,
+             gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->PreferredAccessTechnologies);
++#ifdef CM_PROP_SUPPORTED
++        /* Set datausage refresh timer once modem is discovered */
++        if(RETURN_OK != CellularMgr_extn_InitDataUsageRefreshTimeFromPSM())
++        {
++            CcspTraceError(("%s - %d failed to initialize data usage refresh timer from PSM\n", __FUNCTION__,__LINE__));
++        }
++#endif
+ #endif
+     }
+ 
+diff --git a/source/TR-181/include/dmsb_tr181_psm_definitions.h b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+index 5926574..81c062a 100644
+--- a/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ b/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -57,6 +57,9 @@
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_ROAMING                    "dmsb.cellularmanager.accesspoint.%d.roaming"
+ #define PSM_CELLULARMANAGER_ACCESSPOINT_PROFILE_TYPE               "dmsb.cellularmanager.accesspoint.%d.profiletype"
+ #define PSM_CELLULARMANAGER_INTERFACE_ALIAS                                       "dmsb.cellularmanager.interface.%d.alias"
++#ifdef CM_PROP_SUPPORTED
++#define PSM_CELLULARMANAGER_INTERFACE_DATA_USAGE_REFRESH_TIMER      "dmsb.cellularmanager.interface.%d.x_qcom.dataUsage.refreshtimer"
++#endif //CM_PROP_SUPPORTED
+ #define PSM_CELLULARMANAGER_INTERFACE_PRAT                         "dmsb.cellularmanager.interface.%d.prat"
+ 
+ #ifdef CM_EXTN_SUPPORTED
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index a738bc0..4a45529 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3640,6 +3640,9 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.Stats.ErrorsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.DiscardPacketsReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#ifdef CM_PROP_SUPPORTED
++        {"Device.Cellular.Interface.{i}.X_QCOM.DataUsage.RefreshTime", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_extn_GetParamUlongValue_rbus, Data_Usage_extn_SetParamUlongValue_rbus, NULL, NULL, NULL, NULL}},
++#endif //CM_PROP_SUPPORTED
+         {"Device.Cellular.Interface.{i}.X_QCOM.ModemStatus", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamStringValue_rbus, Cellular_Interface_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif
+ #ifdef CM_EXTN_SUPPORTED
+@@ -3698,6 +3701,13 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.AccessPoint.{i}.IPv6Address", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.Type", RBUS_ELEMENT_TYPE_PROPERTY, {X_QCOM_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.ConnectBackHaul", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_AccessPoint_GetParamBoolValue_rbus, Cellular_AccessPoint_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++#ifdef CM_PROP_SUPPORTED
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.DataUsage.Reset", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_extn_GetParamBoolValue_rbus, Data_Usage_extn_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.DataUsage.LTE.TotalReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_4G_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.DataUsage.LTE.TotalSent", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_4G_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.DataUsage.NR.TotalReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_5G_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.AccessPoint.{i}.X_QCOM.DataUsage.NR.TotalSent", RBUS_ELEMENT_TYPE_PROPERTY, {Data_Usage_5G_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++#endif //CM_PROP_SUPPORTED
+ #endif
+ #ifdef CM_PROP_SUPPORTED
+         {"Device.Cellular.AccessPoint.{i}.X_QCOM.IPv6.EnablePrefixDelegation", RBUS_ELEMENT_TYPE_PROPERTY, {IPv6_GetParamBoolValue_rbus, IPv6_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},

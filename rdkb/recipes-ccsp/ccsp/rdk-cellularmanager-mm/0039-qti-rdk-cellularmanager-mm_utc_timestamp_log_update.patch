@@ -1,0 +1,66 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e9dee1c2b61fc95ccc5a73eac948a46cd7d7d28b Mon Sep 17 00:00:00 2001
+From: Dhaneeshlal D R <dhaneesh@qti.qualcomm.com>
+Date: Wed, 16 Sep 2026 12:50:42 +0530
+Subject: Update cellular logs to UTC time format YYMMDD-HH:MM:SS.µs
+Signed-off-by: Dhaneeshlal D R <dhaneesh@qti.qualcomm.com>
+
+---
+ source/CellularManager/cellular_hal_utils.c | 23 ++++++++++++++-------
+ 1 file changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal_utils.c b/source/CellularManager/cellular_hal_utils.c
+index 72506e1..39ab46a 100644
+--- a/source/CellularManager/cellular_hal_utils.c
++++ b/source/CellularManager/cellular_hal_utils.c
+@@ -23,7 +23,7 @@
+ /**********************************************************************
+                 STRUCTURE AND CONSTANT DEFINITIONS
+ **********************************************************************/
+-
++#define TIMER_BUFFER_SIZE 32
+ /**********************************************************************
+                 FUNCTION DEFINITION
+ **********************************************************************/
+@@ -68,13 +68,20 @@ int cellular_hal_util_GetUptime(unsigned long *time)
+ }
+ 
+ /* cellular_hal_util_PrintTime() */
+-void cellular_hal_util_PrintTime(char *time_value, int length) 
++void cellular_hal_util_PrintTime(char *time_value, int length)
+ {
+-    time_t timer;
+-    struct tm* tm_info;
+-    time(&timer);
+-    tm_info = localtime(&timer);
+-    strftime(time_value, length, "%Y-%m-%d %H:%M:%S ", tm_info);
++    if (!time_value || length <= 0)
++    {
++        return;
++    }
++
++    struct timeval tv = {0};
++    struct tm tm_utc = {0};
++    char ts_buf[TIMER_BUFFER_SIZE] = {0};
++    gettimeofday(&tv, NULL);
++    gmtime_r(&tv.tv_sec, &tm_utc);
++    strftime(ts_buf, sizeof(ts_buf), "%y%m%d-%H:%M:%S", &tm_utc);
++    snprintf(time_value, length, "%s.%06ld ", ts_buf, (long)tv.tv_usec);
+ }
+ 
+ #ifdef CM_EXTN_SUPPORTED
+@@ -114,4 +121,4 @@ int get_populate_ipv6_prefix(char *ipv6_addr, char *prefix_ip, size_t size)
+         CELLULAR_HAL_DBG_PRINT ("%s substring, %s prefix_ip=%s \n", __FUNCTION__, substring, prefix_ip);
+         return 0;
+ }
+-#endif
+\ No newline at end of file
++#endif
+-- 
+2.34.1
+

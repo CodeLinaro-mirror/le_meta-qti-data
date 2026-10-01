@@ -1,0 +1,31 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 1c796d9f8406c452a560d350e62f171e06ad5229 Mon Sep 17 00:00:00 2001
+From: Sagar Kothawar <kothawar@qti.qualcomm.com>
+Date: Thu, 9 Jul 2026 10:08:44 +0000
+Subject: [PATCH] service_lan.sh: set_eth_perf script invocation for echo RDKB platform
+
+Signed-off-by: Sagar Kothawar <kothawar@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/service_lan.sh | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/source/scripts/init/service.d/service_lan.sh b/source/scripts/init/service.d/service_lan.sh
+index f2ec045..bc32ce2 100755
+--- a/source/scripts/init/service.d/service_lan.sh
++++ b/source/scripts/init/service.d/service_lan.sh
+@@ -170,6 +170,10 @@ bringup_ethernet_interfaces() {
+          ethernetcount=1
+       fi
+       ip link set "$loop" allmulticast on
++
++      if [ -e /etc/data/eth/set_eth_perf ]; then
++         /bin/bash /etc/data/eth/set_eth_perf $loop
++      fi
+    done
+ }
+
+--
+2.34.1

@@ -1,0 +1,116 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d2a836db4905df60116e1705791114fb5cd434f4 Mon Sep 17 00:00:00 2001
+From: Amirthavarshini N <amirthav@qti.qualcomm.com>
+Date: Wed, 19 Aug 2026 09:42:46 +0000
+Subject: [PATCH] qti-site-filter-bug-with-url-change-of-same-table
+
+Signed-off-by: Amirthavarshini N <amirthav@qti.qualcomm.com>
+---
+ source/firewall/firewall.c | 60 ++++++++++++++++++++++++++++++++------
+ 1 file changed, 51 insertions(+), 9 deletions(-)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 9a259cf..7a28611 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -8456,9 +8456,10 @@ void block_url_by_ipaddr(FILE *fp, char *url, char *dropLog, int ipver, char *in
+ void block_url_by_ipaddr(FILE *fp, char *url, char *dropLog, int ipver, char *insNum, const char *nstdPort)
+ {
+     char filePath[256];
+-    char ipAddr[40];
++    char ipAddr[MAX_QUERY];
+     FILE *ipRecords = NULL;
+     int len;
++    FILE *ipRead = NULL;
+     int dnsResponse = 0;
+     FIREWALL_DEBUG("Entering block_url_by_ipaddr\n");  
+     if(ipver == 6)
+@@ -8476,6 +8477,42 @@ void block_url_by_ipaddr(FILE *fp, char *url, char *dropLog, int ipver, char *in
+    }
+ #endif /* * _HUB4_PRODUCT_REQ_ */
+ 
++   /* Read data from file to check if url available in file is same as latest url.If not same set RemoveFile flag 1 to remove file and make pointer of write to NULL so that it enters if(ipRecords == NULL) to resolve latest url to ip address and update it to file  */
++
++    int RemoveFile = 0;
++    ipRead = fopen(filePath, "r");
++    if (ipRead != NULL)
++    {
++        char *list = NULL;
++        list = (char *) malloc(sizeof(char) * MAX_QUERY);
++        if(list != NULL)
++        {
++            while(fgets(list, (sizeof(char)*MAX_QUERY),ipRead) != NULL)
++            {
++                char *tok = NULL;
++                char *tmp = NULL;
++                tok =strtok_r(list," ",&tmp);
++                while(tok != NULL )
++                {
++                   if(strcmp(tok,url) != 0) /* Comparing URL available in file with the latest URL*/
++                   {
++                       RemoveFile = 1;
++                   }
++                   break;
++                }
++                if(RemoveFile) /*if flag is already set no need to check in loop */
++                     break;
++            }
++            free(list);
++        }
++        fclose(ipRead);
++    }
++    if(RemoveFile)
++    {
++        remove(filePath);
++        ipRecords = NULL;
++    }
++
+     if(ipRecords == NULL) {
+         struct addrinfo hints, *res, *p;
+         int status;
+@@ -8510,6 +8547,8 @@ void block_url_by_ipaddr(FILE *fp, char *url, char *dropLog, int ipver, char *in
+                 addr = &(ipv6->sin6_addr);
+             }
+             inet_ntop(p->ai_family, addr, ipAddr, sizeof(ipAddr));
++            fprintf(ipRecords, "%s", url); /* Writing url to file with space */
++            fprintf(ipRecords, " ");
+             fprintf(ipRecords, "%s\n", ipAddr);
+         }
+ 
+@@ -8529,17 +8568,20 @@ void block_url_by_ipaddr(FILE *fp, char *url, char *dropLog, int ipver, char *in
+             
+             //Check the ipaddr, url and droplog are not NULL
+             if((len > 0) && (url != NULL) && (dropLog != NULL))
+-            {   
+-                if(nstdPort[0] == '\0')
++            {
++                if(strstr(ipAddr," ")!= NULL)
+                 {
+-                    fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport 80 -m comment --comment \"host match %s \" -j %s\n", ipAddr, url, dropLog);
+-                    fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport 443 -m comment --comment \"host match %s \" -j %s\n", ipAddr, url, dropLog);
+-                }
+-                else
+-                    fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport %s -m comment --comment \"host match %s \" -j %s\n", ipAddr, nstdPort, url, dropLog);
++                    if(nstdPort[0] == '\0')
++                    {
++                        fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport 80 -m comment --comment \"host match %s \" -j %s\n", strstr(ipAddr," "), url, dropLog);
++                        fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport 443 -m comment --comment \"host match %s \" -j %s\n", strstr(ipAddr," "), url, dropLog);
++                    }
++                    else
++                        fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport %s -m comment --comment \"host match %s \" -j %s\n", strstr(ipAddr," "), nstdPort, url, dropLog);
++            }
+             }
+             else
+-                fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport %s -m comment --comment \"host match %s \" -j %s\n", ipAddr, nstdPort, url, dropLog);
++                fprintf(fp, "-A lan2wan_pc_site -d %s -p tcp -m tcp --dport %s -m comment --comment \"host match %s \" -j %s\n",strstr(ipAddr," "), nstdPort, url, dropLog);
+         }
+ 
+         fclose(ipRecords);
+-- 
+2.34.1
+

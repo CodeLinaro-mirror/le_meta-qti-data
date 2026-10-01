@@ -1,0 +1,89 @@
+From f3247f6adf5fcbadb946c5fe3705a1d0d71d886e Mon Sep 17 00:00:00 2001
+From: Dhaneeshlal D R <dhaneesh@qti.qualcomm.com>
+Date: Tue, 15 Sep 2026 12:04:52 +0530
+Subject: Update cellular logs to UTC time format YYMMDD-HH:MM:SS.µs
+Signed-off-by: Dhaneeshlal D R <dhaneesh@qti.qualcomm.com>
+
+---
+ src/mm-log.c | 34 +++++++++++++++++++++++++++-------
+ 1 file changed, 27 insertions(+), 7 deletions(-)
+
+diff --git a/src/mm-log.c b/src/mm-log.c
+index 26260b7c..795b8cf4 100644
+--- a/src/mm-log.c
++++ b/src/mm-log.c
+@@ -24,6 +24,7 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <string.h>
++#include <time.h>
+ #include <unistd.h>
+ 
+ #include <ModemManager.h>
+@@ -45,6 +46,8 @@
+ #include "mm-log.h"
+ #include "mm-log-object.h"
+ 
++#define TIMER_BUFFER_SIZE 40
++
+ enum {
+     TS_FLAG_NONE = 0,
+     TS_FLAG_WALL,
+@@ -215,10 +218,11 @@ _mm_log (gpointer     obj,
+          ...)
+ {
+     va_list  args;
+-    GTimeVal tv;
+ 
+-    if (!(log_level & level))
++    if ((fmt == NULL) || !(log_level & level))
++    {
+         return;
++    }
+ 
+     if (g_once_init_enter (&msgbuf_once)) {
+         msgbuf = g_string_sized_new (512);
+@@ -230,11 +234,24 @@ _mm_log (gpointer     obj,
+         g_string_append_printf (msgbuf, "%s ", log_level_description (level));
+ 
+     if (ts_flags == TS_FLAG_WALL) {
+-        g_get_current_time (&tv);
+-        g_string_append_printf (msgbuf, "[%09ld.%06ld] ", tv.tv_sec, tv.tv_usec);
++        gint64    now_us  = 0;
++        time_t    now     = 0;
++        glong     usecs   = 0;
++        struct tm tm_info = {0};
++        char ts_fmt[TIMER_BUFFER_SIZE] = {0};
++        char ts_buf[TIMER_BUFFER_SIZE] = {0};
++
++        now_us = g_get_real_time ();
++        now    = (time_t)(now_us / G_USEC_PER_SEC);
++        usecs  = (glong)(now_us % G_USEC_PER_SEC);
++        gmtime_r (&now, &tm_info);
++        strftime (ts_fmt, sizeof (ts_fmt), "%y%m%d-%T", &tm_info);
++        snprintf (ts_buf, sizeof (ts_buf), "%s.%06ld", ts_fmt, usecs);
++        g_string_append_printf (msgbuf, "%s ", ts_buf);
+     } else if (ts_flags == TS_FLAG_REL) {
+-        glong secs;
+-        glong usecs;
++        GTimeVal tv    = {0};
++        glong    secs  = 0;
++        glong    usecs = 0;
+ 
+         g_get_current_time (&tv);
+         secs = tv.tv_sec - rel_start.tv_sec;
+@@ -263,7 +280,10 @@ _mm_log (gpointer     obj,
+ 
+     g_string_append_c (msgbuf, '\n');
+ 
+-    log_backend (loc, func, mm_to_syslog_priority (level), msgbuf->str, msgbuf->len);
++    if (log_backend)
++    {
++        log_backend (loc, func, mm_to_syslog_priority (level), msgbuf->str, msgbuf->len);
++    }
+ }
+ 
+ static void
+-- 
+2.34.1
+

@@ -1,0 +1,29 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 24f0d5d6db3ae77b338d7948f2e9d2ed08168495 Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Fri, 14 Aug 2026 12:00:00 +0000
+Subject: [PATCH] Ensure Host IPv6 table can hold two global neighbor addresses
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -1543,7 +1543,7 @@ static PLmObjectHostIPAddress Add_Update
+ 		prev=NULL;
+ 		/*List is Empty, Allocate Memory*/
+ 
+-		for(i=0;i<3;i++)
++                for(i=0;i<4;i++)
+ 		{
+ 			temp=AnscAllocateMemory(sizeof(LmObjectHostIPAddress));
+ 			if(temp == NULL)

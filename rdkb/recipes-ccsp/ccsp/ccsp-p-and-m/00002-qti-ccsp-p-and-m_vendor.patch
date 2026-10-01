@@ -24,9 +24,9 @@ index 8091bbc..615121e 100644
  #include "safec_lib_common.h"
  #include "ansc_string_util.h"
 +#include "ccsp_vendor.h"
+ #include "fw_download_check.h"
  
  #define DEVICE_PROPERTIES    "/etc/device.properties"
  #define PARTNERS_INFO_FILE              "/nvram/partners_defaults.json"
 -- 
 2.34.1
-

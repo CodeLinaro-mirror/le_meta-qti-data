@@ -1,0 +1,40 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 8c9cea34bd2afa6434714371eff5372b8010c952 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Fri, 28 Aug 2026 18:21:16 +0000
+Subject: [PATCH] Add a RETURN rule in do_lan2self_by_wanip() for the destination cellular_wan_v4_gw when IPPT_Enable=true, exempting it from the ICMP drop.
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/firewall/firewall.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 9aa4159..cd201f7 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -5803,6 +5803,16 @@ static int do_lan2self_by_wanip(FILE *filter_fp, int family)
+    {
+       fprintf(filter_fp, "-A lan2self_by_wanip -d %s -j RETURN\n", current_wan_ipaddr); //eRouter address doesn't have any restrictions
+    }
++   else
++{
++    char ippt_gw_ip[20] = {0};
++    sysevent_get(sysevent_fd, sysevent_token, "cellular_wan_v4_gw",
++                 ippt_gw_ip, sizeof(ippt_gw_ip));
++    if (strlen(ippt_gw_ip) > 0 && strcmp(ippt_gw_ip, "0.0.0.0") != 0)
++    {
++        fprintf(filter_fp, "-A lan2self_by_wanip -d %s -j RETURN\n", ippt_gw_ip);
++    }
++}
+ #ifdef CISCO_CONFIG_TRUE_STATIC_IP
+    if(isWanStaticIPReady){
+          int i;
+-- 
+2.34.1
+

@@ -1,0 +1,33 @@
+From 177cdd22e282b8937f86954dceec5ed6170df263 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Fri, 14 Aug 2026 07:40:20 +0000
+Subject: [PATCH] Replace strlcpy with strscpy and sprintf with scnprintf in
+ nf_conntrack_rtsp
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ nf_conntrack_rtsp.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/nf_conntrack_rtsp.c b/nf_conntrack_rtsp.c
+index 620b40f..afc404a 100644
+--- a/nf_conntrack_rtsp.c
++++ b/nf_conntrack_rtsp.c
+@@ -495,11 +495,11 @@ init(void)
+ 
+ 		tmpname = &rtsp_names[i][0];
+ 		if (ports[i] == RTSP_PORT) {
+-			sprintf(tmpname, "rtsp");
++                        scnprintf(tmpname, sizeof(rtsp_names[i]), "rtsp");
+ 		} else {
+-			sprintf(tmpname, "rtsp-%d", i);
++                        scnprintf(tmpname, sizeof(rtsp_names[i]), "rtsp-%d", i);
+ 		}
+-		strlcpy(hlpr->name, tmpname, sizeof(hlpr->name));
++               strscpy(hlpr->name, tmpname, sizeof(hlpr->name));
+ 
+ 		pr_debug("port #%d: %d\n", i, ports[i]);
+ 
+-- 
+2.34.1
+

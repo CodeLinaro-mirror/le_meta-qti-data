@@ -9,7 +9,9 @@ SRC_URI = "git://git.codelinaro.org/clo/le/external/github.com/aquantia/linux-aq
            file://kobj/Makefile \
            file://aquantia.service \
            file://0001-phy-aquantia-Ensure-correct-system-interface-status-.patch \
-           file://0002-phy-aquantia-Add-support-for-USX5G-mode.patch"
+           file://0002-phy-aquantia-Add-support-for-USX5G-mode.patch \
+           file://0004-phy-aquantia-Fix-asm-unaligned.h-include-for-kernel-.patch \
+           file://0005-phy-aquantia-Fix-aqr_set_rxsc-using-get-instead-of-s.patch"
 
 inherit pkgconfig autotools deploy module linux-kernel-base
 S = "${UNPACKDIR}/aquantia-1.0/aquantia"

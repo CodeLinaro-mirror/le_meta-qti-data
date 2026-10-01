@@ -1,0 +1,43 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 7bfdf8cb461258693c37afb8c0226c613bad14c1 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Tue, 8 Sep 2026 09:57:06 +0000
+Subject: [PATCH] Fixes Device.Hosts.Host.{i}.IPv6Address. not updated after
+ RNDIS reconnect by treating STALE neighbor entries as absent during DM slot
+ selection and skipping non-REACHABLE global IPv6 entries in Hosts_SyncArp.
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -1692,7 +1692,7 @@ static PLmObjectHostIPAddress Add_Update
+                                                 if((prefix_len > 0) && (strstr(pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId],ipv6_prefix) == NULL))
+                                                        break;
+                                                 memset(Command, 0, sizeof(Command));
+-                                                snprintf(Command, sizeof(Command), "ip -6 nei | grep %s",pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId]);
++                                                snprintf(Command, sizeof(Command), "ip -6 nei | grep %s | grep REACHABLE",pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId]);
+                                                 ipnei_fp = popen(Command,"r");
+                                                 // Check host table entry is present in ip nei
+                                                 if (ipnei_fp != NULL)
+@@ -3069,6 +3069,13 @@ static void Hosts_SyncArp (void)
+             {
+                 if ( _isIPv6Addr((char *)hosts[i].ipAddr) )
+                 {
++                    if (hosts[i].status != LM_NEIGHBOR_STATE_REACHABLE &&
++                        strncmp((char *)hosts[i].ipAddr, "fe80:", 5) != 0)
++                    {
++                        CcspTraceInfo(("%s: Skipping non-REACHABLE IPv6 mac=%s ip=%s\n",
++                         __FUNCTION__, hosts[i].phyAddr, hosts[i].ipAddr));
++                        continue;
++                    }
+                     pIP = Host_AddIPv6Address(pHost, (char *)hosts[i].ipAddr);
+                     if ( hosts[i].status == LM_NEIGHBOR_STATE_REACHABLE)
+                     {

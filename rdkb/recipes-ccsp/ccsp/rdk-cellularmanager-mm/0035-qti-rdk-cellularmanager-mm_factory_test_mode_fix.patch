@@ -1,0 +1,89 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From ca37882307099b0c3bce36fdd8e9ebedc8e9813d Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Fri, 28 Aug 2026 15:07:43 +0530
+Subject: Factory test mode fix
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal_mm_apis.c | 43 ++++++++++++++++---
+ 1 file changed, 37 insertions(+), 6 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index e971de3..40214cc 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -1000,6 +1000,9 @@ INT cellular_hal_mm_enable_modem (CHAR *index, BOOLEAN enable, cellular_device_s
+     Context *ctx;
+     INT res = RETURN_ERROR;
+ 
++#ifdef CM_EXTN_SUPPORTED
++    MMModemPowerState currentPowerState = MM_MODEM_POWER_STATE_UNKNOWN;
++#endif
+     ctx = g_new0 (Context, 1);
+     ctx->object = get_modem_context (index);
+     if (ctx->object)
+@@ -1012,23 +1015,51 @@ INT cellular_hal_mm_enable_modem (CHAR *index, BOOLEAN enable, cellular_device_s
+             if( mmState >= MODEM_STATE_REGISTERED && enable == TRUE )
+             {
+             	if( slot_status_cb )
+-                	slot_status_cb( "slot1", "logical_slot1", 1, DEVICE_SLOT_STATUS_READY );
++#ifndef CM_EXTN_SUPPORTED
++                     slot_status_cb( "slot1", "logical_slot1", 1, DEVICE_SLOT_STATUS_READY );
++#else
++                {
++                    /* Slot status is set to ready at the point where CM receives the indication from MM of movement to registered state*/
++                    CELLULAR_HAL_DBG_PRINT ("%s - CM SM is not yet aware but Modem has already moved to Registered\n" ,__FUNCTION__);
++                }
++#endif //CM_EXTN_SUPPORTED
+             }
++#ifndef CM_EXTN_SUPPORTED
+             else
++#else
++            else if (mmState < MODEM_STATE_ENABLING)
++#endif
+             {
+                 if( enable == TRUE )
+-#ifdef CM_PROP_SUPPORTED
++#ifdef CM_EXTN_SUPPORTED
+                 {
+-                    clock_gettime(CLOCK_REALTIME, &mmEnabledTime);
+-                    mm_modem_enable(ctx->modem, NULL, NULL, NULL);
+-                    CELLULAR_HAL_DBG_PRINT ("%s - Enabled Modem\n" ,__FUNCTION__);
++                    currentPowerState = mm_modem_get_power_state(ctx->modem);
++                    if(currentPowerState != MM_MODEM_POWER_STATE_FTM)
++                    {
++#ifdef CM_PROP_SUPPORTED
++                        clock_gettime(CLOCK_REALTIME, &mmEnabledTime);
++#endif
++                        mm_modem_enable(ctx->modem, NULL, NULL, NULL);
++                        CELLULAR_HAL_DBG_PRINT ("%s - Enabled Modem\n" ,__FUNCTION__);
++                    }
++                    else
++                    {
++                        CELLULAR_HAL_DBG_PRINT ("%s - Warning! Modem is in Factory test mode, not enabling modem\n" ,__FUNCTION__);
++                    }
++
+                 }
+ #else
+                     mm_modem_enable(ctx->modem, NULL, NULL, NULL);
+-#endif //CM_PROP_SUPPORTED
++#endif
+                 else
+                     mm_modem_disable(ctx->modem, NULL, NULL, NULL);
+             }
++#ifdef CM_EXTN_SUPPORTED
++        else
++        {
++                CELLULAR_HAL_DBG_PRINT ("%s - mmState is either Enabling or Enabled or Searching.\n" ,__FUNCTION__);
++        }
++#endif //CM_EXTN_SUPPORTED
+             res = RETURN_OK;
+         }
+     }
+-- 
+2.34.1
+

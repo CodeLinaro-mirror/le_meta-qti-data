@@ -27,6 +27,11 @@ define Build/Prepare
 endef
 
 MAKE_OPTS:= \
+    ARCH="$(LINUX_KARCH)" \
+    SUBARCH="$(LINUX_KARCH)" \
+    CROSS_COMPILE="$(TARGET_CROSS)" \
+    CC="$(TARGET_CC)" \
+    SMEM_MAILBOX_ROOT="$(PKG_BUILD_DIR)" \
     M="$(PKG_BUILD_DIR)"
 
 
@@ -38,7 +43,7 @@ define Build/InstallDev
 	$(INSTALL_DIR) $(STAGING_DIR)
 	mkdir -p  $(1)/usr/lib/
 	mkdir -p  $(1)/usr/modules-symbols/$(PKG_NAME)
-	$(CP) $(PKG_BUILD_DIR)/Module.symvers $(1)/usr/modules-symbols/$(PKG_NAME)/
+	$(CP) $(PKG_BUILD_DIR)/../symvers/$(PKG_NAME).symvers $(1)/usr/modules-symbols/$(PKG_NAME)/Module.symvers
 	mkdir -p  $(STAGING_DIR)/usr/include/smemMailboxHeaders
 	$(CP) $(PKG_BUILD_DIR)/include/*.h $(STAGING_DIR)/usr/include/smemMailboxHeaders
 endef

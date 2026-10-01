@@ -1,0 +1,288 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From caaad43a9e96f829a5b239786d9bc19af89b0005 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Fri, 17 Jul 2026 08:57:49 +0000
+Subject: [Description]:Improves dnsmasq lease cleanup and ARP/neighbor-state handling to avoid stale disconnected-client entries.
+Adds safe IPv4 validation and explicit unreachable-state support for robust lease release decisions.
+
+[RCA/Root Cause Analysis]: Disconnected clients could disappear from ip nei while lease entries persisted in dnsmasq.leases.
+Limited state parsing and missing validation caused stale IP/MAC records and inconsistent host/lease sync behavior.
+
+[Fix Description]:Added releaseIPOnDisconnect() to iterate dnsmasq leases, verify presence in neighbor states, and run dhcp_release when absent. Extended neighbor states (DELAY/PROBE/UNREACHABLE), added IPv4 validation, and integrated release path into Hosts_SyncArp().
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/lm_main.c    | 176 ++++++++++++++++++++++++++++++++++++++---
+ source/lm/lm_wrapper.c |  18 ++++-
+ source/lm/lm_wrapper.h |   3 +-
+ 3 files changed, 184 insertions(+), 13 deletions(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index bf69ed9..03e3d07 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -2840,9 +2840,136 @@ static void *Event_HandlerThread(void *threadid)
+    pthread_exit(NULL);
+ }
+ 
++/*===========================================================================
++  FUNCTION:  releaseIPOnDisconnect
++==========================================================================*/
++/*!
++    @brief
++     To retrieve number of entries from dnsmasq.leases, and check in ip nei
++     show whether it is present or not. If not present then remove from
++     dnsmasq.leases using dhcp_release command.
++*/
++/*=========================================================================*/
++static void releaseIPOnDisconnect()
++{
++    FILE *fp1=NULL;
++    FILE *fp2=NULL;
++    char tmpBuf[32] ={0};
++    char tmpBufval[32]={0};
++    char dnsmasqIP[32] = {0};
++    char dnsmasqMAC[32] = {0};
++    char IPNei[32] = {0};
++    char dnsmasqIPCommand[128] = {0};
++    char dnsmasqMACCommand[128] = {0};
++    char IPNeiCommand[128] = {0};
++    int dnsmasqCount=0;
++    int counter = 1;
++
++    // To find number of entries in dnsmasq leases
++    fp1 = popen("cat /nvram/dnsmasq.leases  | wc -l","r");
++    if(fp1 != NULL)
++    {
++        fgets(tmpBuf, sizeof(tmpBuf), fp1);
++        sscanf(tmpBuf,"%s",tmpBufval);
++        dnsmasqCount=atoi(tmpBufval);
++        pclose(fp1);
++    }
++    /*
++     * Sometimes LAN client when disconnected is removed from ip nei without changing state to STALE from REACHABLE.
++     * Logic To delete dnsmasq entry if it is not present in ip nei as REACHABLE by iterating through all the
++     * entries in dnsmasq leases
++     */
++    while(dnsmasqCount > 0)
++    {
++        snprintf(dnsmasqIPCommand, sizeof(dnsmasqIPCommand), "head -%d /nvram/dnsmasq.leases | tail -1 | awk '{print$3}'",counter);
++        snprintf(dnsmasqMACCommand, sizeof(dnsmasqMACCommand), "head -%d /nvram/dnsmasq.leases | tail -1 | awk '{print$2}'",counter);
++        counter++;
++        dnsmasqCount--;
++        // Extracting IP address from dnsmasq leases
++        fp1 = popen(dnsmasqIPCommand,"r");
++        if (fp1 == NULL)
++        {
++            continue;
++        }
++        else
++        {
++            fgets(tmpBuf, sizeof(tmpBuf), fp1);
++            sscanf(tmpBuf,"%s",dnsmasqIP);
++            pclose(fp1);
++        }
++        // Extracting MAC address from dnsmasq leases
++        fp2 = popen(dnsmasqMACCommand,"r");
++        if(fp2 == NULL)
++        {
++            continue;
++        }
++        else
++        {
++            fgets(tmpBuf, sizeof(tmpBuf), fp2);
++            sscanf(tmpBuf,"%s",dnsmasqMAC);
++            pclose(fp2);
++        }
++        snprintf(IPNeiCommand, sizeof(IPNeiCommand), "ip nei | grep %s | grep -E \"REACHABLE|PROBE|STALE|DELAY\" | awk '{print$1}'",dnsmasqIP);
++        strlcpy(tmpBuf,"",sizeof(tmpBuf));
++        strlcpy(IPNei,"",sizeof(IPNei));
++        fp1= popen(IPNeiCommand,"r");
++        // Extracting IP address from ip nei
++        if(fp1 != NULL)
++        {
++            fgets(tmpBuf, sizeof(tmpBuf), fp1);
++            sscanf(tmpBuf,"%s",IPNei);
++            pclose(fp1);
++        }
++        // Applying remove condition only when the dnsmasq leases entry is not in ip nei as REACHABLE/PROBE/STALE/DELAY
++        if((strlen(dnsmasqIP) != 0) && (strlen(dnsmasqMAC) != 0) && (strlen(IPNei) == 0))
++        {
++            CcspTraceWarning(("%s:%d DHCP release IP %s MAC %s \n", __FUNCTION__, __LINE__, dnsmasqIP,dnsmasqMAC));
++            v_secure_system("dhcp_release brlan0 %s %s",dnsmasqIP,dnsmasqMAC);
++            counter--;
++        }
++    }
++}
++
++static bool validateIpv4Safe(const char *ip)
++{
++    if (ip == NULL)
++    {
++        CcspTraceError(("%s:%d Invalid IPv4 address \n", __FUNCTION__, __LINE__));
++        return false;
++    }
++
++    size_t ipLen = strlen(ip);
++    if (ipLen == 0)
++    {
++        CcspTraceError(("%s:%d Invalid IPv4 address (Empty) \n", __FUNCTION__, __LINE__));
++        return false;
++    }
++    for (size_t i = 0; i < ipLen; i++)
++    {
++        if (!(isdigit((unsigned char)ip[i]) || ip[i] == '.'))
++        {
++            CcspTraceError(("%s:%d Invalid IPv4 address \n", __FUNCTION__, __LINE__));
++            return false;
++        }
++    }
++
++    struct in_addr addr;
++    // inet_pton returns 1 for valid IPv4, 0 for invalid, -1 for error
++    if (inet_pton(AF_INET, ip, &addr) != 1)
++    {
++        CcspTraceError(("%s:%d Invalid IPv4 address \n", __FUNCTION__, __LINE__));
++        return false;
++    }
++
++    return true;
++}
++
+ static void Hosts_SyncArp (void)
+ {
++    FILE *fp1=NULL;
++    FILE *fp_ping=NULL;
+     char comments[256] = {0};
++    char pingCommand[128] = {0};
+     int count = 0;
+     int i;
+ 
+@@ -2906,6 +3033,12 @@ static void Hosts_SyncArp (void)
+ 						  * We need to maintain recent reachable IP in "Device.Hosts.Host.1.IPAddress" host. so 
+ 						  * that we are doing swap here.
+ 						  */
++                        // Sometimes LAN client takes time when disconnected to move from REACHABLE to STALE in ip nei
++                       // Doing a ping so as to change the state of client from REACHABLE to STALE in ip nei quickly after disconnection
++                        snprintf(pingCommand, sizeof(pingCommand), "ping -c 1 -W 5 -w 5 %s", pHost->pStringParaValue[LM_HOST_IPAddressId]);
++                        fp1 = popen(pingCommand, "r");
++                        if (fp1 != NULL)
++                            pclose(fp1);
+ 						pIP = Host_AddIPv4Address(pHost, (char *)hosts[i].ipAddr);
+ 
+                         Host_SetIPAddress(pIP, 0, "NONE");
+@@ -2918,15 +3051,40 @@ static void Hosts_SyncArp (void)
+                     }
+                     else
+                     {
+-						/*
+-						  * We need to update non-reachable IP in host details. No need to swap.
+-						  */
+-						pIP = LM_FindIPv4BaseFromLink( pHost, (char *)hosts[i].ipAddr );
++                         /*
++                         * We need to update non-reachable IP in host details. No need to swap.
++                         */
++                        if(validateIpv4Safe(pHost->pStringParaValue[LM_HOST_IPAddressId]) != true)
++                        {
++                          CcspTraceWarning(("Invalid IP Address: %s\n",pHost->pStringParaValue[LM_HOST_IPAddressId]));
++                          continue;
++                        }
++                        // Sometimes WLAN client takes time when connected to move from STALE to REACHABLE in ip nei
++                        // Doing a ping so as to change the state of client in ip nei quickly.
++                        snprintf(pingCommand, sizeof(pingCommand), "ping -c 1 -W 5 -w 5 %s", pHost->pStringParaValue[LM_HOST_IPAddressId]);
++                        fp_ping = popen(pingCommand, "r");
++                        if (fp_ping != NULL)
++                        {
++                            pclose(fp_ping);
++                            fp_ping = NULL;
++                        }
+ 
+-						if( NULL != pIP )
+-						{
+-							Host_SetIPAddress(pIP, LM_HOST_RETRY_LIMIT, "NONE"); 
+-						}
++                        if(validate_mac((char*)hosts[i].phyAddr) != 0)
++                        {
++                          CcspTraceWarning(("Invalid MAC Address: %s\n",hosts[i].phyAddr));
++                          continue;
++                        }
++                        if (hosts[i].status == EX_LM_NEIGHBOR_STATE_UNREACHABLE)
++                        {
++                            CcspTraceWarning(("DHCP release IP %s MAC %s\n",hosts[i].ipAddr, hosts[i].phyAddr));
++                            v_secure_system("dhcp_release brlan0 %s %s",pHost->pStringParaValue[LM_HOST_IPAddressId], hosts[i].phyAddr);
++                        }
++                        pIP = LM_FindIPv4BaseFromLink( pHost, (char *)hosts[i].ipAddr );
++
++                        if( NULL != pIP )
++                        {
++                            Host_SetIPAddress(pIP, LM_HOST_RETRY_LIMIT, "NONE");
++                        }
+                     }
+                 }
+ 
+@@ -2937,7 +3095,7 @@ static void Hosts_SyncArp (void)
+         releasePresenceLocks();
+         CcspTraceDebug(("%s:%d, released presence locks \n",__FUNCTION__,__LINE__));
+     }
+-
++    releaseIPOnDisconnect();
+     if ( hosts )
+     {
+         free(hosts);
+diff --git a/source/lm/lm_wrapper.c b/source/lm/lm_wrapper.c
+index 0a02afd..aaed545 100644
+--- a/source/lm/lm_wrapper.c
++++ b/source/lm/lm_wrapper.c
+@@ -1456,15 +1456,27 @@ int lm_wrapper_get_arp_entries (char netName[LM_NETWORK_NAME_SIZE], int *pCount,
+                  status);  //todo: should IPv6 router be cared about?
+         if(ret != 6)
+             continue;
+-
+-        if ( 0 == strcmp(status, "REACHABLE") )
++        if (strstr(status, "REACHABLE") != NULL)
+         {
+             hosts[index].status = LM_NEIGHBOR_STATE_REACHABLE;
+         }
+-        else
++        else if (strstr(status, "STALE") != NULL)
+         {
+             hosts[index].status = LM_NEIGHBOR_STATE_STALE;
+         }
++        else if (strstr(status, "DELAY") != NULL)
++        {
++            hosts[index].status = LM_NEIGHBOR_STATE_DELAY;
++        }
++        else if (strstr(status, "PROBE") != NULL)
++        {
++            hosts[index].status = LM_NEIGHBOR_STATE_PROBE;
++        }
++        else
++        {
++            hosts[index].status = EX_LM_NEIGHBOR_STATE_UNREACHABLE; //State for clients not reachable
++        }
++
+         PRINTD("%s:%s %s %s %d\n", __FUNCTION__,
+                 hosts[index].phyAddr,
+                 hosts[index].ipAddr,
+diff --git a/source/lm/lm_wrapper.h b/source/lm/lm_wrapper.h
+index f8b85f3..cde506a 100644
+--- a/source/lm/lm_wrapper.h
++++ b/source/lm/lm_wrapper.h
+@@ -89,7 +89,8 @@ enum LM_NEIGHBOR_STATE{
+ 	LM_NEIGHBOR_STATE_REACHABLE = 0,
+ 	LM_NEIGHBOR_STATE_STALE,
+ 	LM_NEIGHBOR_STATE_DELAY,
+-	LM_NEIGHBOR_STATE_PROBE
++        LM_NEIGHBOR_STATE_PROBE,
++        EX_LM_NEIGHBOR_STATE_UNREACHABLE
+ };
+ 
+ /*****************
+-- 
+2.34.1
+

@@ -30,9 +30,12 @@ RDEPENDS:packagegroup-qti-data = ' \
     eth-sdk-dlkm \
     data-ipa-cfg-mgr \
     qca-nss-ecm \
+    mosquitto \
+    phytool \
     '
-RDEPENDS:packagegroup-qti-data:append:echo = "data-devicetree qca-nss-sfe"
-RDEPENDS:packagegroup-qti-data:remove:echo = "datarmnet-ext aquantia iproute2-tc tcpdump iproute2 dnsmasq bridge-utils data-ipa-cfg-mgr"
+RDEPENDS:packagegroup-qti-data:append:echo = "data-devicetree qca-nss-sfe miniupnpd rtsp-alg"
+RDEPENDS:packagegroup-qti-data:remove:echo = "aquantia tcpdump iproute2 dnsmasq bridge-utils data-ipa-cfg-mgr"
 # sa535m enables ECM, so data-ipa-cfg-mgr is not required
-RDEPENDS:packagegroup-qti-data:remove:sa535m = "data-ipa-cfg-mgr"
-RDEPENDS:packagegroup-qti-data:append:sa535m = " data-devicetree"
+RDEPENDS:packagegroup-qti-data:remove:sa535m = "data-ipa-cfg-mgr mosquitto"
+RDEPENDS:packagegroup-qti-data:append:sa535m = " data-devicetree hostap"
+RDEPENDS:packagegroup-qti-data:append:echo = " ipa-qos-hal"

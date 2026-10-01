@@ -1,0 +1,70 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 776ec45f0368ab2d38b94bb401ee74cbd939b616 Mon Sep 17 00:00:00 2001
+From: abishaac <abishaac@qti.qualcomm.com>
+Date: Wed, 12 Aug 2026 14:06:17 +0530
+Subject: [PATCH] service_igd: start/stop miniupnpd on Amboseli platform
+
+[Description]: miniupnpd is not started automatically on Amboseli platform
+when UPnP is enabled via dmcli/WebUI or when LAN comes up. service_igd.sh
+calls resync_upnp() which uses the legacy IGD binary path not applicable
+for this platform.
+
+[Fix Description]: Patched service_igd.sh service_start() to start
+miniupnpd when binary and config file exist, with return value check to
+prevent false igd-status=started on failure. Patched service_stop() to
+kill miniupnpd. Original resync_upnp path preserved for other platforms
+via the else branch.
+Signed-off-by: Abisha Accamma Vinod<abishaac@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/service_igd.sh | 19 ++++++++++++++++---
+ 1 file changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/source/scripts/init/service.d/service_igd.sh b/source/scripts/init/service.d/service_igd.sh
+--- a/source/scripts/init/service.d/service_igd.sh
++++ b/source/scripts/init/service.d/service_igd.sh
+@@ -154,14 +154,24 @@ service_start() {
+ #    # start IGD daemon
+     if [ "1" = "$SYSCFG_upnp_igd_enabled" -a x`sysevent get ${SERVICE_NAME}-status` = x"stopped" ] ; then
+         ulog ${SERVICE_NAME} status "starting ${SERVICE_NAME} service" 
+-        UPNP_TTL=`syscfg get upnp_igd_advr_ttl`
+-        touch $UPNP_TMP
+-        echo "$UPNP_TTL" > $UPNP_TMP
++        if [ -x "/usr/sbin/miniupnpd" ] && [ -f "/etc/data/miniupnpd/miniupnpd.conf" ]; then
++            ulog ${SERVICE_NAME} status "starting miniupnpd"
++            /usr/sbin/miniupnpd -f /etc/data/miniupnpd/miniupnpd.conf
++            if [ $? -ne 0 ]; then
++                ulog ${SERVICE_NAME} status "miniupnpd failed to start"
++                sysevent set ${SERVICE_NAME}-errinfo "miniupnpd start failed"
++                return
++            fi
++        else
++            UPNP_TTL=`syscfg get upnp_igd_advr_ttl`
++            touch $UPNP_TMP
++            echo "$UPNP_TTL" > $UPNP_TMP
+ #        mkdir -p ${IGD_TMP_DIR}
+ #        (cd ${IGD_TMP_DIR}; ln -sf /etc/IGD/* .)
+ #        $IGD `sysevent get current_lan_ipaddr` &
+ #    fi
+-        resync_upnp
++            resync_upnp
++        fi
+         sysevent set ${SERVICE_NAME}-errinfo
+         sysevent set ${SERVICE_NAME}-status "started"
+     fi
+@@ -170,6 +180,10 @@ service_start() {
+ service_stop () {
+    ulog ${SERVICE_NAME} status "stopping ${SERVICE_NAME} service" 
+ 
++   if [ -x "/usr/sbin/miniupnpd" ]; then
++       killall miniupnpd 2>/dev/null || true
++   fi
++
+    local CURRENT_NETS="`sysevent get ${SERVICE_NAME}_current_nets`"
+    for net in $CURRENT_NETS; do 
+         handle_ipv4_status $net $IF_DOWN
+-- 
+2.34.1

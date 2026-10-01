@@ -1,0 +1,44 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From caac10d044f6c43db68c03066bbf0a94dd124629 Mon Sep 17 00:00:00 2001
+From: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+Date: Tue, 28 Jul 2026 08:57:02 +0000
+Subject: DM implementation of Modem Status
+Signed-off-by: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_cellular_apis.h    | 3 +++
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c | 1 +
+ 2 files changed, 4 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 2cf1d64..10f6d58 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -364,6 +364,9 @@ _CELLULAR_INTERFACE_INFO
+     PCELLULAR_INTERFACE_CONTEXTPROFILE_INFO     pstContextProfileInfo; 
+     CELLULAR_INTERFACE_STATS_INFO               stStatsInfo;
+     CELLULAR_RADIO_ENV_CONDITIONS               RadioEnvConditions;
++#ifdef CM_EXTN_SUPPORTED
++    CELLULAR_INTERFACE_INFO_EXTN                stCellularInterfaceInfoExtn;
++#endif
+ }
+ CELLULAR_INTERFACE_INFO,  *PCELLULAR_INTERFACE_INFO;
+ typedef  struct
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 0a5ffa6..092a73d 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3627,6 +3627,7 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+ #ifdef CM_EXTN_SUPPORTED
+         {"Device.Cellular.Interface.{i}.Stats.BytesSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.BytesReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ModemStatus", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamStringValue_rbus, Cellular_Interface_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
+ #endif
+         {"Device.Cellular.X_RDK_UiccNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
+-- 
+2.34.1
+

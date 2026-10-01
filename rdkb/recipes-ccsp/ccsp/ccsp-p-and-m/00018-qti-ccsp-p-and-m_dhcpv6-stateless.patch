@@ -1,0 +1,351 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 5deb62ce455bc7e44aebfe8e29136967d199f77b Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Thu, 6 Aug 2026 14:47:37 +0530
+Subject: [PATCH] Adding _PLATFORM_SDX_ flag to populate the dibbler-server config content.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_dhcpv6_apis.c     |  29 +++--
+ source-arm/TR-181/board_sbapi/cosa_ra_apis.c  | 114 +++++++++++++++++-
+ source/TR-181/include/cosa_ra_apis.h          |   6 +
+ source/TR-181/middle_layer_src/cosa_ra_dml.c  |   5 +-
+ 4 files changed, 137 insertions(+), 17 deletions(-)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -3515,7 +3515,7 @@ static int CosaDmlDHCPv6sTriggerRestart(
+ }
+ 
+ /*SKYH4-3227 : variable to check if process is started already*/
+-#if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_)
++#if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_) || defined (_PLATFORM_SDX_)
+     BOOL  g_dhcpv6_server_started = FALSE;
+ #endif
+ 
+@@ -3532,7 +3532,7 @@ static int _dibbler_server_operation(cha
+     if (!strncmp(arg, "stop", 4))
+     {
+         /*stop the process only if it is started*/
+-        #if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_)
++        #if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_) || defined (_PLATFORM_SDX_)
+         #if defined (_SCER11BEL_PRODUCT_REQ_)
+             if( TRUE == IsThisCurrentPartnerID("sky-") )
+         #endif /** _SCER11BEL_PRODUCT_REQ_ */
+@@ -3548,7 +3548,7 @@ static int _dibbler_server_operation(cha
+ 	    //dibbler stop seems to be hanging intermittently with v_secure_system
+ 	    //replacing with system call
+             //v_secure_system(SERVER_BIN " stop >/dev/null");
+-	    snprintf(cmd,sizeof(cmd), "%s stop >/dev/null", SERVER_BIN);
++	    snprintf(cmd,sizeof(cmd), "%s stop", SERVER_BIN);
+ 	    executeCmd(cmd);
+             close(fd);
+         }else{
+@@ -3592,7 +3592,7 @@ static int _dibbler_server_operation(cha
+             CcspTraceInfo(("%s:%d start dibbler %d\n",__FUNCTION__, __LINE__,g_dhcpv6_server));
+             //fprintf(stderr, "%s -- %d start %d\n", __FUNCTION__, __LINE__, g_dhcpv6_server);
+ 
+-            #if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_)
++            #if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_) || defined (_PLATFORM_SDX_)
+             #if defined (_SCER11BEL_PRODUCT_REQ_)
+                 if( TRUE == IsThisCurrentPartnerID("sky-") )
+             #endif /** _SCER11BEL_PRODUCT_REQ_ */
+@@ -5378,7 +5378,7 @@ EXIT:
+ 
+ void __cosa_dhcpsv6_refresh_config()
+ {
+-    FILE * fp = fopen(SERVER_CONF_LOCATION, "w+");
++    FILE * fp = fopen(TMP_SERVER_CONF, "w+");
+     PCHAR pTmp1 = NULL;
+     PCHAR pTmp2 = NULL;
+     PCHAR pTmp3 = NULL;
+@@ -5474,6 +5474,7 @@ void __cosa_dhcpsv6_refresh_config()
+             continue;
+ 
+         fprintf(fp, "iface %s {\n", COSA_DML_DHCPV6_SERVER_IFNAME);
++        fprintf(fp, "   rapid-commit yes\n");
+ 
+         if (g_dhcpv6_server_type != DHCPV6_SERVER_TYPE_STATEFUL ) 
+             goto OPTIONS;
+@@ -6283,6 +6284,35 @@ OPTIONS:
+ 
+         }     
+ 
++        // Populating the DNS server info in server.conf
++        char ifname[32]={0};
++        token_t sysevent_token;
++        int sysevent_fd =s_sysevent_connect(&sysevent_token);
++        commonSyseventGet("current_wan_ifname", ifname, sizeof(ifname));
++        if (strstr(ifname, CELLULAR_IF_NAME) != NULL)
++        {
++            char wan_dns1[64] = {0};
++            char wan_dns2[64] = {0};
++            sysevent_get(sysevent_fd, sysevent_token,"lan_ipaddr_v6", wan_dns1, sizeof(wan_dns1));
++            sysevent_get(sysevent_fd, sysevent_token,"cellular_wan_v6_dns2", wan_dns2, sizeof(wan_dns2));
++            if (strstr(wan_dns1, ":") != NULL)
++            {
++                if(strlen(wan_dns2) <= 0)
++                {
++                    fprintf(fp, "option dns-server %s\n",wan_dns1);
++                }
++                else
++                {
++                    fprintf(fp, "option dns-server %s,%s\n",wan_dns1,wan_dns2);
++                }
++            }
++            else
++            {
++                CcspTraceWarning(("%s dibbler-server: wan_dns is empty\n", __FUNCTION__));
++                fprintf(fp,"option dns-server 2001:4860:4860::8888,2001:4860:4860::8844\n");
++            }
++        }
++
+         fprintf(fp, "}\n");
+     }
+     
+@@ -6295,7 +6325,7 @@ OPTIONS:
+     if (rename(TMP_SERVER_CONF, SERVER_CONF_LOCATION))
+         CcspTraceWarning(("%s rename failed %s\n", __FUNCTION__, strerror(errno)));
+ #endif
+-
++    v_secure_system("cp %s %s",TMP_SERVER_CONF,SERVER_CONF_LOCATION);
+ if (stat(SERVER_CONF_LOCATION, &check_ConfigFile) == -1) {
+ 	commonSyseventSet("dibbler_server_conf-status","");
+ }
+@@ -8573,6 +8603,8 @@ int dhcpv6_assign_global_ip(char * prefi
+ void CosaDmlDhcpv6sRebootServer()
+ {
+     char event_value[64] = {0};
++    char other_flag_value[64] = {0};
++
+ #ifdef FEATURE_RDKB_WAN_MANAGER
+     commonSyseventGet("ipv6_prefix", event_value, sizeof(event_value));
+     if (strlen(event_value) > 3)
+@@ -8606,7 +8638,7 @@ void CosaDmlDhcpv6sRebootServer()
+ 
+     fd = open(DHCPV6S_SERVER_PID_FILE, O_RDONLY);
+ /* dibbler-server process start fix for HUB4 and ADA */
+-#if defined (_SCER11BEL_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_)
++#if defined (_SCER11BEL_PRODUCT_REQ_) || defined (_SCXF11BFL_PRODUCT_REQ_) || defined (_PLATFORM_SDX_)
+     FILE *fp_bin = NULL;
+     char binbuff[64] = {0};
+     fp_bin = v_secure_popen("r","ps|grep %s|grep -v grep", SERVER_BIN);
+@@ -8625,7 +8657,7 @@ void CosaDmlDhcpv6sRebootServer()
+         char out[128];
+ 
+ /* dibbler-server process start fix for HUB4 and ADA */
+-#if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_)
++#if defined (_HUB4_PRODUCT_REQ_) || defined (_SCER11BEL_PRODUCT_REQ_) || defined (_PLATFORM_SDX_)
+ #if defined (_SCER11BEL_PRODUCT_REQ_)
+     if( TRUE == IsThisCurrentPartnerID("sky-") )
+ #endif /** _SCER11BEL_PRODUCT_REQ_ */
+@@ -8647,8 +8679,13 @@ void CosaDmlDhcpv6sRebootServer()
+             v_secure_system("kill -15 `pidof " SERVER_BIN "`");
+ 	    sleep(1);
+         }
+-        CcspTraceInfo(("%s - Call _dibbler_server_operation start\n",__FUNCTION__));
+-        _dibbler_server_operation("start");
++        syscfg_get(NULL, "router_other_flag", other_flag_value, sizeof(other_flag_value));
++        if (strcmp(other_flag_value,"1") == 0)
++        {
++            v_secure_system("cp %s %s",TMP_SERVER_CONF,SERVER_CONF_LOCATION);
++            CcspTraceInfo(("%s - Call _dibbler_server_operation start\n",__FUNCTION__));
++            _dibbler_server_operation("start");
++        }
+     } else{
+         close(fd);
+     }
+Index: git/source-arm/TR-181/board_sbapi/cosa_ra_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_ra_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_ra_apis.c
+@@ -75,13 +75,19 @@
+ #include <utapi.h>
+ #include <utapi_util.h>
+ #include <utctx/utctx_api.h>
++#include "cosa_common_util.h"
++#include <sysevent/sysevent.h>
+ 
+ #define MAX_PREF        8       /* according to TR-181 */
+-#define ZEBRA_CONF      "/var/zebra.conf"
++#define SERVER_BIN      "dibbler-server"
++#define ZEBRA_CONF      "/var/volatile/zebra.conf"
+ 
+ #define RA_CONF_START   "# Based on prefix"
+ #define RA_CONF_IF      "interface"
+ 
++#define TMP_SERVER_CONF "/tmp/.dibbler_server_conf"
++#define SERVER_CONF_LOCATION  "/etc/dibbler/server.conf"
++
+ typedef enum {
+     RT_PREFER_HIGH = 1,
+     RT_PREFER_MEDIUM,
+@@ -108,6 +114,8 @@ typedef struct ZebraRaConf_s {
+     RtPrefer_t      preference;
+ } ZebraRaConf_t;
+ 
++extern int executeCmd(char *cmd);
++
+ #ifndef DEBUG
+ #define DumpZebraRaConf(x)  
+ #else
+@@ -234,10 +242,8 @@ static int ParseZebraRaConf(ZebraRaConf_
+         } else if (strstr(line, "ra-lifetime") != NULL) {
+             if (sscanf(line, "ipv6 nd ra-lifetime %d", &conf->lifetime) != 1)
+                 goto BAD_FORMAT;
+-		} else if (strstr(line, "managed-config-flag") != NULL) {
+-			conf->managedFlag = 1;
+-		} else if (strstr(line, "other-config-flag") != NULL) {
+-			conf->otherFlag = 1;
++        } else if (strstr(line, "managed-config-flag") != NULL) {
++                conf->managedFlag = 0;
+         } else if (strstr(line, "mtu") != NULL) {
+             if (sscanf(line, "ipv6 nd mtu %d", &conf->mtu) != 1)
+                 goto BAD_FORMAT;
+@@ -254,6 +260,14 @@ static int ParseZebraRaConf(ZebraRaConf_
+                 conf->preference = RT_PREFER_LOW;
+             else
+                 goto BAD_FORMAT;
++        } else if (strstr(line, "other-config-flag") != NULL) {
++            if (strstr(line, "no ipv6 nd other-config-flag") != NULL)
++            {
++                 conf->otherFlag = 0;
++            } else
++            {
++                  conf->otherFlag = 1;
++            }
+         }
+     }
+ 
+@@ -661,3 +675,93 @@ CosaDmlRaIfBERemove
+     fprintf(stderr, "%s: NOT SUPPORTED FOR NOW!!\n", __FUNCTION__);
+     return ANSC_STATUS_FAILURE;
+ }
++
++
++ANSC_STATUS
++CosaDmlSetOFlag
++    (
++        bool otherConfigFlag
++    )
++{
++    FILE *fp_tmp = NULL, *fp_ra = NULL, *fp_cmd = NULL;
++    char *line = NULL, *line_ra = NULL;
++    ssize_t nread, nread_ra;
++    size_t length = 0, length_ra = 0;
++    char output[256] = {0};
++    char startCmd[256] = {0};
++    char stopCmd[256] = {0};
++    char lan_addr[64]={0};
++
++    if (1 == otherConfigFlag)
++    {
++        token_t sysevent_token;
++        int sysevent_fd =s_sysevent_connect(&sysevent_token);
++        sysevent_get(sysevent_fd, sysevent_token,"lan_ipaddr_v6", lan_addr, sizeof(lan_addr));
++        fp_ra = fopen(TMP_SERVER_CONF, "r");
++        fp_tmp = fopen(SERVER_CONF_LOCATION,"w");
++        if (NULL == fp_ra)
++        {
++            CcspTraceInfo(("[%s:%d] .dibbler_server_conf not able to open\n",__FUNCTION__,__LINE__));
++        }
++        if (NULL == fp_tmp)
++        {
++            CcspTraceInfo(("[%s:%d] server.conf not able to open\n",__FUNCTION__,__LINE__));
++        }
++        if (NULL != fp_tmp && NULL != fp_ra)
++        {
++            while ((nread_ra = getline(&line_ra, &length_ra, fp_ra)) != -1)
++            {
++                if (NULL != strstr(line_ra, "option dns-server"))
++                {
++                    fprintf(fp_tmp, "option dns-server %s\n", lan_addr);
++                }
++                else
++                {
++                    fwrite(line_ra, nread_ra, 1, fp_tmp);
++                }
++            }
++            if (line_ra)
++            {
++                free(line_ra);
++                line_ra = NULL;
++            }
++        }
++        if (fp_tmp)
++        {
++            fclose(fp_tmp);
++            fp_tmp = NULL;
++        }
++        if (fp_ra)
++        {
++            fclose(fp_ra);
++            fp_ra = NULL;
++        }
++
++        v_secure_system("cp %s %s",SERVER_CONF_LOCATION,TMP_SERVER_CONF);
++        snprintf(startCmd,sizeof(startCmd), "%s start", SERVER_BIN);
++        executeCmd(startCmd);
++    }
++    else if (0 == otherConfigFlag)
++    {
++        snprintf(output,sizeof(output),"ps|grep %s|grep -v grep",SERVER_BIN);
++        fp_cmd = popen(output,"r");
++        if(NULL != fp_cmd)
++        {
++            if ((nread = getline(&line, &length, fp_cmd)) != -1)
++            {
++                if(strlen(line) > 0)
++                {
++                    v_secure_system("killall %s",SERVER_BIN);
++                }
++            }
++            pclose(fp_cmd);
++            if (line)
++            {
++                free(line);
++                line = NULL;
++            }
++        }
++    }
++
++    return ANSC_STATUS_SUCCESS;
++}
+Index: git/source/TR-181/middle_layer_src/cosa_ra_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_ra_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_ra_dml.c
+@@ -1406,6 +1406,9 @@ InterfaceSetting1_SetParamBoolValue
+     {
+         /* save update to backup */
+         pRAInterface ->Cfg.bAdvOtherConfigFlag = bValue;
++        v_secure_system("syscfg set router_other_flag %d",pRAInterface->Cfg.bAdvOtherConfigFlag);
++        CosaDmlSetOFlag(pRAInterface ->Cfg.bAdvOtherConfigFlag);
++        system("sysevent set zebra-restart");
+         return TRUE;
+     }
+ 
+Index: git/source/TR-181/include/cosa_ra_apis.h
+===================================================================
+--- git.orig/source/TR-181/include/cosa_ra_apis.h
++++ git/source/TR-181/include/cosa_ra_apis.h
+@@ -160,6 +160,12 @@ _COSA_DML_RA_OPTION
+ }
+ COSA_DML_RA_OPTION, * PCOSA_DML_RA_OPTION;
+ 
++ANSC_STATUS
++CosaDmlSetOFlag
++    (
++        bool otherConfigFlag
++    );
++
+ #define  ACCESS_RA_OPTION_LINK_OBJECT(p)              \
+          ACCESS_CONTAINER(p, COSA_DML_RA_OPTION, Link)
+ 

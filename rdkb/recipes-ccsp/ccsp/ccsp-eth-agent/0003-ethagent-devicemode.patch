@@ -14,18 +14,17 @@ Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
 
 Index: git/source/TR-181/board_sbapi/cosa_ethernet_apis.c
 ===================================================================
---- git.orig/source/TR-181/board_sbapi/cosa_ethernet_apis.c
-+++ git/source/TR-181/board_sbapi/cosa_ethernet_apis.c
-@@ -203,6 +203,8 @@ token_t sysevent_token;
+--- git.orig/source/TR-181/board_sbapi/cosa_ethernet_apis.c	2026-06-08 17:27:48.000768990 +0530
++++ git/source/TR-181/board_sbapi/cosa_ethernet_apis.c	2026-06-08 17:28:01.560629511 +0530
+@@ -221,6 +221,7 @@
+ #define OPENVSWITCH_LOADED "/sys/module/openvswitch"
  #define WFO_ENABLED     "/etc/WFO_enabled"
  #define BUF_SIZE 100
- 
 +#define IPV4_MODE "1"
-+
- int Get_CommandOutput(char Command[],char *OutputValue)
- {
-     char buf[BUF_SIZE] = {0};
-@@ -4596,7 +4598,13 @@ ANSC_STATUS CosaDmlEthSetPhyStatusForWan
+ 
+ #if defined (WAN_FAILOVER_SUPPORTED)
+ // Declaration of thread condition variable
+@@ -5352,7 +5353,13 @@
      }
  
      CcspTraceInfo(("%s %d WAN Instance:%d\n", __FUNCTION__, __LINE__, iWANInstance));
@@ -42,9 +41,9 @@ Index: git/source/TR-181/board_sbapi/cosa_ethernet_apis.c
  #if !defined(AUTOWAN_ENABLE) || defined(WAN_MANAGER_UNIFICATION_ENABLED)
 Index: git/source/TR-181/board_sbapi/cosa_ethernet_manager.c
 ===================================================================
---- git.orig/source/TR-181/board_sbapi/cosa_ethernet_manager.c
-+++ git/source/TR-181/board_sbapi/cosa_ethernet_manager.c
-@@ -420,14 +420,6 @@ static ethSmState_t Transition_EthWanLin
+--- git.orig/source/TR-181/board_sbapi/cosa_ethernet_manager.c	2026-06-08 17:27:48.000768990 +0530
++++ git/source/TR-181/board_sbapi/cosa_ethernet_manager.c	2026-06-08 17:27:48.000768990 +0530
+@@ -420,14 +420,6 @@
      {
          CcspTraceError(("%s Failed to set LinkUp to WAN\n", __FUNCTION__));
      }

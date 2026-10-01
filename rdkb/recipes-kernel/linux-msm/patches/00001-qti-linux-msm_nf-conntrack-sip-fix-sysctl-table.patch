@@ -1,0 +1,30 @@
+From 88cc33a1f94510ab83ef831c41850eb6124681eb Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 16 Jul 2026 16:17:54 +0530
+Subject: [PATCH] nf_conntrack_sip: fix sysctl table registration
+
+Change-Id: I6a5d8f3355f3cbc5af752dd486b41ec9f12cabe9
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ net/netfilter/nf_conntrack_sip.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_sip.c b/net/netfilter/nf_conntrack_sip.c
+index b341262621d2..bbe60bc609d3 100644
+--- a/net/netfilter/nf_conntrack_sip.c
++++ b/net/netfilter/nf_conntrack_sip.c
+@@ -2207,8 +2207,9 @@ static int __init nf_conntrack_sip_init(void)
+ 	int i, ret;
+ 
+ 	NF_CT_HELPER_BUILD_BUG_ON(sizeof(struct nf_ct_sip_master));
+-	sip_sysctl_header = register_net_sysctl(&init_net, "net/netfilter",
+-						sip_sysctl_tbl);
++       sip_sysctl_header = register_net_sysctl_sz(&init_net, "net/netfilter",
++                                               sip_sysctl_tbl,
++                                               ARRAY_SIZE(sip_sysctl_tbl) - 1);
+ 	if (!sip_sysctl_header)
+ 		pr_debug("nf_ct_sip:Unable to register SIP systbl\n");
+ 
+-- 
+2.34.1
+

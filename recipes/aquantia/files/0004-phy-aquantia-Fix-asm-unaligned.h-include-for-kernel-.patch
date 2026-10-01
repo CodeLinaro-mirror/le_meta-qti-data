@@ -1,0 +1,34 @@
+From 1644aa087280e69968fe44b590d5d1927e6657e4 Mon Sep 17 00:00:00 2001
+From: Vatte Vishnuvardhan Reddy <vishnuvr@qti.qualcomm.com>
+Date: Tue, 9 Jun 2026 17:29:14 +0530
+Subject: [PATCH] phy: aquantia: Fix asm/unaligned.h include for kernel >= 6.12
+
+asm/unaligned.h was removed in kernel 6.12; use linux/unaligned.h instead.
+Guard with LINUX_VERSION_CODE for backward compatibility.
+
+Change-Id: I914b7e87d6584a8f381b3a476ec446722c3b35af
+Upstream-Status: Pending
+Signed-off-by: Vatte Vishnuvardhan Reddy <vishnuvr@qti.qualcomm.com>
+---
+ macsec/macsec.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/macsec/macsec.c b/macsec/macsec.c
+index 6380b6c..5405988 100644
+--- a/macsec/macsec.c
++++ b/macsec/macsec.c
+@@ -6,7 +6,11 @@
+ #include "macsec.h"
+ #include <linux/version.h>
+ #include <linux/rtnetlink.h>
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0))
++#include <linux/unaligned.h>
++#else
+ #include <asm/unaligned.h>
++#endif
+
+ #include "../aqr_macsec/aqr_macsec.h"
+ #include "../aquantia.h"
+--
+2.34.1
+

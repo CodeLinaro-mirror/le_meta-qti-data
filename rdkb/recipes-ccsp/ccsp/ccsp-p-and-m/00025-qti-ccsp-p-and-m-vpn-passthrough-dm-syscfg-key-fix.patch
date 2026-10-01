@@ -1,0 +1,36 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From f4dd6f60cb90023420251ac1a207c4c014a9af93 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 27 Aug 2026 11:55:04 +0000
+Subject: [PATCH] Fix incorrect syscfg key lookups for PPTP and IPSec
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ .../TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c   | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+Index: git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_x_cisco_com_security_dml.c
+@@ -1180,7 +1180,7 @@ Firewall1_GetParamBoolValue
+     {
+        /* collect value */
+        memset(buf,0,sizeof(buf));
+-       syscfg_get( NULL, "blockl2tp::result", buf, sizeof(buf));
++       syscfg_get( NULL, "blockpptp::result", buf, sizeof(buf));
+        if (strncmp(buf, "ACCEPT", sizeof(buf)) == 0)
+            *pBool = TRUE;
+        else
+@@ -1195,7 +1195,7 @@ Firewall1_GetParamBoolValue
+         *pBool = pFirewallCfg->IPSecPassthrough;
+        /* collect value */
+        memset(buf,0,sizeof(buf));
+-       syscfg_get( NULL, "blockpptp::result", buf, sizeof(buf));
++       syscfg_get( NULL, "blockipsec::result", buf, sizeof(buf));
+        if (strncmp(buf, "ACCEPT", sizeof(buf)) == 0)
+            *pBool = TRUE;
+        else

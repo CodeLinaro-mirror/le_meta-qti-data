@@ -1,0 +1,1159 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 8bc98956fa466a419c5f3bc634475a32b61fd540 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Tue, 11 Aug 2026 16:03:40 +0000
+Subject: [PATCH] [Description] : Adds firewall-side packet statistics support
+ by introducing TRAFFIC_ACCT chain/rule programming, client stats file
+ handling, and IPv4/IPv6 stats flow integration in source/firewall/firewall.c.
+
+[RCA/Root Cause Analysis]: Packet stats DM state changes were not consistently reflected in firewall runtime accounting paths,
+leading to missing or stale per-client packet counters across restart/disable/reset scenarios.
+
+[Fix Description]: Implements enable/reset checks and helper routines to add/remove/zero packet-stats chains and rules,
+sync client entries from stats files, and align firewall runtime behavior with packet-stats configuration.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/firewall/firewall.c          |  57 +-
+ source/firewall/firewall_extn_qti.c | 928 +++++++++++++++++++++++++++-
+ source/firewall/firewall_extn_qti.h |  19 +
+ source/firewall/firewall_ipv6.c     |  28 +-
+ 4 files changed, 1025 insertions(+), 7 deletions(-)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -335,7 +335,7 @@ NOT_DEF:
+ 
+ 
+ #include"firewall.h"
+-
++#include "firewall_extn_qti.h"
+ #include <getopt.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+@@ -506,6 +506,8 @@ BOOL isMAPEReady = 0;
+ 
+ char *sysevent_name = "firewall";
+ 
++#define IP_SIZE 20
++#define DMZ_ENABLE '1'
+ int firewall_lib_init(void *bus_handle, int sysevent_fd, token_t sysevent_token);
+ #if defined(CONFIG_KERNEL_NETFILTER_XT_TARGET_CT)
+ static int do_lan2wan_helpers(FILE *raw_fp);
+@@ -553,7 +555,6 @@ static int isFWTS_enable = 0;
+ static int StaticIPSubnetNum = 0;
+ staticip_subnet_t StaticIPSubnet[MAX_TS_ASN_COUNT]; 
+ 
+-
+ #define MAX_IP4_SIZE 20
+ char PfRangeIP[MAX_TS_ASN_COUNT][MAX_IP4_SIZE];
+ 
+@@ -11956,6 +11957,7 @@ static int prepare_subtables(FILE *raw_f
+ {
+    FIREWALL_DEBUG("Entering prepare_subtables \n"); 	
+    int i; 
++   int retval = -1;
+    /*
+     * raw
+     */
+@@ -12052,6 +12054,11 @@ static int prepare_subtables(FILE *raw_f
+    fprintf(mangle_fp, "-A PREROUTING -j prerouting_qos\n");
+    fprintf(mangle_fp, "-A POSTROUTING -j postrouting_qos\n");
+    fprintf(mangle_fp, "-A POSTROUTING -j postrouting_lan2lan\n");
++   if (1 == IPAStatEnable())
++   {
++       fprintf(mangle_fp, "%s\n", ":TRAFFIC_ACCT - [0:0]");
++       fprintf(mangle_fp, "-A POSTROUTING -j TRAFFIC_ACCT\n");
++   }
+ 
+ #ifdef _COSA_INTEL_XB3_ARM_
+    fprintf(mangle_fp, "-A PREROUTING -i %s -m conntrack --ctstate INVALID -j DROP\n",current_wan_ifname);
+@@ -12071,6 +12078,26 @@ static int prepare_subtables(FILE *raw_f
+    /*
+     * nat
+     */
++    if ((1 == IPAStatEnable()) && (0 == access(IPV4_STATS_FILE, F_OK)))
++    {
++        retval = AddIPv4Rules(mangle_fp);
++        if (-1 == retval)
++        {
++            FIREWALL_DEBUG("[%s:%d] AddIPv4Rules failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        }
++    }
++    if ((0 == IPAStatEnable()) && (0 == access(IPV4_STATS_FILE, F_OK)))
++    {
++        retval = packet_stats_disable(mangle_fp);
++        if (-1 == retval)
++        {
++            FIREWALL_DEBUG("[%s:%d] packet_stats_disable failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        }
++    }
++    if (1 == IPAStatReset())
++    {
++        fprintf(mangle_fp, "-Z TRAFFIC_ACCT\n");
++    }
+    fprintf(nat_fp, "*nat\n");
+    fprintf(nat_fp, ":%s ACCEPT [0:0]\n", "PREROUTING");
+    fprintf(nat_fp, ":%s ACCEPT [0:0]\n", "POSTROUTING");
+@@ -15107,10 +15134,21 @@ static int service_start ()
+    sysevent_set(sysevent_fd, sysevent_token, "firewall-status", "starting", 0);
+    ulogf(ULOG_FIREWALL, UL_INFO, "starting %s service", service_name);
+    FIREWALL_DEBUG("starting %s service\n" COMMA service_name);
+-   /*  ipv4 */
+-   prepare_ipv4_firewall(filename1);
+ 
++   int retval = 0;
++   int ret1 = 0;
++   int ret2 = 0;
++   char tmp[MAX_QUERY];
++   retval = syscfg_get(NULL, "enable_packet_stats", tmp, sizeof(tmp));
++   if ((0 == retval) && (atoi(tmp) == 1))
++   {
++       ret1 = writeIpv4StatsFile();
++       if (-1 == ret1)
++           FIREWALL_DEBUG("[%s] writeIpv4StatsFile failed\n" COMMA __FUNCTION__);
++   }
+    FIREWALL_DEBUG("iptables-restore for ipv4 starts\n");
++   prepare_ipv4_firewall(filename1);
++
+ #ifdef _HUB4_PRODUCT_REQ_
+    v_secure_system("iptables-restore -c  < /tmp/.ipt 2> /tmp/.ipv4table_error");
+ #else
+@@ -15124,6 +15162,16 @@ static int service_start ()
+ 
+    /* ipv6 */
+    prepare_ipv6_firewall(filename2);
++   if ((0 == retval) && (atoi(tmp) == 1))
++   {
++       ret2 = writeIpv6StatsFile();
++       if (-1 == ret2)
++           FIREWALL_DEBUG("[%s] writeIpv6StatsFile failed\n" COMMA __FUNCTION__);
++   }
++   if (1 == IPAStatReset())
++   {
++       sysevent_set(sysevent_fd, sysevent_token, "reset_packet_stats", "0", 0);
++   }
+    FIREWALL_DEBUG("iptables-restore for ipv6 starts\n");
+ #ifdef _HUB4_PRODUCT_REQ_
+    v_secure_system("ip6tables-restore < /tmp/.ipt_v6 2> /tmp/.ipv6table_error");
+@@ -15453,7 +15501,6 @@ int error;
+ 	error = pthread_mutex_consistent(fwmutex.ptr);
+   }
+ 
+-
+    rc = service_init(argc, argv);
+    if (rc < 0) {
+        service_close();
+Index: git/source/firewall/firewall_extn_qti.c
+===================================================================
+--- git.orig/source/firewall/firewall_extn_qti.c
++++ git/source/firewall/firewall_extn_qti.c
+@@ -5,7 +5,7 @@
+ 
+ #ifdef _PLATFORM_SDX_
+ #include"firewall.h"
+-
++#include "firewall_extn_qti.h"
+ #define SYSEVENT_IPV4_MTU_SIZE "ipv4_%s_mtu"
+ #define IPV4_TOTAL_HEADER_SIZE 40
+ #define IPV6_TOTAL_HEADER_SIZE 60
+@@ -114,3 +114,906 @@ void add_if_mss_clamping_HW_path(FILE *m
+ }
+ 
+ #endif
++
++int IPAStatEnable()
++{
++   int retval = 0;
++   char tmp[MAX_QUERY];
++   memset(tmp, 0, sizeof(tmp));
++   retval = syscfg_get(NULL, "enable_packet_stats", tmp, sizeof(tmp));
++   if ((0 == retval) && (atoi(tmp) == 1))
++   {
++       return 1;
++   }
++
++   return 0;
++}
++
++int IPAStatReset()
++{
++   char tmp[MAX_QUERY] = {0};
++   if (0 == sysevent_get(sysevent_fd, sysevent_token, "reset_packet_stats", tmp, sizeof(tmp)))
++    {
++       if (atoi(tmp) == 1)
++       {
++           return 1;
++       }
++    }
++   else
++   {
++       FIREWALL_DEBUG("[%s:%d] reset_packet_stats sysevent failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++   }
++   return 0;
++}
++ /*
++  * Check if iptables/ip6tables rules already added
++  * ipType: IP_TYPE_IPV4 or IP_TYPE_IPV6
++  *
++  */
++int IsRuleAdded(char *addr, int ipType)
++{
++    char cmd[COMMAND_SIZE] = {0};
++    char tmp[COMMAND_SIZE] = {0};
++    FILE *fp = NULL;
++    int addr_found = 0;
++    if (NULL == addr)
++    {
++        FIREWALL_DEBUG("[%s:%d] input param NULL\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    if (ipType == IP_TYPE_IPV4)
++    {
++        snprintf(cmd, COMMAND_SIZE, "iptables -t mangle -L FORWARD -n -v -x --line-numbers -w 2");
++        strlcat(cmd, IPTABLES_AWK_STATS, COMMAND_SIZE);
++    }
++    else if (ipType == IP_TYPE_IPV6)
++    {
++        snprintf(cmd, COMMAND_SIZE, "ip6tables -t mangle -L FORWARD -n -v -x --line-numbers -w 2");
++        strlcat(cmd, IP6TABLES_AWK_STATS, COMMAND_SIZE);
++    }
++    else
++    {
++        FIREWALL_DEBUG("[%s:%d] Invalid IP type\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    snprintf(tmp, COMMAND_SIZE, " | grep -w %s", addr);
++    strlcat(cmd, tmp, COMMAND_SIZE);
++    fp = popen(cmd, "r");
++    if (NULL == fp)
++    {
++        FIREWALL_DEBUG("[%s:%d] popen failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    if (fgetc(fp) != EOF)
++    {
++        addr_found = 1;
++    }
++    pclose(fp);
++    fp = NULL;
++    return addr_found;
++}
++
++int AddIPv4Rules(FILE *mangle_fp)
++{
++
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    FILE *fp = NULL;
++    char *ip_temp = NULL;
++    char *ip = NULL;
++    char *saveptr;
++    int ret;
++    fp = fopen(IPV4_STATS_FILE, "r");
++    if (NULL == fp)
++    {
++        FIREWALL_DEBUG("[%s:%d] fopen failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    while ((nread = getline(&line, &len, fp)) != -1)
++    {
++        if (line != NULL && strlen(line) > 0)
++        {
++            line[strlen(line) - 1] = '\0';
++            strtok_r(line, " ", &saveptr);
++            ip_temp = strtok_r(NULL, " ", &saveptr);
++        }
++        if (ip_temp == NULL)
++        {
++            FIREWALL_DEBUG("[%s:%d] ip_temp is NULL \n" COMMA __FUNCTION__ COMMA __LINE__);
++            fclose(fp);
++            fp = NULL;
++            if (line)
++            {
++                free(line);
++                line = NULL;
++            }
++            return -1;
++        }
++        ip = strstr(ip_temp, "=");
++        ret = IsRuleAdded(ip, IP_TYPE_IPV4);
++        if (-1 == ret)
++        {
++           FIREWALL_DEBUG("[%s:%d] IsIp4tablesRuleAdded failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        }
++        fprintf(mangle_fp, "-A FORWARD -s %s -o %s -j MARK --set-xmark 0x1\n",ip+1,current_wan_ifname);
++        fprintf(mangle_fp, "-A FORWARD -d %s -i %s -j MARK --set-xmark 0x2\n",ip+1,current_wan_ifname);
++        fprintf(mangle_fp, "-A TRAFFIC_ACCT -m mark --mark 0x1 -s %s -j ACCEPT\n",ip+1);
++        fprintf(mangle_fp, "-A TRAFFIC_ACCT -m mark --mark 0x2 -d %s -j ACCEPT\n",ip+1);
++    }
++    fclose(fp);
++    fp = NULL;
++    if (line)
++    {
++       free(line);
++       line = NULL;
++    }
++    return 0;
++}
++
++/*
++ * ip6tables rule addition for packet statistics
++ */
++int AddIPv6Rules(FILE *mangle_fp)
++{
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    FILE *fp = NULL;
++    char *ip_temp = NULL;
++    char *ip = NULL;
++    char *saveptr;
++    int err_ret = 0;
++    int ret;
++    fp = fopen(IPV6_STATS_FILE, "r");
++    if (NULL == fp)
++    {
++        FIREWALL_DEBUG("[%s:%d] fopen failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    while ((nread = getline(&line, &len, fp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        strtok_r(line, " ", &saveptr);
++        ip_temp = strtok_r(NULL, " ", &saveptr);
++        if (NULL == ip_temp)
++        {
++            FIREWALL_DEBUG("[%s:%d] strtok_r failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++            err_ret = -1;
++            break;
++        }
++        ip = strstr(ip_temp, "=");
++        if (NULL == ip)
++        {
++            FIREWALL_DEBUG("[%s:%d] strstr failed ,no matching substring found\n" COMMA __FUNCTION__ COMMA __LINE__);
++            err_ret = -1;
++            break;
++        }
++        ret = IsRuleAdded(ip, IP_TYPE_IPV6);
++        if (-1 == ret)
++        {
++            FIREWALL_DEBUG("[%s:%d] IsIp6tablesRuleAdded failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        }
++        fprintf(mangle_fp, "-A FORWARD -s %s -o %s -j MARK --set-xmark 0x10000/0xf0000\n",ip+1,current_wan_ifname);
++        fprintf(mangle_fp, "-A FORWARD -d %s -i %s -j MARK --set-xmark 0x20000/0xf0000\n",ip+1,current_wan_ifname);
++        fprintf(mangle_fp, "-A TRAFFIC_ACCT -m mark --mark 0x10000/0xf0000 -s %s -j ACCEPT\n",ip+1);
++        fprintf(mangle_fp, "-A TRAFFIC_ACCT -m mark --mark 0x20000/0xf0000 -d %s -j ACCEPT\n",ip+1);
++    }
++    fclose(fp);
++    fp = NULL;
++    if (line)
++    {
++        free(line);
++        line = NULL;
++    }
++    if (-1 == err_ret)
++        return -1;
++
++    return 0;
++}
++
++int packet_stats_disable(FILE *mangle_fp)
++{
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    FILE *fp = NULL;
++    char *ip_temp, *mac_temp;
++    char *ip, *mac;
++    char *saveptr;
++
++    fp = fopen(IPV4_STATS_FILE, "r");
++    if (NULL == fp)
++    {
++        FIREWALL_DEBUG("[%s:%d] fopen failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    line = (char *) malloc(BUFFER_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        FIREWALL_DEBUG("[%s:%d] malloc failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        fclose(fp);
++        fp = NULL;
++        return -1;
++    }
++    while ((nread = getline(&line, &len, fp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        ip_temp = strtok_r(NULL, " ", &saveptr);
++        mac_temp = strtok_r(NULL, " ", &saveptr);
++        ip = strstr(ip_temp, "=");
++        mac = strstr(mac_temp, "=");
++
++        fprintf(mangle_fp, "-D FORWARD -s %s -m mac --mac-source %s -j MARK --set-xmark 0x1\n",ip+1,mac+1);
++        fprintf(mangle_fp, "-D FORWARD -d %s -m mac --mac-source %s -j MARK --set-xmark 0x2\n",ip+1,mac+1);
++        fprintf(mangle_fp, "-D TRAFFIC_ACCT -m mark --mark 0x1 -s %s -j ACCEPT\n",ip+1);
++        fprintf(mangle_fp, "-D TRAFFIC_ACCT -m mark --mark 0x2 -d %s -j ACCEPT\n",ip+1);
++    }
++    fclose(fp);
++    fp = NULL;
++    if (NULL != line)
++    {
++        free(line);
++        line = NULL;
++    }
++    fprintf(mangle_fp, "%s\n", "-F TRAFFIC_ACCT");
++    fprintf(mangle_fp, "-D POSTROUTING -j TRAFFIC_ACCT\n");
++    fprintf(mangle_fp, "%s\n", "-X TRAFFIC_ACCT");
++
++    v_secure_system("rm -rf %s ",IPV4_STATS_FILE);
++
++    return 0;
++}
++
++ /*
++ * ip6tables rule deletion when packet stats disable
++ */
++int packet_ipv6_stats_disable(FILE *mangle_fp)
++{
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    FILE *fp = NULL;
++    char *ip_temp, *mac_temp;
++    char *ip, *mac;
++    char *saveptr;
++    int err_ret = 0;
++
++    fp = fopen(IPV6_STATS_FILE, "r");
++    if (NULL == fp)
++    {
++        FIREWALL_DEBUG("[%s:%d] fopen failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return -1;
++    }
++    line = (char *) malloc(BUFFER_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        FIREWALL_DEBUG("[%s:%d] malloc failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        fclose(fp);
++        fp = NULL;
++        return -1;
++    }
++    while ((nread = getline(&line, &len, fp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        ip_temp = strtok_r(NULL, " ", &saveptr);
++        mac_temp = strtok_r(NULL, " ", &saveptr);
++        if (NULL == ip_temp || NULL == mac_temp)
++        {
++            FIREWALL_DEBUG("[%s:%d] strtok_r failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++            err_ret = -1;
++            break;
++        }
++        ip = strstr(ip_temp, "=");
++        mac = strstr(mac_temp, "=");
++        if (NULL == ip || NULL == mac)
++        {
++            FIREWALL_DEBUG("[%s:%d] strstr failed ,no matching substring found\n" COMMA __FUNCTION__ COMMA __LINE__);
++            err_ret = -1;
++            break;
++        }
++
++        fprintf(mangle_fp, "-D FORWARD -s %s -o %s -j MARK --set-xmark 0x1\n",ip+1,current_wan_ifname);
++        fprintf(mangle_fp, "-D FORWARD -d %s -i %s -j MARK --set-xmark 0x2\n",ip+1,current_wan_ifname);
++        fprintf(mangle_fp, "-D TRAFFIC_ACCT -m mark --mark 0x1 -s %s -j ACCEPT\n",ip+1);
++        fprintf(mangle_fp, "-D TRAFFIC_ACCT -m mark --mark 0x2 -d %s -j ACCEPT\n",ip+1);
++    }
++    fclose(fp);
++    fp = NULL;
++    if (NULL != line)
++    {
++        free(line);
++        line = NULL;
++    }
++    if (-1 == err_ret)
++        return -1;
++
++    fprintf(mangle_fp, "%s\n", "-F TRAFFIC_ACCT");
++    fprintf(mangle_fp, "-D POSTROUTING -j TRAFFIC_ACCT\n");
++    fprintf(mangle_fp, "%s\n", "-X TRAFFIC_ACCT");
++
++    v_secure_system("rm -rf %s ",IPV6_STATS_FILE);
++    return 0;
++}
++uint64_t getIPv4StatBytes(char *ipv4addr, bool is_tx_stat)
++{
++    uint64_t stat_bytes = 0;
++    ssize_t nread;
++    size_t length = 0;
++    unsigned int mark_val = 0;
++    char *stringline = NULL;
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]={0};
++    char *bytes=NULL, *mark=NULL,*ptr;
++    FILE *fp = NULL;
++
++    if (NULL == ipv4addr)
++    {
++        FIREWALL_DEBUG("[%s:%d] input param NULL\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return 0;
++    }
++
++    snprintf(cmd, COMMAND_SIZE,"iptables -t mangle -L TRAFFIC_ACCT -n -v -x  --line-numbers -w 2");
++    strlcat(cmd, IPTABLES_AWK_STATS, COMMAND_SIZE);
++    snprintf(tmp, COMMAND_SIZE, " | grep -w %s", ipv4addr);
++    strlcat(cmd, tmp, COMMAND_SIZE);
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        FIREWALL_DEBUG("[%s:%d] popen failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        return 0;
++    }
++    stringline = (char *)malloc(BUFFER_SIZE * sizeof(char));
++    if (NULL == stringline)
++    {
++        FIREWALL_DEBUG("[%s:%d] malloc failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++        pclose(fp);
++        return 0;
++    }
++    while ((nread = getline(&stringline, &length, fp)) != -1)
++    {
++        stringline[strlen(stringline) - 1] = '\0';
++        strtok_r(stringline, ",", &ptr);
++        bytes = strtok_r(NULL, ",", &ptr);
++        strtok_r(NULL, ",", &ptr);
++        strtok_r(NULL, ",", &ptr);
++        mark = strtok_r(NULL, ",", &ptr);
++
++        if ((NULL == mark) || (NULL == bytes))
++        {
++            FIREWALL_DEBUG("[%s:%d] mark or bytes are NULL\n" COMMA __FUNCTION__ COMMA __LINE__);
++            pclose(fp);
++            if (NULL != stringline)
++            {
++                free(stringline);
++                stringline = NULL;
++            }
++            return 0;
++        }
++        mark_val = strtoull(mark,&ptr,16);
++        if (false == is_tx_stat)
++        {
++            /*receive bytes will be marked with 0x02*/
++            if (mark_val%2 == 0)
++            {
++                stat_bytes = strtoull(bytes,&ptr,10);
++                break;
++            }
++        }
++        else
++        {
++            /*transmit bytes will be marked with 0x01*/
++            if (mark_val%2 != 0)
++            {
++                stat_bytes = strtoull(bytes,&ptr,10);
++                break;
++            }
++        }
++    }
++    pclose(fp);
++    fp = NULL;
++    if (NULL != stringline)
++    {
++        free(stringline);
++        stringline = NULL;
++    }
++    return stat_bytes;
++}
++
++int writeIpv4StatsFile()
++{
++    FILE *fp= NULL;
++    FILE *new_fp = NULL;
++    int ret = -1;
++    unsigned long tx_value_new =0, rx_value_new=0, total_tx_value=0, total_rx_value=0;
++    char tmp_reset[MAX_QUERY] = {0};
++    int ret_reset = -1;
++
++    fp = fopen(IPV4_STATS_FILE, "r+");
++
++    if (!fp)
++    {
++         return -1; // Return non-zero error code
++    }
++
++    // Read the entire file into memory
++    fseek(fp, 0, SEEK_END);
++    long file_size = ftell(fp);
++    rewind(fp);
++    char *file_contents = malloc(file_size + 1);
++
++    if (file_contents == NULL)
++    {
++        fclose(fp);
++        fp = NULL;
++        return -1;
++    }
++    ret_reset = sysevent_get(sysevent_fd, sysevent_token, "reset_packet_stats", tmp_reset, sizeof(tmp_reset));
++    if (0 != ret_reset)
++    {
++        FIREWALL_DEBUG("[%s:%d] sysevent for reset_packet_stats failed!!!!\n" COMMA __FUNCTION__ COMMA __LINE__);
++    }
++    fread(file_contents, sizeof(char), file_size, fp);
++    file_contents[file_size] = '\0';
++    fclose(fp);
++    fp = NULL;
++    // Split the file contents into individual lines
++    char *lines[1000] = {NULL};
++    unsigned char line_owned[1000] = {0};
++    int num_lines = 0;
++    char *saveptr;
++    char *token = strtok_r(file_contents, "\n", &saveptr);
++    while (token != NULL)
++    {
++        lines[num_lines++] = token;
++        token = strtok_r(NULL, "\n", &saveptr);
++    }
++
++    // Modify the lines as needed
++    for (int i = 0; i < num_lines; i++)
++    {
++        // Extract the IP address and other fields manually
++        char *ifname_start = strstr(lines[i], "ifname=");
++        if (ifname_start == NULL)
++        {
++            FIREWALL_DEBUG("missing ifname");
++            continue;
++        }
++        char *ip_start = strstr(ifname_start, "ip=");
++        if (ip_start == NULL)
++        {
++            FIREWALL_DEBUG("missing ip after ifname");
++            continue;
++        }
++        char *mac_start = strstr(ip_start, "mac=");
++        if (mac_start == NULL)
++        {
++            FIREWALL_DEBUG("missing mac after ip");
++            continue;
++        }
++        char temp_line_copy[1024]; // Create a copy of the line
++        strlcpy(temp_line_copy, lines[i], sizeof(temp_line_copy));
++
++        char *ip_end = strstr(ip_start, " ");
++        char ip[20] = {0};
++        strlcpy(ip, ip_start + 3, ip_end - ip_start - 2);
++        ip[ip_end - ip_start - 3] = '\0';
++
++        if (ifname_start && ip_start && mac_start)
++        {
++            // Find the positions of the TX and RX fields
++            FIREWALL_DEBUG("Parsing stats fields");
++            char *tx_pos = strstr(temp_line_copy, "TX=");
++            char *rx_pos = strstr(temp_line_copy, "RX=");
++
++            if (tx_pos && rx_pos)
++            {
++                // Get the current TX and RX values
++                char *equals_tx = strchr(tx_pos, '=');
++                char *equals_rx = strchr(rx_pos, '=');
++                char tx_str[20] = {0};
++                char rx_str[20] = {0};
++                strlcpy(tx_str, equals_tx + 1, sizeof(tx_str));
++                strlcpy(rx_str, equals_rx + 1, sizeof(rx_str));
++                unsigned long tx_value_old = strtoul(tx_str, NULL, 10);
++                unsigned long rx_value_old = strtoul(rx_str, NULL, 10);
++                // Update the existing TX and RX fields
++                FIREWALL_DEBUG("Updating TX/RX fields");
++                char *end_tx = strchr(tx_pos, '=');
++                char *end_rx = strchr(rx_pos, '=');
++
++                *end_tx = '\0'; // Null-terminate the TX field
++                *end_rx = '\0'; // Null-terminate the RX field
++                tx_value_new = getIPv4StatBytes(ip, 1);
++                rx_value_new = getIPv4StatBytes(ip, 0); // Assuming both TX and RX are IPv4 stats
++                FIREWALL_DEBUG("Fetched IPv4 stats: new_tx and new_rx");
++                if (1 != atoi(tmp_reset))
++                {
++                    total_tx_value = tx_value_old + tx_value_new;
++                    total_rx_value = rx_value_old + rx_value_new;
++                }
++                else
++                {
++                    total_tx_value = 0;
++                    total_rx_value = 0;
++                }
++                char temp_buf[256] = {0};
++                snprintf(temp_buf, sizeof(temp_buf), "=%lu RX=%lu", total_tx_value, total_rx_value);
++                strlcpy(end_tx, temp_buf, strlen(temp_buf) + 1);
++                // Replace the old line with the new line
++                FIREWALL_DEBUG("Updated totals: total_tx and total_rx");
++                char *new_line = strdup(temp_line_copy);
++                if (new_line != NULL)
++                {
++                    lines[i] = new_line;
++                    line_owned[i] = 1;
++                }
++            }
++            else
++            {
++                uint64_t tx_new = getIPv4StatBytes(ip, true);
++                uint64_t rx_new = getIPv4StatBytes(ip, false);
++                char temp_buf[256] = {0};
++                snprintf(temp_buf, sizeof(temp_buf),"%s TX=%lu RX=%lu", lines[i], tx_new, rx_new);
++                char *new_line = strdup(temp_buf);
++                if (new_line != NULL)
++                {
++                    lines[i] = new_line;
++                    line_owned[i] = 1;
++                }
++                //continue;
++            }
++        }
++    }
++    // Write the modified lines back to the file
++    new_fp = fopen(IPV4_STATS_FILE, "w");
++    if (new_fp == NULL)
++    {
++        for (int i = 0; i < num_lines; i++)
++        {
++            if (line_owned[i] && lines[i] != NULL)
++            {
++                free(lines[i]);
++                lines[i] = NULL;
++            }
++       }
++
++       if (file_contents != NULL)
++       {
++           free(file_contents);
++           file_contents = NULL;
++       }
++
++       return -1;
++   }
++   for (int i = 0; i < num_lines; i++)
++   {
++       fprintf(new_fp, "%s\n", lines[i]);
++   }
++   fclose(new_fp);
++   new_fp = NULL;
++   for (int i = 0; i < num_lines; i++)
++   {
++       if (line_owned[i] && lines[i] != NULL)
++       {
++           free(lines[i]);
++           lines[i] = NULL;
++       }
++   }
++   if (file_contents != NULL)
++   {
++       free(file_contents);
++       file_contents = NULL;
++   }
++   ret = 0;
++   return ret;
++}
++
++uint64_t getIPv6StatBytes(char *mac, bool is_tx_stat)
++{
++    uint64_t total_stat_bytes = 0, ipv6_stat_bytes = 0;
++    ssize_t nread;
++    size_t length = 0;
++    char *line = NULL;
++    char ipv6Addr[BUFFER_SIZE] = {0};
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]={0};
++    char stringline[COMMAND_SIZE]={0};
++    char *ipaddr = NULL, *macaddr = NULL, *ptr;
++    char *ipaddr_temp = NULL, *macaddr_temp = NULL;
++    char *bytes=NULL, *saveptr;
++    FILE *stat_fp = NULL;
++    FILE *cmd_fp = NULL;
++    if (NULL == mac)
++    {
++        return 0;
++    }
++    stat_fp = fopen("/tmp/ipv6_stats.txt","r");
++    if (NULL == stat_fp)
++    {
++        return 0;
++    }
++    line = (char *) malloc(COMMAND_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        fclose(stat_fp);
++        stat_fp = NULL;
++        return 0;
++    }
++    while ((nread = getline(&line, &length, stat_fp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        ipv6_stat_bytes = 0;
++        strtok_r(line, " ", &ptr);
++        ipaddr_temp = strtok_r(NULL, " ", &ptr);
++        macaddr_temp = strtok_r(NULL, " ", &ptr);
++        if (NULL == ipaddr_temp || NULL == macaddr_temp)
++        {
++            continue;
++        }
++        ipaddr = strstr(ipaddr_temp,"=");
++        macaddr = strstr(macaddr_temp,"=");
++        if (NULL == ipaddr || NULL == macaddr)
++        {
++            continue;
++        }
++        if (strlen(ipaddr+1) <= 0)
++        {
++            continue;
++        }
++        if (0 == strcasecmp(mac,macaddr+1))
++        {
++            strlcpy(ipv6Addr,ipaddr+1,sizeof(ipv6Addr));
++        }
++        else
++        {
++            continue;
++        }
++        snprintf(cmd, COMMAND_SIZE,"ip6tables -t mangle -L TRAFFIC_ACCT -n -v -x  --line-numbers -w 2");
++        strlcat(cmd, IP6TABLES_AWK_STATS, COMMAND_SIZE);
++        if (false == is_tx_stat)
++        {
++            /*receive bytes will be marked with 0x02*/
++            snprintf(tmp, COMMAND_SIZE, " | grep -w %s |grep -i 0x2", ipv6Addr);
++        }
++        else
++        {
++            /*transmit bytes will be marked with 0x01*/
++            snprintf(tmp, COMMAND_SIZE, " | grep -w %s |grep -i 0x1", ipv6Addr);
++        }
++        strlcat(cmd, tmp, COMMAND_SIZE);
++        cmd_fp = popen(cmd,"r");
++        if (cmd_fp == NULL)
++        {
++            //CcspTraceError(("[%s:%d] popen failed\n",__FUNCTION__,__LINE__));
++            continue;
++        }
++        if(NULL != fgets(stringline,sizeof(stringline)-1,cmd_fp))
++        {
++            if (strlen(stringline) > 0)
++            {
++                stringline[strlen(stringline) - 1] = '\0';
++            }
++            else
++            {
++                pclose(cmd_fp);
++                cmd_fp = NULL;
++                continue;
++            }
++            strtok_r(stringline, ",", &saveptr);
++            bytes = strtok_r(NULL, ",", &saveptr);
++            if (NULL == bytes)
++            {
++                pclose(cmd_fp);
++                cmd_fp = NULL;
++                continue;
++            }
++            ipv6_stat_bytes = strtoull(bytes,&ptr,10);
++        }
++        pclose(cmd_fp);
++        cmd_fp = NULL;
++        total_stat_bytes += ipv6_stat_bytes;
++    }
++    fclose(stat_fp);
++    stat_fp = NULL;
++    if (line)
++    {
++        free(line);
++        line = NULL;
++    }
++    return total_stat_bytes;
++}
++
++int writeIpv6StatsFile()
++{
++    FILE *fp= NULL;
++    FILE *new_fp = NULL;
++    int ret = -1;
++    unsigned long tx_value_new =0, rx_value_new=0, total_tx_value=0, total_rx_value=0;
++    char tmp_reset[MAX_QUERY] = {0};
++    int ret_reset = -1;
++
++    fp = fopen(IPV6_STATS_FILE, "r+");
++
++    if (!fp)
++    {
++        fp = fopen(IPV6_STATS_FILE, "w+");
++        if (!fp)
++        {
++            return -1; // Return non-zero error code
++        }
++    }
++
++    // Read the entire file into memory
++    fseek(fp, 0, SEEK_END);
++    long file_size = ftell(fp);
++    rewind(fp);
++    char *file_contents = malloc(file_size + 1);
++
++    if (file_contents == NULL)
++    {
++        fclose(fp);
++        fp = NULL;
++        return -1;
++    }
++
++    fread(file_contents, sizeof(char), file_size, fp);
++    file_contents[file_size] = '\0';
++    fclose(fp);
++    fp = NULL;
++    ret_reset = sysevent_get(sysevent_fd, sysevent_token, "reset_packet_stats", tmp_reset, sizeof(tmp_reset));
++    if (0 != ret_reset)
++    {
++        FIREWALL_DEBUG("[%s:%d] sysevent for reset_packet_stats failed!!!!\n" COMMA __FUNCTION__ COMMA __LINE__);
++    }
++    // Split the file contents into individual lines
++    char *lines[1000] = {NULL};
++    unsigned char line_owned[1000] = {0};
++    int num_lines = 0;
++    char *saveptr;
++    char *token = strtok_r(file_contents, "\n", &saveptr);
++    while (token != NULL)
++    {
++        lines[num_lines++] = token;
++        token = strtok_r(NULL, "\n", &saveptr);
++    }
++
++    // Modify the lines as needed
++    for (int i = 0; i < num_lines; i++)
++    {
++        // Extract the IP address and other fields manually
++        char *ifname_start = strstr(lines[i], "ifname=");
++        if (ifname_start == NULL)
++        {
++            FIREWALL_DEBUG("Missing ifname field");
++            continue;
++        }
++        char *ip_start = strstr(ifname_start, "ip=");
++        if (ip_start == NULL)
++        {
++            FIREWALL_DEBUG("Missing ip field after ifname");
++            continue;
++        }
++        char *mac_start = strstr(ip_start, "mac=");
++        if (mac_start == NULL)
++        {
++            FIREWALL_DEBUG("Missing mac field after ip");
++            continue;
++        }
++        char temp_line_copy[1024] = {0}; // Create a copy of the line
++        strlcpy(temp_line_copy, lines[i], sizeof(temp_line_copy));
++
++        if (mac_start)
++        {
++            mac_start += strlen("mac=");
++            char *mac_end = strchr(mac_start, ' ');
++            if (mac_end)
++            {
++                *mac_end = '\0'; // null-terminate the MAC address
++            }
++        }
++
++        if (ifname_start && ip_start && mac_start)
++        {
++            // Find the positions of the TX and RX fields
++            char *tx_pos = strstr(temp_line_copy, "TX=");
++            char *rx_pos = strstr(temp_line_copy, "RX=");
++
++            if (tx_pos && rx_pos)
++            {
++                // Get the current TX and RX values
++                char *equals_tx = strchr(tx_pos, '=');
++                char *equals_rx = strchr(rx_pos, '=');
++                char tx_str[20] = {0};
++                char rx_str[20] = {0};
++                strlcpy(tx_str, equals_tx + 1, sizeof(tx_str));
++                strlcpy(rx_str, equals_rx + 1, sizeof(rx_str));
++                unsigned long tx_value_old = strtoul(tx_str, NULL, 10);
++                unsigned long rx_value_old = strtoul(rx_str, NULL, 10);
++                // Update the existing TX and RX fields
++                char *end_tx = strchr(tx_pos, '=');
++                char *end_rx = strchr(rx_pos, '=');
++
++                *end_tx = '\0'; // Null-terminate the TX field
++                *end_rx = '\0'; // Null-terminate the RX field
++                tx_value_new = getIPv6StatBytes(mac_start, 1);
++                rx_value_new = getIPv6StatBytes(mac_start, 0); // Assuming both TX and RX are IPv6 stats
++                if(1 != atoi(tmp_reset))
++                {
++                    total_tx_value = tx_value_old + tx_value_new;
++                    total_rx_value = rx_value_old + rx_value_new;
++                }
++                else
++                {
++                    total_tx_value = 0;
++                    total_rx_value = 0;
++                }
++                char temp_buf[256] = {0};
++                snprintf(temp_buf, sizeof(temp_buf), "=%lu RX=%lu", total_tx_value, total_rx_value);
++                strlcpy(end_tx, temp_buf, sizeof(temp_buf) + 1);
++                // Replace the old line with the new line
++                char *new_line = strdup(temp_line_copy);
++                if (new_line != NULL)
++                {
++                    lines[i] = new_line;
++                    line_owned[i] = 1;
++                }
++            }
++            else
++            {
++                uint64_t tx_new = getIPv6StatBytes(mac_start, true);
++                uint64_t rx_new = getIPv6StatBytes(mac_start, false);
++                char temp_buf[256] = {0};
++                snprintf(temp_buf, sizeof(temp_buf), "%s TX=%lu RX=%lu", lines[i], tx_new, rx_new);
++                char *new_line = strdup(temp_buf);
++                if (new_line != NULL)
++                {
++                    lines[i] = new_line;
++                    line_owned[i] = 1;
++                }
++            }
++        }
++    }
++
++    // Write the modified lines back to the file
++    new_fp = fopen(IPV6_STATS_FILE, "w");
++    if (new_fp == NULL)
++    {
++        for (int i = 0; i < num_lines; i++)
++        {
++            if (line_owned[i] && lines[i] != NULL)
++            {
++                free(lines[i]);
++                lines[i] = NULL;
++            }
++        }
++        if (file_contents != NULL)
++        {
++            free(file_contents);
++            file_contents = NULL;
++        }
++        return -1;
++   }
++   for (int i = 0; i < num_lines; i++)
++   {
++       fprintf(new_fp, "%s\n", lines[i]);
++   }
++   fclose(new_fp);
++   new_fp = NULL;
++   for (int i = 0; i < num_lines; i++)
++   {
++       if (line_owned[i] && lines[i] != NULL)
++       {
++           free(lines[i]);
++           lines[i] = NULL;
++       }
++   }
++   if (file_contents != NULL)
++   {
++       free(file_contents);
++       file_contents = NULL;
++   }
++   ret = 0;
++   return ret;
++}
++
+Index: git/source/firewall/firewall_extn_qti.h
+===================================================================
+--- git.orig/source/firewall/firewall_extn_qti.h
++++ git/source/firewall/firewall_extn_qti.h
+@@ -13,3 +13,21 @@ extern char     current_wan_ifname[50];
+ void add_if_mss_clamping_HW_path(FILE *mangle_fp,int family, char* lan_ifname);
+ 
+ #endif
++
++#define IPTABLES_AWK_STATS " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$9,$10,$13}'"
++#define IP6TABLES_AWK_STATS " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$8,$9,$12}'"
++#define COMMAND_SIZE 200
++#define IPV4_STATS_FILE "/tmp/ipv4_stats.txt"
++#define IPV6_STATS_FILE "/tmp/ipv6_stats.txt"
++#define BUFFER_SIZE 256
++#define IP_TYPE_IPV4            4
++#define IP_TYPE_IPV6            6
++int IPAStatEnable();
++int IPAStatReset();
++int IsRuleAdded(char *addr, int ipType);
++int AddIPv4Rules(FILE *mangle_fp);
++int AddIPv6Rules(FILE *mangle_fp);
++int packet_stats_disable(FILE *mangle_fp);
++int packet_ipv6_stats_disable(FILE *mangle_fp);
++int writeIpv4StatsFile(void);
++int writeIpv6StatsFile(void);
+Index: git/source/firewall/firewall_ipv6.c
+===================================================================
+--- git.orig/source/firewall/firewall_ipv6.c
++++ git/source/firewall/firewall_ipv6.c
+@@ -213,6 +213,7 @@ char *get_current_wan_ifname(void)
+ int prepare_ipv6_firewall(const char *fw_file)
+ {
+  FIREWALL_DEBUG("Inside prepare_ipv6_firewall \n");
++   int retval = -1;
+    if (NULL == fw_file) {
+       return(-1);
+    }
+@@ -286,6 +287,11 @@ int prepare_ipv6_firewall(const char *fw
+       #endif
+          
+       do_ipv6_sn_filter(mangle_fp);
++      if (1 == IPAStatEnable())
++      {
++          fprintf(mangle_fp, "%s\n", ":TRAFFIC_ACCT - [0:0]");
++          fprintf(mangle_fp, "-A POSTROUTING -j TRAFFIC_ACCT\n");
++      }
+       #if !defined(_PLATFORM_IPQ_)
+          do_ipv6_nat_table(nat_fp);
+       #endif
+@@ -399,7 +405,7 @@ int prepare_ipv6_firewall(const char *fw
+          fprintf(filter_fp, "-I FORWARD -o %s -p gre -j ACCEPT\n",current_wan_ifname);
+ #endif
+ 
+-         int retval = 0;
++         retval = 0;
+          char tmpsysQuery[MAX_QUERY];
+          memset(tmpsysQuery, 0, sizeof(tmpsysQuery));
+          retval = syscfg_get(NULL, "ipv6_hopbyhop_hdr_accept", tmpsysQuery, sizeof(tmpsysQuery));
+@@ -412,6 +418,26 @@ int prepare_ipv6_firewall(const char *fw
+          }
+ 
+    #endif
++   if ((1 == IPAStatEnable()) && (0 == access(IPV6_STATS_FILE, F_OK)))
++   {
++       retval = AddIPv6Rules(mangle_fp);
++       if (-1 == retval)
++       {
++           FIREWALL_DEBUG("[%s:%d] AddIPv6Rules failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++       }
++   }
++   if ((0 == IPAStatEnable()) && (0 == access(IPV6_STATS_FILE, F_OK)))
++   {
++       retval = packet_ipv6_stats_disable(mangle_fp);
++       if (-1 == retval)
++       {
++           FIREWALL_DEBUG("[%s:%d] packet_ipv6_stats_disable failed\n" COMMA __FUNCTION__ COMMA __LINE__);
++       }
++   }
++   if (1 == IPAStatReset())
++   {
++       fprintf(mangle_fp, "-Z TRAFFIC_ACCT\n");
++   }
+ 
+ 	/*add rules before this*/
+ #if !defined(_BWG_PRODUCT_REQ_)

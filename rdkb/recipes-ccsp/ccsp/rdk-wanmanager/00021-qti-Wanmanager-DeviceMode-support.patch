@@ -1,0 +1,220 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e3839ba0a2c799c61dab30add7f70991697f092a Mon Sep 17 00:00:00 2001
+From: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+Date: Thu, 20 Aug 2026 04:44:52 +0000
+Subject: [PATCH] Toggle cellular backhaul on IP mode change
+
+Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+---
+ .../wanmgr_dml_iface_v2_apis.c                | 17 +++++
+ .../wanmgr_rbus_handler_apis.c                |  2 +-
+ .../wanmgr_rbus_handler_apis.h                |  3 +
+ source/WanManager/wanmgr_interface_sm.c       | 73 ++++++++++++++++++-
+ 4 files changed, 92 insertions(+), 3 deletions(-)
+
+diff --git a/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c b/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c
+index 2a91b6f..cdf6909 100644
+--- a/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c
++++ b/source/TR-181/middle_layer_src/wanmgr_dml_iface_v2_apis.c
+@@ -34,6 +34,7 @@
+    limitations under the License.
+ **********************************************************************/
+ 
++#include <unistd.h>
+ #include "wanmgr_dml_iface_v2_apis.h"
+ #include "wanmgr_rdkbus_apis.h"
+ #include "wanmgr_net_utils.h"
+@@ -2094,6 +2095,12 @@ BOOL WanIfIpCfg_SetParamUlongValue(ANSC_HANDLE hInsContext, char* ParamName, ULO
+         }
+         if (strcmp(ParamName, "Mode") == 0)
+         {
++            if (access("/tmp/.processing_ipmode", F_OK) == 0)
++            {
++                CcspTraceError(("%s %d IP.Mode set rejected: /tmp/.processing_ipmode exists\n", __FUNCTION__, __LINE__));
++                WanMgr_VirtualIfaceData_release(p_VirtIf);
++                return FALSE;
++            }
+             if(p_VirtIf->IP.Mode != uValue)
+             {
+                 p_VirtIf->IP.Mode = uValue;
+@@ -2101,6 +2108,16 @@ BOOL WanIfIpCfg_SetParamUlongValue(ANSC_HANDLE hInsContext, char* ParamName, ULO
+                 p_VirtIf->IP.ModeForceEnable = TRUE;
+                 CcspTraceInfo(("%s %d IP.%s changed for %s to %d. ModeForceEnable set and Refreshing DHCP \n", __FUNCTION__, __LINE__, ParamName, p_VirtIf->Name, p_VirtIf->IP.Mode));
+                 WanMgr_ProcessTelemetryMarker(p_VirtIf,WAN_INFO_IP_MODE);
++
++                if(strstr(p_VirtIf->Name, "qmapmux") != NULL)
++                {
++                    /* Notify CellularManager via RBUS event that IP.Mode has changed.
++                     * CellularManager subscribes to WANMGR_CELLULAR_BH_IP_MODE and
++                     * handles the BH toggle internally — no synchronous cross-process
++                     * RBUS calls are made from WanManager. */
++                    UINT uMode = (UINT)uValue;
++                    WanMgr_Rbus_EventPublishHandler(WANMGR_CELLULAR_BH_IP_MODE, &uMode, RBUS_UINT64);
++                }
+             }
+             ret = TRUE;
+         }
+diff --git a/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c b/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
+index 7054206..6691972 100644
+--- a/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
++++ b/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.c
+@@ -1306,7 +1306,6 @@ ANSC_STATUS WanMgr_Rbus_EventPublishHandler(const char *dm_event, void *dm_value
+     rbusValue_Init(&value);
+     rbusObject_Init(&rdata, NULL);
+ 
+-    rbusObject_SetValue(rdata, dm_event, value);
+     CcspTraceInfo(("%s %d - dm_event[%s] valueType[%d]\n", __FUNCTION__, __LINE__, dm_event,valueType));
+     switch(valueType)
+     {
+@@ -1327,6 +1326,7 @@ ANSC_STATUS WanMgr_Rbus_EventPublishHandler(const char *dm_event, void *dm_value
+             return ANSC_STATUS_FAILURE;
+     }
+ 
++    rbusObject_SetValue(rdata, dm_event, value);
+     event.name = dm_event;
+     event.data = rdata;
+     event.type = RBUS_EVENT_GENERAL;
+diff --git a/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.h b/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.h
+index eef9720..63d751a 100644
+--- a/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.h
++++ b/source/TR-181/middle_layer_src/wanmgr_rbus_handler_apis.h
+@@ -50,6 +50,9 @@
+ #define WANMGR_INFACE_PHY_STATUS                      "Device.X_RDK_WanManager.Interface.{i}.BaseInterfaceStatus"
+ #define WANMGR_INFACE_WAN_STATUS                      "Device.X_RDK_WanManager.Interface.{i}.VirtualInterface.{i}.Status"
+ #define WANMGR_INFACE_WAN_LINKSTATUS                  "Device.X_RDK_WanManager.Interface.{i}.VirtualInterface.{i}.VlanStatus"
++/* Fixed DM path for cellular BH IP.Mode — used when publishing RBUS event
++ * on IP.Mode change so that CellularManager can subscribe to this path. */
++#define WANMGR_CELLULAR_BH_IP_MODE  "Device.X_RDK_WanManager.Interface.2.VirtualInterface.1.IP.Mode"
+ #define WANMGR_INFACE_IPv4_ADDRESS                    "Device.X_RDK_WanManager.Interface.{i}.VirtualInterface.{i}.IP.IPv4Address"
+ #define WANMGR_INFACE_IPv6_ADDRESS                    "Device.X_RDK_WanManager.Interface.{i}.VirtualInterface.{i}.IP.IPv6Address"
+ #define WANMGR_INFACE_IPv6_PREFIX                     "Device.X_RDK_WanManager.Interface.{i}.VirtualInterface.{i}.IP.IPv6Prefix"
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index c35f824..e839d84 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -1505,6 +1505,17 @@ static int wan_tearDownIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+             CcspTraceInfo(("%s %d - LAN restart done to handle IPPT \n",__FUNCTION__, __LINE__));
+         }
+     }
++    /* For cellular: free cached IPv4 data so WanMgr_UpdateIpFromCellularMgr can re-fetch on next bring-up */
++    if(strstr(pInterface->BaseInterface, "Cellular") != NULL)
++    {
++        if(p_VirtIf->IP.pIpcIpv4Data != NULL)
++        {
++            free(p_VirtIf->IP.pIpcIpv4Data);
++            p_VirtIf->IP.pIpcIpv4Data = NULL;
++        }
++        p_VirtIf->IP.Ipv4Status = WAN_IFACE_IPV4_STATE_DOWN;
++        CcspTraceInfo(("%s %d - Cleared cellular IPv4 cached data for re-fetch\n", __FUNCTION__, __LINE__));
++    }
+ 
+     return ret;
+ }
+@@ -1699,6 +1710,35 @@ static int wan_tearDownIPv6(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+                        __FUNCTION__, __LINE__, p_VirtIf->Name));
+     }
+ 
++    /* For cellular: explicitly flush global IPv6 address from qmapmux interface.
++     * The address was assigned by P&M (configureLTEIpv6/AssignIpv6Addr), not by
++     * WAN manager, so WanManager_Ipv6AddrUtil(brlan0) alone is insufficient. */
++    if(strstr(pInterface->BaseInterface, "Cellular") != NULL)
++    {
++        char cellular_wan_ifname[BUFLEN_32] = {0};
++        sysevent_get(sysevent_fd, sysevent_token, "current_wan_ipv6_interface", cellular_wan_ifname, sizeof(cellular_wan_ifname));
++        if(strlen(cellular_wan_ifname) > 0)
++        {
++            v_secure_system("ip -6 addr flush dev %s scope global", cellular_wan_ifname);
++            CcspTraceInfo(("%s %d - Flushed global IPv6 from cellular interface %s\n", __FUNCTION__, __LINE__, cellular_wan_ifname));
++        }
++
++        /* For cellular, zebra only sets ra-lifetime=0 when wan-status="stopped".
++         * When IPv6 is torn down but IPv4 is still active (e.g. DS->v4only),
++         * force wan-status to stopped so gen_zebra_conf sets ra-lifetime=0,
++         * then restore it to started since IPv4 is still up. */
++        if(p_VirtIf->IP.Ipv4Status == WAN_IFACE_IPV4_STATE_UP)
++        {
++            sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_WAN_STATUS, WAN_STATUS_STOPPED, 0);
++            /* Clear cellular IPv6 prefix sysevent to stop further IPv6 RA */
++            sysevent_set(sysevent_fd, sysevent_token, "cellular_ipv6_prefix", "", 0);
++            CcspTraceInfo(("%s %d - Cellular: set wan-status to stopped to force ra-lifetime=0\n", __FUNCTION__, __LINE__));
++            /* Restore wan-status to started since IPv4 is still active */
++            sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_WAN_STATUS, WAN_STATUS_STARTED, 0);
++            CcspTraceInfo(("%s %d - Cellular: restored wan-status to started (IPv4 still active)\n", __FUNCTION__, __LINE__));
++        }
++    }
++
+     // Reset sysvevents.
+     char previousPrefix[BUFLEN_48] = {0};
+     char previousPrefix_vldtime[BUFLEN_48] = {0};
+@@ -2320,10 +2360,15 @@ static eWanState_t wan_transition_wan_validated(WanMgr_IfaceSM_Controller_t* pWa
+     if(strstr(pInterface->BaseInterface, "Cellular") != NULL)
+     {
+         CcspTraceInfo(("%s %d - Configuring IP from Cellular Manager \n", __FUNCTION__, __LINE__, p_VirtIf->Name));
+-        WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
+         // Start DHCPv6 Client
+         p_VirtIf->IP.Dhcp6cPid = WanManager_StartDhcpv6Client(p_VirtIf, pInterface->IfaceType);
+         CcspTraceInfo(("%s %d - Started dhcpv6 client on interface %s, dhcpv6_pid %d \n", __FUNCTION__, __LINE__, p_VirtIf->Name, p_VirtIf->IP.Dhcp6cPid));
++        /* Fetch IPv4 from cellular manager only if the mode requires IPv4 */
++        if(p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV4_ONLY ||
++           p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK)
++        {
++            WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
++        }
+     }
+     // ETH - WAN case only
+     if ((strstr(p_VirtIf->Name,"eth") != NULL)) {
+@@ -3653,6 +3698,24 @@ static eWanState_t wan_state_obtaining_ip_addresses(WanMgr_IfaceSM_Controller_t*
+     // Ip source changed changed to TRUE
+     if (p_VirtIf->IP.RefreshDHCP == TRUE)
+     {
++        /* Cellular-specific IP mode change handling.
++         * Cellular does not use DHCPv4 (IPv4 is fetched directly from cellular manager).
++         * IPv6 uses DHCPv6 client as a transport to receive FIFO data from P&M. */
++        if(strstr(pInterface->BaseInterface, "Cellular") != NULL)
++        {
++            /* IPv4: fetch from cellular manager if mode requires it */
++            if(p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV4_ONLY ||
++               p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK)
++            {
++                /* Re-fetch IPv4 from cellular manager. pIpcIpv4Data was already
++                 * freed in wan_tearDownIPv4 so the guard inside the function is satisfied. */
++                WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
++                CcspTraceInfo(("%s %d - Cellular: re-fetching IPv4 from cellular manager\n", __FUNCTION__, __LINE__));
++            }
++            p_VirtIf->IP.RefreshDHCP = FALSE;
++            return WAN_STATE_OBTAINING_IP_ADDRESSES;
++        }
++
+         if(p_VirtIf->IP.IPv4Source == DML_WAN_IP_SOURCE_DHCP &&
+            (p_VirtIf->IP.Mode == DML_WAN_IP_MODE_IPV4_ONLY || p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK))
+         {
+@@ -3942,7 +4005,6 @@ static eWanState_t wan_state_ipv6_leased(WanMgr_IfaceSM_Controller_t* pWanIfaceC
+ 
+     //Start dhcpv4 client if Ip mode changed runtime
+     if(p_VirtIf->IP.RefreshDHCP == TRUE && 
+-      p_VirtIf->IP.IPv4Source == DML_WAN_IP_SOURCE_DHCP &&
+       p_VirtIf->IP.Mode == DML_WAN_IP_MODE_DUAL_STACK &&
+       p_VirtIf->IP.SelectedModeTimerStatus != COMPLETE &&
+       p_VirtIf->IP.Dhcp4cStatus != DHCPC_STARTED)
+@@ -3950,6 +4012,13 @@ static eWanState_t wan_state_ipv6_leased(WanMgr_IfaceSM_Controller_t* pWanIfaceC
+         WanManager_StartDhcpv4Client(p_VirtIf, pInterface->Name, pInterface->IfaceType);
+         CcspTraceInfo(("%s %d - Started dhcpc on interface %s\n", __FUNCTION__, __LINE__, p_VirtIf->Name));
+         CcspTraceInfo(("%s %d - Interface '%s' - Running in Dual Stack IP Mode\n", __FUNCTION__, __LINE__, pInterface->Name));
++        if(strstr(pInterface->BaseInterface, "Cellular") != NULL)
++        {
++            /* Cellular does not use DHCPv4. Fetch IPv4 directly from cellular manager.
++             * pIpcIpv4Data is NULL and Ipv4Status is DOWN since we were in IPv6-only mode. */
++            WanMgr_UpdateIpFromCellularMgr(pWanIfaceCtrl);
++            CcspTraceInfo(("%s %d - Cellular: fetching IPv4 from cellular manager for DualStack mode\n", __FUNCTION__, __LINE__));
++        }
+     }
+ 
+     // Start DHCP apps if not started
+-- 
+2.34.1
+

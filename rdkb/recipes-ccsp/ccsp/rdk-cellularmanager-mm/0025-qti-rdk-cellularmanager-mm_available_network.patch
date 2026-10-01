@@ -1,0 +1,365 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From c015d241c6f8bef2e6179c202efdf4af39ebf714 Mon Sep 17 00:00:00 2001
+From: Soji Scaria <sscaria@qti.qualcomm.com>
+Date: Fri, 14 Aug 2026 15:17:20 +0530
+Subject: Support for DMs AvailableNetworks/NetworkInUse/NetworkRequested
+Signed-off-by: Soji Scaria <sscaria@qti.qualcomm.com>
+
+---
+ source/CellularManager/cellular_hal.c         |  10 ++
+ source/CellularManager/cellular_hal.h         |   4 +
+ .../cellularmgr_cellular_apis.c               |   1 +
+ .../cellularmgr_cellular_apis.h               |   5 +
+ .../middle_layer_src/cellularmgr_rbus_dml.c   | 154 ++++++++++++++++--
+ .../cellularmgr_rbus_helpers.c                |   9 +-
+ 6 files changed, 171 insertions(+), 12 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.c b/source/CellularManager/cellular_hal.c
+index a5e4a56..c4231cc 100755
+--- a/source/CellularManager/cellular_hal.c
++++ b/source/CellularManager/cellular_hal.c
+@@ -588,6 +588,11 @@ int cellular_hal_get_current_plmn_information(CellularCurrentPlmnInfoStruct *plm
+ #ifdef QMI_SUPPORT
+     //Get Current PLMN Network Information
+     cellular_hal_qmi_get_current_plmn_information( plmn_info );
++#elif defined (MM_SUPPORT) && defined (CM_EXTN_SUPPORTED)
++    if( RETURN_OK != cellular_hal_extn_mm_get_plmn (NULL, plmn_info))
++    {
++        return RETURN_ERROR;
++    }
+ #elif defined MM_SUPPORT     
+     return cellular_hal_mm_get_plmn (NULL, plmn_info);
+ #elif defined HYBRID_SUPPORT
+@@ -603,6 +608,11 @@ int cellular_hal_get_available_networks_information(CellularNetworkScanResultInf
+ #ifdef QMI_SUPPORT
+     //Get Available networks
+     cellular_hal_qmi_get_available_networks_information( network_info, total_network_count );
++#elif defined (CM_EXTN_SUPPORTED) && defined (MM_SUPPORT)
++    if (RETURN_OK != cellular_hal_mm_extn_get_available_networks(NULL, network_info, total_network_count))
++    {
++        return RETURN_ERROR;
++    }
+ #elif defined HYBRID_SUPPORT
+     cellular_hal_device_get_available_networks_information( network_info, total_network_count );
+ #endif
+diff --git a/source/CellularManager/cellular_hal.h b/source/CellularManager/cellular_hal.h
+index 9de781e..209ab8a 100755
+--- a/source/CellularManager/cellular_hal.h
++++ b/source/CellularManager/cellular_hal.h
+@@ -398,6 +398,10 @@ typedef  struct
+     unsigned int                            MCC;
+     unsigned int                            MNC;
+     unsigned char                           network_allowed_flag;
++#if defined CM_EXTN_SUPPORTED
++    char*                                   scanNetworks;
++    char*                                   scanOperCodes;
++#endif
+ 
+ } CellularNetworkScanResultInfoStruct;
+ 
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index e02aec8..a012f00 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -527,6 +527,7 @@ ANSC_STATUS DmlCellularInitialize ( ANSC_HANDLE  hDml )
+ #endif
+ #ifdef CM_EXTN_SUPPORTED
+     CellularMgr_extn_Init_Cellular_Interface(pstDmlCellular->pstInterfaceInfo);
++    CellularMgr_extn_InitSysevents();
+ #endif
+ 
+     //HAL Init
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.h b/source/CellularManager/cellularmgr_cellular_apis.h
+index 81ef827..198df2f 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.h
++++ b/source/CellularManager/cellularmgr_cellular_apis.h
+@@ -321,6 +321,11 @@ _CELLULAR_PLMN_AVAILABLENETWORK_INFO
+     CHAR                                        MNC[8];
+     CHAR                                        Name[16];
+     BOOLEAN                                     Allowed;
++#if defined CM_EXTN_SUPPORTED
++    CHAR*                                       scanNetworks;
++    CHAR*                                       scanOperCodes;
++    UINT                                        scanNetworkCount;
++#endif
+ }
+ CELLULAR_PLMN_AVAILABLENETWORK_INFO,  *PCELLULAR_PLMN_AVAILABLENETWORK_INFO;
+ 
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+index 9672772..6f2cc08 100755
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -88,6 +88,7 @@ char const gComponentID[] = "cellularmgr";
+ #define CELLULARMGR_ACCESSPOINT_TABLE            "Device.Cellular.AccessPoint."
+ #define CELLULARMGR_UICC_TABLE                   "Device.Cellular.X_RDK_Uicc."
+ #define PLMNACCESS_AVAILABLENETWORK_TABLE        "Device.Cellular.Interface.%d.X_RDK_PlmnAccess.AvailableNetworks."
++#define DEFAULT_COUNT_ON_SCAN_IN_PROGRESS 0
+ 
+ rbusError_t registerGeneratedDataElements(rbusHandle_t handle);
+ 
+@@ -865,6 +866,10 @@ static rbusError_t Cellular_Interface_GetParamStringValue_rbus(rbusHandle_t hand
+ 
+     PCELLULAR_INTERFACE_SERVING_INFO    pstServingInfo = &(pstInterfaceInfo->stServingInfo);
+ 
++#ifdef CM_EXTN_SUPPORTED
++    PCELLULAR_PLMNACCESS_INFO    pstPlmnInfo      = &(pstInterfaceInfo->stPlmnAccessInfo);
++#endif
++
+     if(strcmp(context.name, "Status") == 0)
+     {
+         CellularMgr_ServingSystemInfo (pstInterfaceInfo, NULL);
+@@ -994,6 +999,19 @@ static rbusError_t Cellular_Interface_GetParamStringValue_rbus(rbusHandle_t hand
+             rbusProperty_SetString(property, "None");
+         }
+     }
++#ifdef CM_EXTN_SUPPORTED
++    else if(strcmp(context.name, "NetworkInUse") == 0)
++    {
++        if( RETURN_OK == CellularMgr_GetPlmnInformation(pstPlmnInfo) )
++        {
++            rbusProperty_SetString(property, pstPlmnInfo->NetworkInUse_Name);
++        }
++        else
++        {
++            rbusProperty_SetString(property, "N/A");
++        }
++    }
++#endif
+     else
+     {
+         return RBUS_ERROR_INVALID_INPUT;
+@@ -1421,9 +1439,26 @@ rbusError_t AvailableNetworks_Synchronize_rbus(void* ctx)
+     }
+ 
+     ULONG ulPrevCount = pstPlmnInfo->ulAvailableNetworkNoOfEntries;
+-
+-    CellularMgr_GetAvailableNetworksInformation( &pstPlmnInfo->pstAvailableNetworks, &pstPlmnInfo->ulAvailableNetworkNoOfEntries );
+-
++#ifndef CM_EXTN_SUPPORTED
++     CellularMgr_GetAvailableNetworksInformation( &pstPlmnInfo->pstAvailableNetworks, &pstPlmnInfo->ulAvailableNetworkNoOfEntries );
++#else
++    char paramName[BUFFER_SIZE_128] = {0};
++    snprintf(paramName, sizeof(paramName), PLMNACCESS_AVAILABLENETWORK_TABLE, index);
++    CELLULAR_AVAILABLE_NETWORKS_META_INFO    *pstAvailableNetworksMetaInfo = NULL;
++    pstAvailableNetworksMetaInfo = (CELLULAR_AVAILABLE_NETWORKS_META_INFO*)malloc(sizeof(CELLULAR_AVAILABLE_NETWORKS_META_INFO));
++    if (pstAvailableNetworksMetaInfo == NULL)
++    {
++        return RBUS_ERROR_BUS_ERROR;
++    }
++    strlcpy(pstAvailableNetworksMetaInfo->availableNetworksTableName, paramName, sizeof(pstAvailableNetworksMetaInfo->availableNetworksTableName));
++    pstAvailableNetworksMetaInfo->pstInterfaceInfo = pstInterfaceInfo;
++    pthread_t AvlNwrk_Thread;
++    int ret = pthread_create( &AvlNwrk_Thread, NULL, &Available_Network_Scan_Thread, (void*)pstAvailableNetworksMetaInfo);
++    if (ret != 0) {
++         free(pstAvailableNetworksMetaInfo);
++         return RBUS_ERROR_BUS_ERROR;
++     }
++#endif
+     /**
+      *  RBUS Limitation Hack:
+      *  We need to unregister all rows except default 1st row and set context
+@@ -1433,15 +1468,14 @@ rbusError_t AvailableNetworks_Synchronize_rbus(void* ctx)
+     {
+         char param_name[256] = {0};
+         sprintf(param_name, PLMNACCESS_AVAILABLENETWORK_TABLE, index);
+-        for(int i = 1; i < ulPrevCount; i++)
++        for(int i = 0; i < ulPrevCount; i++)
+         {
+-            if (Sample_UnregisterRow(param_name, (i+1)) == RBUS_ERROR_SUCCESS)
+-            {
+-                CcspTraceInfo(("%s: Unregistered Previously available network table:Inst(%s%d) \n", __FUNCTION__, param_name, (i+1)));
+-            }
++           CcspTraceInfo(("%s: Empty previous available network table:Inst(%s%d) \n", __FUNCTION__, param_name, (i+1)));
++           SetRowContext(param_name, (i+1), NULL, NULL);
+         }
+     }
+-    
++
++#ifndef CM_EXTN_SUPPORTED
+     if( ( pstPlmnInfo->ulAvailableNetworkNoOfEntries > 0 ) &&
+         ( pstPlmnInfo->pstAvailableNetworks != NULL ) )
+     {
+@@ -1473,6 +1507,17 @@ rbusError_t AvailableNetworks_Synchronize_rbus(void* ctx)
+             pstPlmnInfo->ulAvailableNetworkNoOfEntries = 1;
+         }
+     }
++#else
++    /* RBUS limitation fix */
++    if( pstPlmnInfo->ulAvailableNetworkNoOfEntries == 0 )
++    {
++        char param_name[BUFFER_SIZE_128] = {0};
++        snprintf(param_name, sizeof(param_name), PLMNACCESS_AVAILABLENETWORK_TABLE, index);
++        CcspTraceInfo(("%s-%d : tableName(%s), Inst(%d) \n",__FUNCTION__, __LINE__, param_name, 1));
++        SetRowContext(param_name, 1, NULL, NULL);
++        pstPlmnInfo->ulAvailableNetworkNoOfEntries = 1;
++    }
++#endif
+ 
+     return RBUS_ERROR_SUCCESS;
+ }
+@@ -1509,7 +1554,28 @@ static rbusError_t AvailableNetworks_GetEntryCount_rbus(rbusHandle_t handle, rbu
+ 
+     if(strcmp(context.name, "AvailableNetworksNumberOfEntries") == 0)
+     {
++#if defined CM_EXTN_SUPPORTED
++        char scanStatusBuf[BUFFER_SIZE_32] = {0};
++        if(sysevent_fd >= 0)
++        {
++            sysevent_get(sysevent_fd, sysevent_token, "network_scan_status", scanStatusBuf, sizeof(scanStatusBuf));
++            if (strcmp(scanStatusBuf, "scan_in_progress") == 0)
++            {
++                rbusProperty_SetUInt64(property, DEFAULT_COUNT_ON_SCAN_IN_PROGRESS);
++            }
++            else
++            {
++                rbusProperty_SetUInt64(property, pstPlmnInfo->ulAvailableNetworkNoOfEntries);
++            }
++        }
++        else
++        {
++            CcspTraceError(("%s: sysevent_open failed\n", __FUNCTION__));
++            return RBUS_ERROR_BUS_ERROR;
++        }
++#else
+         rbusProperty_SetUInt64(property, pstPlmnInfo->ulAvailableNetworkNoOfEntries);
++#endif
+     }
+     else
+     {
+@@ -1537,7 +1603,28 @@ static rbusError_t AvailableNetworks_GetParamBoolValue_rbus(rbusHandle_t handle,
+ 
+     if(strcmp(context.name, "Allowed") == 0)
+     {
++#if defined CM_EXTN_SUPPORTED
++        char scanStatusBuf[BUFFER_SIZE_32] = {0};
++        if(sysevent_fd >= 0)
++        {
++            sysevent_get(sysevent_fd, sysevent_token, "network_scan_status", scanStatusBuf, sizeof(scanStatusBuf));
++            if (strcmp(scanStatusBuf, "scan_in_progress") == 0)
++            {
++                rbusProperty_SetBoolean(property, false);
++            }
++            else
++            {
++                rbusProperty_SetBoolean(property, pstAvailableNetworks->Allowed);
++            }
++        }
++        else
++        {
++            CcspTraceError(("%s: sysevent_open failed\n", __FUNCTION__));
++            return RBUS_ERROR_BUS_ERROR;
++        }
++#else
+         rbusProperty_SetBoolean(property, pstAvailableNetworks->Allowed);
++#endif
+     }
+     else
+     {
+@@ -1563,18 +1650,62 @@ static rbusError_t AvailableNetworks_GetParamStringValue_rbus(rbusHandle_t handl
+     {
+         return RBUS_ERROR_BUS_ERROR;
+     }
+-
++#if defined CM_EXTN_SUPPORTED
++    char scanStatusBuf[BUFFER_SIZE_32] = {0};
++    if(sysevent_fd >= 0)
++    {
++        sysevent_get(sysevent_fd, sysevent_token, "network_scan_status", scanStatusBuf, sizeof(scanStatusBuf));
++    }
++    else
++    {
++        CcspTraceError(("%s: sysevent_open failed\n", __FUNCTION__));
++        return RBUS_ERROR_BUS_ERROR;
++    }
++#endif
+     if(strcmp(context.name, "Mcc") == 0)
+     {
++#if defined CM_EXTN_SUPPORTED
++        if (strcmp(scanStatusBuf, "scan_in_progress") == 0)
++        {
++            rbusProperty_SetString(property, "scan_in_progress");
++        }
++        else
++        {
++            rbusProperty_SetString(property, pstAvailableNetworks->MCC);
++        }
++#else
+         rbusProperty_SetString(property, pstAvailableNetworks->MCC);
++#endif
+     }
+     else if(strcmp(context.name, "Mnc") == 0)
+     {
++#if defined CM_EXTN_SUPPORTED
++        if (strcmp(scanStatusBuf, "scan_in_progress") == 0)
++        {
++            rbusProperty_SetString(property, "scan_in_progress");
++        }
++        else
++        {
++            rbusProperty_SetString(property, pstAvailableNetworks->MNC);
++        }
++#else
+         rbusProperty_SetString(property, pstAvailableNetworks->MNC);
++#endif
+     }
+     else if(strcmp(context.name, "Name") == 0)
+     {
++#if defined CM_EXTN_SUPPORTED
++        if (strcmp(scanStatusBuf, "scan_in_progress") == 0)
++        {
++            rbusProperty_SetString(property, "scan_in_progress");
++        }
++        else
++        {
++            rbusProperty_SetString(property, pstAvailableNetworks->Name);
++        }
++#else
+         rbusProperty_SetString(property, pstAvailableNetworks->Name);
++#endif
+     }
+     else
+     {
+@@ -3635,6 +3766,9 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+         {"Device.Cellular.Interface.{i}.Stats.BytesSent", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.Stats.BytesReceived", RBUS_ELEMENT_TYPE_PROPERTY, {Stats_extn_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.X_QCOM.ModemStatus", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamStringValue_rbus, Cellular_Interface_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.AvailableNetworks", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.NetworkRequested", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamStringValue_rbus, Cellular_Interface_extn_SetParamStringValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.NetworkInUse", RBUS_ELEMENT_TYPE_EVENT | RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #endif
+         {"Device.Cellular.X_RDK_UiccNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {UiccSlot_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Uicc.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_helpers.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_helpers.c
+index 0b2edfb..4698dd9 100644
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_helpers.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_helpers.c
+@@ -175,7 +175,7 @@ bool IsTimeToSyncDynamicTable(char const* path)
+     char parent[RBUS_MAX_NAME_LENGTH];
+     char* p;
+     strcpy(parent, path);
+-    CcspTraceError(("%s-%d : path(%s) \n",__FUNCTION__, __LINE__, path));
++    CcspTraceInfo(("%s-%d : path(%s) \n",__FUNCTION__, __LINE__, path));
+     p = parent + strlen(parent)-1;
+     for(;;)
+     {
+@@ -202,7 +202,12 @@ bool IsTimeToSyncDynamicTable(char const* path)
+             }
+         }
+     }
+-    CcspTraceError(("%s-%d : \n",__FUNCTION__, __LINE__));
++    CcspTraceInfo(("%s-%d : \n",__FUNCTION__, __LINE__));
++    if(gContextMaps.dyntime == NULL)
++    {
++        CcspTraceError(("%s-%d : rtHashMap is not created yet\n",__FUNCTION__, __LINE__));
++        return false;
++    }
+     ptime = rtHashMap_Get(gContextMaps.dyntime, parent);
+     now = time(NULL);
+     if(!ptime || now > (time_t)ptime + 5)
+-- 
+2.34.1
+

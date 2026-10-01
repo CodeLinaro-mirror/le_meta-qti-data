@@ -1,0 +1,544 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 02564a72155131070190d1fa42ed558b4d897188 Mon Sep 17 00:00:00 2001
+From: mbadusha <mbadusha@qti.qualcomm.com>
+Date: Fri, 17 Jul 2026 09:53:25 +0000
+Subject: [PATCH] [Description] : Adds Device.Firewall.X_QCOM.PacketStats object with writable Enable and Reset controls in TR-181 XML.
+Packet statistics behavior lacked a formal DM control interface, causing inconsistent operational enable/reset management.
+There was no single managed path to trigger backend reset/restart flows from configuration changes.
+
+[Fix Description]:
+Adds CosaDmlGet/SetPacketStatsEnable and CosaDmlGet/SetPacketStatsReset plus DML glue functions.
+Persists values via syscfg/sysevent and triggers reset-time backend refresh through firewall restart path.
+
+Signed-off-by: mbadusha <mbadusha@qti.qualcomm.com>
+---
+ config-arm/TR181-USGv2.XML                    |  27 +-
+ .../TR-181/board_sbapi/cosa_firewall_apis.c   | 182 ++++++++++++-
+ .../middle_layer_src/cosa_firewall_dml.c      | 239 ++++++++++++++++++
+ .../middle_layer_src/cosa_firewall_dml.h      |  49 ++++
+ 4 files changed, 495 insertions(+), 2 deletions(-)
+
+Index: git/config-arm/TR181-USGv2.XML
+===================================================================
+--- git.orig/config-arm/TR181-USGv2.XML
++++ git/config-arm/TR181-USGv2.XML
+@@ -9565,7 +9565,32 @@
+ 
+           </parameters>
+ 
+-        </object>
++  </object>
++        <object>
++        <name>PacketStats</name>
++        <objectType>object</objectType>
++        <functions>
++          <func_GetParamBoolValue>PacketStats_GetParamBoolValue</func_GetParamBoolValue>
++          <func_SetParamBoolValue>PacketStats_SetParamBoolValue</func_SetParamBoolValue>
++          <func_Validate>PacketStats_Validate</func_Validate>
++          <func_Commit>PacketStats_Commit</func_Commit>
++          <func_Rollback>PacketStats_Rollback</func_Rollback>
++        </functions>
++        <parameters>
++          <parameter>
++            <name>Enable</name>
++            <type>boolean</type>
++            <syntax>bool</syntax>
++            <writable>true</writable>
++          </parameter>
++          <parameter>
++            <name>Reset</name>
++            <type>boolean</type>
++            <syntax>bool</syntax>
++            <writable>true</writable>
++          </parameter>
++        </parameters>
++      </object>
+ 
+       </objects>
+ 
+Index: git/source-arm/TR-181/board_sbapi/cosa_firewall_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_firewall_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_firewall_apis.c
+@@ -74,7 +74,9 @@
+ #include "ansc_platform.h"
+ #include "ipc_msg.h"
+ #include "cosa_firewall_internal.h"
+-
++#include "cosa_drg_common.h"
++#define PACKETSTATS_ENABLE  "enable_packet_stats"
++#define PACKETSTATS_RESET   "reset_packet_stats"
+ static int PandM_SendIPToWanMgr(bool ipptEnabled);
+ static ANSC_STATUS extractMacAddress(char* pString);
+ static ANSC_STATUS execute_ipa(int mode, IPPT_CLIENTTYPE client_type, char* mac, char* wan_ifname_val);
+@@ -1132,6 +1134,158 @@ extractMacAddress(char* pString)
+       return ret;
+ }
+ 
++/**********************************************************************
++
++    caller:     COSA DML
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlGetPacketStatsEnable
++            (
++                BOOL                        *pValue
++            );
++
++    Description:
++
++        Get packet statistics enable/disable
++
++    Arguments:    BOOL                        *pValue
++                  Pointer of the value to be retrieved.
++
++    Return:       The status of the operation.
++
++**********************************************************************/
++ANSC_STATUS
++CosaDmlGetPacketStatsEnable
++(
++    BOOL                        *pValue
++)
++{
++    char buf[8];
++
++    syscfg_get( NULL, PACKETSTATS_ENABLE, buf, sizeof(buf));
++    *pValue = (0 == strcmp(buf, "1"));
++    return ANSC_STATUS_SUCCESS;
++}
++/**********************************************************************
++
++    caller:     COSA DML
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlSetPacketStatsEnable
++            (
++                BOOL                        bValue
++            );
++
++    Description:
++
++        Set packet statistics enable/disable
++
++    Arguments:    BOOL                        bValue
++                  Value to be set.
++
++    Return:       The status of the operation.
++
++**********************************************************************/
++ANSC_STATUS
++CosaDmlSetPacketStatsEnable
++(
++    BOOL                        bValue
++)
++{
++    char wan_ifname[32]={0};
++    char enable_packet_stats[32]={0};
++    syscfg_get(NULL, "enable_packet_stats", enable_packet_stats, sizeof(enable_packet_stats));
++
++    syscfg_set_commit(NULL, PACKETSTATS_ENABLE, bValue ? "1" : "0");
++    return ANSC_STATUS_SUCCESS;
++}
++/**********************************************************************
++
++    caller:     COSA DML
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlGetPacketStatsReset
++            (
++                BOOL                        *pValue
++            );
++
++    Description:
++
++        Get packet statistics reset
++
++    Arguments:    BOOL                        *pValue
++                  Pointer of the value to be retrieved.
++
++    Return:       The status of the operation.
++
++**********************************************************************/
++ANSC_STATUS
++CosaDmlGetPacketStatsReset
++(
++    BOOL                        *pValue
++)
++{
++    char buf[8] = {0};
++    commonSyseventGet(PACKETSTATS_RESET, buf, sizeof(buf));
++    *pValue = (0 == strcmp(buf, "1"));
++    return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++    caller:     COSA DML
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlSetPacketStatsReset
++            (
++                BOOL                        bValue
++            );
++
++    Description:
++
++        Set packet statistics reset
++
++    Arguments:    BOOL                        bValue
++                  Value to be set.
++
++    Return:       The status of the operation.
++
++**********************************************************************/
++ANSC_STATUS
++CosaDmlSetPacketStatsReset
++(
++    BOOL                        bValue
++)
++{
++    char buf[8];
++    syscfg_get( NULL, PACKETSTATS_ENABLE, buf, sizeof(buf));
++    if(0 == strcmp(buf, "1"))
++    {
++        commonSyseventSet(PACKETSTATS_RESET, ((true == bValue) ? "1" : "0"));
++        if (true == bValue)
++        {
++            if (0 != v_secure_system("sysevent set firewall-restart"))
++            {
++                CcspTraceError(("[%s:%d] failed to restart firewall \n", __FUNCTION__, __LINE__));
++            }
++        }
++    }
++    else
++    {
++        CcspTraceError(("[%s:%d] packet stats (%s) is NOT enabled\n", __FUNCTION__, __LINE__,buf));
++        return ANSC_STATUS_FAILURE;
++    }
++    return ANSC_STATUS_SUCCESS;
++}
++
+ /*===========================================================================
+   FUNCTION:  PandM_SendIPToWanMgr
+ ===========================================================================*/
+Index: git/source/TR-181/middle_layer_src/cosa_firewall_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_firewall_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_firewall_dml.c
+@@ -1457,3 +1457,242 @@ IPPT_Rollback
+   return ANSC_STATUS_SUCCESS;
+ }
+ 
++/***********************************************************************
++
++ APIs for Object:
++
++    Firewall.X_QCOM.PacketStats.
++
++    *  PacketStats_GetParamBoolValue
++    *  PacketStats_SetParamBoolValue
++    *  PacketStats_Validate
++    *  PacketStats_Commit
++    *  PacketStats_Rollback
++
++***********************************************************************/
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        PacketStats_GetParamBoolValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                BOOL*                       pBool
++            );
++
++    description:
++
++        This function is called to retrieve Boolean parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                BOOL*                       pBool
++                The buffer of returned boolean value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++PacketStats_GetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL*                       pBool
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    if (strcmp(ParamName, "Enable") == 0)
++    {
++        CosaDmlGetPacketStatsEnable(pBool);
++        return TRUE;
++    }
++    else if(strcmp(ParamName, "Reset") == 0)
++    {
++        CosaDmlGetPacketStatsReset(pBool);
++        return TRUE;
++    }
++    else
++    {
++        return FALSE;
++    }
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        PacketStats_SetParamBoolValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                BOOL                        bValue
++            );
++
++    description:
++
++        This function is called to set BOOL parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                BOOL                        bValue
++                The updated BOOL value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++PacketStats_SetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL                        bValue
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    if (strcmp(ParamName, "Enable") == 0)
++    {
++        if (ANSC_STATUS_SUCCESS != CosaDmlSetPacketStatsEnable(bValue))
++        {
++            return FALSE;
++        }
++	CosaDmlDcSetRebootDevice(NULL, "Device");
++        return TRUE;
++    }
++    else if (strcmp (ParamName, "Reset") == 0)
++    {
++        if (ANSC_STATUS_SUCCESS != CosaDmlSetPacketStatsReset(bValue))
++        {
++            return FALSE;
++        }
++        return TRUE;
++    }
++    else
++    {
++        return FALSE;
++    }
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        PacketStats_Validate
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       pReturnParamName,
++                ULONG*                      puLength
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       pReturnParamName,
++                The buffer (128 bytes) of parameter name if there's a validation.
++
++                ULONG*                      puLength
++                The output length of the param name.
++
++    return:     TRUE if there's no validation.
++
++**********************************************************************/
++BOOL
++PacketStats_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    )
++{
++   UNREFERENCED_PARAMETER(hInsContext);
++   UNREFERENCED_PARAMETER(pReturnParamName);
++   UNREFERENCED_PARAMETER(puLength);
++   return TRUE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        PacketStats_Commit
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG
++PacketStats_Commit
++   (
++       ANSC_HANDLE                  hInsContext
++   )
++{
++  UNREFERENCED_PARAMETER(hInsContext);
++  return ANSC_STATUS_SUCCESS;
++}
++
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        PacketStats_Rollback
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to roll back the update whenever there's a
++        validation found.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG
++PacketStats_Rollback
++   (
++       ANSC_HANDLE                  hInsContext
++   )
++{
++  UNREFERENCED_PARAMETER(hInsContext);
++  return ANSC_STATUS_SUCCESS;
++}
+Index: git/source/TR-181/middle_layer_src/cosa_firewall_dml.h
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_firewall_dml.h
++++ git/source/TR-181/middle_layer_src/cosa_firewall_dml.h
+@@ -69,6 +69,55 @@
+ 
+  APIs for Object:
+ 
++    Firewall.X_QCOM.PacketStats.
++
++    *  PacketStats_GetParamBoolValue
++    *  PacketStats_SetParamBoolValue
++    *  PacketStats_Validate
++    *  PacketStats_Commit
++    *  PacketStats_Rollback
++
++***********************************************************************/
++BOOL
++PacketStats_GetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL*                       pBool
++    );
++BOOL
++PacketStats_SetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL                        bBool
++    );
++
++BOOL
++PacketStats_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    );
++
++ULONG
++PacketStats_Commit
++   (
++       ANSC_HANDLE                  hInsContext
++   );
++
++ULONG
++PacketStats_Rollback
++   (
++       ANSC_HANDLE                  hInsContext
++   );
++
++
++/***********************************************************************
++
++ APIs for Object:
++
+     Firewall.
+ 
+     *  Firewall_GetParamBoolValue

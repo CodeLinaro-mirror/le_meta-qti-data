@@ -1,0 +1,126 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From dec58449392f423ca2838d8a89b564ed270188b5 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Wed, 15 Jul 2026 10:54:59 +0000
+Subject: [Description]: Prevents duplicate IPv6 host entries in Device.Hosts.Host.*.IPv6Address.* during LAN client updates.
+Also handles link-local-only cases by clearing extra IPv6 slots when no global IPv6 exists for that MAC.
+
+[RCA/Root Cause Analysis]: IPv6 update logic appended/overwrote entries without strong duplicate checks and without validating neighbor context. Link-local processing could leave stale secondary IPv6 values, causing repeated or inconsistent host table entries.
+
+[Fix Description]:Added duplicate detection and early return in Add_Update_IPv6Address() when the same IPv6 is already present.Added ip -6 nei based MAC/count handling and explicit cleanup of extra IPv6 indices for link-local-only clients
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 62 ++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 56 insertions(+), 6 deletions(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index 45eb2db..53049a9 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -112,7 +112,7 @@
+ #define HOST_OBJECT_SIZE	200
+ #define ARP_IPv6 0
+ #define DIBBLER_IPv6 1
+-
++#define BUFFER_SIZE 256
+ #include <pthread.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+@@ -1535,13 +1535,16 @@ static PLmObjectHostIPAddress Add_Update_IPv4Address (PLmObjectHost pHost, char
+ 
+ static PLmObjectHostIPAddress Add_Update_IPv6Address (PLmObjectHost pHost, char * ipAddress, int dibbler_flag)
+ {
+-	int i, *num;
++        int i, *num, duplicateFound = 0,OnlyLink = 0,ipv6Count = 0;
+ 	PLmObjectHostIPAddress pIpAddrList, pCur, *ppHeader, prev, temp;
+ 	num = &(pHost->numIPv6Addr);
+ 	pIpAddrList = pHost->ipv6AddrArray;
+ 	ppHeader = &(pHost->ipv6AddrArray);
+ 	pHost->ipv6Active = TRUE;
+-
++        char Command[BUFFER_SIZE] = {0}, Command_1[BUFFER_SIZE] = {0};
++        char Buf[BUFFER_SIZE] ={0},Bufval[BUFFER_SIZE]={0};
++        FILE *ipnei_fp = NULL, *ip6count_fp = NULL;
++        char buffer_tmp[BUFFER_SIZE];
+ 	if(*ppHeader==NULL)
+ 	{
+ 		prev=NULL;
+@@ -1571,19 +1574,66 @@ static PLmObjectHostIPAddress Add_Update_IPv6Address (PLmObjectHost pHost, char
+ 	{
+ 		if(strncmp(ipAddress,"fe80:",5)==0)
+ 		{
+-			pCur=pIpAddrList->pNext;
++                        pCur=pIpAddrList->pNext; /*Update link local to index 2*/
++                       char macAddr[16]="";
++                       snprintf(Command, sizeof(Command), "ip -6 nei | grep %s | awk '{print$5}'",ipAddress); /*Gets mac from linklocalAddress */
++                       ipnei_fp = popen(Command,"r");
++                       if (NULL == ipnei_fp)
++                               return NULL;
++                       else
++                       {
++                               fgets(buffer_tmp, BUFFER_SIZE, ipnei_fp);
++                               sscanf(buffer_tmp,"%s",macAddr);
++                               snprintf(Command_1, sizeof(Command_1), "ip -6 nei | grep %s | wc -l",macAddr); /*gets no of ipv6 address available for the MacAddress considering - count is 1 if only Link local address is available else >1 based on ipv6 address present */
++                               ip6count_fp = popen(Command_1,"r");
++                               if(ip6count_fp !=NULL)
++                               {
++                                       fgets(Buf, sizeof(Buf), ip6count_fp);
++                                       sscanf(Buf,"%s",Bufval);
++                                       ipv6Count = atoi(Bufval);
++                                       pclose(ip6count_fp);
++                               }
++                               OnlyLink = (ipv6Count>1)? 0 : 1; /*sets OnlyLink flag only if ip nei has ipv6 address else 0 */
++                               pclose(ipnei_fp);
++                       }
+ 		}
+ 		else
+ 		{
+-			pCur=pIpAddrList->pNext->pNext;
++                       OnlyLink = 0;
++                       if(pIpAddrList == NULL)
++                               return NULL;
++                       else
++                       {
++                               for(;pIpAddrList->pNext != NULL;pIpAddrList = pIpAddrList->pNext)
++                               {
++                                       if(strncmp(ipAddress,pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId],BUFFER_SIZE) == 0) /*Checks if ipaddress is already added to the list */
++                                       {
++                                               duplicateFound = 1;
++                                               break;
++                                       }
++                                       else if(strncmp(pIpAddrList->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId]," ",BUFFER_SIZE) == 0) /*updates Ipaddress if the list is empty */
++                                       {
++                                               pCur=pIpAddrList->pNext;
++                                               break;
++                                       }
++                               }
++                       }
+ 		}
+ 	}
+ 	else
+ 	{
+ 		pCur=pIpAddrList;
+ 	}
++        if(duplicateFound)
++                return pIpAddrList; /* return here to avoid duplication IP updation to list */
+ 	LanManager_CheckCloneCopy(&(pCur->pStringParaValue[LM_HOST_IPAddress_IPAddressId]), ipAddress);
+-	return pCur;
++        if(OnlyLink)
++        {
++                /* Makes index 3 and 4 empty if only Link Local Address is available */
++                LanManager_CheckCloneCopy(&(pCur->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId])," ");
++                LanManager_CheckCloneCopy(&(pCur->pNext->pNext->pStringParaValue[LM_HOST_IPAddress_IPAddressId])," ");
++        }
++        return pCur;
+ }
+ 
+ static int extract (char *line, char *mac, char *ip)
+-- 
+2.34.1
+

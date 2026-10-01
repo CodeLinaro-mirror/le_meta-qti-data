@@ -1,0 +1,1288 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From bcecd36d7dbf8ed44d4105f66b029db2927454a3 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Fri, 21 Aug 2026 05:00:19 +0000
+Subject: Preserve IP continuity after CM crash
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.h         |  40 +-
+ source/CellularManager/cellular_hal_mm_apis.c | 246 +++++++--
+ source/CellularManager/cellular_hal_mm_apis.h |   1 +
+ .../cellularmgr_cellular_apis.c               | 105 ++--
+ source/CellularManager/cellularmgr_main.c     |   9 +
+ source/CellularManager/cellularmgr_sm.c       | 490 ++++++++++++++++--
+ source/CellularManager/cellularmgr_sm.h       |   2 +-
+ 7 files changed, 765 insertions(+), 128 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.h b/source/CellularManager/cellular_hal.h
+index 209ab8a..073ef84 100755
+--- a/source/CellularManager/cellular_hal.h
++++ b/source/CellularManager/cellular_hal.h
+@@ -289,7 +289,7 @@ typedef enum _CellularNetworkIPType_t
+ 
+ } CellularNetworkIPType_t;
+ 
+-typedef  struct                                     
++typedef  struct
+ {
+     char                        WANIFName[16];
+     char                        IPAddress[128];
+@@ -300,10 +300,11 @@ typedef  struct
+     char                        DNSServer2[128];
+     char                        Domains[256];
+     unsigned int                MTUSize;
+-
++    char                        prefix[128];
++    unsigned int                prefixLength;
+ } CellularIPStruct;
+ 
+-typedef  struct                                     
++typedef  struct
+ {
+     unsigned long               BytesSent;
+     unsigned long               BytesReceived;
+@@ -1209,7 +1210,36 @@ CELLULAR_RDK_DEVICETYPE cellular_hal_get_modem_device_type();
+ *
+ */
+ int cellular_hal_set_modem_device_type(CELLULAR_RDK_DEVICETYPE devType, void *pstModemInfo);
+-/** @} */  //END OF GROUP CELLULAR_HAL_APIS
++
++#ifdef CM_EXTN_SUPPORTED
++/* cellular_hal_extn_profile_create function */
++/**
++* @description - This API creates a new APN profile.
++*
++* @param[in] pstProfileInput - New Profile to be created
++*            device_profile_status_cb - callback to notify on device profile creation
++*
++* @return The status of the operation
++* @retval RETURN_OK if successful
++* @retval RETURN_ERR if any error is detected
++*
++*/
++int cellular_hal_extn_profile_create(struct CellularProfileStruct *pstProfileInput, cellular_device_profile_status_api_callback device_profile_status_cb,  bool bRecoveryEnabled);
++
++/* cellular_hal_extn_profile_modify function */
++/**
++* @description - This API modifies an existing APN profile.
++*
++* @param[in] pstProfileInput - New Profile to be created
++*            device_profile_status_cb - callback to notify on device profile creation
++*
++* @return The status of the operation
++* @retval RETURN_OK if successful
++* @retval RETURN_ERR if any error is detected
++*
++*/
++int cellular_hal_extn_profile_modify(struct CellularProfileStruct *pstProfileInput, cellular_device_profile_status_api_callback device_profile_status_cb);
++#endif //CM_EXTN_SUPPORTED
+ 
+ /* cellumanager_get_wanifname function */
+ /**
+@@ -1231,5 +1261,5 @@ void cellumanager_get_wanifname(char *wanIfName,size_t arraySize);
+ * @return None
+ */
+ void cellular_hal_resource_release();
+-
++/** @} */  //END OF GROUP CELLULAR_HAL_APIS
+ #endif //_CELLULAR_HAL_H_
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 8781f5e..efb90fc 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -166,9 +166,14 @@ lookfor_modem (MMManager   *manager,
+     MMObject *found = NULL, *object = NULL;
+     MMModem  *modem = NULL;
+ 
++    g_mutex_lock(&manager_mutex);
+     if( !manager )
++    {
++        CELLULAR_HAL_DBG_PRINT("%s - %d error: couldn't find manager\n",__FUNCTION__,__LINE__);
++        g_mutex_unlock(&manager_mutex);
+         return NULL;
+-    g_mutex_lock(&manager_mutex);
++    }
++
+     modems = g_dbus_object_manager_get_objects (G_DBUS_OBJECT_MANAGER (manager));
+     g_mutex_unlock(&manager_mutex);
+     if (!modems) {
+@@ -205,11 +210,15 @@ get_object (void)
+ {
+     GList *list, *modems = NULL;
+     MMObject *found = NULL, *object = NULL;
+-    
++
++    g_mutex_lock(&manager_mutex);
+     if( !manager )
++    {
++        CELLULAR_HAL_DBG_PRINT("%s - %d error: couldn't find manager\n",__FUNCTION__,__LINE__);
++        g_mutex_unlock(&manager_mutex);
+         return NULL;
++    }
+ 
+-    g_mutex_lock(&manager_mutex);
+     modems = g_dbus_object_manager_get_objects (G_DBUS_OBJECT_MANAGER (manager));
+ 
+     if (!modems) 
+@@ -268,63 +277,107 @@ get_sim_context (CHAR *simIndex)
+     g_autoptr(GPtrArray) sim_slots = NULL;
+     INT i;
+ 
+-    sim_path = get_dBus_path(simIndex, SIM_PATH_PREFIX);
++    g_mutex_lock(&manager_mutex);
++    if( !manager )
++    {
++        CELLULAR_HAL_DBG_PRINT("%s - %d error: couldn't find manager\n",__FUNCTION__,__LINE__);
++        g_mutex_unlock(&manager_mutex);
++        return NULL;
++    }
+ 
+     modems = g_dbus_object_manager_get_objects (G_DBUS_OBJECT_MANAGER (manager));
+-    if (!modems) {
+-        CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't find sim at '%s'\n",
+-                                __FUNCTION__, sim_path);
++    g_mutex_unlock(&manager_mutex);
++
++    sim_path = get_dBus_path(simIndex, SIM_PATH_PREFIX);
++
++    if (!modems)
++    {
+         if(sim_path)
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't find sim at '%s'\n",
++                                    __FUNCTION__, sim_path);
+             g_free (sim_path);
++            sim_path = NULL;
++        }
++        else
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - %d error: couldn't find sim\n",
++                                __FUNCTION__,__LINE__);
++        }
+         return NULL;
+     }
+ 
+-    for (list = modems; !found && list; list = g_list_next (list)) 
++    for (list = modems; !found && list; list = g_list_next (list))
+     {
+         object = MM_OBJECT (list->data);
+-        modem = mm_object_get_modem (object);
+-        if(!sim_path)
++        if(object)
+         {
+-            found = mm_modem_get_sim_sync (modem, NULL, &error);
+-            if (error) 
+-                g_error_free (error); 
+-        }
+-        else
+-        {
+-            if (g_str_equal (sim_path, mm_modem_get_sim_path (modem))) 
+-            {
+-                found = mm_modem_get_sim_sync (modem, NULL, &error);
+-                if (error) 
+-                    g_error_free (error);
+-            }
+-            else
++            modem = mm_object_get_modem (object);
++            if(modem)
+             {
+-                sim_slots = mm_modem_list_sim_slots_sync (modem, NULL, &error);
+-                if (error) 
++                if(!sim_path)
+                 {
+-                    CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get SIM slots in modem '%s': '%s'\n",
+-                                            __FUNCTION__, mm_modem_get_path (modem),error->message);
+-                    g_error_free (error);
++                    found = mm_modem_get_sim_sync (modem, NULL, &error);
++                    if (error)
++                    {
++                        CELLULAR_HAL_DBG_PRINT ("%s - %d error: couldn't load SIM slots in modem '%s': '%s'\n",
++                                                 __FUNCTION__,__LINE__,mm_modem_get_path (modem),error->message);
++                        g_clear_error (&error);
++                    }
+                 }
+                 else
+                 {
+-                    for (i = 0; i < sim_slots->len; i++) 
++                    if (g_str_equal (sim_path, mm_modem_get_sim_path (modem)))
+                     {
+-                        sim = MM_SIM (g_ptr_array_index (sim_slots, i));
+-                        if (sim && g_str_equal (sim_path, mm_sim_get_path (sim))) 
+-                            found = g_object_ref (sim);
++                        found = mm_modem_get_sim_sync (modem, NULL, &error);
++                        if (error)
++                        {
++                            CELLULAR_HAL_DBG_PRINT ("%s - %d error: couldn't load SIM slots in modem '%s': '%s'\n",
++                                                    __FUNCTION__,__LINE__,mm_modem_get_path (modem),error->message);
++                            g_clear_error (&error);
++                        }
+                     }
+-                }   
++                    else
++                    {
++                        sim_slots = mm_modem_list_sim_slots_sync (modem, NULL, &error);
++                        if (error)
++                        {
++                            CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get SIM slots in modem '%s': '%s'\n",
++                                                    __FUNCTION__, mm_modem_get_path (modem),error->message);
++                            g_clear_error (&error);
++                        }
++                        else
++                        {
++                            for (i = 0; i < sim_slots->len; i++)
++                            {
++                                sim = MM_SIM (g_ptr_array_index (sim_slots, i));
++                                if (sim && g_str_equal (sim_path, mm_sim_get_path (sim)))
++                                    found = g_object_ref (sim);
++                            }
++                        }
++                    }
++                }
++                g_clear_object (&modem);
++            }
++            else
++            {
++                CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get modem from object\n",__FUNCTION__,__LINE__);
+             }
+         }
+-        g_clear_object (&modem);
++        else
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - %d error: unable to get object\n",__FUNCTION__,__LINE__);
++        }
+     }
+     g_list_free_full (modems, g_object_unref);
+-    
++
+     if(sim_path)
++    {
+         g_free (sim_path);
+-    
+-    if (!found) 
++        sim_path = NULL;
++    }
++
++    if (!found)
+     {
+         CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't find sim\n", __FUNCTION__);
+     }
+@@ -348,14 +401,17 @@ get_sim_context (CHAR *modemIndex)
+         return NULL;
+ 
+     modem = mm_object_get_modem (object);
+-    found = mm_modem_get_sim_sync (modem, NULL, &error);
+-    if (!found)
++    if (modem)
+     {
+-        if (error)
++        found = mm_modem_get_sim_sync (modem, NULL, &error);
++        if (!found)
+         {
+-            CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get sim'%s'\n",
+-                                    __FUNCTION__, error->message);
+-            g_error_free (error);
++            if (error)
++            {
++                CELLULAR_HAL_DBG_PRINT ("%s - error: couldn't get sim'%s'\n",
++                                        __FUNCTION__, error->message);
++                g_clear_error (&error);
++            }
+         }
+     }
+ 
+@@ -399,9 +455,13 @@ get_bearer_context (const gchar *path_or_index)
+ 
+     bearer_path = get_dBus_path(path_or_index, BEARER_PATH_PREFIX);
+ 
++    g_mutex_lock (&manager_mutex);
+     if(!manager)
++    {
++        CELLULAR_HAL_DBG_PRINT("%s - %d error: couldn't find manager\n",__FUNCTION__,__LINE__);
++        g_mutex_unlock (&manager_mutex);
+         return NULL;
+-    g_mutex_lock (&manager_mutex);
++    }
+     modems = g_dbus_object_manager_get_objects (G_DBUS_OBJECT_MANAGER (manager));
+     g_mutex_unlock (&manager_mutex);
+     if (!modems) {
+@@ -767,7 +827,15 @@ INT cellular_hal_mm_get_modem_index (CHAR *index)
+     INT res = RETURN_ERROR;
+     MMObject *object = NULL;
+ 
++    g_mutex_lock(&manager_mutex);
++    if( !manager )
++    {
++        CELLULAR_HAL_DBG_PRINT("%s - %d error: couldn't find manager\n",__FUNCTION__,__LINE__);
++        g_mutex_unlock(&manager_mutex);
++        return res;
++    }
+     modems = g_dbus_object_manager_get_objects (G_DBUS_OBJECT_MANAGER (manager));
++    g_mutex_unlock(&manager_mutex);
+     if (!modems) {
+         return RETURN_ERROR;
+     }
+@@ -970,6 +1038,7 @@ BOOLEAN cellular_hal_mm_is_modem_ready (CHAR *index)
+     Context *ctx;
+     BOOLEAN res = FALSE;
+     ModemState modemState = MODEM_STATE_UNKNOWN;
++    GError *error = NULL;
+ 
+     ctx = g_new0 (Context, 1);
+     ctx->object = get_modem_context (index);
+@@ -980,7 +1049,32 @@ BOOLEAN cellular_hal_mm_is_modem_ready (CHAR *index)
+         {
+             modemState = mm_modem_get_state(ctx->modem);
+             if( modemState != MODEM_STATE_DISABLING && modemState >= MODEM_STATE_DISABLED )
++            {
++#ifndef IP_CONTINUITY_ENABLED
++                /* Disable modem to avoid out of sync possibility between MM and CM due to unreceived MM events
++                 * IP continuity flow takes care of this as CM state machine follows current MM state */
++                if(modemState > MODEM_STATE_ENABLED)
++                {
++                    CELLULAR_HAL_DBG_PRINT ("%s - %d : Modem state is greater than ENABLED, Disabling Modem\n",
++                        __FUNCTION__,__LINE__);
++
++                    mm_modem_disable_sync(ctx->modem,NULL,&error);
++                    if(error)
++                    {
++                        CELLULAR_HAL_DBG_PRINT ("%s - Failed to disable modem '%s': error '%s'\n",
++                                               __FUNCTION__, mm_modem_get_path (ctx->modem),error->message);
++                        g_clear_error (&error);
++                    }
++                    else
++                    {
++                        /* Update modem state */
++                        modemState = mm_modem_get_state(ctx->modem);
++                    }
++                }
++#endif //!IP_CONTINUITY_ENABLED
++                CELLULAR_HAL_DBG_PRINT ("%s - %d : Modem has completed initialization\n",__FUNCTION__,__LINE__);
+                 res = TRUE;
++            }
+ 
+             if( mmState == MODEM_STATE_UNKNOWN )
+                 mmState = modemState;
+@@ -2844,3 +2938,67 @@ void cellular_hal_unwatch_modem_interface(void)
+     }
+ }
+ 
++/* cellular_hal_mm_modem_disable_sync() function */
++/**
++* @description - This function will disable the modem synchronously.
++*
++* @param[in] index
++* @param[out] none
++* @return RETURN_OK on success, error code otherwise
++*
++*/
++int cellular_hal_mm_modem_disable_sync (CHAR *index)
++{
++    Context *ctx = NULL;
++    int res = RETURN_ERROR;
++    ModemState modemState = MODEM_STATE_UNKNOWN;
++    GError *error = NULL;
++
++    ctx = g_new0 (Context, 1);
++    if (!ctx)
++    {
++        CELLULAR_HAL_DBG_PRINT ("%s - Memory allocation failed\n", __FUNCTION__);
++        return RETURN_ERROR;
++    }
++
++    ctx->object = get_modem_context (index);
++    if(ctx->object)
++    {
++        ctx->modem = mm_object_get_modem (ctx->object);
++        if(ctx->modem)
++        {
++            mm_modem_disable_sync(ctx->modem,NULL,&error);
++            if(error)
++            {
++                CELLULAR_HAL_DBG_PRINT ("%s - Failed to disable modem %s: error '%s'\n",
++                        __FUNCTION__,
++                        ctx->modem ? mm_modem_get_path(ctx->modem) : "unknown",
++                        error->message);
++                g_clear_error (&error);
++            }
++            else
++            {
++                /* Update modem state */
++                modemState = mm_modem_get_state(ctx->modem);
++                res = RETURN_OK;
++            }
++
++            mmState = modemState;
++            cellular_hal_mm_get_modem_port(ctx->modem);
++        }
++        else
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - Unable to fetch modem object\n", __FUNCTION__);
++        }
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT ("%s - Unable to fetch modem context\n", __FUNCTION__);
++    }
++
++    if(ctx)
++    {
++        context_free(ctx);
++    }
++    return res;
++}
+diff --git a/source/CellularManager/cellular_hal_mm_apis.h b/source/CellularManager/cellular_hal_mm_apis.h
+index 5e2bc72..e58bb42 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.h
++++ b/source/CellularManager/cellular_hal_mm_apis.h
+@@ -388,6 +388,7 @@ void cellular_hal_mm_extn_trigger_state_change_from_sm(ModemState old_state, Mod
+ #endif
+ void on_modem_manager_vanished(GDBusConnection *connection, const gchar *name, gpointer user_data);
+ void cellular_hal_mm_resource_release(void);
++int cellular_hal_mm_modem_disable_sync (CHAR *index);
+ /* cellular_hal_mm_disable_modem() function */
+ /**
+ * @description - This function performs modem disable.
+diff --git a/source/CellularManager/cellularmgr_cellular_apis.c b/source/CellularManager/cellularmgr_cellular_apis.c
+index 72c723c..1397b52 100755
+--- a/source/CellularManager/cellularmgr_cellular_apis.c
++++ b/source/CellularManager/cellularmgr_cellular_apis.c
+@@ -1043,7 +1043,7 @@ int CellularMgr_AccessPointCreateProfile( PCELLULAR_INTERFACE_ACCESSPOINT_INFO p
+ 
+     //Create Profile
+ #ifdef CM_EXTN_SUPPORTED
+-    if ( RETURN_OK != cellular_hal_extn_profile_create( &stProfileInput, NULL ) )
++    if ( RETURN_OK != cellular_hal_extn_profile_create( &stProfileInput, NULL, FALSE ) )
+ #else
+     if ( RETURN_OK != cellular_hal_profile_create( &stProfileInput, NULL ) )
+ #endif
+@@ -1802,6 +1802,51 @@ int CellularMgr_GetDeviceInfo( PCELLULAR_DML_INFO pstDeviceInfo )
+     return RETURN_OK;
+ }
+ 
++int CellularMgr_GetSupportedAccessTechnologies(char *pSupportedAccessTechnologies)
++{
++    return( cellular_hal_get_supported_access_technologies( pSupportedAccessTechnologies ) );
++}
++
++int CellularMgr_GetPreferedAccessTechnologies(char *pPreferedAccessTechnologies)
++{
++    return( cellular_hal_get_prefered_access_technologies( pPreferedAccessTechnologies ) );
++}
++
++int CellularMgr_GetCurrentAccessTechnology(char *pCurrentAccessTechnology)
++{
++    return( cellular_hal_get_current_access_technology( pCurrentAccessTechnology ) );
++}
++int CellularMgr_GetDataInterface(char *pDataInterface)
++{
++    return( cellular_hal_get_data_interface( pDataInterface ) );
++}
++CELLULAR_RDK_DEVICETYPE CellularMgr_GetModemDeviceType()
++{
++    return cellular_hal_get_modem_device_type();
++}
++int CellularMgr_SetDeviceType(PCELLULAR_DML_INFO pstDeviceInfo)
++{
++    return cellular_hal_set_modem_device_type(pstDeviceInfo->X_RDK_DeviceType, (void *)&pstDeviceInfo->ModemInterfaceInfo);
++}
++
++void set_wan_ifname(char* wan_ifname,int index)
++{
++    char param_name[64];
++
++    snprintf(param_name,sizeof(param_name),"dmsb.wanmanager.if.%d.Name",index);
++    if ( cellular_hal_get_data_interface( wan_ifname ) == RETURN_OK)    // Updating correct wan_ifname once connection is established by using MM APIs
++    {
++        int set_wan_to_psm = CellularMgr_RdkBus_SetParamValuesToDB(param_name,wan_ifname);
++        if (set_wan_to_psm != PSM_WRITE_SUCCESS) {
++            CcspTraceInfo(("%s ERROR: WAN INTERFACE NOT UPDATED TO PSM\n",__FUNCTION__));
++        }
++    }
++    else
++    {
++	    CcspTraceInfo(("%s COULDN'T QUERY PROPER WAN INTERFACE NAME\n", __FUNCTION__));
++    }
++}
++
+ /* CellularMgr_SignalHandlerCleanup() function */
+ /**
+ * @description - This function performs deletion of current interface, disable modem and hal resource clean up
+@@ -1833,6 +1878,19 @@ void CellularMgr_SignalHandlerCleanup(void)
+     /* Unwatch the MM dbus interface */
+     cellular_hal_unwatch_modem_interface();
+ 
++#if defined(CM_EXTN_SUPPORTED) && defined(CM_PROP_SUPPORTED)
++    /* Clearing the current MM context held in CM */
++    if(0 != cellular_hal_extn_mm_clear_modem_signal_handler(NULL))
++        CcspTraceError(("%s:%d - Failed to clear modem signal handler\n", __FUNCTION__, __LINE__));
++
++    /* Deregistering CDM */
++    if ( 0 != cellular_hal_extn_prop_deregister_cdm())
++    {
++        CcspTraceError(("%s : Failed to deregister CDM application\n", __FUNCTION__));
++    }
++
++#endif //CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
++
+ #ifndef IP_CONTINUITY_ENABLED
+     if (RETURN_OK == CellularMgr_extn_Get_Modem_Status(modemStatus, BUFFER_SIZE_10))
+     {
+@@ -1853,48 +1911,3 @@ void CellularMgr_SignalHandlerCleanup(void)
+     cellular_hal_resource_release();
+ 
+ }
+-
+-int CellularMgr_GetSupportedAccessTechnologies(char *pSupportedAccessTechnologies)
+-{
+-    return( cellular_hal_get_supported_access_technologies( pSupportedAccessTechnologies ) );
+-}
+-
+-int CellularMgr_GetPreferedAccessTechnologies(char *pPreferedAccessTechnologies)
+-{
+-    return( cellular_hal_get_prefered_access_technologies( pPreferedAccessTechnologies ) );
+-}
+-
+-int CellularMgr_GetCurrentAccessTechnology(char *pCurrentAccessTechnology)
+-{
+-    return( cellular_hal_get_current_access_technology( pCurrentAccessTechnology ) );
+-}
+-int CellularMgr_GetDataInterface(char *pDataInterface)
+-{
+-    return( cellular_hal_get_data_interface( pDataInterface ) );
+-}
+-
+-void set_wan_ifname(char* wan_ifname,int index)
+-{
+-    char param_name[64];
+-
+-    snprintf(param_name,sizeof(param_name),"dmsb.wanmanager.if.%d.Name",index);
+-    if ( cellular_hal_get_data_interface( wan_ifname ) == RETURN_OK)    // Updating correct wan_ifname once connection is established by using MM APIs
+-    {
+-        int set_wan_to_psm = CellularMgr_RdkBus_SetParamValuesToDB(param_name,wan_ifname);
+-        if (set_wan_to_psm != PSM_WRITE_SUCCESS) {
+-            CcspTraceInfo(("%s ERROR: WAN INTERFACE NOT UPDATED TO PSM\n",__FUNCTION__));
+-        }
+-    }
+-    else
+-    {
+-	    CcspTraceInfo(("%s COULDN'T QUERY PROPER WAN INTERFACE NAME\n", __FUNCTION__));
+-    }
+-}
+-CELLULAR_RDK_DEVICETYPE CellularMgr_GetModemDeviceType()
+-{
+-    return cellular_hal_get_modem_device_type();
+-}
+-int CellularMgr_SetDeviceType(PCELLULAR_DML_INFO pstDeviceInfo)
+-{
+-    return cellular_hal_set_modem_device_type(pstDeviceInfo->X_RDK_DeviceType, (void *)&pstDeviceInfo->ModemInterfaceInfo);
+-}
+diff --git a/source/CellularManager/cellularmgr_main.c b/source/CellularManager/cellularmgr_main.c
+index cab8692..f6f8265 100755
+--- a/source/CellularManager/cellularmgr_main.c
++++ b/source/CellularManager/cellularmgr_main.c
+@@ -319,6 +319,15 @@ int main(int argc, char* argv[])
+     signal(SIGILL, sig_handler);
+     signal(SIGQUIT, sig_handler);
+     signal(SIGHUP, sig_handler);
++    signal(SIGALRM, sig_handler);
++    signal(SIGABRT, sig_handler);
++    signal(SIGSTKFLT, sig_handler);
++    signal(SIGXCPU, sig_handler);
++    signal(SIGXFSZ, sig_handler);
++    signal(SIGVTALRM, sig_handler);
++    signal(SIGPROF, sig_handler);
++    signal(SIGPWR, sig_handler);
++    signal(SIGSYS, sig_handler);
+ #endif
+ 
+     cmd_dispatch('e');
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 403608a..f573d4d 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -95,9 +95,18 @@ extern int sc_flag;
+ /**********************************************************************
+     GLOBAL or LOCAL DEFINITIONS and STRUCTURE or ENUM DECLARATION
+ **********************************************************************/
++#ifdef CM_EXTN_SUPPORTED
++typedef struct
++_CellularRecoveryInfoStruct
++{
++    pthread_mutex_t                  recoveryMutex;
++    CellularPolicySmState_t          enRecoveryTargetState;
++}
++CellularRecoveryInfoStruct, *pCellularRecoveryInfoStruct;
++#endif //CM_EXTN_SUPPORTED
+ 
+ /** Policy Control SM */
+-typedef  struct                                     
++typedef  struct
+ {
+     CellularPolicySmState_t                   enCurrentSMState;
+     unsigned char                             bRDKEnable;
+@@ -126,6 +135,7 @@ typedef  struct
+     unsigned char                             bIPv6WaitingForPacketStatus;
+ #ifdef CM_EXTN_SUPPORTED
+     RoamingEnabled_t                          enRoamingEnabled;
++    CellularRecoveryInfoStruct                stRecoverySMState;
+ #endif //CM_EXTN_SUPPORTED
+     PCELLULAR_INTERFACE_INFO                  pCmIfData;
+     PCELLULAR_DML_INFO                        pstDmlCellular;
+@@ -169,6 +179,8 @@ sem_t apn_ctx_sem; // This is a protection semaphore for APN context update
+ sem_t state_chg_sem; // This is a protection semaphore for state change
+ sem_t mm_sm_sync_sem;// This is for async signalling of CM state machine
+ 
++static bool CellularMgr_isDefaultAPNActive(void);
++static CellularPolicySmState_t CellularMgr_fetchRecoveryStateBasedOnModemState(void);
+ static CellularPolicySmState_t CellularMgr_getPolicyStructureRecoveryState(void);
+ static void CellularMgr_setPolicyStructureRecoveryState(CellularPolicySmState_t enRecoveryTargetState);
+ #endif //CM_EXTN_SUPPORTED
+@@ -347,6 +359,7 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+     char str_value[32];
+     char dns_buf[256] = {0};
+     char *pIpSource = NULL;
++
+     if( NULL == pstIPStruct )
+     {
+         CcspTraceInfo(("%s - IP Information not available\n", __FUNCTION__));
+@@ -386,8 +399,12 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+            memcpy(&gpstCellularPolicyCtrl->stIPv4Info, pstIPStruct, sizeof(CellularIPStruct));
+         }
+ 
+-	//Set associated sysevents
++        // Set associated sysevents
++#ifdef CM_EXTN_SUPPORTED
++        if((sysevent_fd >= 0) && (CELLULAR_STATE_CONNECTED != CellularMgr_getPolicyStructureRecoveryState()))
++#else
+         if(sysevent_fd >= 0)
++#endif //CM_EXTN_SUPPORTED
+         {
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V4_SUBNET, pstIPStruct->SubnetMask, 0);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V4_GWADDR, pstIPStruct->DefaultGateWay, 0);
+@@ -398,8 +415,7 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+             snprintf(str_value, sizeof(str_value), "%d", pstIPStruct->MTUSize);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V4_MTU,str_value, 0);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V4_IPADDR, pstIPStruct->IPAddress, 0);
+-	}
+-
++        }
+     }
+     else
+     {
+@@ -415,8 +431,12 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+            memcpy(&gpstCellularPolicyCtrl->stIPv6Info, pstIPStruct, sizeof(CellularIPStruct));
+         }
+ 
+-	//Set associated sysevents
++        //Set associated sysevents
++#ifdef CM_EXTN_SUPPORTED
++        if((sysevent_fd >= 0) && (CELLULAR_STATE_CONNECTED != CellularMgr_getPolicyStructureRecoveryState()))
++#else
+         if(sysevent_fd >= 0)
++#endif //CM_EXTN_SUPPORTED
+         {
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_IFNAME, pstIPStruct->WANIFName, 0);
+             sysevent_set(sysevent_fd, sysevent_token,SYSEVENT_CM_WAN_V6_GWADDR, pstIPStruct->DefaultGateWay, 0);
+@@ -475,6 +495,15 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+         return RETURN_ERROR;
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++
++    /* CM recovered; modem already connected — skip link/PHY update and IP info send to WAN Manager */
++    if(CELLULAR_STATE_CONNECTED == CellularMgr_getPolicyStructureRecoveryState())
++    {
++        return RETURN_OK;
++    }
++#endif //CM_EXTN_SUPPORTED
++
+ #ifdef CM_EXTN_SUPPORTED
+     if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK )
+ #else
+@@ -721,6 +750,15 @@ static CellularPolicySmState_t TransitionDown( void )
+     gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
+     gpstCellularPolicyCtrl->bIsLoopbackMode                    = FALSE;
+ 
++#if defined (IP_CONTINUITY_ENABLED) && defined (CM_EXTN_SUPPORTED)
++    /*Prevent transition of link/physical status to 'down' state during recovery
++    to ensure WAN interface remains active until modem status is retrieved*/
++    if(CELLULAR_STATUS_UNKNOWN == CellularMgr_getPolicyStructureRecoveryState())
++    {
++        return CELLULAR_STATE_DOWN;
++    }
++#endif //CM_EXTN_SUPPORTED && IP_CONTINUITY_ENABLED
++
+     //PhyStatus should be down
+     CcspTraceInfo(("%s - Updating physical status to DOWN for this '%s' interface\n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
+ #ifndef CM_EXTN_SUPPORTED
+@@ -748,28 +786,37 @@ static CellularPolicySmState_t TransitionDown( void )
+ static CellularPolicySmState_t TransitionDeactivated( void )
+ {
+     CellularDeviceContextCBStruct stDeviceCtxCB = {0};
++#ifdef CM_EXTN_SUPPORTED
++    CellularPolicySmState_t targetRecoveryState = CellularMgr_getPolicyStructureRecoveryState();
+ 
+-    //PhyStatus should be down
+-    CcspTraceInfo(("%s - Updating physical status to DOWN for this '%s' interface\n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
++    if((CELLULAR_STATE_REGISTERED != targetRecoveryState ) &&
++       (CELLULAR_STATE_CONNECTED != targetRecoveryState )
++    )
++    {
++#endif
++        //PhyStatus should be down
++        CcspTraceInfo(("%s - Updating physical status to DOWN for this '%s' interface\n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
+ #ifndef CM_EXTN_SUPPORTED
+-    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_NOT_READY) != RETURN_OK)
++        if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_NOT_READY) != RETURN_OK)
+ #else
+-    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK)
++        if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK)
+ #endif //CM_EXTN_SUPPORTED
+-    {
+-        CcspTraceInfo(("%s %d: Failed to set PhyStatus in Interface table\n", __FUNCTION__, __LINE__));
+-    }
++        {
++            CcspTraceInfo(("%s %d: Failed to set PhyStatus in Interface table\n", __FUNCTION__, __LINE__));
++        }
+ #ifdef HYBRID_SUPPORT
+-    gpstCellularPolicyCtrl->pCmIfData->X_RDK_LinkAvailableStatus = false;
+-    CcspTraceError(("%s %d - Updated X_RDK_LinkAvailableStatus to false \n", __FUNCTION__, __LINE__));
++        gpstCellularPolicyCtrl->pCmIfData->X_RDK_LinkAvailableStatus = false;
++        CcspTraceError(("%s %d - Updated X_RDK_LinkAvailableStatus to false \n", __FUNCTION__, __LINE__));
+ #endif
+-    //LinkStatus should be down
+-    CcspTraceInfo(("%s - Updating link status to Down for this '%s' interface \n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
+-    if ( CellularMgrUpdateLinkStatus (gpstCellularPolicyCtrl->acWANIfName, DOWN_STR) != RETURN_OK)
+-    {
+-        CcspTraceInfo(("%s %d: Failed to set LinkStatus in Interface table\n", __FUNCTION__, __LINE__));
++        //LinkStatus should be down
++        CcspTraceInfo(("%s - Updating link status to Down for this '%s' interface \n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
++        if ( CellularMgrUpdateLinkStatus (gpstCellularPolicyCtrl->acWANIfName, DOWN_STR) != RETURN_OK)
++        {
++            CcspTraceInfo(("%s %d: Failed to set LinkStatus in Interface table\n", __FUNCTION__, __LINE__));
++        }
++#ifdef CM_EXTN_SUPPORTED
+     }
+-
++#endif
+     gpstCellularPolicyCtrl->enDeviceOpenStatus = DEVICE_OPEN_STATUS_INPROGRESS;
+ 
+     //Request Device Open
+@@ -783,17 +830,30 @@ static CellularPolicySmState_t TransitionDeactivated( void )
+ static CellularPolicySmState_t TransitionDeregistered( void )
+ {
+ #ifndef HYBRID_SUPPORT
+-    CcspTraceInfo(("%s - Updating Physical Status for '%s' device '%s' interface, Status[%d]\n", __FUNCTION__, gpstCellularPolicyCtrl->acDeviceName, gpstCellularPolicyCtrl->acWANIfName, gpstCellularPolicyCtrl->enDeviceOpenStatus ));
+ #ifdef CM_EXTN_SUPPORTED
+-    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK )
++    CellularPolicySmState_t targetRecoveryState = CellularMgr_getPolicyStructureRecoveryState();
++
++    if((CELLULAR_STATE_REGISTERED != targetRecoveryState ) &&
++       (CELLULAR_STATE_CONNECTED != targetRecoveryState )
++    )
++    {
++#endif //CM_EXTN_SUPPORTED
++        CcspTraceInfo(("%s - Updating Physical Status for '%s' device '%s' interface, Status[%d]\n",
++            __FUNCTION__, gpstCellularPolicyCtrl->acDeviceName, gpstCellularPolicyCtrl->acWANIfName,
++            gpstCellularPolicyCtrl->enDeviceOpenStatus ));
++#ifdef CM_EXTN_SUPPORTED
++        if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, DEVICE_OPEN_STATUS_READY) != RETURN_OK )
+ #else
+-    if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, gpstCellularPolicyCtrl->enDeviceOpenStatus) != RETURN_OK)
++        if ( CellularMgrUpdatePhyStatus (gpstCellularPolicyCtrl->acWANIfName, gpstCellularPolicyCtrl->enDeviceOpenStatus) != RETURN_OK)
+ #endif //CM_EXTN_SUPPORTED
+-    {
+-        CcspTraceError(("%s - Failed to set Interface Phy status\n", __FUNCTION__));
+-        return RETURN_ERROR;
++        {
++            CcspTraceError(("%s - Failed to set Interface Phy status\n", __FUNCTION__));
++            return RETURN_ERROR;
++        }
++#ifdef CM_EXTN_SUPPORTED
+     }
+-#endif
++#endif //CM_EXTN_SUPPORTED
++#endif //HYBRID_SUPPORT
+     gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus = DEVICE_SLOT_STATUS_SELECTING;
+     gpstCellularPolicyCtrl->enDeviceNASRegisterStatus   = DEVICE_NAS_STATUS_NOT_REGISTERED;
+     gpstCellularPolicyCtrl->enRegisteredService         = CELLULAR_MODEM_REGISTERED_SERVICE_NONE;
+@@ -801,6 +861,18 @@ static CellularPolicySmState_t TransitionDeregistered( void )
+     //Request Device Slot Selection
+     cellular_hal_select_device_slot( CellularMgrDeviceSlotStatusCBForSM );
+ 
++#ifdef CM_EXTN_SUPPORTED
++    targetRecoveryState = CellularMgr_getPolicyStructureRecoveryState();
++
++    /* Modem is in a registered/connected state — initializing slot status as 'Ready' */
++    if((CELLULAR_STATE_REGISTERED == targetRecoveryState ) ||
++      (CELLULAR_STATE_CONNECTED == targetRecoveryState )
++    )
++    {
++        gpstCellularPolicyCtrl->enDeviceSlotSelectionStatus = DEVICE_SLOT_STATUS_READY;
++    }
++#endif //CM_EXTN_SUPPORTED
++
+     return CELLULAR_STATE_DEREGISTERED;
+ }
+ 
+@@ -835,7 +907,17 @@ static CellularPolicySmState_t TransitionRegistered( void )
+ 
+     //Request Device Profile Create
+ #ifdef CM_EXTN_SUPPORTED
+-    if (RETURN_OK != cellular_hal_extn_profile_create( &(gpstCellularPolicyCtrl->stContextProfile), CellularMgrProfileStatusCBForSM ))
++    bool bRecoveryEnabled = FALSE;
++    CellularPolicySmState_t targetRecoveryState = CellularMgr_getPolicyStructureRecoveryState();
++
++    if((CELLULAR_STATE_REGISTERED == targetRecoveryState ) ||
++      (CELLULAR_STATE_CONNECTED == targetRecoveryState )
++    )
++    {
++        bRecoveryEnabled = TRUE;
++    }
++
++    if (RETURN_OK != cellular_hal_extn_profile_create( &(gpstCellularPolicyCtrl->stContextProfile), CellularMgrProfileStatusCBForSM, bRecoveryEnabled))
+     {
+        CcspTraceInfo(("%s %d PROFILE CREATE FAILED!!\n", __FUNCTION__, __LINE__));/*Revert the Profile selection status - either APN is not valid or current APN is not yet set*/
+     }
+@@ -850,6 +932,43 @@ static CellularPolicySmState_t TransitionRegistered( void )
+ static CellularPolicySmState_t TransitionRegisteredStartNetwork( void )
+ {
+     CellularNetworkCBStruct stNetworkCB = {0};
++    int currentModemState = 0;
++
++#ifdef CM_EXTN_SUPPORTED
++    /*For IP Continuity case bearer info is known for both Ipv4 and v6 from CM start itself*/
++    /*Hence cellular_hal_start_network need to be called only once */
++    if(CELLULAR_STATE_CONNECTED == CellularMgr_getPolicyStructureRecoveryState())
++    {
++        if( ( CELLULAR_PDP_TYPE_IPV4 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
++            ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++        )
++        {
++            gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress        = TRUE;
++            gpstCellularPolicyCtrl->bIPv4WaitingForPacketStatus        = TRUE;
++            gpstCellularPolicyCtrl->enNetworkIPv4PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
++            gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus         = DEVICE_NETWORK_IP_NOT_READY;
++        }
++        if( ( CELLULAR_PDP_TYPE_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile ) ||
++            ( CELLULAR_PDP_TYPE_IPV4_OR_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++            )
++        {
++            gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress        = TRUE;
++            gpstCellularPolicyCtrl->bIPv6WaitingForPacketStatus        = TRUE;
++            gpstCellularPolicyCtrl->enNetworkIPv6PacketServiceStatus   = DEVICE_NETWORK_STATUS_DISCONNECTED;
++            gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus         = DEVICE_NETWORK_IP_NOT_READY;
++        }
++        stNetworkCB.device_network_ip_ready_cb = CellularMgrIPReadyCBForSM;
++        stNetworkCB.packet_service_status_cb   = CellularMgrPacketServiceStatusCBForSM;
++
++        CcspTraceInfo(("%s %d - Starting IP Network\n", __FUNCTION__, __LINE__));
++        /*CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED is used as IPv4 and/or IPv6 data is sent*/
++        /*In hal with MM_SUPPORT first parameter (CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED)is not used.*/
++        /*This need to be addressed seperately for QMI_SUPPORT*/
++        cellular_hal_start_network( CELLULAR_NETWORK_IP_FAMILY_UNSPECIFIED, NULL, &stNetworkCB );
++
++        return CELLULAR_STATE_REGISTERED;
++    }
++#endif
+ #ifndef HYBRID_SUPPORT
+     //LinkStatus should be Up
+     CcspTraceInfo(("%s - Updating link status to UP for this '%s' interface \n", __FUNCTION__, gpstCellularPolicyCtrl->acWANIfName));
+@@ -1072,6 +1191,16 @@ void CellularMgrSMCheckAndSetWWANConnectionStatus( CellularPolicySmState_t smSta
+         break;
+     }
+ 
++#ifdef CM_EXTN_SUPPORTED
++    CellularPolicySmState_t targetRecoveryState = CellularMgr_getPolicyStructureRecoveryState();
++    /* Skip status publish post-CM restart to prevent WAN IF down */
++    if((CELLULAR_STATE_REGISTERED == targetRecoveryState ) ||
++       (CELLULAR_STATE_CONNECTED == targetRecoveryState )
++    )
++    {
++        return;
++    }
++#endif //CM_EXTN_SUPPORTED
+ #ifdef RBUS_BUILD_FLAG_ENABLE
+     CellularMgr_RBUS_Events_PublishInterfaceStatus(PrevStatus,gpstCellularPolicyCtrl->pCmIfData->Status);
+     CellularMgr_RBUS_Events_PublishPhyConnectionStatus(bPreviousPhyConnectedStatus,gpstCellularPolicyCtrl->pCmIfData->X_RDK_PhyConnectedStatus);
+@@ -1156,9 +1285,25 @@ static CellularPolicySmState_t StateDown( void )
+         mmTimerStatus = FALSE;
+         CcspTraceInfo(("%s - %d one-shot timer has been killed\n", __FUNCTION__,__LINE__));
+ 
+-        /*PRAT is not persistent in modem. Hence,. setting it from CM on modem bringup*/
+-        CellularMgr_extn_SetInitVal(CELLULAR_INIT_PARAM_PRAT,
+-            gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->PreferredAccessTechnologies);
++        /* If the recovery target state in the SM structure is unknown,
++        update it using the modem's state when the modem is detected. */
++        CellularPolicySmState_t enRecoveryTargetState = CellularMgr_fetchRecoveryStateBasedOnModemState();
++        /* Update the target state in the PolicyControl structure,
++        based on the modem's current state */
++        CellularMgr_setPolicyStructureRecoveryState(enRecoveryTargetState);
++
++        if((CELLULAR_STATE_REGISTERED == enRecoveryTargetState) ||
++           (CELLULAR_STATE_CONNECTED == enRecoveryTargetState))
++        {
++            CcspTraceInfo(("%s - %d CM Recovery Enabled with targetRecoveryState:%s\n", __FUNCTION__,__LINE__,
++                (enRecoveryTargetState == CELLULAR_STATE_CONNECTED)? "Connected" : "Registered"));
++        }
++        else
++        {
++            /*PRAT is not persistent in modem. Hence,. setting it from CM on modem bringup*/
++            CellularMgr_extn_SetInitVal(CELLULAR_INIT_PARAM_PRAT,
++                gpstCellularPolicyCtrl->pstDmlCellular->pstInterfaceInfo->PreferredAccessTechnologies);
++        }
+ #ifdef CM_PROP_SUPPORTED
+         /* Set datausage refresh timer once modem is discovered */
+         if(RETURN_OK != CellularMgr_extn_InitDataUsageRefreshTimeFromPSM())
+@@ -1328,8 +1473,27 @@ static CellularPolicySmState_t StateDeregistered( void )
+         ( gpstCellularPolicyCtrl->pCmIfData->Enable == TRUE ) &&
+         ( DEVICE_NAS_STATUS_NOT_REGISTERED == gpstCellularPolicyCtrl->enDeviceNASRegisterStatus ) )
+     {
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++        CellularPolicySmState_t targetRecoveryState = CellularMgr_getPolicyStructureRecoveryState();
+ 
+-         TransitionRegistering( );
++        if((CELLULAR_STATE_REGISTERED == targetRecoveryState ) ||
++           (CELLULAR_STATE_CONNECTED == targetRecoveryState )
++        )
++        {
++            int currentModemState = 0;
++            if(RETURN_OK == cellular_hal_extn_get_current_modem_state(&currentModemState))
++            {
++                /* Modifications made to ensure SSR handling post CM recovery. */
++                cellular_hal_mm_extn_trigger_state_change_from_sm(currentModemState, currentModemState);
++            }
++            else
++            {
++                CcspTraceInfo(("%s:%d - Unexpected error: recovery state is already"
++                " in registered or connected state!\n", __FUNCTION__, __LINE__));
++            }
++        }
++#endif //CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
++        TransitionRegistering( );
+     }
+ 
+     if( DEVICE_NAS_STATUS_REGISTERED == gpstCellularPolicyCtrl->enDeviceNASRegisterStatus )
+@@ -1600,6 +1764,17 @@ static ANSC_STATUS CellularMgr_ControllerInit( CellularMgrSMInputStruct    *pstI
+         }
+         /* Updating AP table with values from PSM to prevent cellular manager from crashing when setting AP table parameters through dmcli before doing a dm get */
+         CellularMgr_extn_GetAccessPoint_for_SM( &(gpstCellularPolicyCtrl->pstDmlCellular->pstAPInfo), (int*)&gpstCellularPolicyCtrl->pstDmlCellular->ulAccessPointNoOfEntries);
++
++        if(pthread_mutex_init(&(gpstCellularPolicyCtrl->stRecoverySMState.recoveryMutex), NULL))
++        {
++            CcspTraceError(("%s %d - Failed to initialize recovery mutex\n", __FUNCTION__, __LINE__));
++            gpstCellularPolicyCtrl->stRecoverySMState.enRecoveryTargetState = CELLULAR_STATE_DOWN;
++        }
++        else
++        {
++            gpstCellularPolicyCtrl->stRecoverySMState.enRecoveryTargetState = CELLULAR_STATUS_UNKNOWN;
++        }
++
+ #ifdef CM_PROP_SUPPORTED
+         set_sm_roaming_init_value(gpstCellularPolicyCtrl->pstDmlCellular->RoamingEnabled);
+ #endif //CM_PROP_SUPPORTED
+@@ -1708,6 +1883,11 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+                     CcspTraceInfo(("%s: Prefix Delegation not enabled \n", __FUNCTION__));
+                 }
+             }
++            /*Update Recovery Target state to manage modem state rollback*/
++            if(policy_sm_state < policy_sm_state_old)
++            {
++                CellularMgr_setPolicyStructureRecoveryState(CELLULAR_STATE_DOWN);
++            }
+ #endif // CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
+ 
+ #ifdef CM_EXTN_SUPPORTED
+@@ -1760,6 +1940,19 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+         }
+ 
+ #ifdef CM_EXTN_SUPPORTED
++        targetRecoveryState  = CellularMgr_getPolicyStructureRecoveryState();
++
++        if(((CELLULAR_STATE_REGISTERED == targetRecoveryState ) ||
++           (CELLULAR_STATE_CONNECTED == targetRecoveryState )) &&
++           (policy_sm_state == targetRecoveryState)
++        )
++        {
++            CcspTraceInfo(("%s %d - Resetting PolicyControl's targetRecoveryState "
++                "as cellular manager reaches its designated Target State\n",
++                 __FUNCTION__, __LINE__));
++            CellularMgr_setPolicyStructureRecoveryState(CELLULAR_STATE_DOWN);
++        }
++
+         if (gpstCellularPolicyCtrl != NULL)
+         {
+             if (state_chg_flag == 1)
+@@ -1777,6 +1970,11 @@ static void* CellularMgr_StateMachine_Thread( void *arg )
+     if(gpstCellularPolicyCtrl)
+     {
+ #ifdef CM_EXTN_SUPPORTED
++        if(pthread_mutex_destroy(&(gpstCellularPolicyCtrl->stRecoverySMState.recoveryMutex)) != 0)
++        {
++            CcspTraceError((" %s %d - Failed to destroy recoveryMutex \n", __FUNCTION__, __LINE__));
++        }
++
+         CellularMgr_extn_DataQuotaMetaInfoManageMutexInitDeInit(FALSE);
+ #endif
+         free( gpstCellularPolicyCtrl );
+@@ -2021,6 +2219,16 @@ static void modem_discovery_timeout_handler(int signum)
+     }
+ }
+ 
++/* is_modem_restart_required fuction */
++/**
++* @description - This function used check wether modem restart required or not,
++*                based on sim status value
++*
++* @param[in] None
++* @param[out] - None
++* @retval TRUE if modem restart required
++* @retval FALSE if modem restart not needed
++*/
+ static bool is_modem_restart_required()
+ {
+     int currentModemState = MODEM_STATE_UNKNOWN;
+@@ -2069,6 +2277,224 @@ static bool is_modem_restart_required()
+ end:
+     return res;
+ }
++
++/* CellularMgr_isDefaultAPNActive fuction */
++/**
++* @description - This API is used to verify whether the modem is
++* connected using the default APN configuration.
++*
++* @param[in] None
++* @param[out] - None
++* @retval status of the operation
++* TRUE Modem is connected using the default APN configuration
++* FALSE Modem is connected using a non-default APN
++*/
++static bool CellularMgr_isDefaultAPNActive(void)
++{
++    int profileCount = 0;
++    CellularProfileStruct *pstProfileOutput = NULL;
++    bool res = FALSE;
++
++    if (gpstCellularPolicyCtrl == NULL)
++    {
++        CcspTraceError(("%s %d - Invalid policy structure\n",
++            __FUNCTION__,__LINE__));
++        return res;
++    }
++
++    /*Default APN is active only when connect backhaul is TRUE*/
++    if( gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul != TRUE )
++    {
++        CcspTraceError(("%s %d - Default APN is inactive as ConnectBackHaul is false\n",
++            __FUNCTION__,__LINE__));
++        return res;
++    }
++
++    /*Retrieving bearer information from modem.*/
++    if( RETURN_OK == cellular_hal_mm_get_bearer_properties_list (
++        NULL, &pstProfileOutput, &profileCount) )
++    {
++        if((pstProfileOutput != NULL) && (profileCount  > 0))
++        {
++            for(int i = 0; i < profileCount; i++)
++            {
++                /*Matching connected bearer info against default APN settings.*/
++                if( (strcmp(gpstCellularPolicyCtrl->stContextProfile.APN,
++                      pstProfileOutput[i].APN) == 0) &&
++                    ( gpstCellularPolicyCtrl->stContextProfile.PDPType ==
++                      pstProfileOutput[i].PDPType) &&
++                    (pstProfileOutput[i].bIsAPNDisabled == FALSE)
++                )
++                {
++                    CcspTraceInfo(("%s %d Default APN [%s] used for modem connection\n",
++                        __FUNCTION__,__LINE__,
++                        gpstCellularPolicyCtrl->stContextProfile.APN));
++                    res = TRUE;
++                    break;
++                }
++                else
++                {
++                    CcspTraceInfo(("%s %d Non-Default APN [%s] used for modem connection\n",
++                        __FUNCTION__,__LINE__,
++                        pstProfileOutput[i].APN));
++                }
++            }
++        }
++        else
++        {
++            CcspTraceError(("%s %d - Invalid profile output or count\n",
++                __FUNCTION__,__LINE__));
++        }
++    }
++    else
++    {
++        CcspTraceError(("%s %d - Failed to fetch Bearer Info\n",
++            __FUNCTION__,__LINE__));
++    }
++
++    if(pstProfileOutput != NULL)
++    {
++        free(pstProfileOutput);
++        pstProfileOutput = NULL;
++    }
++    return res;
++}
++
++/* CellularMgr_fetchRecoveryStateBasedOnModemState fuction */
++/**
++* @description - This function used get the target state for recovery.
++*
++* @param[in] None
++* @param[out] - None
++* @retval target statemechine state
++*/
++static CellularPolicySmState_t CellularMgr_fetchRecoveryStateBasedOnModemState(void)
++{
++    CellularPolicySmState_t enRecoveryTargetState = CELLULAR_STATE_DOWN;
++#ifdef IP_CONTINUITY_ENABLED
++    PCELLULAR_DML_INFO pstDmlCellular = NULL;
++    int currentModemState = 0;
++
++    if(gpstCellularPolicyCtrl == NULL)
++    {
++        CcspTraceError(("%s %d - Invalid policy structure\n",
++            __FUNCTION__,__LINE__));
++        return enRecoveryTargetState;
++    }
++
++    pstDmlCellular = gpstCellularPolicyCtrl->pstDmlCellular;
++    if(pstDmlCellular == NULL)
++    {
++        CcspTraceError(("%s %d - Invalid structure pointer !!\n",
++            __FUNCTION__,__LINE__));
++        return enRecoveryTargetState;
++    }
++
++    /*Fetch current modem state*/
++    if(RETURN_OK == cellular_hal_extn_get_current_modem_state(&currentModemState))
++    {
++        if(currentModemState == MODEM_STATE_CONNECTED)
++        {
++            /*If autoconnect is true, Verify if the modem is connected with default APN.*/
++            if((TRUE == pstDmlCellular->stCellularDmlInfoExtn.stCellular.AutoConnect) &&
++               (TRUE == CellularMgr_isDefaultAPNActive()))
++            {
++                /*Modem is connected using the default APN.
++                *Recovery target state set to 'Connected'*/
++                enRecoveryTargetState = CELLULAR_STATE_CONNECTED;
++            }
++            else
++            {
++                /*Modem connected with non-default APN.
++                *Disabled modem to ensure proper sync with CM.*/
++                if(RETURN_OK != cellular_hal_mm_modem_disable_sync(NULL))
++                {
++                    CcspTraceInfo(("%s %d - Failed to disable the modem!!\n",
++                        __FUNCTION__,__LINE__));
++                }
++                else
++                {
++                    CcspTraceInfo(("%s %d - Successfully Disabled the Modem\n",
++                        __FUNCTION__,__LINE__));
++                }
++            }
++        }
++        else if((currentModemState == MODEM_STATE_REGISTERED) ||
++            (currentModemState == MODEM_STATE_CONNECTING))
++        {
++            enRecoveryTargetState = CELLULAR_STATE_REGISTERED;
++        }
++    }
++    else
++    {
++        CcspTraceError(("%s %d - Failed to fetch current modem state "
++            "for enRecoveryTargetState\n",__FUNCTION__,__LINE__));
++    }
++#endif //IP_CONTINUITY_ENABLED
++    return enRecoveryTargetState;
++}
++
++/* CellularMgr_getPolicyStructureRecoveryState fuction */
++/**
++* @description - This Api used to fetch recovery state from SM.
++*
++* @param[in] None
++* @param[out] - None
++* @retval Recovery target statemechine state
++*/
++static CellularPolicySmState_t CellularMgr_getPolicyStructureRecoveryState(void)
++{
++    CellularPolicySmState_t enRecoveryTargetState = CELLULAR_STATE_DOWN;
++    if(gpstCellularPolicyCtrl == NULL)
++    {
++        return enRecoveryTargetState;
++    }
++
++    if (pthread_mutex_lock(&(gpstCellularPolicyCtrl->stRecoverySMState.recoveryMutex)) != 0)
++    {
++        CcspTraceError(("%s %d - Failed to lock recovery mutex\n", __FUNCTION__, __LINE__));
++        return enRecoveryTargetState;
++    }
++
++    enRecoveryTargetState = gpstCellularPolicyCtrl->stRecoverySMState.enRecoveryTargetState;
++
++    if (pthread_mutex_unlock(&(gpstCellularPolicyCtrl->stRecoverySMState.recoveryMutex)) != 0)
++    {
++        CcspTraceError(("%s %d - Failed to unlock recovery mutex\n", __FUNCTION__, __LINE__));
++    }
++
++    return enRecoveryTargetState;
++}
++
++/* CellularMgr_setPolicyStructureRecoveryState fuction */
++/**
++* @description - This Api used to set target recovery state to the SM structure.
++*
++* @param[in] None
++* @param[out] - enRecoveryTargetState
++* @retval None
++*/
++static void CellularMgr_setPolicyStructureRecoveryState(CellularPolicySmState_t enRecoveryTargetState)
++{
++    if(gpstCellularPolicyCtrl == NULL)
++    {
++        return;
++    }
++
++    if (pthread_mutex_lock(&(gpstCellularPolicyCtrl->stRecoverySMState.recoveryMutex)) != 0)
++    {
++        CcspTraceError(("%s %d - Failed to lock recovery mutex\n", __FUNCTION__, __LINE__));
++        return;
++    }
++
++    gpstCellularPolicyCtrl->stRecoverySMState.enRecoveryTargetState = enRecoveryTargetState;
++
++    if (pthread_mutex_unlock(&(gpstCellularPolicyCtrl->stRecoverySMState.recoveryMutex)) != 0)
++    {
++        CcspTraceError(("%s %d - Failed to unlock recovery mutex\n", __FUNCTION__, __LINE__));
++    }
++}
++
+ #endif //CM_EXTN_SUPPORTED
+ 
+ /* cellumanager_get_wanifname function */
+diff --git a/source/CellularManager/cellularmgr_sm.h b/source/CellularManager/cellularmgr_sm.h
+index 8af403d..cfbf6ba 100644
+--- a/source/CellularManager/cellularmgr_sm.h
++++ b/source/CellularManager/cellularmgr_sm.h
+@@ -83,6 +83,6 @@ PCELLULAR_INTERFACE_ACCESSPOINT_INFO   get_sm_apctx_dml_profile(void);
+ CellularProfileStruct* get_sm_apctx_profile(void);
+ 
+ void set_device_profile_status(CellularDeviceProfileSelectionStatus_t val);
+-#endif //CM_EXTN_SUPPORTED
+ 
++#endif //CM_EXTN_SUPPORTED
+ #endif //_CELLULARMGR_SM_H_
+-- 
+2.34.1
+

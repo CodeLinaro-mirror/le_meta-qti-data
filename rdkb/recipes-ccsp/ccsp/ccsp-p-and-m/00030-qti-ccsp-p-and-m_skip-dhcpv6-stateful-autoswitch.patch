@@ -1,0 +1,31 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 2470814d997065dd43ee373906d054da294825be Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Thu, 3 Sep 2026 10:03:39 +0000
+Subject: [PATCH] Skip one-time DHCPv6 stateless-to-stateful autoswitch on echo
+
+CosaDmlDhcpv6Init() runs a one-time migration (guarded by the router_statefuldhcpv6_DoOnce syscfg flag) that forces the DHCPv6 server from stateless to stateful mode and sets router_other_flag and router_managed_flag to "1" whenever _DHCPV6_DEFAULT_STATELESS_ is not defined. Since _DHCPV6_DEFAULT_STATELESS_ is only defined for _HUB4_PRODUCT_REQ_, this migration also fires on echo builds, which unexpectedly flips Device.RouterAdvertisement.InterfaceSetting.1.AdvOtherConfigFlag to true on first boot.
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -2065,7 +2065,7 @@ CosaDmlDhcpv6Init
+        such as HUB4 where the default mode should be Stateless.
+     */
+ 
+-#if !defined(_DHCPV6_DEFAULT_STATELESS_)
++#if !defined(_DHCPV6_DEFAULT_STATELESS_) && !defined(_PLATFORM_SDX_)
+     /*This logic code is used to change default behavior to stateful dhcpv6 server */
+     Utopia_RawGet(&utctx,NULL, "router_statefuldhcpv6_DoOnce",value,sizeof(value));
+     if ( value[0]!= '1'  && g_dhcpv6_server_type == 2 )

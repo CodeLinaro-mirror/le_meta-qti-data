@@ -1,0 +1,47 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a36a8cc3dca0f1b66c16589f87a0183a82749ae9 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Wed, 16 Sep 2026 12:39:48 +0000
+Subject: [PATCH] packet-stats-wlan-changes
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index b7ddfdc..78307fe 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -5282,7 +5282,10 @@ static bool getClientType(char *mac,bool mac_found_ipv4,bool mac_found_ipv6,char
+                 strlcpy(client_type, "Ethernet", IFACE_SIZE);
+             else if ((0 == strcmp(ifname+1,"rndis0")) || (0 == strcmp(ifname+1,"ecm0")))
+                 strlcpy(client_type, "USB", IFACE_SIZE);
+-            else if ((0 == strcmp(ifname+1,"ath0")) || (0 == strcmp(ifname+1,"ath1")) || (0 == strcmp(ifname+1,"ath16")))
++            else if ((0 == strncmp(ifname+1,"mld",strlen("mld"))) ||
++                     (0 == strncmp(ifname+1,"phy00-mld",strlen("phy00-mld"))) ||
++                     (0 == strncmp(ifname+1,"p0m",strlen("p0m"))) ||
++                     (0 == strcmp(ifname+1,"ath0")) || (0 == strcmp(ifname+1,"ath1")) || (0 == strcmp(ifname+1,"ath16")))
+                 strlcpy(client_type, "WLAN", IFACE_SIZE);
+ #ifdef GUEST_WIFI
+             else if ((0 == strcmp(ifname+1,"ath2")) || (0 == strcmp(ifname+1,"ath3")) || (0 == strcmp(ifname+1,"ath14")) || (0 == strcmp(ifname+1,"ath15")))
+@@ -5384,7 +5387,10 @@ ANSC_STATUS getInterfaceFromMac(char *mac, char *ifname)
+             strlcpy(ifname, "eth1", (strlen(iface_name)+1));
+         if ((0 == strcmp(iface_name, "rndis0")) || (0 == strcmp(iface_name, "ecm0")))
+             strlcpy(ifname, "usb", (strlen(iface_name)+1));
+-        if ((0 == strcmp(iface_name, "ath0")) || (0 == strcmp(iface_name, "ath1"))|| (0 == strcmp(iface_name, "ath16")))
++        if ((0 == strncmp(iface_name,"mld",strlen("mld"))) ||
++            (0 == strncmp(iface_name,"phy00-mld",strlen("phy00-mld"))) ||
++            (0 == strncmp(iface_name,"p0m",strlen("p0m"))) ||
++            (0 == strcmp(iface_name, "ath0")) || (0 == strcmp(iface_name, "ath1")) || (0 == strcmp(iface_name, "ath16")))
+             strlcpy(ifname, "wlan", (strlen(iface_name)+1));
+ #ifdef GUEST_WIFI
+         if ((0 == strcmp(iface_name, "ath2")) || (0 == strcmp(iface_name, "ath3")) || (0 == strcmp(iface_name, "ath14")) || (0 == strcmp(iface_name, "ath15")))
+-- 
+2.34.1
+

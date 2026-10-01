@@ -1,0 +1,2625 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e7de141b1edc0a6908269ef91d171c7714f5ae76 Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Thu, 20 Aug 2026 10:33:07 +0530
+Subject: [PATCH] Support for firewall white list and black list.
+
+[Description]:
+ 1. Introducing the Dynamic Datamodel for Firewall whitelist and
+blacklist.
+ 2. Mapping DM parameter with syscfg params to presist accross reboot. 
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ config-arm/TR181-USGv2.XML                    | 177 ++++
+ .../TR-181/board_sbapi/cosa_firewall_apis.c   | 432 ++++++++-
+ source/TR-181/include/cosa_firewall_apis.h    |  72 ++
+ .../middle_layer_src/cosa_firewall_dml.c      | 901 ++++++++++++++++++
+ .../middle_layer_src/cosa_firewall_dml.h      | 163 ++++
+ .../middle_layer_src/cosa_firewall_internal.c | 522 ++++++++++
+ .../middle_layer_src/cosa_firewall_internal.h |  31 +
+ 7 files changed, 2296 insertions(+), 2 deletions(-)
+
+Index: git/config-arm/TR181-USGv2.XML
+===================================================================
+--- git.orig/config-arm/TR181-USGv2.XML
++++ git/config-arm/TR181-USGv2.XML
+@@ -9535,11 +9535,199 @@
+       <name>X_QCOM</name>
+ 
+       <objectType>object</objectType>
++      <functions>
++
++            <func_GetParamUlongValue>X_QCOM_GetParamUlongValue</func_GetParamUlongValue>
++
++            <func_SetParamUlongValue>X_QCOM_SetParamUlongValue</func_SetParamUlongValue>
++
++            <func_Commit>X_QCOM_Commit</func_Commit>
++
++       </functions>
++
++       <parameters>
++
++          <parameter>
++
++            <name>RuleType</name>
++
++            <type>string: Whitelist(1),Blacklist(2),None(3)</type>
++
++            <syntax>uint32/mapped</syntax>
++
++            <writable>true</writable>
++
++          </parameter>
++
++       </parameters>
+ 
+       <objects>
+ 
+         <object>
+ 
++          <name>Rule</name>
++
++           <objectType>writableTable</objectType>
++
++            <maxInstance>128</maxInstance>
++
++         <functions>
++
++                <func_GetEntryCount>X_QCOMRule_GetEntryCount</func_GetEntryCount>
++
++                <func_GetEntry>X_QCOMRule_GetEntry</func_GetEntry>
++
++                <func_AddEntry>X_QCOMRule_AddEntry</func_AddEntry>
++
++                <func_DelEntry>X_QCOMRule_DelEntry</func_DelEntry>
++
++                <func_GetParamBoolValue>X_QCOMRule_GetParamBoolValue</func_GetParamBoolValue>
++
++                <func_GetParamUlongValue>X_QCOMRule_GetParamUlongValue</func_GetParamUlongValue>
++
++                <func_GetParamStringValue>X_QCOMRule_GetParamStringValue</func_GetParamStringValue>
++
++                <func_SetParamBoolValue>X_QCOMRule_SetParamBoolValue</func_SetParamBoolValue>
++
++                <func_SetParamUlongValue>X_QCOMRule_SetParamUlongValue</func_SetParamUlongValue>
++
++                <func_SetParamStringValue>X_QCOMRule_SetParamStringValue</func_SetParamStringValue>
++
++                <func_Validate>X_QCOMRule_Validate</func_Validate>
++
++                <func_Commit>X_QCOMRule_Commit</func_Commit>
++
++                <func_Rollback>X_QCOMRule_Rollback</func_Rollback>
++
++         </functions>
++
++       <parameters>
++
++              <parameter>
++
++                <name>Enable</name>
++
++                <type>boolean</type>
++
++                <syntax>bool</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++
++                <name>Alias</name>
++
++                <type>string(64)</type>
++
++                <syntax>string</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++
++                <name>Protocol</name>
++
++                <type>string: TCP(1),UDP(2),TCP_UDP(3)</type>
++
++                <syntax>string</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++                <name>Direction</name>
++
++                <type>string: Uplink(1),Downlink(2)</type>
++
++                <syntax>string</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++
++                <name>SourceIP</name>
++
++                <type>string</type>
++
++                <syntax>uint32/ip4_addr</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++
++                <name>DestIP</name>
++
++                <type>string</type>
++
++                <syntax>uint32/ip4_addr</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++
++                <name>SourcePort</name>
++
++                <type>unsignedInt[0:65535]</type>
++
++                <syntax>uint32</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++
++                <name>DestPort</name>
++
++                <type>unsignedInt[0:65535]</type>
++
++                <syntax>uint32</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++               <parameter>
++
++                <name>SourceIPv6Address</name>
++
++                <type>string</type>
++
++                <syntax>string/ip6_addr</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++              <parameter>
++
++                <name>DestIPv6Address</name>
++
++                <type>string</type>
++
++                <syntax>string/ip6_addr</syntax>
++
++                <writable>true</writable>
++
++              </parameter>
++
++       </parameters>
++
++       </object>
++
++        <object>
++
+           <name>IPPT</name>
+ 
+           <objectType>object</objectType>
+Index: git/source-arm/TR-181/board_sbapi/cosa_firewall_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_firewall_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_firewall_apis.c
+@@ -95,6 +95,7 @@ static ANSC_STATUS execute_ipa(int mode,
+ #define MACINDEX  17
+ #ifdef _COSA_SIM_
+ 
++
+ COSA_DML_FIREWALL_CFG g_FirewallConfig = 
+ {
+     COSA_DML_FIREWALL_LEVEL_Low, 
+@@ -289,6 +290,9 @@ CosaDmlFirewallInit
+     Return:       The status of the operation.
+ 
+ **********************************************************************/
++#define MAX_LEN 20
++
++
+ ANSC_STATUS
+ CosaDmlFirewallGetConfig
+     (
+@@ -297,7 +301,31 @@ CosaDmlFirewallGetConfig
+     )
+ {
+     UNREFERENCED_PARAMETER(hContext);
+-    UNREFERENCED_PARAMETER(pCfg);
++    UtopiaContext ctx;
++    firewall_t    fw;
++    char value[MAX_LEN] = {'\0'};
++
++    if ( !pCfg )
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    if (!Utopia_Init(&ctx))
++    {
++        CcspTraceWarning(("Error in initializing context!!! \n" ));
++        return ANSC_STATUS_FAILURE;
++    }
++    value[0] = '\0';
++    Utopia_GetFirewallSettings (&ctx, &fw);
++    syscfg_get(NULL, "firewall_rule_type", value, sizeof(value));
++    if(!_ansc_strcmp(value, "Whitelist"))
++        pCfg->RuleType = COSA_DML_QCOM_RULE_Whitelist;
++    else if(!_ansc_strcmp(value, "Blacklist"))
++        pCfg->RuleType = COSA_DML_QCOM_RULE_Blacklist;
++    else
++        pCfg->RuleType = COSA_DML_QCOM_RULE_None;
++    Utopia_Free(&ctx, 0);
++
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
+@@ -336,7 +364,45 @@ CosaDmlFirewallSetConfig
+     )
+ {
+     UNREFERENCED_PARAMETER(hContext);
+-    UNREFERENCED_PARAMETER(pCfg);
++    int rc = -1;
++    UtopiaContext ctx;
++    firewall_t fw;
++
++    if ( !pCfg )
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    if (!Utopia_Init(&ctx))
++    {
++        CcspTraceWarning(("Error in initializing context!!! \n" ));
++        return ANSC_STATUS_FAILURE;
++    }
++
++    fw.spi_protection = 1;
++
++    switch(pCfg->RuleType)
++    {
++        case COSA_DML_QCOM_RULE_Whitelist:
++                syscfg_set_commit(NULL, "firewall_rule_type", "Whitelist");
++             break;
++        case COSA_DML_QCOM_RULE_Blacklist:
++                syscfg_set_commit(NULL, "firewall_rule_type", "Blacklist");
++            break;
++        default:
++               syscfg_set_commit(NULL, "firewall_rule_type", "None");
++            break;
++    }
++    rc = Utopia_SetFirewallSettings(&ctx, fw);
++    Utopia_Free(&ctx, !rc);
++
++    if(rc != 0)
++        return ANSC_STATUS_FAILURE;
++    else
++    {
++        commonSyseventSet("firewall-restart", "");
++    }
++
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
+@@ -1449,4 +1515,393 @@ static ANSC_STATUS execute_ipa(int mode,
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
++/***********************************************************************
++ APIs for Object:
++
++    Firewall.X_QCOM.Rule.{i}.
++
++    *  CosaDmlQcomRuleGetNumberOfEntries
++    *  CosaDmlQcomRuleGetEntryByIndex
++    *  CosaDmlQcomRuleSetValues
++    *  CosaDmlQcomRuleAddEntry
++    *  CosaDmlQcomRuleDelEntry
++    *  CosaDmlQcomRuleGetConf
++    *  CosaDmlQcomRuleSetConf
++***********************************************************************/
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        int
++        X_QCOMRule_InsGetIndex
++            (
++                ULONG ins
++            );
++
++    Description:
++        The API retrieves the index of a QCOM rule entry based on its instance number.
++    Arguments:
++        ins         The instance number to search for.
++    Return:
++        Returns the index if found, -1 otherwise.
++
++**********************************************************************/
++
++static int totalxqcomRule   = 0;
++static int X_QCOMRule_InsGetIndex(ULONG ins)
++{
++    int i=0, ins_num=0, ret = -1;
++    UtopiaContext ctx;
++    CosaDmlQcomRuleGetNumberOfEntries();
++    if (!Utopia_Init(&ctx))
++    {
++        return -1;
++    }
++
++    for (i = 0; i < totalxqcomRule; i++)
++    {
++        Utopia_GetFirewall_XQCOMRuleInsNumByIndex(&ctx, i, &ins_num);
++        if (ins_num == ins) {
++            ret = i;
++            break;
++        }
++    }
++    Utopia_Free(&ctx, 0);
++    return ret;
++}
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ULONG
++        CosaDmlQcomRuleGetNumberOfEntries
++            (
++                void
++            );
++
++    Description:
++        The API retrieves the total number of QCOM rule entries in the Firewall.
++    Arguments:
++        None
++    Return:
++        Returns the total number of entries or ANSC_STATUS_FAILURE on error.
++
++**********************************************************************/
++ULONG
++CosaDmlQcomRuleGetNumberOfEntries(void)
++{
++    UtopiaContext ctx;
++
++    if(!Utopia_Init(&ctx))
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    Utopia_GetNumberOfFirewall_XQCOMRule(&ctx, &totalxqcomRule);
++    Utopia_Free(&ctx, 0);
++    return totalxqcomRule;
++}
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlQcomRuleGetEntryByIndex
++            (
++                ULONG index,
++                PCOSA_DML_FIREWALL_QCOMRULE pEntry
++            );
++
++    Description:
++        The API retrieves a QCOM rule entry from Firewall by its index.
++    Arguments:
++        index       The index of the entry to retrieve.
++        pEntry      Pointer to store the retrieved entry information.
++    Return:
++        Status of the operation.
++
++**********************************************************************/
++
++ANSC_STATUS
++CosaDmlQcomRuleGetEntryByIndex(ULONG index, PCOSA_DML_FIREWALL_QCOMRULE pEntry)
++{
++    UtopiaContext ctx;
++    firewall_x_qcomrule_t firewall_x_qcomrule;
++
++    if (index >= totalxqcomRule || !Utopia_Init(&ctx))
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    Utopia_GetFirewall_XQCOMRuleByIndex(&ctx, index, &firewall_x_qcomrule);
++
++    pEntry->InstanceNumber = firewall_x_qcomrule.ins_num ;
++    pEntry->bEnabled = firewall_x_qcomrule.enable;
++    pEntry->DestinationPort = firewall_x_qcomrule.destination_port;
++    pEntry->SourcePort = firewall_x_qcomrule.source_port;
++    _ansc_strncpy(pEntry->Protocol, firewall_x_qcomrule.protocol,sizeof(pEntry->Protocol));
++    _ansc_strncpy(pEntry->Direction, firewall_x_qcomrule.direction,sizeof(pEntry->Direction));
++    pEntry->DestinationIPAddress.Value = firewall_x_qcomrule.destination_ipaddress.Value;
++    pEntry->SourceIPAddress.Value= firewall_x_qcomrule.source_ipaddress.Value;
++    _ansc_strncpy(pEntry->DestinationIPv6Address, firewall_x_qcomrule.destination_ipv6address,sizeof(pEntry->DestinationIPv6Address));
++    _ansc_strncpy(pEntry->SourceIPv6Address, firewall_x_qcomrule.source_ipv6address,sizeof(pEntry->SourceIPv6Address));
++    _ansc_strncpy(pEntry->Alias,firewall_x_qcomrule.alias, sizeof(pEntry->Alias));
++    Utopia_Free(&ctx, 0);
++
++    return ANSC_STATUS_SUCCESS;
++}
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlQcomRuleDelEntry
++            (
++                ULONG      ins
++            );
++
++    Description:
++        The API removes the designated rule entry from Firewall.
++    Arguments:
++        pAlias      The entry is identified through Alias.
++    Return:
++        Status of the operation.
++
++**********************************************************************/
++ANSC_STATUS
++CosaDmlQcomRuleDelEntry(ULONG ins)
++{
++    int rc = -1;
++    UtopiaContext ctx;
++
++    if (!Utopia_Init(&ctx))
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    rc = Utopia_DelFirewall_XQCOMRule(&ctx, ins);
++    Utopia_GetNumberOfFirewall_XQCOMRule(&ctx, &totalxqcomRule);
++    Utopia_Free(&ctx, !rc);
++
++    if (rc != 0)
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++    else
++    {
++        commonSyseventSet("pp_flush", "1");
++        commonSyseventSet("firewall-restart", "");
++        return ANSC_STATUS_SUCCESS;
++    }
++}
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlQcomRuleAddEntry
++            (
++                PCOSA_DML_FIREWALL_QCOMRULE pEntry
++            );
++
++    Description:
++        The API adds a new rule entry to the Firewall.
++    Arguments:
++        pEntry      Contains the configuration for the new entry.
++    Return:
++        Status of the operation.
++
++**********************************************************************/
++
++ANSC_STATUS
++CosaDmlQcomRuleAddEntry(PCOSA_DML_FIREWALL_QCOMRULE pEntry)
++{
++    int rc = -1;
++    UtopiaContext ctx;
++    firewall_x_qcomrule_t firewall_x_qcomrule;
++
++    if (!Utopia_Init(&ctx))
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    firewall_x_qcomrule.ins_num = pEntry->InstanceNumber;
++    firewall_x_qcomrule.enable = pEntry->bEnabled;
++    firewall_x_qcomrule.destination_port = pEntry->DestinationPort;
++    firewall_x_qcomrule.source_port = pEntry->SourcePort;
++    _ansc_strncpy(firewall_x_qcomrule.protocol , pEntry->Protocol, sizeof(firewall_x_qcomrule.protocol));
++    _ansc_strncpy(firewall_x_qcomrule.direction , pEntry->Direction, sizeof(firewall_x_qcomrule.direction));
++    firewall_x_qcomrule.destination_ipaddress.Value= pEntry->DestinationIPAddress.Value;
++    firewall_x_qcomrule.source_ipaddress.Value =  pEntry->SourceIPAddress.Value;
++    _ansc_strncpy(firewall_x_qcomrule.alias, pEntry->Alias, sizeof(firewall_x_qcomrule.alias));
++    _ansc_strncpy(firewall_x_qcomrule.source_ipv6address , pEntry->SourceIPv6Address, sizeof(firewall_x_qcomrule.source_ipv6address));
++    _ansc_strncpy(firewall_x_qcomrule.destination_ipv6address , pEntry->DestinationIPv6Address, sizeof(firewall_x_qcomrule.destination_ipv6address));
++    rc = Utopia_AddFirewall_XQCOMRule(&ctx, &firewall_x_qcomrule);
++    Utopia_GetNumberOfFirewall_XQCOMRule(&ctx, &totalxqcomRule);
++    Utopia_Free(&ctx, !rc);
++
++    if (rc != 0)
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++    else
++    {
++        commonSyseventSet("pp_flush", "1");
++        commonSyseventSet("firewall-restart", "");
++        return ANSC_STATUS_SUCCESS;
++    }
++
++}
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlQcomRuleSetConf
++            (
++             ULONG                           ins,
++             PCOSA_DML_FIREWALL_QCOMRULE      pEntry
++            );
++
++    Description:
++        The API re-configures the designated firewall xqcom rule entry.
++    Arguments:
++        pAlias      The entry is identified through Alias.
++        pEntry      The new configuration is passed through this argument, even Alias field can be changed.
++
++    Return:
++        Status of the operation
++
++**********************************************************************/
++ANSC_STATUS
++CosaDmlQcomRuleSetConf(ULONG ins, PCOSA_DML_FIREWALL_QCOMRULE pEntry)
++{
++    int index;
++    UtopiaContext ctx;
++    int rc = -1;
++    firewall_x_qcomrule_t firewall_x_qcomrule;
++
++    if ((index = X_QCOMRule_InsGetIndex(ins)) == -1 || !Utopia_Init(&ctx))
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    firewall_x_qcomrule.ins_num = pEntry->InstanceNumber;
++    firewall_x_qcomrule.enable = pEntry->bEnabled;
++    firewall_x_qcomrule.destination_port = pEntry->DestinationPort;
++    firewall_x_qcomrule.source_port = pEntry->SourcePort;
++    _ansc_strncpy(firewall_x_qcomrule.protocol , pEntry->Protocol, sizeof(firewall_x_qcomrule.protocol));
++    _ansc_strncpy(firewall_x_qcomrule.direction , pEntry->Direction, sizeof(firewall_x_qcomrule.direction));
++    firewall_x_qcomrule.destination_ipaddress.Value= pEntry->DestinationIPAddress.Value;
++    firewall_x_qcomrule.source_ipaddress.Value =  pEntry->SourceIPAddress.Value;
++    _ansc_strncpy(firewall_x_qcomrule.alias, pEntry->Alias, sizeof(firewall_x_qcomrule.alias));
++    _ansc_strncpy(firewall_x_qcomrule.destination_ipv6address, pEntry->DestinationIPv6Address, sizeof(firewall_x_qcomrule.destination_ipv6address));
++    _ansc_strncpy(firewall_x_qcomrule.source_ipv6address, pEntry->SourceIPv6Address, sizeof(firewall_x_qcomrule.source_ipv6address));
++    rc = Utopia_SetFirewall_XQCOMRuleByIndex(&ctx, index, &firewall_x_qcomrule);
++    Utopia_Free(&ctx, !rc);
++
++    if (rc != 0)
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++    else
++    {
++        commonSyseventSet("pp_flush", "1");
++        commonSyseventSet("firewall-restart", "");
++        return ANSC_STATUS_SUCCESS;
++    }
++}
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlQcomRuleGetConf
++            (
++                ULONG ins,
++                PCOSA_DML_FIREWALL_QCOMRULE pEntry
++            );
++
++    Description:
++        The API retrieves the configuration of a designated QCOM rule entry.
++    Arguments:
++        ins         The instance number of the entry to retrieve.
++        pEntry      Pointer to store the retrieved configuration.
++    Return:
++        Status of the operation.
++
++**********************************************************************/
++
++ANSC_STATUS
++CosaDmlQcomRuleGetConf(ULONG ins, PCOSA_DML_FIREWALL_QCOMRULE pEntry)
++{
++    int index;
++
++    if ((index = X_QCOMRule_InsGetIndex(ins)) == -1)
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++    return CosaDmlQcomRuleGetEntryByIndex(index, pEntry);
++}
++/**********************************************************************
++
++    caller:     self
++
++    prototype:
++
++        ANSC_STATUS
++        CosaDmlQcomRuleSetValues
++            (
++                ULONG index,
++                ULONG ins,
++                const char *alias
++            );
++
++    Description:
++        The API sets the instance number and alias for a QCOM rule entry.
++    Arguments:
++        index       The index of the entry to modify.
++        ins         The new instance number to set.
++        alias       The new alias to set.
++    Return:
++        Status of the operation.
++
++**********************************************************************/
++
++ANSC_STATUS
++CosaDmlQcomRuleSetValues(ULONG index, ULONG ins, const char *alias)
++{
++    int rc = -1;
++    UtopiaContext ctx;
++
++    if (index >= totalxqcomRule || !Utopia_Init(&ctx))
++    {
++        return ANSC_STATUS_FAILURE;
++    }
++
++    rc = Utopia_SetFirewall_XQCOMRuleInsAndAliasByIndex(&ctx, index, ins, alias);
++    Utopia_Free(&ctx, !rc);
++
++    if (rc != 0)
++        return ANSC_STATUS_FAILURE;
++    else
++    {
++        return ANSC_STATUS_SUCCESS;
++    }
++}
++
+ #endif
+Index: git/source/TR-181/include/cosa_firewall_apis.h
+===================================================================
+--- git.orig/source/TR-181/include/cosa_firewall_apis.h
++++ git/source/TR-181/include/cosa_firewall_apis.h
+@@ -84,6 +84,15 @@ _COSA_DML_FIREWALL_LEVEL
+ }
+ COSA_DML_FIREWALL_LEVEL, *PCOSA_DML_FIREWALL_LEVEL;
+ 
++typedef  enum
++_COSA_DML_QCOM_RULE
++{
++    COSA_DML_QCOM_RULE_Whitelist   = 1,
++    COSA_DML_QCOM_RULE_Blacklist,
++    COSA_DML_QCOM_RULE_None,
++}
++COSA_DML_QCOM_RULE, *PCOSA_DML_QCOM_RULE;
++
+ 
+ typedef  struct
+ _COSA_DML_FIREWALL_CFG
+@@ -91,9 +100,27 @@ _COSA_DML_FIREWALL_CFG
+     COSA_DML_FIREWALL_LEVEL         FirewallLevel;
+     char                            Version[8];
+     char                            LastChange[32];
++    COSA_DML_QCOM_RULE              RuleType;
+ }
+ COSA_DML_FIREWALL_CFG,  *PCOSA_DML_FIREWALL_CFG;
+ 
++typedef struct
++_COSA_DML_FIREWALL_QCOMRULE
++{
++    ULONG                           InstanceNumber;
++    BOOLEAN                         bEnabled;
++    ULONG                           DestinationPort;
++    ULONG                           SourcePort;
++    ANSC_IPV4_ADDRESS               DestinationIPAddress;
++    ANSC_IPV4_ADDRESS               SourceIPAddress ;
++    ULONG                           PacketLength;
++    char                            Alias[256];
++    char                            Protocol[12];
++    char                            Direction[12];
++    char                            DestinationIPv6Address[64];
++    char                            SourceIPv6Address[64];
++}
++COSA_DML_FIREWALL_QCOMRULE , *PCOSA_DML_FIREWALL_QCOMRULE;
+ 
+ /*
+  *  The actual function declaration
+@@ -427,4 +454,50 @@ CosaDmlIPPTGetHostname(char* pValue);
+ ANSC_STATUS
+ CosaDmlIPPTSetHostname(char* pString);
+ 
++ANSC_STATUS
++CosaDmlQcomRuleGetEntryByIndex
++    (
++       ULONG                           index,
++       PCOSA_DML_FIREWALL_QCOMRULE      pEntry
++    );
++
++ANSC_STATUS
++CosaDmlQcomRuleDelEntry
++    (
++       ULONG                           ins
++    );
++
++ANSC_STATUS
++CosaDmlQcomRuleAddEntry
++    (
++       PCOSA_DML_FIREWALL_QCOMRULE      pEntry
++    );
++
++ANSC_STATUS
++CosaDmlQcomRuleSetConf
++    (
++       ULONG                           ins,
++       PCOSA_DML_FIREWALL_QCOMRULE      pEntry
++    );
++
++ANSC_STATUS
++CosaDmlQcomRuleGetConf
++    (
++       ULONG                           ins,
++       PCOSA_DML_FIREWALL_QCOMRULE      pEntry
++    );
++
++ULONG
++CosaDmlQcomRuleGetNumberOfEntries
++    (
++       void
++    );
++ANSC_STATUS
++CosaDmlQcomRuleSetValues
++    (
++       ULONG                           index,
++       ULONG                           ins,
++       const char *                    alias
++    );
++
+ #endif
+Index: git/source/TR-181/middle_layer_src/cosa_firewall_dml.h
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_firewall_dml.h
++++ git/source/TR-181/middle_layer_src/cosa_firewall_dml.h
+@@ -640,4 +640,167 @@ IPPT_Rollback
+        ANSC_HANDLE                  hInsContext
+    );
+ 
++/***********************************************************************
++
++  APIs for Object:
++
++   Firewall.X_QCOM.
++
++
++    *  X_QCOMRule_GetParamBoolValue
++    *  X_QCOMRule_GetParamUlongValue
++    *  X_QCOMRule_SetParamBoolValue
++    *  X_QCOMRule_SetParamUlongValue
++    *  X_QCOMRule_Commit
++
++***********************************************************************/
++ULONG
++X_QCOM_GetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG*                      puLong
++
++    );
++
++BOOL
++X_QCOM_SetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG                       uValue
++    );
++ ULONG
++X_QCOM_Rule_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    );
++
++
++/***********************************************************************
++
++  APIs for Object:
++
++   Firewall.X_QCOM.Rule.{i}.
++
++    *  X_QCOMRule_GetEntryCount
++    *  X_QCOMRule_GetEntry
++    *  X_QCOMRule_GetParamBoolValue
++    *  X_QCOMRule_GetParamIntValue
++    *  X_QCOMRule_GetParamUlongValue
++    *  X_QCOMRule_GetParamStringValue
++    *  X_QCOMRule_SetParamBoolValue
++    *  X_QCOMRule_SetParamIntValue
++    *  X_QCOMRule_SetParamUlongValue
++    *  X_QCOMRule_SetParamStringValue
++    *  X_QCOMRule_Validate
++    *  X_QCOMRule_Commit
++    *  X_QCOMRule_Rollback
++
++***********************************************************************/
++ULONG
++X_QCOMRule_GetEntryCount
++    (
++        ANSC_HANDLE
++    );
++
++ANSC_HANDLE
++X_QCOMRule_GetEntry
++    (
++        ANSC_HANDLE                 hInsContext,
++        ULONG                       nIndex,
++        ULONG*                      pInsNumber
++    );
++
++ANSC_HANDLE
++X_QCOMRule_AddEntry
++    (
++        ANSC_HANDLE                 hInsContext,
++        ULONG*                      pInsNumber
++    );
++
++ULONG
++X_QCOMRule_DelEntry
++    (
++        ANSC_HANDLE                 hInsContext,
++        ANSC_HANDLE                 hInstance
++    );
++
++BOOL
++X_QCOMRule_GetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL*                       pBool
++    );
++
++BOOL
++X_QCOMRule_GetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG*                      pUlong
++    );
++
++ULONG
++X_QCOMRule_GetParamStringValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        char*                       pValue,
++        ULONG*                      pUlSize
++    );
++
++BOOL
++X_QCOMRule_SetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL                        bValue
++    );
++
++BOOL
++X_QCOMRule_SetParamIntValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        int                         value
++    );
++
++BOOL
++X_QCOMRule_SetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG                       uValuepUlong
++    );
++
++BOOL
++X_QCOMRule_SetParamStringValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        char*                       strValue
++    );
++
++BOOL
++X_QCOMRule_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    );
++
++ULONG
++X_QCOMRule_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    );
++
++ULONG
++X_QCOMRule_Rollback
++    (
++        ANSC_HANDLE                 hInsContext
++    );
++
+ #endif
+Index: git/source/TR-181/middle_layer_src/cosa_firewall_internal.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_firewall_internal.c
++++ git/source/TR-181/middle_layer_src/cosa_firewall_internal.c
+@@ -63,6 +63,9 @@
+ #include "cosa_firewall_internal.h"
+ #include "safec_lib_common.h"
+ 
++extern void* g_pDslhDmlAgent;
++#include "cosa_x_cisco_com_security_internal.h"
++
+ /**********************************************************************
+ 
+     caller:     owner of the object
+@@ -148,6 +151,13 @@ CosaFirewallInitialize
+     PCOSA_DATAMODEL_FIREWALL        pMyObject       = (PCOSA_DATAMODEL_FIREWALL)hThisObject;
+     PCOSA_DML_FIREWALL_CFG          pFirewallCfg    = NULL;
+     errno_t                         rc              = -1;
++    ULONG                           ulX_QCOMRuleCount      = 0;
++    ULONG                           ulX_QCOMRuleIdx        = 0;
++    PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFoCOSA     = (PPOAM_IREP_FOLDER_OBJECT   )NULL;
++    PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFoX_QCOMRule  = (PPOAM_IREP_FOLDER_OBJECT   )NULL;
++    PCOSA_DML_FIREWALL_QCOMRULE     pX_QCOMRule            = (PCOSA_DML_FIREWALL_QCOMRULE )NULL;
++    PCOSA_CONTEXT_LINK_OBJECT       pX_QCOMRuleLinkObj     = (PCOSA_CONTEXT_LINK_OBJECT  )NULL;
++    PSLAP_VARIABLE                  pSlapVariable       = (PSLAP_VARIABLE             )NULL;
+ 
+     returnStatus = CosaDmlFirewallInit(NULL, NULL);
+ 
+@@ -156,13 +166,19 @@ CosaFirewallInitialize
+         return returnStatus;
+     }
+ 
++    if(syscfg_init() == 0) {
++        CcspTraceWarning(("CosaFirewallInitialize -- syscfg_init success\n"));
++    }
++    else {
++        CcspTraceWarning(("CosaFirewallInitialize -- syscfg_init failure\n"));
++    }
++
+     /* Initiation all functions */
+     pFirewallCfg = AnscAllocateMemory(sizeof(COSA_DML_FIREWALL_CFG));
+ 
+     if ( !pFirewallCfg )
+     {
+         CcspTraceWarning(("CosaFirewallInitialize -- Resource allocation error\n"));
+-
+         return FALSE;
+     }
+ 
+@@ -178,6 +194,101 @@ CosaFirewallInitialize
+         ERR_CHK(rc);
+     }
+ 
++    CosaDmlQcomRuleGetConf(0,&pMyObject->x_qcomRuleConfig);
++    AnscSListInitializeHeader(&pMyObject->FirewallX_QCOMRuleList);
++    pMyObject->x_qcomRuleNextInsNum= 1;
++    ulX_QCOMRuleCount = CosaDmlQcomRuleGetNumberOfEntries();
++    pMyObject->hIrepFolderCOSA = g_GetRegistryRootFolder(g_pDslhDmlAgent);
++    pPoamIrepFoCOSA = (PPOAM_IREP_FOLDER_OBJECT)pMyObject->hIrepFolderCOSA;
++    if (!pPoamIrepFoCOSA)
++    {
++        AnscFreeMemory(pFirewallCfg);
++        return ANSC_STATUS_FAILURE;
++    }
++    pPoamIrepFoX_QCOMRule = (PPOAM_IREP_FOLDER_OBJECT)pPoamIrepFoCOSA->GetFolder(
++            (ANSC_HANDLE)pPoamIrepFoCOSA,
++            COSA_IREP_FOLDER_NAME_X_QCOMRULE);
++    if (!pPoamIrepFoX_QCOMRule)
++    {
++        pPoamIrepFoX_QCOMRule =
++           pPoamIrepFoCOSA->AddFolder(
++                    (ANSC_HANDLE)pPoamIrepFoCOSA,
++                    COSA_IREP_FOLDER_NAME_X_QCOMRULE,
++                    0);
++    }
++    if (!pPoamIrepFoX_QCOMRule)
++    {
++        AnscFreeMemory(pFirewallCfg);
++        return ANSC_STATUS_FAILURE;
++    }
++    else
++        pMyObject->hIrepFolderQComRule = pPoamIrepFoX_QCOMRule;
++
++    pSlapVariable = (PSLAP_VARIABLE)pPoamIrepFoX_QCOMRule->GetRecord(
++            (ANSC_HANDLE)pPoamIrepFoX_QCOMRule,
++            COSA_DML_RR_NAME_X_QCOMRULE_NextInsNumber,
++            NULL);
++    if (pSlapVariable)
++    {
++        pMyObject->x_qcomRuleNextInsNum = pSlapVariable->Variant.varUint32;
++        SlapFreeVariable(pSlapVariable);
++    }
++    for (ulX_QCOMRuleIdx = 0; ulX_QCOMRuleIdx < ulX_QCOMRuleCount; ulX_QCOMRuleIdx++)
++    {
++
++        pX_QCOMRule = AnscAllocateMemory(sizeof(COSA_DML_FIREWALL_QCOMRULE));
++        if (!pX_QCOMRule)
++        {
++            AnscFreeMemory(pFirewallCfg);
++            return ANSC_STATUS_FAILURE;
++        }
++
++        if (CosaDmlQcomRuleGetEntryByIndex(ulX_QCOMRuleIdx, pX_QCOMRule) != ANSC_STATUS_SUCCESS)
++        {
++            AnscFreeMemory(pX_QCOMRule);
++            AnscFreeMemory(pFirewallCfg);
++            return ANSC_STATUS_FAILURE;
++        }
++
++        pX_QCOMRuleLinkObj = AnscAllocateMemory(sizeof(COSA_CONTEXT_LINK_OBJECT));
++        if (!pX_QCOMRuleLinkObj)
++        {
++            AnscFreeMemory(pX_QCOMRule);
++            AnscFreeMemory(pFirewallCfg);
++            return ANSC_STATUS_FAILURE;
++        }
++        if (pX_QCOMRule->InstanceNumber != 0)
++        {
++            if (pMyObject->x_qcomRuleNextInsNum <= pX_QCOMRule->InstanceNumber)
++            {
++                pMyObject->x_qcomRuleNextInsNum = pX_QCOMRule->InstanceNumber + 1;
++                if (pMyObject->x_qcomRuleNextInsNum == 0)
++                {
++                    pMyObject->x_qcomRuleNextInsNum = 1;
++                }
++            }
++        }
++        else
++        {
++            pX_QCOMRule->InstanceNumber = pMyObject->x_qcomRuleNextInsNum;
++
++            pMyObject->x_qcomRuleNextInsNum++;
++            if (pMyObject->x_qcomRuleNextInsNum == 0)
++            {
++                pMyObject->x_qcomRuleNextInsNum = 1;
++            }
++            _ansc_sprintf(pX_QCOMRule->Alias, "X_QCOMRule-%d", (int)pX_QCOMRule->InstanceNumber);
++            CosaDmlQcomRuleSetValues(ulX_QCOMRuleIdx, pX_QCOMRule->InstanceNumber,pX_QCOMRule->Alias);
++        }
++
++        pX_QCOMRuleLinkObj->InstanceNumber  = pX_QCOMRule->InstanceNumber;
++        pX_QCOMRuleLinkObj->hContext        = pX_QCOMRule;
++        pX_QCOMRuleLinkObj->hParentTable    = NULL;
++        pX_QCOMRuleLinkObj->bNew            = FALSE;
++        CosaSListPushEntryByInsNum(&pMyObject->FirewallX_QCOMRuleList, pX_QCOMRuleLinkObj);
++    }
++    CosaPcReg_X_QCOMRuleGetInfo((ANSC_HANDLE)pMyObject);
++
+     AnscFreeMemory(pFirewallCfg);
+ 
+     return returnStatus;
+@@ -215,12 +326,432 @@ CosaFirewallRemove
+ {
+     ANSC_STATUS                     returnStatus = ANSC_STATUS_SUCCESS;
+     PCOSA_DATAMODEL_FIREWALL        pMyObject    = (PCOSA_DATAMODEL_FIREWALL)hThisObject;
++    PCOSA_CONTEXT_LINK_OBJECT       pCosaX_QCOMRuleContext=(PCOSA_CONTEXT_LINK_OBJECT  )NULL;
++    PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFoX_QCOMRule =(PPOAM_IREP_FOLDER_OBJECT   )pMyObject->hIrepFolderQComRule;
++    PSINGLE_LINK_ENTRY              pSLinkEntry3      =(PSINGLE_LINK_ENTRY         )NULL;
++    PCOSA_DML_FIREWALL_QCOMRULE      pX_QCOMRule    =(PCOSA_DML_FIREWALL_QCOMRULE )NULL;
++    PSLIST_HEADER                   pListHead         = (PSLIST_HEADER              )NULL;
++    PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFo       = (PPOAM_IREP_FOLDER_OBJECT   )NULL;
+ 
+-	/* Remove necessary resounce */
++    /* Remove self */
++    pListHead = &pMyObject->FirewallX_QCOMRuleList;
+ 
++    pSLinkEntry3 = AnscSListGetFirstEntry(pListHead);
++    while ( pSLinkEntry3 )
++    {
++        pCosaX_QCOMRuleContext = ACCESS_COSA_CONTEXT_LINK_OBJECT(pSLinkEntry3);
++        pSLinkEntry3 = AnscSListGetNextEntry(pSLinkEntry3);
++        pX_QCOMRule = (PCOSA_DML_FIREWALL_QCOMRULE)pCosaX_QCOMRuleContext->hContext;
++        CcspTraceWarning(("%s -- pX_QCOMRule ins=%lu\n", __FUNCTION__,
++                   pX_QCOMRule ? (unsigned long)pX_QCOMRule->InstanceNumber : 0UL));
++
++        AnscSListPopEntryByLink(pListHead, &pCosaX_QCOMRuleContext->Linkage);
++
++        if ( pX_QCOMRule )
++        {
++                AnscFreeMemory(pX_QCOMRule);
++                pX_QCOMRule = NULL;
++        }
++
++        pPoamIrepFo = pCosaX_QCOMRuleContext->hPoamIrepFo;
++
++        if ( pPoamIrepFo )
++        {
++                pPoamIrepFo->Remove((ANSC_HANDLE)pPoamIrepFo);
++        }
++
++        AnscFreeMemory(pCosaX_QCOMRuleContext);
++    }
++
++
++
++    if ( pPoamIrepFoX_QCOMRule )
++    {
++        pPoamIrepFoX_QCOMRule->Remove((ANSC_HANDLE)pPoamIrepFoX_QCOMRule);
++    }
+ 
+-    /* Remove self */
+     AnscFreeMemory((ANSC_HANDLE)pMyObject);
+ 
+ 	return returnStatus;
+ }
++
++/**********************************************************************
++
++   caller:     owner of this object
++
++   prototype:
++
++       ANSC_STATUS
++       CosaPcReg_X_QCOMRuleAddInfo
++           (
++               ANSC_HANDLE                 hThisObject,
++               ANSC_HANDLE                 hCosaContext
++           );
++
++   description:
++
++       This function is called to configure Dslm policy parameters.
++
++   argument:   ANSC_HANDLE                 hThisObject
++               This handle is actually the pointer of this object
++               itself.
++
++               ANSC_HANDLE                 hDdnsInfo
++               Specifies the Dslm policy parameters to be filled.
++
++   return:     status of operation.
++
++**********************************************************************/
++
++ANSC_STATUS
++CosaPcReg_X_QCOMRuleAddInfo
++   (
++       ANSC_HANDLE                 hThisObject,
++       ANSC_HANDLE                 hCosaContext
++   )
++{
++
++   ANSC_STATUS                     returnStatus            = ANSC_STATUS_SUCCESS;
++   PCOSA_DATAMODEL_FIREWALL        pMyObject    = (PCOSA_DATAMODEL_FIREWALL)hThisObject;
++   PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFoX_QCOMRule      = (PPOAM_IREP_FOLDER_OBJECT )pMyObject->hIrepFolderQComRule;
++   PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFoX_QCOMRuleSp    = (PPOAM_IREP_FOLDER_OBJECT )NULL;
++   PCOSA_CONTEXT_LINK_OBJECT       pCosaContext            = (PCOSA_CONTEXT_LINK_OBJECT)hCosaContext;
++   COSA_DML_FIREWALL_QCOMRULE       *pEntry                 = (COSA_DML_FIREWALL_QCOMRULE*)pCosaContext->hContext;
++   PSLAP_VARIABLE                  pSlapVariable           = (PSLAP_VARIABLE )NULL;
++
++   if ( !pPoamIrepFoX_QCOMRule )
++   {
++       return ANSC_STATUS_FAILURE;
++   }
++   else
++   {
++       pPoamIrepFoX_QCOMRule->EnableFileSync((ANSC_HANDLE)pPoamIrepFoX_QCOMRule, FALSE);
++   }
++   if ( TRUE )
++   {
++       SlapAllocVariable(pSlapVariable);
++
++       if ( !pSlapVariable )
++       {
++           returnStatus = ANSC_STATUS_RESOURCES;
++           goto  EXIT1;
++       }
++   }
++
++   if ( TRUE )
++   {
++       returnStatus =
++           pPoamIrepFoX_QCOMRule->DelRecord
++               (
++                   (ANSC_HANDLE)pPoamIrepFoX_QCOMRule,
++                   COSA_DML_RR_NAME_X_QCOMRULE_NextInsNumber
++               );
++
++      pSlapVariable->Syntax            = SLAP_VAR_SYNTAX_uint32;
++       pSlapVariable->Variant.varUint32 = pMyObject->x_qcomRuleNextInsNum;
++
++       returnStatus =
++           pPoamIrepFoX_QCOMRule->AddRecord
++               (
++                   (ANSC_HANDLE)pPoamIrepFoX_QCOMRule,
++                   COSA_DML_RR_NAME_X_QCOMRULE_NextInsNumber,
++                   SYS_REP_RECORD_TYPE_UINT,
++                   SYS_RECORD_CONTENT_DEFAULT,
++                   pSlapVariable,
++                   0
++               );
++
++       SlapCleanVariable(pSlapVariable);
++       SlapInitVariable (pSlapVariable);
++   }
++
++   if ( TRUE )
++   {
++        pPoamIrepFoX_QCOMRuleSp =
++           pPoamIrepFoX_QCOMRule->AddFolder
++               (
++                   (ANSC_HANDLE)pPoamIrepFoX_QCOMRule,
++                   pEntry->Alias,
++                   0
++               );
++
++       if ( !pPoamIrepFoX_QCOMRuleSp )
++       {
++           returnStatus = ANSC_STATUS_FAILURE;
++           goto  EXIT1;
++       }
++
++       if ( TRUE )
++       {
++           pSlapVariable->Syntax            = SLAP_VAR_SYNTAX_uint32;
++           pSlapVariable->Variant.varUint32 = pEntry->InstanceNumber;
++
++           returnStatus =
++               pPoamIrepFoX_QCOMRuleSp->AddRecord
++                   (
++                       (ANSC_HANDLE)pPoamIrepFoX_QCOMRuleSp,
++                       COSA_DML_RR_NAME_X_QCOMRULE_InsNum,
++                       SYS_REP_RECORD_TYPE_UINT,
++                       SYS_RECORD_CONTENT_DEFAULT,
++                       pSlapVariable,
++                       0
++                   );
++
++           SlapCleanVariable(pSlapVariable);
++           SlapInitVariable (pSlapVariable);
++       }
++
++       if ( TRUE )
++       {
++           pSlapVariable->Syntax            = SLAP_VAR_SYNTAX_string;
++           pSlapVariable->Variant.varString = AnscCloneString(pEntry->Alias);
++
++           returnStatus =
++               pPoamIrepFoX_QCOMRuleSp->AddRecord
++                   (
++                       (ANSC_HANDLE)pPoamIrepFoX_QCOMRuleSp,
++                       COSA_DML_RR_NAME_X_QCOMRULE_Alias,
++                       SYS_REP_RECORD_TYPE_ASTR,
++                       SYS_RECORD_CONTENT_DEFAULT,
++                       pSlapVariable,
++                       0
++                   );
++
++           SlapCleanVariable(pSlapVariable);
++           SlapInitVariable (pSlapVariable);
++       }
++
++       pCosaContext->hPoamIrepUpperFo = (ANSC_HANDLE)pPoamIrepFoX_QCOMRule;
++       pCosaContext->hPoamIrepFo      = (ANSC_HANDLE)pPoamIrepFoX_QCOMRuleSp;
++   }
++
++EXIT1:
++
++   if ( pSlapVariable )
++   {
++       SlapFreeVariable(pSlapVariable);
++   }
++
++   pPoamIrepFoX_QCOMRule->EnableFileSync((ANSC_HANDLE)pPoamIrepFoX_QCOMRule, TRUE);
++
++   return returnStatus;
++
++}
++
++/**********************************************************************
++
++   caller:     owner of this object
++
++   prototype:
++
++       ANSC_STATUS
++       CosaPcReg_X_QCOMRuleDelInfo
++           (
++               ANSC_HANDLE                 hThisObject,
++               ANSC_HANDLE                 hCosaContext
++           );
++
++   description:
++
++       This function is called to configure Dslm policy parameters.
++
++   argument:   ANSC_HANDLE                 hThisObject
++               This handle is actually the pointer of this object
++               itself.
++
++               ANSC_HANDLE                 hDdnsInfo
++               Specifies the Dslm policy parameters to be filled.
++
++   return:     status of operation.
++
++**********************************************************************/
++ANSC_STATUS
++CosaPcReg_X_QCOMRuleDelInfo(
++       ANSC_HANDLE                 hThisObject,
++       ANSC_HANDLE                 hCosaContext
++   )
++{
++   ANSC_STATUS                     returnStatus         = ANSC_STATUS_SUCCESS;
++   PCOSA_DATAMODEL_FIREWALL        pMyObject            = (PCOSA_DATAMODEL_FIREWALL)hThisObject;
++   PCOSA_CONTEXT_LINK_OBJECT       pCosaContext         = (PCOSA_CONTEXT_LINK_OBJECT)hCosaContext;
++   PPOAM_IREP_FOLDER_OBJECT        pPoamIrepUpperFo     = (PPOAM_IREP_FOLDER_OBJECT )pCosaContext->hPoamIrepUpperFo;
++   PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFo          = (PPOAM_IREP_FOLDER_OBJECT )pCosaContext->hPoamIrepFo;
++
++   if ( !pPoamIrepUpperFo || !pPoamIrepFo )
++   {
++       return ANSC_STATUS_FAILURE;
++   }
++   else
++   {
++       pPoamIrepUpperFo->EnableFileSync((ANSC_HANDLE)pPoamIrepUpperFo, FALSE);
++   }
++
++   if ( TRUE )
++   {
++       pPoamIrepFo->Close((ANSC_HANDLE)pPoamIrepFo);
++
++       pPoamIrepUpperFo->DelFolder
++           (
++               (ANSC_HANDLE)pPoamIrepUpperFo,
++               pPoamIrepFo->GetFolderName((ANSC_HANDLE)pPoamIrepFo)
++           );
++
++       pPoamIrepUpperFo->EnableFileSync((ANSC_HANDLE)pPoamIrepUpperFo, TRUE);
++
++       AnscFreeMemory(pPoamIrepFo);
++   }
++
++   return ANSC_STATUS_SUCCESS;
++}
++
++/**********************************************************************
++
++   caller:     owner of this object
++
++   prototype:
++
++       ANSC_STATUS
++       CosaPcReg_X_QCOMRuleGetInfo
++           (
++               ANSC_HANDLE                 hThisObject,
++               ANSC_HANDLE                 hCosaContext
++           );
++
++   description:
++
++       This function is called to configure Dslm policy parameters.
++
++   argument:   ANSC_HANDLE                 hThisObject
++               This handle is actually the pointer of this object
++               itself.
++
++               ANSC_HANDLE                 hDdnsInfo
++               Specifies the Dslm policy parameters to be filled.
++
++   return:     status of operation.
++
++**********************************************************************/
++
++ANSC_STATUS
++CosaPcReg_X_QCOMRuleGetInfo(
++       ANSC_HANDLE                 hThisObject
++   )
++{
++   PCOSA_DATAMODEL_FIREWALL        pMyObject               = (PCOSA_DATAMODEL_FIREWALL  )hThisObject;
++   PSLIST_HEADER                   pListHead               = (PSLIST_HEADER             )&pMyObject->FirewallX_QCOMRuleList;
++   PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFoX_QCOMRule      = (PPOAM_IREP_FOLDER_OBJECT  )pMyObject->hIrepFolderQComRule;
++   PPOAM_IREP_FOLDER_OBJECT        pPoamIrepFoX_QCOMRuleSp    = (PPOAM_IREP_FOLDER_OBJECT  )NULL;
++   PCOSA_DML_FIREWALL_QCOMRULE      pEntry                  = (PCOSA_DML_FIREWALL_QCOMRULE)NULL;
++   PCOSA_CONTEXT_LINK_OBJECT       pCosaContext            = (PCOSA_CONTEXT_LINK_OBJECT )NULL;
++   PSLAP_VARIABLE                  pSlapVariable           = (PSLAP_VARIABLE            )NULL;
++   ULONG                           ulEntryCount            = 0;
++   ULONG                           ulIndex                 = 0;
++   ULONG                           ulInstanceNumber        = 0;
++   char*                           pFolderName             = NULL;
++
++   char*                           pAlias                  = NULL;
++   if ( !pPoamIrepFoX_QCOMRule )
++   {
++       return ANSC_STATUS_FAILURE;
++   }
++   ulEntryCount = pPoamIrepFoX_QCOMRule->GetFolderCount((ANSC_HANDLE)pPoamIrepFoX_QCOMRule);
++
++   for ( ulIndex = 0; ulIndex < ulEntryCount; ulIndex++)
++   {
++       pFolderName =
++           pPoamIrepFoX_QCOMRule->EnumFolder
++               (
++                   (ANSC_HANDLE)pPoamIrepFoX_QCOMRule,
++                   ulIndex
++               );
++
++       if ( !pFolderName )
++       {
++           continue;
++       }
++
++       pPoamIrepFoX_QCOMRuleSp = pPoamIrepFoX_QCOMRule->GetFolder((ANSC_HANDLE)pPoamIrepFoX_QCOMRule, pFolderName);
++
++       AnscFreeMemory(pFolderName);
++
++       if ( !pPoamIrepFoX_QCOMRuleSp )
++       {
++           continue;
++       }
++
++       if ( TRUE )
++       {
++           pSlapVariable =
++               (PSLAP_VARIABLE)pPoamIrepFoX_QCOMRuleSp->GetRecord
++                   (
++                       (ANSC_HANDLE)pPoamIrepFoX_QCOMRuleSp,
++                       COSA_DML_RR_NAME_X_QCOMRULE_InsNum,
++                       NULL
++                   );
++
++           if ( pSlapVariable )
++           {
++               ulInstanceNumber = pSlapVariable->Variant.varUint32;
++
++               SlapFreeVariable(pSlapVariable);
++           }
++       }
++
++       if ( TRUE )
++       {
++           pSlapVariable =
++               (PSLAP_VARIABLE)pPoamIrepFoX_QCOMRuleSp->GetRecord
++                   (
++                       (ANSC_HANDLE)pPoamIrepFoX_QCOMRuleSp,
++                       COSA_DML_RR_NAME_X_QCOMRULE_Alias,
++                       NULL
++                   );
++
++           if ( pSlapVariable )
++           {
++               pAlias = AnscCloneString(pSlapVariable->Variant.varString);
++
++               SlapFreeVariable(pSlapVariable);
++           }
++       }
++
++       pCosaContext = (PCOSA_CONTEXT_LINK_OBJECT)AnscAllocateMemory(sizeof(COSA_CONTEXT_LINK_OBJECT));
++
++       if ( !pCosaContext )
++       {
++           AnscFreeMemory(pAlias);
++           return ANSC_STATUS_RESOURCES;
++       }
++
++       pEntry = (PCOSA_DML_FIREWALL_QCOMRULE)AnscAllocateMemory(sizeof(COSA_DML_FIREWALL_QCOMRULE));
++
++       if ( !pEntry )
++       {
++           AnscFreeMemory(pAlias);
++           AnscFreeMemory(pCosaContext);
++           return ANSC_STATUS_RESOURCES;
++       }
++
++       AnscCopyString(pEntry->Alias, pAlias);
++
++       pEntry->InstanceNumber = ulInstanceNumber;
++
++       pCosaContext->InstanceNumber        = ulInstanceNumber;
++       pCosaContext->bNew                  = TRUE;
++       pCosaContext->hContext              = (ANSC_HANDLE)pEntry;
++       pCosaContext->hParentTable          = NULL;
++       pCosaContext->hPoamIrepUpperFo      = (ANSC_HANDLE)pPoamIrepFoX_QCOMRule;
++       pCosaContext->hPoamIrepFo           = (ANSC_HANDLE)pPoamIrepFoX_QCOMRuleSp;
++
++       CosaSListPushEntryByInsNum(pListHead, pCosaContext);
++
++       if ( pAlias )
++       {
++           AnscFreeMemory(pAlias);
++
++           pAlias = NULL;
++       }
++   }
++
++   return ANSC_STATUS_SUCCESS;
++}
+Index: git/source/TR-181/middle_layer_src/cosa_firewall_internal.h
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_firewall_internal.h
++++ git/source/TR-181/middle_layer_src/cosa_firewall_internal.h
+@@ -63,6 +63,11 @@
+ #ifndef  _COSA_FIREWALL_INTERNAL_H
+ #define  _COSA_FIREWALL_INTERNAL_H
+ 
++#define  COSA_IREP_FOLDER_NAME_X_QCOMRULE                   "X_QCOMRule"
++#define  COSA_DML_RR_NAME_X_QCOMRULE_Alias                  "X_QCOMRULEAlias"
++#define  COSA_DML_RR_NAME_X_QCOMRULE_InsNum                 "X_QCOMRULEInstanceNumber"
++#define  COSA_DML_RR_NAME_X_QCOMRULE_NextInsNumber          "X_QCOMRULEGNextInstanceNumber"
++#define  COSA_DML_RR_NAME_X_QCOMRULE_NewlyAdded             "X_QCOMRULENewlyAdded"
+ 
+ #include "cosa_firewall_apis.h"
+ 
+@@ -72,6 +77,14 @@
+     COSA_BASE_CONTENT                                                                       \
+     /* start of FIREWALL object class content */                                            \
+     COSA_DML_FIREWALL_CFG           FirewallConfig;                                         \
++    SLIST_HEADER                    FirewallX_QCOMRuleList;                                 \
++    ULONG                           x_qcomRuleNextInsNum;                                   \
++    ULONG                           MaxInstanceNumber;                                      \
++    COSA_DML_FIREWALL_QCOMRULE      x_qcomRuleConfig;                                       \
++    ANSC_HANDLE                     hIrepFolderCOSA;                                        \
++    ANSC_HANDLE                     hIrepFolderIA;                                          \
++    ANSC_HANDLE                     hIrepFolderIAHA;                                        \
++    ANSC_HANDLE                     hIrepFolderQComRule;                                    \
+ 
+ #define IPPT_MODE_WITH_NAT         1
+ #define IPPT_MODE_WITHOUT_NAT      2
+@@ -143,5 +156,23 @@ CosaFirewallRemove
+         ANSC_HANDLE                 hThisObject
+     );
+ 
++ANSC_STATUS
++CosaPcReg_X_QCOMRuleAddInfo
++    (
++        ANSC_HANDLE                 hThisObject,
++        ANSC_HANDLE                 hCosaContext
++    );
++
++ANSC_STATUS
++CosaPcReg_X_QCOMRuleDelInfo
++    (
++        ANSC_HANDLE                 hThisObject,
++        ANSC_HANDLE                 hCosaContext
++    );
++ANSC_STATUS
++CosaPcReg_X_QCOMRuleGetInfo
++    (
++        ANSC_HANDLE                 hThisObject
++    );
+ 
+ #endif
+Index: git/source/TR-181/middle_layer_src/cosa_firewall_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_firewall_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_firewall_dml.c
+@@ -1696,3 +1696,981 @@ PacketStats_Rollback
+   UNREFERENCED_PARAMETER(hInsContext);
+   return ANSC_STATUS_SUCCESS;
+ }
++
++/***********************************************************************
++
++ APIs for Object:
++
++    Firewall.X_QCOM.
++    *  X_QCOM_GetParamUlongValue
++    *  X_QCOM_SetParamUlongValue
++***********************************************************************/
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOM_GetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG*                      puLong
++            );
++
++    description:
++
++        This function is called to retrieve ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                ULONG*                      puLong
++                The buffer of returned ULONG value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++ULONG
++X_QCOM_GetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG*                      puLong
++
++
++    )
++{
++     /* check the parameter name and set the corresponding value */
++     if (strcmp(ParamName, "RuleType") == 0)
++     {
++         char buf[16]={0};
++        //Updating RuleType with syscfg firewall_rule_type
++         if(!syscfg_get( NULL, "firewall_rule_type", buf, sizeof(buf)))
++         {
++             if (strncasecmp(buf, "Whitelist", strlen("Whitelist")) == 0)
++                 *puLong = 1;
++             else if (strncasecmp(buf, "Blacklist", strlen("Blacklist")) == 0)
++                 *puLong = 2;
++             else if(strncasecmp(buf, "None", strlen("None")) == 0)
++                *puLong = 3;
++             return TRUE;
++         }
++     }
++     CcspTraceWarning(("Unsupported parameter '%s'\n", ParamName));
++     return FALSE;
++}
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOM_SetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG                       uValue
++           );
++
++    description:
++
++        This function is called to set ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                ULONG                       uValue
++                The updated ULONG value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++X_QCOM_SetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG                       uValue
++    )
++{
++    PCOSA_DATAMODEL_FIREWALL        pCosaDMFirewall = (PCOSA_DATAMODEL_FIREWALL)g_pCosaBEManager->hFirewall;
++    PCOSA_DML_FIREWALL_CFG         pFirewallCfg    = &pCosaDMFirewall->FirewallConfig;
++
++    /* check the parameter name and set the corresponding value */
++    if (strcmp(ParamName, "RuleType") == 0)
++    {
++        pCosaDMFirewall->FirewallConfig.RuleType = uValue;
++        return TRUE;
++    }
++    CcspTraceWarning(("Unsupported parameter '%s'\n", ParamName));
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++    ULONG
++    X_QCOM_Commit
++            (
++                 ANSC_HANDLE                 hInsContext
++             );
++
++     description:
++
++     his function is called to finally commit all the update.
++
++     argument:   ANSC_HANDLE                 hInsContext,
++                 The instance handle;
++
++     return:     The status of the operation.
++**********************************************************************/
++ULONG
++X_QCOM_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    UNREFERENCED_PARAMETER(hInsContext);
++    PCOSA_DATAMODEL_FIREWALL        pCosaDMFirewall = (PCOSA_DATAMODEL_FIREWALL)g_pCosaBEManager->hFirewall;
++    CosaDmlFirewallSetConfig(NULL, &pCosaDMFirewall->FirewallConfig);
++    return 0;
++}
++/***********************************************************************
++
++ APIs for Object:
++
++    Firewall.X_QCOM.Rule.{i}.
++
++    *  X_QCOMRule_GetEntryCount
++    *  X_QCOMRule_GetEntry
++    *  X_QCOMRule_AddEntry
++    *  X_QCOMRule_DelEntry
++    *  X_QCOMRule_GetParamBoolValue
++    *  X_QCOMRule_GetParamIntValue
++    *  X_QCOMRule_GetParamUlongValue
++    *  X_QCOMRule_GetParamStringValue
++    *  X_QCOMRule_SetParamBoolValue
++    *  X_QCOMRule_SetParamIntValue
++    *  X_QCOMRule_SetParamUlongValue
++    *  X_QCOMRule_SetParamStringValue
++    *  X_QCOMRule_Validate
++    *  X_QCOMRule_Commit
++    *  X_QCOMRule_Rollback
++
++***********************************************************************/
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        X_QCOMRule_GetEntryCount
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to retrieve the count of the table.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The count of the table
++
++**********************************************************************/
++ULONG
++X_QCOMRule_GetEntryCount
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    ULONG numInstance=0;
++    PCOSA_DATAMODEL_FIREWALL        pCosaDMFirewall   = (PCOSA_DATAMODEL_FIREWALL )g_pCosaBEManager->hFirewall;
++
++    numInstance= AnscSListQueryDepth(&pCosaDMFirewall->FirewallX_QCOMRuleList);
++    AnscTraceWarning(("%s -- nIndex = %d...\n", __FUNCTION__, numInstance));
++    return numInstance;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ANSC_HANDLE
++        X_QCOMRule_GetEntry
++            (
++                ANSC_HANDLE                 hInsContext,
++                ULONG                       nIndex,
++                ULONG*                      pInsNumber
++            );
++
++    description:
++
++        This function is called to retrieve the entry specified by the index.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                ULONG                       nIndex,
++                The index of this entry;
++
++                ULONG*                      pInsNumber
++                The output instance number;
++
++    return:     The handle to identify the entry
++
++**********************************************************************/
++ANSC_HANDLE
++X_QCOMRule_GetEntry
++    (
++        ANSC_HANDLE                 hInsContext,
++        ULONG                       nIndex,
++        ULONG*                      pInsNumber
++    )
++{
++    PCOSA_DATAMODEL_FIREWALL        pCosaDMFirewall   = (PCOSA_DATAMODEL_FIREWALL )g_pCosaBEManager->hFirewall;
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = NULL;
++    PSINGLE_LINK_ENTRY              pSLinkEntry = NULL;
++
++    AnscTraceWarning(("%s -- nIndex = %d ,----%lu...-- instance number\n", __FUNCTION__, nIndex,pInsNumber));
++    pSLinkEntry = AnscQueueGetEntryByIndex((ANSC_HANDLE)&pCosaDMFirewall->FirewallX_QCOMRuleList, nIndex);
++    if (pSLinkEntry)
++    {
++        pLinkObj = ACCESS_COSA_CONTEXT_LINK_OBJECT(pSLinkEntry);
++        *pInsNumber = pLinkObj->InstanceNumber;
++    }
++    return pLinkObj;
++
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ANSC_HANDLE
++        X_QCOMRule_AddEntry
++            (
++                ANSC_HANDLE                 hInsContext,
++                ULONG*                      pInsNumber
++            );
++
++    description:
++
++        This function is called to add a new entry.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                ULONG*                      pInsNumber
++                The output instance number;
++
++    return:     The handle of new added entry.
++
++**********************************************************************/
++ANSC_HANDLE
++X_QCOMRule_AddEntry
++    (
++        ANSC_HANDLE                 hInsContext,
++        ULONG*                      pInsNumber
++    )
++{
++    PCOSA_DATAMODEL_FIREWALL        pCosaDMFirewall   = (PCOSA_DATAMODEL_FIREWALL )g_pCosaBEManager->hFirewall;
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = NULL;
++    PCOSA_DML_FIREWALL_QCOMRULE      pCosaFirewallX_QCOMRule    = NULL;
++
++    AnscTraceWarning(("%s...\n", __FUNCTION__));
++    pLinkObj = AnscAllocateMemory(sizeof(COSA_CONTEXT_LINK_OBJECT));
++    if (!pLinkObj)
++    {
++        return NULL;
++    }
++    pCosaFirewallX_QCOMRule = AnscAllocateMemory(sizeof(COSA_DML_FIREWALL_QCOMRULE));
++    if (!pCosaFirewallX_QCOMRule)
++    {
++        AnscFreeMemory(pLinkObj);
++        return NULL;
++    }
++    pLinkObj->InstanceNumber =  pCosaDMFirewall->x_qcomRuleNextInsNum;
++    pCosaFirewallX_QCOMRule->InstanceNumber = pCosaDMFirewall->x_qcomRuleNextInsNum;
++    pCosaDMFirewall->x_qcomRuleNextInsNum++;
++    if (pCosaDMFirewall->x_qcomRuleNextInsNum == 0)
++        pCosaDMFirewall->x_qcomRuleNextInsNum = 1;
++    _ansc_sprintf(pCosaFirewallX_QCOMRule->Alias, "X_QCOMRule-%d", (int)pLinkObj->InstanceNumber);
++    pLinkObj->hContext      = (ANSC_HANDLE)pCosaFirewallX_QCOMRule;
++    pLinkObj->hParentTable  = NULL;
++    pLinkObj->bNew          = TRUE;
++    CosaSListPushEntryByInsNum((PSLIST_HEADER)&pCosaDMFirewall->FirewallX_QCOMRuleList, pLinkObj);
++    CosaPcReg_X_QCOMRuleAddInfo((ANSC_HANDLE)pCosaDMFirewall, (ANSC_HANDLE)pLinkObj);
++    *pInsNumber = pLinkObj->InstanceNumber;
++    return pLinkObj;
++}
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        X_QCOMRule_DelEntry
++            (
++               ANSC_HANDLE                 hInsContext,
++                ANSC_HANDLE                 hInstance
++            );
++
++    description:
++
++        This function is called to delete an exist entry.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                ANSC_HANDLE                 hInstance
++                The exist entry handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG
++X_QCOMRule_DelEntry
++    (
++        ANSC_HANDLE                 hInsContext,
++        ANSC_HANDLE                 hInstance
++    )
++{
++    PCOSA_DATAMODEL_FIREWALL        pCosaDMFirewall   = (PCOSA_DATAMODEL_FIREWALL )g_pCosaBEManager->hFirewall;
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = (PCOSA_CONTEXT_LINK_OBJECT)hInstance;
++    PCOSA_DML_FIREWALL_QCOMRULE      pCosaFirewallX_QCOMRule   = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    AnscTraceWarning(("%s...\n", __FUNCTION__));
++
++    if (CosaDmlQcomRuleDelEntry(pLinkObj->InstanceNumber) != ANSC_STATUS_SUCCESS)
++    {
++        return -1;
++    }
++
++    AnscSListPopEntryByLink((PSLIST_HEADER)&pCosaDMFirewall->FirewallX_QCOMRuleList, &pLinkObj->Linkage);
++    if (pLinkObj->bNew)
++        CosaPcReg_X_QCOMRuleDelInfo((ANSC_HANDLE)pCosaDMFirewall, (ANSC_HANDLE)pLinkObj);
++
++    AnscFreeMemory(pCosaFirewallX_QCOMRule);
++    AnscFreeMemory(pLinkObj);
++
++    return 0;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOMRule_GetParamBoolValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                BOOL*                       pBool
++            );
++
++    description:
++
++        This function is called to retrieve Boolean parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                BOOL*                       pBool
++                The buffer of returned boolean value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++X_QCOMRule_GetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL*                       pBool
++    )
++{
++
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    AnscTraceWarning(("%s -- param name = %s..\n", __FUNCTION__, ParamName));
++    if (AnscEqualString(ParamName, "Enable", TRUE))
++    {
++       *pBool = pXQCOMRule->bEnabled;
++        return TRUE;
++    }
++    return FALSE;
++}
++
++/**********************************************************************
++
++   caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOMRule_GetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG*                      puLong
++            );
++
++    description:
++
++        This function is called to retrieve ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                ULONG*                      puLong
++                The buffer of returned ULONG value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++X_QCOMRule_GetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG*                      puLong
++    )
++{
++    /* check the parameter name and return the corresponding value */
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    AnscTraceWarning(("%s -- param name = %s...\n", __FUNCTION__, ParamName));
++    if( AnscEqualString(ParamName, "SourcePort", TRUE))
++    {
++        *puLong = pXQCOMRule->SourcePort;
++        return TRUE;
++    }
++
++    if( AnscEqualString(ParamName, "DestPort", TRUE))
++    {
++        *puLong = pXQCOMRule->DestinationPort;
++        return TRUE;
++    }
++    if( AnscEqualString(ParamName, "DestIP", TRUE))
++    {
++        *puLong = pXQCOMRule->DestinationIPAddress.Value;
++        return TRUE;
++    }
++
++
++    if( AnscEqualString(ParamName, "SourceIP", TRUE))
++    {
++        *puLong = pXQCOMRule->SourceIPAddress.Value;
++        return TRUE;
++    }
++
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        X_QCOMRule_GetParamStringValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                char*                       pValue,
++                ULONG*                      pUlSize
++           );
++
++    description:
++
++        This function is called to retrieve string parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                char*                       pValue,
++                The string value buffer;
++
++               ULONG*                      pUlSize
++               The buffer of length of string value;
++                Usually size of 1023 will be used.
++                If it's not big enough, put required size here and return 1;
++
++   return:     0 if succeeded;
++                1 if short of buffer size; (*pUlSize = required size)
++                -1 if not supported.
++
++**********************************************************************/
++ULONG
++X_QCOMRule_GetParamStringValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        char*                       pValue,
++        ULONG*                      pUlSize
++    )
++{
++    /* check the parameter name and return the corresponding value */
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    AnscTraceWarning(("%s -- param name = %s...\n", __FUNCTION__, ParamName));
++    if( AnscEqualString(ParamName, "Alias", TRUE))
++    {
++        AnscCopyString(pValue, pXQCOMRule->Alias);
++        return 0;
++    }
++
++    if( AnscEqualString(ParamName, "Direction", TRUE))
++    {
++        AnscCopyString(pValue, pXQCOMRule->Direction);
++        return 0;
++    }
++
++    if( AnscEqualString(ParamName, "Protocol", TRUE))
++    {
++       // If Protocol is not set or empty, return default "udp"
++       if (!pXQCOMRule->Protocol || pXQCOMRule->Protocol[0] == '\0')
++       {
++           AnscCopyString(pValue, "udp");
++       }
++       else
++       {
++           AnscCopyString(pValue, pXQCOMRule->Protocol);
++       }
++       return 0;
++    }
++
++    if( AnscEqualString(ParamName, "SourceIPv6Address", TRUE))
++    {
++        AnscCopyString(pValue, pXQCOMRule->SourceIPv6Address);
++        return 0;
++    }
++
++    if( AnscEqualString(ParamName, "DestIPv6Address", TRUE))
++    {
++        AnscCopyString(pValue, pXQCOMRule->DestinationIPv6Address);
++        return 0;
++    }
++
++    return -1;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOMRule_SetParamBoolValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                BOOL                        bValue
++            );
++
++   description:
++
++        This function is called to set BOOL parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                BOOL                        bValue
++                The updated BOOL value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++X_QCOMRule_SetParamBoolValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        BOOL                        bValue
++    )
++{
++    /* check the parameter name and return the corresponding value */
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    AnscTraceWarning(("%s -- param name = %s...\n", __FUNCTION__, ParamName));
++
++    if (AnscEqualString(ParamName, "Enable", TRUE))
++    {
++        pXQCOMRule->bEnabled = bValue;
++        if (pXQCOMRule->Protocol[0] == '\0')
++            AnscCopyString(pXQCOMRule->Protocol, "udp");
++        system("sysevent set firewall-restart");
++        return TRUE;
++    }
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOMRule_SetParamUlongValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                ULONG                       uValue
++            );
++
++    description:
++
++        This function is called to set ULONG parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++               char*                       ParamName,
++                The parameter name;
++
++                ULONG                       uValue
++                The updated ULONG value;
++
++    return:     TRUE if succeeded.
++
+++**********************************************************************/
++BOOL
++X_QCOMRule_SetParamUlongValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        ULONG                       uValue
++    )
++{
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj    = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    AnscTraceWarning(("%s -- param name = %s...\n", __FUNCTION__, ParamName));
++    if( AnscEqualString(ParamName, "SourcePort", TRUE))
++    {
++        pXQCOMRule->SourcePort = (ULONG)uValue;
++        return TRUE;
++    }
++    if( AnscEqualString(ParamName, "DestPort", TRUE))
++    {
++        pXQCOMRule->DestinationPort = (ULONG)uValue;
++        return TRUE;
++    }
++
++    if( AnscEqualString(ParamName, "DestIP", TRUE))
++    {
++        pXQCOMRule->DestinationIPAddress.Value = uValue;
++        return TRUE;
++    }
++
++
++    if( AnscEqualString(ParamName, "SourceIP", TRUE))
++    {
++        pXQCOMRule->SourceIPAddress.Value = uValue;
++        return TRUE;
++    }
++
++    return FALSE;
++
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOMRule_SetParamStringValue
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       ParamName,
++                char*                       pString
++            );
++
++    description:
++
++        This function is called to set string parameter value;
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       ParamName,
++                The parameter name;
++
++                char*                       pString
++                The updated string value;
++
++    return:     TRUE if succeeded.
++
++**********************************************************************/
++BOOL
++X_QCOMRule_SetParamStringValue
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       ParamName,
++        char*                       pString
++    )
++{
++    PCOSA_CONTEXT_LINK_OBJECT          pLinkObj       = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    if( AnscEqualString(ParamName, "Alias", TRUE))
++    {
++        AnscCopyString(pXQCOMRule->Alias,pString);
++        return TRUE;
++    }
++
++    if( AnscEqualString(ParamName, "Protocol", TRUE))
++    {
++        if(strcmp(pString, "tcp") == 0)
++        {
++            AnscCopyString(pXQCOMRule->Protocol, "tcp");
++            return TRUE;
++        }
++        else if(strcmp(pString, "udp") == 0) {
++            AnscCopyString(pXQCOMRule->Protocol, "udp");
++            return TRUE;
++        }
++        // Checking if the protocol is both tcp and udp
++        else if(strcmp(pString, "tcp_udp") == 0) {
++            AnscCopyString(pXQCOMRule->Protocol, "tcp_udp");
++             return TRUE;
++        }
++        else
++        {
++            return FALSE;
++        }
++    }
++
++    if( AnscEqualString(ParamName, "Direction", TRUE))
++    {
++        if(strcmp(pString, "Uplink") == 0)
++        {
++            AnscCopyString(pXQCOMRule->Direction, "Uplink");
++            return TRUE;
++        }
++        else if(strcmp(pString, "Downlink") == 0)
++        {
++            AnscCopyString(pXQCOMRule->Direction, "Downlink");
++            return TRUE;
++        }
++        else
++        {
++            return FALSE;
++        }
++    }
++
++
++    if( AnscEqualString(ParamName, "SourceIPv6Address", TRUE))
++    {
++        // Clear existing source IPv6 address if new value is empty or "0:0:0:0"
++        if (pString == NULL || *pString == '\0' || strcmp(pString, "::0") == 0 || strcmp(pString, "0:0:0:0:0:0:0:0") == 0 ||
++            strcmp(pString, "::") == 0)
++        {
++            memset(pXQCOMRule->SourceIPv6Address, 0, sizeof(pXQCOMRule->SourceIPv6Address));
++            return TRUE;
++        }
++        // Validate and copy the IPv6 address if not empty
++        if (strlen(pString) < sizeof(pXQCOMRule->SourceIPv6Address))
++        {
++            AnscCopyString(pXQCOMRule->SourceIPv6Address,pString);
++            return TRUE;
++        }
++        return FALSE;
++    }
++    if( AnscEqualString(ParamName, "DestIPv6Address", TRUE))
++    {
++        // Clear existing Destination IPv6 address if new value is empty, NULL, or "::0"
++        if (pString == NULL || *pString == '\0' || strcmp(pString, "::0") == 0 || strcmp(pString, "0:0:0:0:0:0:0:0") == 0 ||
++            strcmp(pString, "::") == 0)
++        {
++            memset(pXQCOMRule->DestinationIPv6Address, 0, sizeof(pXQCOMRule->DestinationIPv6Address));
++            return TRUE;
++        }
++        // Validate and copy the IPv6 address if not empty
++        if (strlen(pString) < sizeof(pXQCOMRule->DestinationIPv6Address))
++        {
++            AnscCopyString(pXQCOMRule->DestinationIPv6Address,pString);
++            return TRUE;
++        }
++        return FALSE;
++    }
++    return FALSE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        BOOL
++        X_QCOMRule_Validate
++            (
++                ANSC_HANDLE                 hInsContext,
++                char*                       pReturnParamName,
++                ULONG*                      puLength
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++                char*                       pReturnParamName,
++                The buffer (128 bytes) of parameter name if there's a validation.
++
++                ULONG*                      puLength
++                The output length of the param name.
++
++    return:     TRUE if there's no validation.
++
++**********************************************************************/
++BOOL
++X_QCOMRule_Validate
++    (
++        ANSC_HANDLE                 hInsContext,
++        char*                       pReturnParamName,
++        ULONG*                      puLength
++    )
++{
++    PCOSA_CONTEXT_LINK_OBJECT          pLinkObj       = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++    return TRUE;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        X_QCOMRule_Commit
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to finally commit all the update.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG
++X_QCOMRule_Commit
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    PCOSA_DATAMODEL_FIREWALL        pCosaDMFirewall   = (PCOSA_DATAMODEL_FIREWALL )g_pCosaBEManager->hFirewall;
++    PCOSA_CONTEXT_LINK_OBJECT       pLinkObj          = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE   pXQCOMRule       = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++    if (pLinkObj->bNew)
++    {
++        if (CosaDmlQcomRuleAddEntry(pXQCOMRule) != ANSC_STATUS_SUCCESS)
++        {
++            return -1;
++        }
++        CosaPcReg_X_QCOMRuleDelInfo((ANSC_HANDLE)pCosaDMFirewall, (ANSC_HANDLE)pLinkObj);
++        pLinkObj->bNew = FALSE;
++    }
++    else
++    {
++        if (CosaDmlQcomRuleSetConf(pXQCOMRule->InstanceNumber, pXQCOMRule) != ANSC_STATUS_SUCCESS)
++        {
++            CosaDmlQcomRuleGetConf(pXQCOMRule->InstanceNumber, pXQCOMRule);
++            return -1;
++        }
++    }
++
++    return 0;
++}
++
++/**********************************************************************
++
++    caller:     owner of this object
++
++    prototype:
++
++        ULONG
++        X_QCOMRule_Rollback
++            (
++                ANSC_HANDLE                 hInsContext
++            );
++
++    description:
++
++        This function is called to roll back the update whenever there's a
++        validation found.
++
++    argument:   ANSC_HANDLE                 hInsContext,
++                The instance handle;
++
++    return:     The status of the operation.
++
++**********************************************************************/
++ULONG
++X_QCOMRule_Rollback
++    (
++        ANSC_HANDLE                 hInsContext
++    )
++{
++    PCOSA_CONTEXT_LINK_OBJECT          pLinkObj       = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_FIREWALL_QCOMRULE      pXQCOMRule    = (PCOSA_DML_FIREWALL_QCOMRULE)pLinkObj->hContext;
++
++    if (CosaDmlQcomRuleGetConf(pXQCOMRule->InstanceNumber, pXQCOMRule) != ANSC_STATUS_SUCCESS)
++    {
++        return -1;
++    }
++    return 0;
++}
++

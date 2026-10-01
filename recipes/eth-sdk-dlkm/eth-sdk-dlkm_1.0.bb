@@ -68,10 +68,15 @@ do_compile() {
 # do_install – generic install for every .ko and every .service found
 # -----------------------------------------------------------------------
 do_install() {
-	# Install all modules via the kernel modules_install target so that
-	# modules.dep / modules.alias are generated correctly.
+	# Run the kernel modules_install target so that modules.dep / modules.alias
+	# get generated, but point it at a scratch dir outside ${D}: with M=${S}
+	# (out-of-tree build) the kernel build system defaults INSTALL_MOD_DIR to
+	# "updates" and never strips (INSTALL_MOD_STRIP unset), so if this were
+	# installed under ${D} it would ship a second, unstripped copy of every
+	# .ko (under .../updates/) alongside the stripped+signed copy the loop
+	# below installs under .../extra/drivers/.
 	oe_runmake -C ${STAGING_KERNEL_DIR} M=${S} \
-		INSTALL_MOD_PATH=${D}/usr \
+		INSTALL_MOD_PATH=${WORKDIR}/modules_install_scratch \
 		modules_install
 
 	# Walk every .ko produced under ${S}, strip, sign and install it.
@@ -111,6 +116,10 @@ do_install() {
 	# Install eth-qos CLI tool
 	install -d ${D}${sbindir}
 	install -m 0755 ${ETH_CLI_DIR}/eth-qos ${D}${sbindir}/eth-qos
+	install -m 0755 ${ETH_CLI_DIR}/eth-cfg ${D}${sbindir}/eth-cfg
+
+	install -d ${D}${sysconfdir}/data/eth
+	install -m 0755 ${ETH_CLI_DIR}/set_eth_perf ${D}${sysconfdir}/data/eth/set_eth_perf
 }
 
 # qperf class adds do_copy_kernel_module() after do_module_signing().
@@ -125,6 +134,8 @@ FILES:${PN} += "${systemd_unitdir}/system/*.service"
 #file created by 'inherit module' bbclass
 FILES:${PN} += "${sysconfdir}/modules-load.d"
 FILES:${PN} += "${sbindir}/eth-qos"
+FILES:${PN} += "${sbindir}/eth-cfg"
+FILES:${PN} += "${sysconfdir}/data/eth/set_eth_perf"
 
 do_remove[noexec] = "1"
 # vim: syntax=bitbake

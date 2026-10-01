@@ -1,0 +1,51 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 63b74f67e24704ea9f4cccb089ef624b3a9120e6 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Wed, 5 Aug 2026 02:49:50 +0000
+Subject: [PATCH] Fix for missing default route in IPPT Without NAT mode
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_interface_sm.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_interface_sm.c b/source/WanManager/wanmgr_interface_sm.c
+index eb4aad6..1f786dc 100644
+--- a/source/WanManager/wanmgr_interface_sm.c
++++ b/source/WanManager/wanmgr_interface_sm.c
+@@ -1445,12 +1445,6 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+     }
+ 
+     Check_Enable_RTSP();
+-        /** Set default gateway. */
+-    if (WanManager_AddDefaultGatewayRoute(DeviceNwMode, &p_VirtIf->IP.Ipv4Data) != RETURN_OK)
+-    {
+-        CcspTraceError(("%s %d - Failed to set up default system gateway", __FUNCTION__, __LINE__));
+-        ret = RETURN_ERR;
+-    }
+ 
+     if (WanManager_GetBCastFromIpSubnetMask(p_VirtIf->IP.Ipv4Data.ip, p_VirtIf->IP.Ipv4Data.mask, bCastStr) != RETURN_OK)
+     {
+@@ -1503,7 +1497,13 @@ static int wan_setUpIPv4(WanMgr_IfaceSM_Controller_t * pWanIfaceCtrl)
+        CcspTraceInfo(("%s %d -  IP configuration = %s \n", __FUNCTION__, __LINE__, cmdStr));
+        WanManager_DoSystemAction("setupIPv4:", cmdStr);
+     }
+-
++     
++    /** Set default gateway. */
++    if (WanManager_AddDefaultGatewayRoute(DeviceNwMode, &p_VirtIf->IP.Ipv4Data) != RETURN_OK)
++    {
++        CcspTraceError(("%s %d - Failed to set up default system gateway", __FUNCTION__, __LINE__));
++        ret = RETURN_ERR;
++    } 
+     /** Update required sysevents. */
+ 
+     sysevent_set(sysevent_fd, sysevent_token, SYSEVENT_IPV4_CONNECTION_STATE, WAN_STATUS_UP, 0);
+-- 
+2.34.1
+

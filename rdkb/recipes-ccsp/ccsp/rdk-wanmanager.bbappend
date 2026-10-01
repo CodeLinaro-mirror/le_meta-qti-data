@@ -8,7 +8,7 @@ CFLAGS_append += " -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat "
 
 DEPENDS += "systemd"
 LDFLAGS_append = " -lsystemd"
-
+CFLAGS_append += " ${@bb.utils.contains('DISTRO_FEATURES', 'guest_wifi', ' -DGUEST_WIFI ', '', d)}"
 CFLAGS_append = " ${@bb.utils.contains('DISTRO_FEATURES', 'syslog-ng', ' -D_SYSLOG_NG ', '', d)}"
 
 SRC_URI += " \
@@ -22,6 +22,29 @@ SRC_URI += " \
     file://00008-IPPT-changes-for-wan-manager.patch \
     file://00009-qti-WanManager-remove-ippt-ipa-ippass-calls.patch \
     file://00010-qti-Wanmanager-AddressReconf-brlan0-old-ipv6-not-deleting.patch \
+    file://00011-qti-Wanmanager_handle_IPv6nei.patch \
+    file://00012-qti-WanManager_address_reconf.patch \
+    file://00013-qti-WanManager_cellular_mtu_fix.patch \
+    file://00014-qti-WanManager_v6address_eth1_wan_accept_ra_pinfo.patch \
+    file://00015-qti-Wanmanager-kill-6brd.patch \
+    file://00016-qti-Wanmanager-eth1-auto-bringup-on-bind.patch \
+    file://00017-qti-Wanmanager-RTSP-module-check.patch \
+    file://00018-qti-WanManager-IPPT-Default-Route-Fix.patch \
+    file://00019-qti-packet-stats-changes-for-wan-manager.patch \
+    file://00020-qti-wanmanager_ECM-PerIP-Stats-Integration.patch \
+    file://00021-qti-Wanmanager-DeviceMode-support.patch \
+    file://00022-qti-Wanmanager-DNS_proxy_enable.patch \
+    file://00023-qti-Wanmanager-eth1-bringup-delay.patch \
+    file://00024-qti-wanmanager_usb_tether_interface_fix.patch \
+    file://00025-qti-wanmanager-fix-for-ip-neighbor-table-showing-deprecated-ipv6-as-reachable.patch \
+    file://00026-qti-Wanmanager-fix-usb-teardown-on-eth1-unplug.patch \
+    file://00027-qti-Wanmanager-ippt-dummyip-status-fix.patch \
+    file://00028-qti-wanmanager-Fix_for_zebra_update_issue.patch \
+    file://00029-qti-Wanmanager-packet-stats-handling-for-WLAN-clients.patch \
+    file://00030-qti-Wanmanager_lan_client_boot_kpi.patch \
+    file://00031-qti-Wanmanager_IP_mode_issue_fix.patch \
+    file://00032-qti-Wanmanager-timestamp_Fix.patch \
+    file://00032-qti-Wanmanager_dhcpmanager_compile_fix.patch \
 "
 
 LDFLAGS_append = " -L${STAGING_LIBDIR} -lglib-2.0 "

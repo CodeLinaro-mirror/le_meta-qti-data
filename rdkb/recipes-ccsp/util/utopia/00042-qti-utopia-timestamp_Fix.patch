@@ -1,0 +1,138 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 07c95766dd7a261a5b9f366fb16c3d9f4a23da92 Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Mon, 21 Sep 2026 20:27:22 +0530
+Subject: [PATCH] TimeStamp_Fix
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ source/firewall/firewall.c                    | 13 ++++++----
+ .../init/service.d/log_capture_path.sh        | 26 +++++++++++++++++--
+ source/util/print_uptime/print_uptime.c       | 14 ++++++----
+ 3 files changed, 41 insertions(+), 12 deletions(-)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index af7e3c8..c720500 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -340,6 +340,7 @@ NOT_DEF:
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
++#include <sys/time.h>
+ #include <time.h>
+ #include <syslog.h>
+ #include <ctype.h>
+@@ -843,8 +844,8 @@ static int isInRFCaptivePortal();
+ #define LOG_BUFF_SIZE 512
+ void firewall_log( char* fmt, ...)
+ {
+-    time_t now_time;
+-    struct tm *lc_time;
++    struct timeval now_time;
++    struct tm utc_time;
+     char buff[LOG_BUFF_SIZE] = "";
+     va_list args;
+     int time_size;
+@@ -852,9 +853,11 @@ void firewall_log( char* fmt, ...)
+     if(firewallfp == NULL)
+         return;
+     va_start(args, fmt);
+-    time(&now_time);
+-    lc_time=localtime(&now_time);
+-    time_size = strftime(buff, LOG_BUFF_SIZE,"%y%m%d-%X ", lc_time);
++    gettimeofday(&now_time, NULL);
++    gmtime_r(&now_time.tv_sec, &utc_time);
++    time_size = strftime(buff, LOG_BUFF_SIZE, "%y%m%d-%H:%M:%S", &utc_time);
++    time_size += snprintf(buff + time_size, LOG_BUFF_SIZE - time_size,
++                          ".%06ld ", (long)now_time.tv_usec);
+     strncat(buff,fmt, (LOG_BUFF_SIZE - time_size -1));
+     vfprintf(firewallfp, buff, args);
+     va_end(args);
+diff --git a/source/scripts/init/service.d/log_capture_path.sh b/source/scripts/init/service.d/log_capture_path.sh
+index 99327bf..edff1cb 100755
+--- a/source/scripts/init/service.d/log_capture_path.sh
++++ b/source/scripts/init/service.d/log_capture_path.sh
+@@ -28,5 +28,27 @@ if [ ! -d "$LOG_PATH" ]; then
+     mkdir $LOG_PATH
+ fi
+ 
+-exec 3>&1 4>&2 >>$CONSOLEFILE 2>&1
+-
++CONSOLE_LOG_PIPE="/tmp/console_log_pipe.$$"
++rm -f "$CONSOLE_LOG_PIPE"
++mkfifo "$CONSOLE_LOG_PIPE"
++
++{
++    while IFS= read -r console_log_line || [ -n "$console_log_line" ]
++    do
++        case "$console_log_line" in
++            [0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9][0-9][0-9][0-9]\ *)
++                printf '%s\n' "$console_log_line" >> "$CONSOLEFILE"
++                ;;
++            [0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[[:space:]]*%[0-9]*N\ *)
++                console_log_message=$(printf '%s\n' "$console_log_line" | sed 's/^[0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9]:[0-9][0-9]:[0-9][0-9].*[[:space:]]%[0-9]*N[[:space:]]*//')
++                printf '%s %s\n' "$(date -u '+%y%m%d-%H:%M:%S.000000')" "$console_log_message" >> "$CONSOLEFILE"
++                ;;
++            *)
++                printf '%s %s\n' "$(date -u '+%y%m%d-%H:%M:%S.000000')" "$console_log_line" >> "$CONSOLEFILE"
++                ;;
++        esac
++    done < "$CONSOLE_LOG_PIPE"
++    rm -f "$CONSOLE_LOG_PIPE"
++} &
++
++exec 3>&1 4>&2 >"$CONSOLE_LOG_PIPE" 2>&1
+diff --git a/source/util/print_uptime/print_uptime.c b/source/util/print_uptime/print_uptime.c
+index 5c35e7e..c606c20 100644
+--- a/source/util/print_uptime/print_uptime.c
++++ b/source/util/print_uptime/print_uptime.c
+@@ -18,6 +18,7 @@
+ **************************************************************************/
+ #include <stdio.h>
+ #include <sys/sysinfo.h>
++#include <sys/time.h>
+ #include <time.h>
+ #include <string.h>
+ #include <stdlib.h>
+@@ -99,8 +100,8 @@ void print_uptime(char *uptimeLog, char *bootfile, char *uptime)
+ 	}
+ #else
+     	struct sysinfo l_sSysInfo;
+-    	struct tm * l_sTimeInfo;
+-    	time_t l_sNowTime;
++    struct timeval l_sNowTime;
++    struct tm l_sTimeInfo;
+     	char l_cLocalTime[32] = {0};
+     	FILE *l_fBootLogFile = NULL;
+ 		long lUptime = 0;
+@@ -109,8 +110,8 @@ void print_uptime(char *uptimeLog, char *bootfile, char *uptime)
+ 	errno_t rc = -1;
+ 
+ 	sysinfo(&l_sSysInfo);
+-	time(&l_sNowTime);
+-	l_sTimeInfo = localtime(&l_sNowTime);
++    gettimeofday(&l_sNowTime, NULL);
++    gmtime_r(&l_sNowTime.tv_sec, &l_sTimeInfo);
+ 
+ 	if(uptime != NULL)
+ 	{
+@@ -156,7 +157,10 @@ void print_uptime(char *uptimeLog, char *bootfile, char *uptime)
+ 	}
+ 	/* telemetry 2.0 ends */
+ 
+-	rc = sprintf_s(l_cLocalTime, sizeof(l_cLocalTime), "%02d:%02d:%02d",l_sTimeInfo->tm_hour, l_sTimeInfo->tm_min, l_sTimeInfo->tm_sec);
++        rc = sprintf_s(l_cLocalTime, sizeof(l_cLocalTime), "%02d%02d%02d-%02d:%02d:%02d.%06ld",
++                        l_sTimeInfo.tm_year % 100, l_sTimeInfo.tm_mon + 1, l_sTimeInfo.tm_mday,
++                        l_sTimeInfo.tm_hour, l_sTimeInfo.tm_min, l_sTimeInfo.tm_sec,
++                        (long)l_sNowTime.tv_usec);
+ 	if( rc < EOK )
+ 	{
+ 	   ERR_CHK(rc);
+-- 
+2.34.1
+

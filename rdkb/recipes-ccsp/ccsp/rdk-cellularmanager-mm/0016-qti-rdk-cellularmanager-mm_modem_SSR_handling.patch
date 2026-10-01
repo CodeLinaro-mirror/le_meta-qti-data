@@ -1,0 +1,563 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From a93e1e406fcc221e931fa4ac5cacf34a415150f7 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Thu, 23 Jul 2026 20:40:34 +0530
+Subject: Modem SSR handling
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/CellularManager/cellular_hal.c         |  40 ++-
+ source/CellularManager/cellular_hal_mm_apis.c | 299 +++++++++++++++++-
+ source/CellularManager/cellular_hal_mm_apis.h |   6 +
+ source/CellularManager/cellularmgr_sm.c       |  31 +-
+ 4 files changed, 363 insertions(+), 13 deletions(-)
+
+diff --git a/source/CellularManager/cellular_hal.c b/source/CellularManager/cellular_hal.c
+index 8a8f08e..a5e4a56 100755
+--- a/source/CellularManager/cellular_hal.c
++++ b/source/CellularManager/cellular_hal.c
+@@ -40,7 +40,15 @@
+ /**********************************************************************
+     GLOBAL or LOCAL DEFINITIONS and STRUCTURE or ENUM DECLARATION
+ **********************************************************************/
++#ifdef CM_EXTN_SUPPORTED
++#ifdef CM_PROP_SUPPORTED
++int cellular_hal_prop_event_update_cb( hal_qmi_event_payload_t qmi_event_info );
++
++/* Generic call back for prop layer indication handling */
++extern cellular_prop_indication_cb cm_prop_indication_callback;
+ 
++#endif //CM_PROP_SUPPORTED
++#endif //CM_EXTN_SUPPORTED
+ /**********************************************************************
+                 FUNCTION DEFINITION
+ **********************************************************************/
+@@ -83,10 +91,13 @@ cellular_hal_init
+ #elif defined HYBRID_SUPPORT
+     cellular_hal_device_init( pstCtxInputStruct );
+ #endif
+-#ifdef CM_PROP_SUPPORTED
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
+     if(RETURN_HAL_SUCCESS == cellular_hal_prop_init())
+     {
+-        CELLULAR_HAL_DBG_PRINT("%s %d - cellular_hal_prop_init success!\n", __FUNCTION__, __LINE__);
++        if(RETURN_HAL_SUCCESS != cellular_hal_register_prop_event_cb(cellular_hal_prop_event_update_cb))
++        {
++            CELLULAR_HAL_DBG_PRINT("%s %d - Callback registration for prop events failed!\n", __FUNCTION__, __LINE__);
++        }
+     }
+     else
+     {
+@@ -764,3 +775,28 @@ void cellular_hal_resource_release()
+     cellular_hal_mm_resource_release();
+ }
+ 
++#ifdef CM_EXTN_SUPPORTED
++#ifdef CM_PROP_SUPPORTED
++int cellular_hal_prop_event_update_cb( hal_qmi_event_payload_t qmi_event_info )
++{
++    if((HAL_QMI_SSR_EV == qmi_event_info.event) && (HAL_QMI_IS_EV == qmi_event_info.data.ssr_event_info.event_type))
++    {
++        CELLULAR_HAL_DBG_PRINT("%s:%d - Received IS Event from modem! \n", __FUNCTION__, __LINE__);
++        cellular_hal_extn_prop_handle_modem_ssr(HAL_MODEM_IS_EV);
++    }
++    else if((HAL_QMI_SSR_EV == qmi_event_info.event) && (HAL_QMI_OOS_EV == qmi_event_info.data.ssr_event_info.event_type))
++    {
++        CELLULAR_HAL_DBG_PRINT("%s:%d - Received OOS Event from modem! \n", __FUNCTION__, __LINE__);
++        cellular_hal_extn_prop_handle_modem_ssr(HAL_MODEM_OOS_EV);
++    }
++    else
++    {
++        if(NULL != cm_prop_indication_callback)
++            cm_prop_indication_callback(&qmi_event_info);
++        else
++            CELLULAR_HAL_DBG_PRINT("%s:%d - No callback registered for sending event\n", __FUNCTION__, __LINE__);
++    }
++    return RETURN_OK;
++}
++#endif //CM_PROP_SUPPORTED
++#endif //CM_EXTN_SUPPORTED
+diff --git a/source/CellularManager/cellular_hal_mm_apis.c b/source/CellularManager/cellular_hal_mm_apis.c
+index 57596cd..72ab004 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.c
++++ b/source/CellularManager/cellular_hal_mm_apis.c
+@@ -44,6 +44,9 @@
+ #define LOOP_RETRY_DELAY                            1000000
+ #endif
+ guint mm_watch_id;
++char savedModemPath[BUFLEN_256];
++MMModem *savedModem;
++
+ typedef struct {
+     MMObject *object;
+     MMModem *modem;
+@@ -63,12 +66,19 @@ gulong state_id = 0;
+ GHashTable *hashTable;
+ DEVICE_INFO deviceInfo;
+ static GMainLoop* loop = NULL;
++
+ #ifdef CM_EXTN_SUPPORTED
+ extern state_chg_sem;
+ extern mm_sm_sync_sem;
++time_t stateEntryTime;
+ pthread_mutex_t hashTableMutex = PTHREAD_MUTEX_INITIALIZER;
+ #endif //CM_EXTN_SUPPORTED
+ 
++#ifdef CM_PROP_SUPPORTED
++struct timespec mmEnabledTime;
++int sc_flag = 0;//flag to inidicate that state changed happened on CM
++#endif //CM_PROP_SUPPORTED
++
+ CellularNetworkCBStruct *networkStatusCB = NULL;
+ CellularDeviceContextCBStruct *deviceStatusCB = NULL;
+ cellular_device_profile_status_api_callback profileStatusCb = NULL;
+@@ -439,8 +449,50 @@ state_changed (MMModem                  *modem,
+ #endif //CM_EXTN_SUPPORTED
+ 
+     CHAR* modemPath = NULL;
+-    gulong stateId = 0;
++
++#ifndef CM_PROP_SUPPORTED
+     modemPath = mm_modem_get_path (modem);
++#endif
++    gulong stateId = 0;
++
++#ifdef CM_PROP_SUPPORTED
++    sc_flag = 1;
++    CHAR ssrTriggered = 0;
++    static ModemState savedOldState = MODEM_STATE_UNKNOWN;
++
++    if ((modem == NULL) && (MODEM_STATE_UNKNOWN == old_state) && (MODEM_STATE_UNKNOWN == new_state))
++    {
++       /*State Change triggered due to Modem SSR*/
++       ssrTriggered = 1;
++    }
++
++    if ((ssrTriggered == 0) && (NULL != modem))
++    {
++        modemPath = mm_modem_get_path (modem);
++
++        if (NULL != modemPath)
++        {
++            CELLULAR_HAL_DBG_PRINT ("\t%s: State changed, '%s' --> '%s'\n",
++                                modemPath,
++                                mm_modem_state_get_string (old_state),
++                                mm_modem_state_get_string (new_state));
++        }
++        else
++        {
++            CELLULAR_HAL_DBG_PRINT ("\t%s:%d Modem Path identified as NULL!\n",__func__, __LINE__);
++        }
++        savedOldState = old_state;
++    }
++    if (ssrTriggered == 1)
++    {
++        new_state = MODEM_STATE_DISABLING;
++        old_state = savedOldState;
++        CELLULAR_HAL_DBG_PRINT ("\t State changed triggered due to SSR, '%d' --> '%d'\n",
++                                    old_state, new_state);
++        sc_flag = 0;
++   }
++
++#else
+     if(NULL != modemPath)
+     {
+         CELLULAR_HAL_DBG_PRINT ("\t%s: State changed, '%s' --> '%s'\n",
+@@ -452,15 +504,38 @@ state_changed (MMModem                  *modem,
+     {
+         CELLULAR_HAL_DBG_PRINT ("\t%s:%d Modem Path identified as NULL!\n",__func__, __LINE__);
+     }
++#endif
+ 
++#ifdef CM_EXTN_SUPPORTED
++     stateEntryTime = time(NULL);
++    if( new_state <= old_state )
++#else
+     if( new_state < old_state )
++#endif
+     {
+         if( new_state <= MODEM_STATE_DISABLING )
+         {
++#if defined (CM_PROP_SUPPORTED) && defined (CM_EXTN_SUPPORTED)
++            if( ssrTriggered == 0)
++            {
++#endif
++#ifdef CM_EXTN_SUPPORTED
++                pthread_mutex_lock(&hashTableMutex);
++                stateId = (gulong)GPOINTER_TO_SIZE(g_hash_table_lookup(hashTable, modemPath));
++                if (stateId)
++                {
++                    g_clear_signal_handler(&stateId, modem);
++                    g_hash_table_remove(hashTable, modemPath);
++                }
++                pthread_mutex_unlock(&hashTableMutex);
++#else
+             stateId = (gulong)GPOINTER_TO_SIZE(g_hash_table_lookup(hashTable, modemPath));
+             g_clear_signal_handler(&stateId, modem);
+             g_hash_table_remove(hashTable, modemPath);
+-            
++#endif
++#if defined (CM_PROP_SUPPORTED) && defined (CM_EXTN_SUPPORTED)
++            }
++#endif
+             if( deviceStatusCB )
+             {
+                 deviceStatusCB->device_open_status_cb( deviceInfo.deviceName, deviceInfo.wanInterfaceName, DEVICE_OPEN_STATUS_NOT_READY, CELLULAR_MODEM_SET_OFFLINE );
+@@ -565,6 +640,11 @@ state_changed (MMModem                  *modem,
+             }
+         }
+     }
++
++#ifdef CM_PROP_SUPPORTED
++    savedOldState = new_state;
++#endif
++
+ #ifdef CM_EXTN_SUPPORTED
+     if (signal_SM == 1)
+     {
+@@ -756,19 +836,57 @@ static void register_signal(MMModem *modem)
+     gulong stateId = 0;
+     CHAR *modemPath;
+     if(modem)
+-    {   
++    {
+         modemPath = mm_modem_get_path (modem);
++        if(!modemPath)
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - %d modem path is NULL\n", __FUNCTION__, __LINE__);
++            return;
++        }
++#ifdef CM_EXTN_SUPPORTED
++        pthread_mutex_lock(&hashTableMutex);
++#endif
+         stateId = (gulong) GPOINTER_TO_SIZE(g_hash_table_lookup(hashTable, modemPath));
+         if( !stateId )
+         {
++            CELLULAR_HAL_DBG_PRINT ("%s - %d - No previous entry found, Registering modem state-changed signal\n", __FUNCTION__, __LINE__);
+             stateId = g_signal_connect (modem,
+                                          "state-changed",
+                                          G_CALLBACK (state_changed),
+                                          NULL);
++#ifdef CM_EXTN_SUPPORTED
++            g_hash_table_insert(hashTable, (gpointer)g_strdup(modemPath), GSIZE_TO_POINTER(stateId));
++#else
+             g_hash_table_insert(hashTable, (gpointer) modemPath, GSIZE_TO_POINTER(stateId));
++#endif
++            memset(savedModemPath,0,sizeof(savedModemPath));
++            strlcpy(savedModemPath, modemPath, sizeof(savedModemPath));
++            if(savedModem)
++            {
++                g_object_remove_weak_pointer(G_OBJECT(savedModem), (gpointer *)&savedModem);
++            }
++            savedModem = modem;
++            /* Old modem could later be invalid, so untrack it here */
++            g_object_add_weak_pointer(G_OBJECT(savedModem), (gpointer *)&savedModem);
++            /*This code piece is used to watch dbus interface to detect MM failure*/
++            mm_watch_id =  g_bus_watch_name(
++                G_BUS_TYPE_SYSTEM,
++                "org.freedesktop.ModemManager1",
++                G_BUS_NAME_WATCHER_FLAGS_NONE,
++                NULL,
++                on_modem_manager_vanished,
++                NULL,
++                NULL);
+         }
+-       
++        else
++            CELLULAR_HAL_DBG_PRINT ("%s - %d - Modem state changed signal already registered\n", __FUNCTION__, __LINE__);
++#ifdef CM_EXTN_SUPPORTED
++        pthread_mutex_unlock(&hashTableMutex);
++#endif
+     }
++    else
++        CELLULAR_HAL_DBG_PRINT ("%s - %d - Modem object is NULL\n", __FUNCTION__, __LINE__);
++
+     return;
+ }
+ 
+@@ -820,7 +938,15 @@ INT cellular_hal_mm_enable_modem (CHAR *index, BOOLEAN enable, cellular_device_s
+             else
+             {
+                 if( enable == TRUE )
++#ifdef CM_PROP_SUPPORTED
++                {
++                    clock_gettime(CLOCK_REALTIME, &mmEnabledTime);
++                    mm_modem_enable(ctx->modem, NULL, NULL, NULL);
++                    CELLULAR_HAL_DBG_PRINT ("%s - Enabled Modem\n" ,__FUNCTION__);
++                }
++#else
+                     mm_modem_enable(ctx->modem, NULL, NULL, NULL);
++#endif //CM_PROP_SUPPORTED
+                 else
+                     mm_modem_disable(ctx->modem, NULL, NULL, NULL);
+             }
+@@ -2066,9 +2192,18 @@ void cellular_hal_mm_send_device_status(CellularDeviceContextCBStruct *device_st
+         deviceStatusCB = g_new0 (CellularDeviceContextCBStruct, 1);
+         memcpy(deviceStatusCB, device_status_cb, sizeof(CellularDeviceContextCBStruct));
+     }
+-    
+-    if( mmState >= MODEM_STATE_DISABLED && mmState != MODEM_STATE_DISABLING )
++#ifdef CM_EXTN_SUPPORTED
++    /*Always enable modem unless it is waiting for PIN*/
++    if((mmState >= MODEM_STATE_DISABLED) || (pinSentSuccessfully == TRUE))
++#else
++    if(( mmState >= MODEM_STATE_DISABLED && mmState != MODEM_STATE_DISABLING))
++#endif
++    {
+         deviceStatusCB->device_open_status_cb( deviceInfo.deviceName, deviceInfo.wanInterfaceName, DEVICE_OPEN_STATUS_READY, CELLULAR_MODEM_SET_ONLINE );
++#ifdef CM_EXTN_SUPPORTED
++        CELLULAR_HAL_DBG_PRINT("%s : pinSentSuccessfully  %d \n",__FUNCTION__,pinSentSuccessfully);
++#endif
++    }
+ }
+ 
+ void cellular_hal_mm_send_network_status(CellularNetworkCBStruct *network_status_cb)
+@@ -2470,6 +2605,158 @@ INT cellular_hal_mm_get_servingCell (CHAR *index, SERVING_CELL *servingCell)
+     context_free(ctx);
+     return res;
+ }
++#ifdef CM_EXTN_SUPPORTED
++#ifdef CM_PROP_SUPPORTED
++/* cellular_hal_mm_trigger_state_change_on_ssr function */
++/**
++* @description - This API triggers a state change on modem SSR
++*
++* @param[in] None
++* @param[out] None
++*
++* @return None
++*
++*/
++void cellular_hal_mm_trigger_state_change_on_ssr()
++{
++    /*State change triggered on modem restart event*/
++    state_changed(NULL,MODEM_STATE_UNKNOWN,MODEM_STATE_UNKNOWN);
++    return;
++}
++
++/* cellular_hal_mm_extn_trigger_state_change_from_sm function */
++/**
++* @description - This API triggers a state change on CM when MM fails to indicate the state change event to CM
++*
++* @param[in] old_state - Modem previous state
++* @param[in] new_state - Modem current state
++* @param[out] None
++*
++* @return None
++*
++*/
++void cellular_hal_mm_extn_trigger_state_change_from_sm(ModemState old_state, ModemState new_state)
++{
++    /*State change triggered on CM*/
++    sem_post(&state_chg_sem);
++    state_changed(NULL, old_state, new_state);
++    return;
++}
++
++/* cellular_hal_mm_extn_re_register_g_signal function */
++/**
++* @description - This API re-registers the modem object and state_changed callback function
++*
++* @param[in] index - Modem Index
++* @param[out] None
++*
++* @return None
++*
++*/
++INT cellular_hal_mm_extn_re_register_g_signal(CHAR *index)
++{
++    Context *ctx;
++    INT res = RETURN_ERROR;
++    gulong stateId = 0;
++    CHAR *modemPath = NULL;
++
++    ctx = g_new0 (Context, 1);
++    ctx->object = get_modem_context (index);
++    if (ctx->object)
++    {
++        ctx->modem = mm_object_get_modem (ctx->object);
++        if( ctx->modem )
++        {
++            modemPath = mm_modem_get_path (ctx->modem);
++            if((NULL != modemPath))
++            {
++                pthread_mutex_lock(&hashTableMutex);
++                if(g_hash_table_lookup(hashTable, modemPath) != NULL)
++                {
++                    stateId = (gulong)GPOINTER_TO_SIZE(g_hash_table_lookup(hashTable, modemPath));
++                    g_clear_signal_handler(&stateId, ctx->modem);
++                    if( g_hash_table_remove(hashTable, modemPath) )
++                    {
++                        stateId = g_signal_connect (ctx->modem, "state-changed", G_CALLBACK (state_changed), NULL);
++                        g_hash_table_insert(hashTable, (gpointer)g_strdup(modemPath), GSIZE_TO_POINTER(stateId));
++                    }
++                    res = RETURN_OK;
++                }
++                else
++                {
++                     CELLULAR_HAL_DBG_PRINT ("%s - %d modem path not found in hashtable\n",__FUNCTION__,__LINE__);
++                }
++                pthread_mutex_unlock(&hashTableMutex);
++            }
++            else
++            {
++                CELLULAR_HAL_DBG_PRINT ("%s - %d Failed to get modem path\n",__FUNCTION__,__LINE__);
++            }
++        }
++        else
++        {
++            CELLULAR_HAL_DBG_PRINT ("%s - %d Failed to get modem\n",__FUNCTION__,__LINE__);
++        }
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT ("%s - %d Failed to get modem context\n",__FUNCTION__,__LINE__);
++    }
++
++    context_free(ctx);
++    return res;
++}
++#endif //CM_PROP_SUPPORTED
++#endif //CM_EXTN_SUPPORTED
++
++void on_modem_manager_vanished(GDBusConnection *connection, const gchar *name, gpointer user_data)
++{
++    char wanIfName[BUFLEN_32]={0};
++    char cmd[BUFLEN_256]={0};
++    bool ghash_remove = FALSE;
++    gulong stateId = 0;
++
++    g_bus_unwatch_name(mm_watch_id);
++
++#ifdef CM_EXTN_SUPPORTED
++    pthread_mutex_lock(&hashTableMutex);
++#endif
++    stateId = (gulong)GPOINTER_TO_SIZE(g_hash_table_lookup(hashTable, savedModemPath));
++    if(stateId)
++    {
++        /*clearing and removing old MM resources*/
++        if(NULL != savedModem)
++        {
++            g_clear_signal_handler(&stateId, savedModem);
++        }
++        ghash_remove = g_hash_table_remove(hashTable, savedModemPath);
++        CELLULAR_HAL_DBG_PRINT ("%s:%d is modempath removed from hashtable by CM on MM down:%s \n",
++                                     __func__, __LINE__, ghash_remove ? "Yes" : "No");
++    }
++    else
++    {
++        CELLULAR_HAL_DBG_PRINT ("%s:%d Did not find any entry for modemPath %s\n",
++                        __func__, __LINE__, savedModemPath);
++        CELLULAR_HAL_DBG_PRINT ("%s:%d Input values for connection %p and busname %s\n",
++                        __func__, __LINE__, connection, name);
++    }
++
++#ifdef CM_EXTN_SUPPORTED
++    pthread_mutex_unlock(&hashTableMutex);
++#endif
++    /*getting old wan interface name*/
++    cellumanager_get_wanifname(wanIfName,sizeof(wanIfName));
++
++    /*deleting old wan interface*/
++    snprintf( cmd, sizeof(cmd), "ip link del %s", wanIfName);
++    if(0 != system(cmd))
++    {
++       CELLULAR_HAL_DBG_PRINT("%s:%d - failed to execute the command: %s\n", __FUNCTION__, __LINE__,cmd);
++    }
++
++    state_changed(NULL,MODEM_STATE_UNKNOWN,MODEM_STATE_UNKNOWN);
++
++}
+ 
+ void cellular_hal_mm_resource_release()
+ {
+diff --git a/source/CellularManager/cellular_hal_mm_apis.h b/source/CellularManager/cellular_hal_mm_apis.h
+index 7de9d62..5e2bc72 100755
+--- a/source/CellularManager/cellular_hal_mm_apis.h
++++ b/source/CellularManager/cellular_hal_mm_apis.h
+@@ -380,7 +380,13 @@ void cellular_hal_mm_send_device_profile_status(cellular_device_profile_status_a
+ void cellular_hal_mm_send_device_status(CellularDeviceContextCBStruct *device_status_cb);
+ void cellular_hal_mm_send_network_status(CellularNetworkCBStruct *network_status_cb);
+ INT cellular_hal_mm_get_bearer_data_interface(CHAR *index, CHAR* dataInterface);
++#ifdef CM_PROP_SUPPORTED
++void cellular_hal_mm_trigger_state_change_on_ssr();
++INT cellular_hal_mm_extn_re_register_g_signal(CHAR *index);
++void cellular_hal_mm_extn_trigger_state_change_from_sm(ModemState old_state, ModemState new_state);
+ #endif
++#endif
++void on_modem_manager_vanished(GDBusConnection *connection, const gchar *name, gpointer user_data);
+ void cellular_hal_mm_resource_release(void);
+ /* cellular_hal_mm_disable_modem() function */
+ /**
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 3acaa07..9d6bf7b 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -35,7 +35,12 @@
+ #ifdef CM_EXTN_SUPPORTED
+ #include "cellular_hal_mm_apis.h"
+ void dump_state_variables();
+-#endif
++
++#ifdef CM_PROP_SUPPORTED
++extern struct timespec mmEnabledTime;
++extern int sc_flag;
++#endif //CM_PROP_SUPPORTED
++#endif //CM_EXTN_SUPPORTED
+ /**********************************************************************
+                 CONSTANT DEFINITIONS
+ **********************************************************************/
+@@ -1004,7 +1009,13 @@ static CellularPolicySmState_t StateDown( void )
+     }
+     if( DEVICE_DETECTED == gpstCellularPolicyCtrl->enDeviceDetectionStatus )
+     {
++#ifdef CM_EXTN_SUPPORTED
++        TransitionDeactivated();
++        sem_post(&mm_sm_sync_sem);
++        return CELLULAR_STATE_DEACTIVATED;
++#else
+          return(TransitionDeactivated( ));
++#endif //CM_EXTN_SUPPORTED
+     }
+ 
+     return CELLULAR_STATE_DOWN;
+@@ -1046,6 +1057,9 @@ static CellularPolicySmState_t StateDeactivated( void )
+         //simply move the state to DE-REGISTERED without waiting for slot status. In Deregister state wait for slot & attach
+         CcspTraceInfo(("%s %d - State changed to CELLULAR_STATE_DEREGISTERED \n", __FUNCTION__, __LINE__));
+         CellularMgrSMSetCurrentState(CELLULAR_STATE_DEREGISTERED);
++#ifdef CM_EXTN_SUPPORTED
++        sem_post(&mm_sm_sync_sem);
++#endif //CM_EXTN_SUPPORTED
+         return CELLULAR_STATE_DEREGISTERED;
+     }
+     return CELLULAR_STATE_DEACTIVATED;
+@@ -1103,12 +1117,19 @@ static CellularPolicySmState_t StateDeregistered( void )
+         ( ( RETURN_OK == CellularMgr_GetActiveCardStatus( &enCardStatus ) ) &&
+           ( SIM_STATUS_VALID != enCardStatus ) ) )
+     {
+-#ifdef CM_EXTN_SUPPORTED
+-        if (gpstCellularPolicyCtrl->stContextProfile.stPrflCtxExtn.bConnectBackHaul == TRUE)
++#if defined (CM_EXTN_SUPPORTED) && defined (CM_PROP_SUPPORTED)
++        //Workaround recovery mechanism of CM when MM dosen't indicate state changed event to CM
++        struct timespec currentTime;
++        clock_gettime(CLOCK_REALTIME, &currentTime);
++        long diff_ms = (currentTime.tv_sec - mmEnabledTime.tv_sec) * 1000 + (currentTime.tv_nsec - mmEnabledTime.tv_nsec) / 1000000;
++        if((diff_ms >= 1500) && (sc_flag == 0))
+         {
+-            gpstCellularPolicyCtrl->pCmIfData->Enable = TRUE;
++            int currentModemState = 0;
++            cellular_hal_extn_get_current_modem_state(&currentModemState);
++            cellular_hal_extn_re_register_g_signal();
++            cellular_hal_extn_trigger_state_change_from_sm(0, currentModemState);
+         }
+-#endif
++#endif //CM_EXTN_SUPPORTED && CM_PROP_SUPPORTED
+         return CELLULAR_STATE_DEREGISTERED;
+     }
+ 
+-- 
+2.34.1
+

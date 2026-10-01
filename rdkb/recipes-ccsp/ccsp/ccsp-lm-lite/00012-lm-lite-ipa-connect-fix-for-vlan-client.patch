@@ -1,0 +1,48 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 9bce9f69473ac62b825de61feb2a28c8ec239213 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Wed, 15 Jul 2026 11:41:17 +0000
+Subject: [Description]:Fixes VLAN Ethernet client classification in IPA-connect path where subinterfaces (like eth0.X) were misdetected. Ensures Ethernet type/interface resolution works for both base and VLAN-tagged interface names.
+
+[RCA/Root Cause Analysis]:Code used strict equality checks against eth0, so eth0.<vlan> failed Ethernet detection.
+This caused wrong client type/interface mapping for VLAN clients in runtime host classification flow.
+
+[Fix Description]:
+Replaced strcmp("eth0") with prefix match (strncmp) in client type and interface extraction logic.
+Retained existing behavior for eth1/eth1s1 and USB names while adding VLAN-safe eth0 matching.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index efaf1e1..8d81453 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -5059,7 +5059,7 @@ static bool getClientType(char *mac,bool mac_found_ipv4,bool mac_found_ipv6,char
+         {
+             iface = strtok_r(line, " ", &ptr);
+             ifname = strstr(iface, "=");
+-            if ((0 == strcmp(ifname+1,"eth0")) || (0 == strcmp(ifname+1,"eth1")) || (0 == strcmp(ifname+1,"eth1s1")))
++            if ((0 == strncmp(ifname+1,"eth0",strlen("eth0"))) || (0 == strcmp(ifname+1,"eth1")) || (0 == strcmp(ifname+1,"eth1s1")))
+                 strlcpy(client_type, "Ethernet", IFACE_SIZE);
+             else if ((0 == strcmp(ifname+1,"rndis0")) || (0 == strcmp(ifname+1,"ecm0")))
+                 strlcpy(client_type, "USB", IFACE_SIZE);
+@@ -5147,7 +5147,7 @@ static ANSC_STATUS getInterfaceFromMac(char *mac, char *ifname)
+     }
+     else
+     {
+-        if (0 == strcmp(iface_name, "eth0"))
++        if (0 == strncmp(iface_name, "eth0", strlen("eth0")))
+             strlcpy(ifname, "eth", (strlen(iface_name)+1));
+         if (0 == strcmp(iface_name, "eth1") || (0 == strcmp(iface_name, "eth1s1")) )
+             strlcpy(ifname, "eth1", (strlen(iface_name)+1));
+-- 
+2.34.1
+

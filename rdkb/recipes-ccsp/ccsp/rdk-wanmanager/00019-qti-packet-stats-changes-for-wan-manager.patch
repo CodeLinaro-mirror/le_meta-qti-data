@@ -1,0 +1,1367 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 8aa7336287ea9f8cd8d8a9b7bd0e915b0c85a6df Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Tue, 11 Aug 2026 16:12:29 +0000
+Subject: [PATCH] [Description] : Adds packet-statistics handling in
+ wanmgr_network_monitor.c for client lifecycle, including connect/disconnect
+ tracking and per-client accounting flow.Creates/uses TRAFFIC_ACCT
+ iptables/ip6tables chains, manages client state files, and logs RX/TX totals
+ for IPv4/IPv6 and aggregated stats.
+
+[RCA/Root Cause Analysis]:
+WanManager previously lacked end-to-end orchestration to attach packet-accounting rules to active clients and collect stats at disconnect time.
+Without unified rule programming and state tracking, per-client packet statistics were inconsistent, missing, or not properly cleaned up.
+
+[Fix Description]:
+Implements helper functions for client lookup, rule existence checks, rule add/delete, stats extraction, and disconnect-time reporting.
+Gates behavior with packet-stats enable state and integrates rule/chain initialization so accounting is consistently applied across events.
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_network_monitor.c    |   21 +-
+ .../wanmgr_network_monitor_extn_qti.c         | 1195 ++++++++++++++++-
+ .../wanmgr_network_monitor_extn_qti.h         |    7 +-
+ 3 files changed, 1213 insertions(+), 10 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_network_monitor.c b/source/WanManager/wanmgr_network_monitor.c
+index 34687e9..26443a4 100644
+--- a/source/WanManager/wanmgr_network_monitor.c
++++ b/source/WanManager/wanmgr_network_monitor.c
+@@ -43,6 +43,17 @@ int netlinkRouteMonitorFd = -1; //subscribe to route change events
+ fd_set readFdsMaster;
+ static fd_set errorFdsMaster;
+ static bool g_toggle_flag = TRUE;
++#define CONSOLE_LOG_FILE       "/rdklogs/logs/WANMANAGERLog.txt.0"
++
++#define DBG_MONITOR_PRINT(fmt ...)     {\
++    FILE     *fp        = NULL;\
++    fp = fopen ( CONSOLE_LOG_FILE, "a+");\
++    if (fp)\
++    {\
++        fprintf(fp,fmt);\
++        fclose(fp);\
++    }\
++}
+ #define UPDATE_MAXFD(f) (maxFd = (f > maxFd) ? f : maxFd)
+ 
+ #define LOOP_TIMEOUT 100000 // timeout in milliseconds. This is the state machine loop interval
+@@ -70,7 +81,9 @@ static bool g_toggle_flag = TRUE;
+ #define BUFLEN_256 256
+ #define BUFLEN_1024 1024
+ #endif
+-
++static bool create_iptables_chain_for_stat = true;
++uint ipv4_stat_client = 0;
++uint ipv6_stat_client = 0;
+ /* ---- Private Function Prototypes -------------------------- */
+ static void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, int len); // Parse the route entries
+ static ANSC_STATUS parse_addrattr(struct nlmsghdr *nlh); // Parse the interface address entries
+@@ -383,6 +396,12 @@ static void NetMonitor_ProcessNetlinkRouteMonitorFd()
+     iov.iov_len = sizeof(buf);  // set size
+     struct nlmsghdr *nl_msgHdr;
+     static bool gw_v6_flag = FALSE;
++    if (true == create_iptables_chain_for_stat)
++    {
++        createStatsChain();
++        create_iptables_chain_for_stat = false;
++    }
++
+ #if defined(FEATURE_MAPT) && defined(NAT46_KERNEL_SUPPORT)
+     char maptConfigFlag[BUFLEN_128] = {0};
+ #endif
+diff --git a/source/WanManager/wanmgr_network_monitor_extn_qti.c b/source/WanManager/wanmgr_network_monitor_extn_qti.c
+index 8c5a7f5..8414ed7 100644
+--- a/source/WanManager/wanmgr_network_monitor_extn_qti.c
++++ b/source/WanManager/wanmgr_network_monitor_extn_qti.c
+@@ -11,20 +11,56 @@
+ #include <arpa/inet.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/neighbour.h>
++#include <stdbool.h>
++#include <sysevent/sysevent.h>
+ #include "wanmgr_network_monitor_extn_qti.h"
+ #include "ansc_platform.h"
+ #include "ccsp_trace.h"
+ #include "secure_wrapper.h"
+ #include "syscfg/syscfg.h"
+-
+ #define BUFLEN_8   8
++#define BUFLEN_64  64
+ #define BUFLEN_256 256
+-
++#define IPV4_STATS_FILE  "/tmp/ipv4_stats.txt"
++#define IPV6_STATS_FILE  "/tmp/ipv6_stats.txt"
++#define STATS_TMPFILE        "/tmp/stats_temp.txt"
++#define IPV6_STATS_TMPFILE   "/tmp/ipv6_stats_temp.txt"
++#define BFR_SIZE             80
++#define IFACE_SIZE           20
++#define IPTABLES_AWK_STATS   " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$9,$10,$13}'"
++#define IPTABLES_AWK_FORWARD " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$9,$10,$13}'"
++#define IP6TABLES_AWK_FORWARD " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$8,$9,$12}'"
++#define IP6TABLES_AWK_STATS  " | awk '$1 ~ /^[0-9]+$/ {printf \"%s,%s,%s,%s,%s,\\n\",$1,$3,$8,$9,$12}'"
++#define IPV4_MODE            "1"
++#define IPV6_MODE            "2"
++#define DUAL_MODE            "3"
++#define BUFSIZE 100
++#define COMMAND_SIZE 200
+ #ifndef DBG_MONITOR_PRINT
+ #define DBG_MONITOR_PRINT(fmt, args...)  CcspTraceInfo((fmt, ##args))
+ #endif
+-
++extern uint ipv4_stat_client;
++extern uint ipv6_stat_client;
++extern int sysevent_nwm_fd;
++extern token_t sysevent_token;
++#define sysevent_fd sysevent_nwm_fd
+ static uint ipv6_clients_count = 0;
++/*
++ * isIPALanStatEnable - check whether per-client packet-stats are enabled.
++ */
++bool isIPALanStatEnable(void)
++{
++    int ret = 0;
++    char pktStat_enable[BUFLEN_8] = {0};
++    ret = syscfg_get(NULL, "enable_packet_stats", pktStat_enable,
++                     sizeof(pktStat_enable));
++    if ((ret == 0) && atoi(pktStat_enable) == 1)
++        return true;
++    return false;
++}
++
++/* Forward declaration for the PacketStats helper in wanmgr_network_monitor.c */
++extern void delClientForStats(char *file, char *type, char *addr);
+ 
+ /*
+  * parse_rtattr_pd - parse netlink attributes for neighbor messages.
+@@ -40,12 +76,979 @@ static void parse_rtattr_pd(struct rtattr *tb[], int max,
+         rta = RTA_NEXT(rta, len);
+     }
+ }
++/*
++  * create a new chain TRAFFIC_ACCT for stats
++  * and add postrouting rule
++  */
++void createStatsChain()
++{
++    v_secure_system("iptables -t mangle -N TRAFFIC_ACCT");
++    v_secure_system("ip6tables -t mangle -N TRAFFIC_ACCT");
++    v_secure_system("iptables -t mangle -A POSTROUTING -j TRAFFIC_ACCT");
++    v_secure_system("ip6tables -t mangle -A POSTROUTING -j TRAFFIC_ACCT");
++}
++/*
++  * get mac and interface name of a client
++  * update in macaddr and ifname
++  */
++int getClientDetails(char *addr, char *macaddr, char *ifname)
++{
++    ssize_t nread;
++    size_t length = 0;
++    char *line = NULL;
++    char cmd[BUFSIZE]= {0};
++    char mac_addr[BFR_SIZE] = {0};
++    char ip[BFR_SIZE] = {0};
++    char *iface_name[BFR_SIZE] = {0};
++    char *ifname_temp, *mac_addr_temp, *ip_temp, *ip1, *reach;
++    char *saveptr, *saveptr1;
++    FILE *bridge_fp = NULL;
++    FILE *ipnei_fp = NULL;
++    if (NULL == addr || NULL == macaddr || NULL == ifname)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    snprintf(cmd ,sizeof(cmd), "ip nei |grep -w %s",addr);
++    ipnei_fp = popen(cmd,"r");
++    if (NULL == ipnei_fp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] ipnei_fp NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    if ((nread = getline(&line, &length, ipnei_fp)) != -1)
++    {
++        if (strlen(line) > 0)
++        {
++           line[strlen(line) - 1] = '\0';
++        }
++        else
++        {
++            DBG_MONITOR_PRINT("[%s:%d] getline failed\n",__FUNCTION__,__LINE__);
++            pclose(ipnei_fp);
++            ipnei_fp = NULL;
++            if (line)
++            {
++                free(line);
++                line = NULL;
++            }
++            return -1;
++        }
++    }
++    pclose(ipnei_fp);
++    ip_temp = strtok_r(line, " ", &saveptr);
++    if (NULL == ip_temp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] strtok_r failed\n",__FUNCTION__,__LINE__);
++        if (line)
++        {
++            free(line);
++            line = NULL;
++        }
++        return -1;
++    }
++    if (0 == strcmp(addr,ip_temp))
++    {
++        strtok_r(NULL, " ", &saveptr);
++        strtok_r(NULL, " ", &saveptr);
++        strtok_r(NULL, " ", &saveptr);
++        mac_addr_temp = strtok_r(NULL, " ", &saveptr);
++        reach = strtok_r(NULL, " ", &saveptr);
++        if (reach != NULL && strcmp(reach, "REACHABLE") == 0)
++        {
++            strlcpy(ip, addr, sizeof(ip));
++            strlcpy(mac_addr, mac_addr_temp, sizeof(mac_addr));
++        }
++        else
++        {
++            DBG_MONITOR_PRINT("[%s:%d] ip nei status not reachable for ip (%s)\n",__FUNCTION__,__LINE__,addr);
++            if (line)
++            {
++                free(line);
++                line = NULL;
++            }
++            return -1;
++        }
++    }
++    memset(cmd,0,BUFSIZE);
++    snprintf(cmd ,sizeof(cmd), "bridge fdb show | grep -v permanent | grep -i 'master brlan0' | grep %s",mac_addr);
++    bridge_fp = popen(cmd,"r");
++    if (NULL == bridge_fp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] bridge_fp NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    if ((nread = getline(&line, &length, bridge_fp)) != -1)
++    {
++        if (strlen(line) > 0)
++        {
++            line[strlen(line) - 1] = '\0';
++        }
++        else
++        {
++            DBG_MONITOR_PRINT("[%s:%d] getline failed\n",__FUNCTION__,__LINE__);
++            pclose(bridge_fp);
++            bridge_fp = NULL;
++            if (line)
++            {
++                free(line);
++                line = NULL;
++            }
++            return -1;
++        }
++    }
++    pclose(bridge_fp);
++    bridge_fp = NULL;
++    mac_addr_temp = strtok_r(line, " ", &saveptr);
++    if (NULL == mac_addr_temp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] strtok_r failed\n",__FUNCTION__,__LINE__);
++        if (line)
++        {
++           free(line);
++           line = NULL;
++        }
++        return -1;
++    }
++    if (0 == strcmp(mac_addr_temp,mac_addr))
++    {
++        strtok_r(NULL, " ", &saveptr);
++        ifname_temp = strtok_r(NULL, " ", &saveptr);
++        strlcpy(iface_name, ifname_temp, sizeof(iface_name));
++    }
++    else
++    {
++        DBG_MONITOR_PRINT("[%s:%d] no matched mac found\n",__FUNCTION__,__LINE__);
++        if (line)
++        {
++            free(line);
++            line = NULL;
++        }
++        return -1;
++    }
++    strlcpy(macaddr, mac_addr, (strlen(mac_addr)+1));
++    strlcpy(ifname, iface_name, (strlen(iface_name)+1));
++    if (line)
++    {
++        free(line);
++        line = NULL;
++    }
++    return 0;
++}
++/*
++  * check if the client addr is already added
++  * return -1:error 1:if present 0:if not present
++  */
++int checkStatsClient(char *file,char *addr)
++{
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    FILE *statsfp = NULL;
++    int retval = -1;
++    char *ipaddr = NULL, *iface_name = NULL, *ptr, *ip;
++
++    if (NULL == file || NULL == addr)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input params NULL\n ",__FUNCTION__,__LINE__);
++        return retval;
++    }
++    statsfp = fopen(file, "r");
++    if (NULL == statsfp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] fopen failed, error (%d) (%s)\n ",__FUNCTION__,__LINE__,errno,strerror(errno));
++        return retval;
++    }
++
++    line = (char *) malloc(BFR_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] malloc failed\n ",__FUNCTION__,__LINE__);
++        fclose(statsfp);
++        statsfp = NULL;
++        return retval;
++    }
++    while ((nread = getline(&line, &len, statsfp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        iface_name = strtok_r(line, " ", &ptr);
++        ipaddr = strtok_r(NULL, " ", &ptr);
++        if (NULL == ipaddr)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] strtok_r failed\n",__FUNCTION__,__LINE__);
++            return retval;
++        }
++        ip = strstr(ipaddr, "=");
++        if (NULL != ip)
++        {
++            if (0 == strcmp(ip+1,addr))
++            {
++                retval = 1;
++                break;
++            }
++            else
++            {
++                retval = 0;
++                DBG_MONITOR_PRINT("[%s:%d] addr (%s) NOT available\n",__FUNCTION__,__LINE__,addr);
++            }
++        }
++    }
++    fclose(statsfp);
++    statsfp = NULL;
++    if(line)
++    {
++        free(line);
++        line = NULL;
++    }
++    return retval;
++}
++/*
++  * check if ipv4 rules already added
++  *
++  */
++int IsIptablesRuleAdded(char* addr)
++{
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]= {0};
++    FILE *fp = NULL;
++    int addr_found = 0;
++
++    if (NULL == addr)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    snprintf(cmd, COMMAND_SIZE,"iptables -t mangle -L FORWARD -n -v -x  --line-numbers -w 2");
++    strlcat(cmd, IPTABLES_AWK_FORWARD, COMMAND_SIZE);
++    snprintf(tmp, COMMAND_SIZE, " | grep -w %s", addr);
++    strlcat(cmd, tmp, COMMAND_SIZE);
++
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] popen failed\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    if(fgetc(fp) != EOF)
++    {
++        addr_found = 1;
++    }
++    pclose(fp);
++    fp = NULL;
++    return addr_found;
++}
++/*
++  * get iptables rx and tx bytes for disconnecting clients
++  *
++  */
++int getIPv4Stats(char *ipv4addr, uint64_t *tx_bytes, uint64_t *rx_bytes)
++{
++    ssize_t nread;
++    size_t length = 0;
++    unsigned int mark_val = 0;
++    char *stringline = NULL;
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]= {0};
++    char *line_number = NULL,*bytes=NULL,*saddr=NULL, *daddr=NULL, *mark=NULL,*ptr;
++    FILE *fp = NULL;
++    if (NULL == ipv4addr || NULL == tx_bytes || NULL == rx_bytes)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    snprintf(cmd, COMMAND_SIZE,"iptables -t mangle -L TRAFFIC_ACCT -n -v -x  --line-numbers -w 2");
++    strlcat(cmd, IPTABLES_AWK_STATS, COMMAND_SIZE);
++    snprintf(tmp, COMMAND_SIZE, " | grep -i %s", ipv4addr);
++    strlcat(cmd, tmp, COMMAND_SIZE);
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] popen failed\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    stringline = (char *)malloc(BFR_SIZE * sizeof(char));
++    if (NULL == stringline)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] malloc failed\n",__FUNCTION__,__LINE__);
++        pclose(fp);
++        return -1;
++    }
++    while ((nread = getline(&stringline, &length, fp)) != -1)
++    {
++        if (strlen(stringline) > 0)
++        {
++            stringline[strlen(stringline) - 1] = '\0';
++        }
++        else
++        {
++            DBG_MONITOR_PRINT("[%s:%d] getline faied, string length 0\n",__FUNCTION__,__LINE__);
++            pclose(fp);
++            fp = NULL;
++            if (stringline)
++            {
++                free(stringline);
++                stringline = NULL;
++            }
++            return -1;
++        }
++        line_number = strtok_r(stringline, ",", &ptr);
++        bytes = strtok_r(NULL, ",", &ptr);
++        saddr = strtok_r(NULL, ",", &ptr);
++        daddr = strtok_r(NULL, ",", &ptr);
++        mark = strtok_r(NULL, ",", &ptr);
++
++        if ((NULL == mark) || (NULL == bytes))
++        {
++            DBG_MONITOR_PRINT("[%s:%d] mark or bytes are NULL\n",__FUNCTION__,__LINE__);
++            pclose(fp);
++            fp = NULL;
++            if (stringline)
++            {
++                free(stringline);
++                stringline = NULL;
++            }
++            return -1;
++        }
++        mark_val = strtoull(mark,&ptr,16);
++        if (mark_val%2 == 0)
++        {
++            *rx_bytes = strtoull(bytes,&ptr,10);
++        }
++        else
++        {
++            *tx_bytes = strtoull(bytes,&ptr,10);
++        }
++    }
++    pclose(fp);
++    fp = NULL;
++    if (NULL != stringline)
++    {
++        free(stringline);
++        stringline = NULL;
++    }
++    return 0;
++}
++/*
++  * get ip6tables rx and tx bytes for disconnecting clients
++  *
++*/
++int getIPv6Stats(char *ipv6addr, uint64_t *tx_bytes, uint64_t *rx_bytes)
++{
++    ssize_t nread;
++    size_t length = 0;
++    unsigned int mark_val = 0;
++    int ret = 0;
++    char *stringline = NULL;
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]= {0};
++    char *bytes=NULL, *mark=NULL,*ptr;
++    FILE *fp = NULL;
++    if (NULL == ipv6addr || NULL == tx_bytes || NULL == rx_bytes)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    snprintf(cmd, COMMAND_SIZE,"ip6tables -t mangle -L TRAFFIC_ACCT -n -v -x  --line-numbers -w 2");
++    strlcat(cmd, IP6TABLES_AWK_STATS, COMMAND_SIZE);
++    snprintf(tmp, COMMAND_SIZE, " | grep -w %s", ipv6addr);
++    strlcat(cmd, tmp, COMMAND_SIZE);
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] popen failed\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    stringline = (char *)malloc(BFR_SIZE * sizeof(char));
++    if (NULL == stringline)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] malloc failed\n",__FUNCTION__,__LINE__);
++        pclose(fp);
++        fp = NULL;
++        return -1;
++    }
++    while ((nread = getline(&stringline, &length, fp)) != -1)
++    {
++        if (strlen(stringline) > 0)
++        {
++            stringline[strlen(stringline) - 1] = '\0';
++        }
++        else
++        {
++            DBG_MONITOR_PRINT("[%s:%d] getline faied, string length 0\n",__FUNCTION__,__LINE__);
++            ret = -1;
++            break;
++        }
++        strtok_r(stringline, ",", &ptr);
++        bytes = strtok_r(NULL, ",", &ptr);
++        strtok_r(NULL, ",", &ptr);
++        strtok_r(NULL, ",", &ptr);
++        mark = strtok_r(NULL, ",", &ptr);
++
++        if ((NULL == mark) || (NULL == bytes))
++        {
++            DBG_MONITOR_PRINT("[%s:%d] mark or bytes are NULL\n",__FUNCTION__,__LINE__);
++            ret = -1;
++            break;
++        }
++        mark_val = strtoull(mark,&ptr,16);
++        if (mark_val%2 == 0)
++        {
++            *rx_bytes = strtoull(bytes,&ptr,10);
++        }
++        else
++        {
++            *tx_bytes = strtoull(bytes,&ptr,10);
++        }
++    }
++    pclose(fp);
++    fp = NULL;
++    if (NULL != stringline)
++    {
++        free(stringline);
++        stringline = NULL;
++    }
++    if (-1 == ret)
++    {
++        return ret;
++    }
++
++    return 0;
++}
++/*
++  * add the stats of disconnecting clients to dmesg
++  *
++*/
++int printStatsInDmesg(char *iface, char *addr, char *mac,char *type, char *deviceMode)
++{
++    char command[COMMAND_SIZE] = {0};
++    char client_type[IFACE_SIZE] = {0};
++    uint64_t iptables_tx_bytes = 0, iptables_rx_bytes = 0;
++    uint64_t ip6tables_tx_bytes = 0, ip6tables_rx_bytes = 0;
++    uint64_t ip6tables_total_tx_bytes = 0, ip6tables_total_rx_bytes = 0;
++    uint64_t total_tx_bytes = 0, total_rx_bytes = 0;
++    int iptables_ret = -1;
++    int ip6tables_ret = -1;
++    int err_ret = 0;
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    FILE *fp = NULL;
++    char *ip_temp = NULL, *ptr;
++    char *ipaddr;
++    if (NULL == iface || NULL == addr || NULL == mac || NULL == deviceMode)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    if ((0 == strcmp(iface,"eth0")) || (0 == strcmp(iface,"eth1")))
++        strlcpy(client_type, "Ethernet", sizeof(client_type));
++    else if ((0 == strcmp(iface,"rndis0")) || (0 == strcmp(iface,"ecm0")))
++        strlcpy(client_type, "USB", sizeof(client_type));
++    else
++    {
++        DBG_MONITOR_PRINT("[%s:%d] client_type not available for iface (%s)\n",__FUNCTION__,__LINE__,iface);
++        return -1;
++    }
++    iptables_ret = getIPv4Stats(addr, &iptables_tx_bytes, &iptables_rx_bytes);
++    if (-1 == iptables_ret)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] getIPv4Stats failed\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    /*get iptables stat for ipv4 ip of client in dual mode or ipv4 only mode*/
++    if ((0 == strcmp(deviceMode, IPV4_MODE)) || (0 == strcmp(deviceMode, DUAL_MODE)))
++    {
++        iptables_ret = getIPv4Stats(addr, &iptables_tx_bytes, &iptables_rx_bytes);
++        if (-1 == iptables_ret)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] getIPv4Stats failed\n",__FUNCTION__,__LINE__);
++            return -1;
++        }
++    }
++    /*get ip6tables stat for all ipv6 global and temporary ips of a client in dual or ipv6 mode*/
++    if ((0 == strcmp(deviceMode, IPV6_MODE)) || (0 == strcmp(deviceMode, DUAL_MODE)))
++    {
++        fp = fopen(IPV6_STATS_FILE, "r");
++        if (NULL == fp)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] fopen failed\n",__FUNCTION__,__LINE__);
++            return -1;
++        }
++        line = (char *) malloc(BFR_SIZE * sizeof(char));
++        if (NULL == line)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] malloc failed\n",__FUNCTION__,__LINE__);
++            fclose(fp);
++            fp = NULL;
++            return -1;
++        }
++        while ((nread = getline(&line, &len, fp)) != -1)
++        {
++            line[strlen(line) - 1] = '\0';
++            if (strlen(line) <= 0 )
++            {
++                DBG_MONITOR_PRINT("[%s:%d] getline failed\n",__FUNCTION__,__LINE__);
++                err_ret = -1;
++                break;
++            }
++            if (strstr(line, mac))
++            {
++                strtok_r(line, " ", &ptr);
++                ip_temp = strtok_r(NULL, " ", &ptr);
++                if (NULL == ip_temp)
++                {
++                    DBG_MONITOR_PRINT("[%s:%d] strtok_r failed\n",__FUNCTION__,__LINE__);
++                    err_ret = -1;
++                    break;
++                }
++                ipaddr = strstr(ip_temp, "=");
++                if (NULL == ipaddr)
++                {
++                    DBG_MONITOR_PRINT("[%s:%d] strstr failed ,no substring found\n",__FUNCTION__,__LINE__);
++                    err_ret = -1;
++                    break;
++                }
++                ip6tables_ret = getIPv6Stats(ipaddr+1, &ip6tables_tx_bytes, &ip6tables_rx_bytes);
++                if (-1 == ip6tables_ret)
++                {
++                    DBG_MONITOR_PRINT("[%s:%d] getIPv6Stats failed\n",__FUNCTION__,__LINE__);
++                    err_ret = -1;
++                    break;
++                }
++                ip6tables_total_tx_bytes += ip6tables_tx_bytes;
++                ip6tables_total_rx_bytes += ip6tables_rx_bytes;
++            }
++            ip6tables_tx_bytes = 0;
++            ip6tables_rx_bytes = 0;
++        }
++        fclose(fp);
++        fp = NULL;
++        if (line)
++        {
++            free(line);
++            line = NULL;
++        }
++        if (-1 == err_ret)
++            return err_ret;
++    }
++    total_tx_bytes = iptables_tx_bytes + ip6tables_total_tx_bytes;
++    total_rx_bytes = iptables_rx_bytes + ip6tables_total_rx_bytes;
++    v_secure_system("echo %s client, MAC:%s iptables stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,iptables_rx_bytes,iptables_tx_bytes);
++    v_secure_system("echo %s client, MAC:%s ip6tables stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,ip6tables_total_rx_bytes,ip6tables_total_tx_bytes);
++    v_secure_system("echo %s client, MAC:%s Total stats RX:%lu, TX:%lu > /dev/kmsg ",client_type,mac,total_rx_bytes,total_tx_bytes);
++    return 0;
++}
++/*
++  * add ipv4/v6 clients into a file for stats
++  * and this file will be used by firewall
++  */
++void addClientForStats(char *file,char *type,char *addr,char *ifname,char *mac_addr)
++{
++    FILE *statsfp = NULL;
++
++    if (NULL == file || NULL == type || NULL == addr || NULL ==ifname || NULL ==mac_addr)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input params NULL\n ",__FUNCTION__,__LINE__);
++        return;
++    }
++    statsfp = fopen(file, "a");
++    if (NULL == statsfp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] fopen failed\n",__FUNCTION__,__LINE__);
++        return;
++    }
++    fprintf(statsfp, "ifname=%s ",ifname);
++    fprintf(statsfp, "ip=%s ",addr);
++    fprintf(statsfp, "mac=%s\n",mac_addr);
++    fclose(statsfp);
++    if (0 == strcmp(type,"ipv4"))
++        ipv4_stat_client++;
++    else if (0 == strcmp(type,"ipv6"))
++        ipv6_stat_client++;
++}
++/*
++  * delete ipv4/v6 clients into a file for stats
++  * and this file will be used by firewall
++  */
++void delClientForStats(char *file,char *type,char *addr)
++{
++    FILE *statsfp = NULL, *tmpfp = NULL;
++    ssize_t nread;
++    size_t len = 0;
++    char *line = NULL;
++    char *ifname_temp, *mac_temp, *saveptr;
++    char *ifname, *mac;
++    int ret = -1;
++    int ret1 = -1;
++    char curWanIfname[BUFLEN_64] = {0};
++    char deviceMode[BUFLEN_8] = {0};
++    if (NULL == file || NULL == type || NULL == addr)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input params NULL\n ",__FUNCTION__,__LINE__);
++        return;
++    }
++    statsfp = fopen(file, "r");
++    if (NULL == statsfp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] statsfp fopen failed, error (%d) (%s)\n ",__FUNCTION__,__LINE__,errno,strerror(errno));
++        return;
++    }
++    syscfg_get(NULL, "last_erouter_mode", deviceMode, sizeof(deviceMode));
++
++    if ((0 == strcmp(type,"ipv6")))
++        tmpfp = fopen(IPV6_STATS_TMPFILE, "w");
++    else
++        tmpfp = fopen(STATS_TMPFILE, "w");
++    if (NULL == tmpfp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] tmpfp fopen failed, error (%d) (%s)\n ",__FUNCTION__,__LINE__,errno,strerror(errno));
++        fclose(statsfp);
++        statsfp = NULL;
++        return;
++    }
++    line = (char *) malloc(BFR_SIZE * sizeof(char));
++    if (NULL == line)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] malloc failed\n ",__FUNCTION__,__LINE__);
++        fclose(statsfp);
++        statsfp = NULL;
++        fclose(tmpfp);
++        tmpfp = NULL;
++        return;
++    }
++    while ((nread = getline(&line, &len, statsfp)) != -1)
++    {
++        line[strlen(line) - 1] = '\0';
++        if (strstr(line, addr))
++        {
++            ifname_temp = strtok_r(line, " ", &saveptr);
++            strtok_r(NULL, " ", &saveptr);
++            mac_temp = strtok_r(NULL, " ", &saveptr);
++            ifname = strstr(ifname_temp, "=");
++            mac = strstr(mac_temp, "=");
++            if (0 == strcmp(type,"ipv4"))
++            {
++                ipv4_stat_client--;
++                ret1 = printStatsInDmesg(ifname+1, addr, mac+1, type, deviceMode);
++                if (-1 == ret1)
++                {
++                    DBG_MONITOR_PRINT("[%s:%d] printStatsInDmesg failed \n ",__FUNCTION__,__LINE__);
++                }
++                ret = delIpv4Rules(addr);
++                if (-1 == ret)
++                {
++                    DBG_MONITOR_PRINT("[%s:%d] delIpv4Rules failed \n ",__FUNCTION__,__LINE__);
++                }
++            }
++            else if (0 == strcmp(type,"ipv6"))
++            {
++                ipv6_stat_client--;
++                /*check if device mode is ipv6 only mode*/
++                if (0 == strcmp(deviceMode, IPV6_MODE))
++                {
++                    ret1 = printStatsInDmesg(ifname+1, addr, mac+1, type, deviceMode);
++                    if (-1 == ret1)
++                    {
++                        DBG_MONITOR_PRINT("[%s:%d] printStatsInDmesg failed \n ",__FUNCTION__,__LINE__);
++                    }
++                }
++                ret = delIpv6Rules(addr);
++                if (-1 == ret)
++                {
++                    DBG_MONITOR_PRINT("[%s:%d] delIpv6Rules failed \n ",__FUNCTION__,__LINE__);
++                }
++            }
++            continue;
++        }
++        fprintf(tmpfp, "%s\n",line);
++    }
++    fclose(statsfp);
++    statsfp = NULL;
++    fclose(tmpfp);
++    tmpfp = NULL;
++    if (line)
++    {
++        free(line);
++        line = NULL;
++    }
++    if ((0 == strcmp(type,"ipv6")))
++        rename (IPV6_STATS_TMPFILE, IPV6_STATS_FILE);
++    else
++        rename (STATS_TMPFILE, IPV4_STATS_FILE);
++}
++/*
++  * add iptables rules for ipv4 client
++  *
++  */
++void addIpv4Rules(char *if_name, char *addr, char *mac_addr)
++{
++    int ret;
++    char curWanIfname[BUFLEN_64] = {0};
++    if ((NULL == if_name) || (NULL == addr) || (NULL == mac_addr))
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n ",__FUNCTION__,__LINE__);
++        return;
++    }
++    if (ipv4_stat_client > 0)
++    {
++        ret = checkStatsClient(IPV4_STATS_FILE,addr);
++        if (-1 == ret)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] error opening file or invalid arguments passed\n ",__FUNCTION__,__LINE__);
++            return;
++        }
++        else if (1 == ret)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] addr (%s) already present in the file\n ",__FUNCTION__,__LINE__,addr);
++            return;
++        }
++    }
++    sysevent_get(sysevent_fd, sysevent_token, "current_wan_ifname", curWanIfname, sizeof(curWanIfname));
++    if (!strcmp(curWanIfname, "\0"))
++    {
++        DBG_MONITOR_PRINT("[%s:%d] failed to get sysevent current_wan_ifname\n", __FUNCTION__,__LINE__);
++        return;
++    }
++    ret = IsIptablesRuleAdded(addr);
++    if (1 == ret)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] iptables rule already present for addr (%s)\n",__FUNCTION__, __LINE__, addr);
++        return;
++    }
++        v_secure_system("iptables -t mangle -A FORWARD -s %s -o %s -j MARK --set-xmark 0x1",addr,curWanIfname);
++        v_secure_system("iptables -t mangle -A FORWARD -d %s -i %s -j MARK --set-xmark 0x2",addr,curWanIfname);
++        v_secure_system("iptables -t mangle -A TRAFFIC_ACCT -m mark --mark 0x1 -s %s -j ACCEPT",addr);
++        v_secure_system("iptables -t mangle -A TRAFFIC_ACCT -m mark --mark 0x2 -d %s -j ACCEPT",addr);
++        addClientForStats(IPV4_STATS_FILE,"ipv4",addr,if_name,mac_addr);
++}
++/*
++  * delete iptables rules for ipv4 client
++  *
++  */
++int delIpv4Rules(char *addr)
++{
++    int ret = -1;
++    char curWanIfname[BUFLEN_64] = {0};
++    if (NULL == addr)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n ",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    sysevent_get(sysevent_fd, sysevent_token, "current_wan_ifname", curWanIfname, sizeof(curWanIfname));
++    if (!strcmp(curWanIfname, "\0"))
++    {
++        DBG_MONITOR_PRINT("[%s:%d] failed to get sysevent current_wan_ifname\n", __FUNCTION__,__LINE__);
++        return -1;
++    }
++    ret = IsIptablesRuleAdded(addr);
++    if (-1 == ret)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] IsIptablesRuleAdded failed\n",__FUNCTION__,__LINE__);
++    }
++    else if (1 == ret)
++    {
++        v_secure_system("iptables -t mangle -D FORWARD -s %s -o %s -j MARK --set-xmark 0x1",addr,curWanIfname);
++        v_secure_system("iptables -t mangle -D FORWARD -d %s -i %s -j MARK --set-xmark 0x2",addr,curWanIfname);
++        v_secure_system("iptables -t mangle -D TRAFFIC_ACCT -m mark --mark 0x1 -s %s -j ACCEPT",addr);
++        v_secure_system("iptables -t mangle -D TRAFFIC_ACCT -m mark --mark 0x2 -d %s -j ACCEPT",addr);
++    }
++    return 0;
++}
++/*
++  * delete iptables rules for ipv4 client
++  * add ip6tables rules for client
++  *
++  */
++void addIpv6Rules(char *if_name, char *addr, char *mac_addr)
++{
++    int ret;
++    char curWanIfname[BUFLEN_64] = {0};
++    if ((NULL == if_name) || (NULL == addr) || (NULL == mac_addr))
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n ",__FUNCTION__,__LINE__);
++        return;
++    }
++    if (ipv6_stat_client > 0)
++    {
++        ret = checkStatsClient(IPV6_STATS_FILE,addr);
++        if (-1 == ret)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] error opening file or invalid arguments passed\n ",__FUNCTION__,__LINE__);
++            return;
++        }
++        else if (1 == ret)
++        {
++            DBG_MONITOR_PRINT("[%s:%d] addr (%s) already present in the file\n ",__FUNCTION__,__LINE__,addr);
++            return;
++        }
++    }
++    sysevent_get(sysevent_fd, sysevent_token, "current_wan_ifname", curWanIfname, sizeof(curWanIfname));
++    if (!strcmp(curWanIfname, "\0"))
++    {
++        DBG_MONITOR_PRINT("[%s:%d] failed to get sysevent current_wan_ifname\n", __FUNCTION__,__LINE__);
++        return;
++    }
++
++    ret = IsIp6tablesRuleAdded(addr);
++    if (1 == ret)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] ip6tables rule already present for addr (%s)\n",__FUNCTION__, __LINE__, addr);
++        return;
++    }
++        v_secure_system("ip6tables -t mangle -A FORWARD -s %s -o %s -j MARK --set-xmark 0x1",addr,curWanIfname);
++        v_secure_system("ip6tables -t mangle -A FORWARD -d %s -i %s -j MARK --set-xmark 0x2",addr,curWanIfname);
++        v_secure_system("ip6tables -t mangle -A TRAFFIC_ACCT -m mark --mark 0x1 -s %s -j ACCEPT",addr);
++        v_secure_system("ip6tables -t mangle -A TRAFFIC_ACCT -m mark --mark 0x2 -d %s -j ACCEPT",addr);
++        addClientForStats(IPV6_STATS_FILE,"ipv6",addr,if_name,mac_addr);
++}
++ /*
++  * check if ipv6 rules already added
++  *
++  */
++int IsIp6tablesRuleAdded(char* addr)
++{
++    char cmd[COMMAND_SIZE]= {0};
++    char tmp[COMMAND_SIZE]= {0};
++    FILE *fp = NULL;
++    int addr_found = 0;
++    if (NULL == addr)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    snprintf(cmd, COMMAND_SIZE,"ip6tables -t mangle -L FORWARD -n -v -x  --line-numbers -w 2");
++    strlcat(cmd, IP6TABLES_AWK_FORWARD, COMMAND_SIZE);
++    snprintf(tmp, COMMAND_SIZE, " | grep -w %s", addr);
++    strlcat(cmd, tmp, COMMAND_SIZE);
++    fp = popen(cmd,"r");
++    if (NULL == fp)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] popen failed\n",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    if(fgetc(fp) != EOF)
++    {
++        addr_found = 1;
++    }
++    pclose(fp);
++    fp = NULL;
++    return addr_found;
++}
++/*
++  * delete ip6tables rules for client
++  *
++  */
++int delIpv6Rules(char *addr)
++{
++    int ret = -1;
++    char curWanIfname[BUFLEN_64] = {0};
++    if (NULL == addr)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] input param NULL\n ",__FUNCTION__,__LINE__);
++        return -1;
++    }
++    sysevent_get(sysevent_fd, sysevent_token, "current_wan_ifname", curWanIfname, sizeof(curWanIfname));
++    if (!strcmp(curWanIfname, "\0"))
++    {
++        DBG_MONITOR_PRINT("[%s:%d] failed to get sysevent current_wan_ifname\n", __FUNCTION__,__LINE__);
++        return -1;
++    }
++    ret = IsIp6tablesRuleAdded(addr);
++    if (-1 == ret)
++    {
++        DBG_MONITOR_PRINT("[%s:%d] IsIp6tablesRuleAdded failed\n",__FUNCTION__,__LINE__);
++    }
++    else if (1 == ret)
++    {
++        v_secure_system("ip6tables -t mangle -D FORWARD -s %s -o %s -j MARK --set-xmark 0x1",addr,curWanIfname);
++        v_secure_system("ip6tables -t mangle -D FORWARD -d %s -i %s -j MARK --set-xmark 0x2",addr,curWanIfname);
++        v_secure_system("ip6tables -t mangle -D TRAFFIC_ACCT -m mark --mark 0x1 -s %s -j ACCEPT",addr);
++        v_secure_system("ip6tables -t mangle -D TRAFFIC_ACCT -m mark --mark 0x2 -d %s -j ACCEPT",addr);
++    }
++    return 0;
++}
++/*
++  * To get interface details from bridge fdb show
++  * update in if_name
++  */
++int get_interface_details(char *if_name , uint if_index)
++{
++    char cmd[BUFSIZE]= {0};
++    char cmd2[BUFSIZE]={0};
++    FILE *fp = NULL;
++    snprintf(cmd ,sizeof(cmd), "bridge fdb show | grep -m 1 -v permanent | grep -i 'master brlan0' | awk '{print$3}'");
++    fp=popen(cmd,"r");
++    if (fp == NULL)
++    {
++        return -1;
++    }
++    if (NULL != fgets(cmd2,100,fp))
++    {
++        strlcpy(if_name,cmd2,sizeof(cmd2));
++    }
++    pclose(fp);
++    fp = NULL;
++    return 0;
++}
++/*
++ * Packet-stats entry for NEWNEIGH.
++ * Common IPv6 LLA/PD file-maintenance logic is not duplicated here;
++ * AF_INET6 path reuses handle_netlink_ip6neigh_new().
++ */
++void handle_netlink_ipneigh_new(struct nlmsghdr *nlmsg, int len)
++{
++    struct ndmsg *ndm = NULL;
++    struct rtattr *tb[NDA_MAX + 1] = {NULL};
++    char addr[BUFLEN_256] = {0};
++    char interface_name[BFR_SIZE] = {0};
++    char mac_address[BFR_SIZE] = {0};
++
++    ndm = NLMSG_DATA(nlmsg);
++
++    /* Neighbor messages: parse NDA attributes */
++    parse_rtattr_pd(tb, NDA_MAX, NDA_RTA(ndm), len);
++
++    if (!tb[NDA_DST])
++        return;
++
++    if (ndm->ndm_family == AF_INET)
++    {
++        if (inet_ntop(AF_INET, RTA_DATA(tb[NDA_DST]), addr, INET_ADDRSTRLEN) == NULL)
++        {
++            DBG_MONITOR_PRINT("%s: inet_ntop(AF_INET) failed\n", __FUNCTION__);
++            return;
++        }
++        DBG_MONITOR_PRINT("RTM_NEWNEIGH len %d ip %s %d family %d IF (%u) \n",
++                          len, addr, nlmsg->nlmsg_type,
++                          ndm->ndm_family, ndm->ndm_ifindex);
++
++        if (true == isIPALanStatEnable())
++        {
++            if ((0 == getClientDetails(addr, mac_address, interface_name)) &&
++                (0 != interface_name[0]) &&
++                (0 != strcmp(mac_address, "00:00:00:00:00:00")))
++            {
++                addIpv4Rules(interface_name, addr, mac_address);
++            }
++        }
++        return;
++    }
++
++    if (ndm->ndm_family == AF_INET6)
++    {
++        /* Reuse IPv6 handler to avoid duplicating common IPv6 logic */
++        handle_netlink_ip6neigh_new(nlmsg, len);
++        return;
++    }
++
++    return;
++}
+ 
+ /*
+  * ipv6 clients connected link local address taking and
+  * saving in file /tmp/ipv6_neighbor.txt for PD , it will use in zebra
+  */
+-static void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
++void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
+ {
+     struct ndmsg *ndm = NULL;
+     struct rtattr *tb[NDA_MAX + 1] = {NULL};
+@@ -64,6 +1067,53 @@ static void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
+     DBG_MONITOR_PRINT("RTM_NEWNEIGH len %d ip %s %d family %d IF (%u) \n",
+                    len, addr, nlmsg->nlmsg_type, ndm->ndm_family,
+                    ndm->ndm_ifindex);
++    /* ---- Integrated IPv6 packet-stats logic ---- */
++    if ((true == isIPALanStatEnable()) && (0 != strncasecmp(addr, "fe80", 4)))
++    {
++        char pd_enable[BUFLEN_8] = {0};
++        char ipv6Prefix[BUFLEN_64] = {0};
++        char curIpv6Prefix[BUFLEN_64] = {0};
++        char ipv6_iface[BFR_SIZE] = {0};
++        char ipv6_mac[BFR_SIZE] = {0};
++        char *prefix_temp = NULL, *ptr = NULL;
++
++        memset(pd_enable, 0, sizeof(pd_enable));
++        syscfg_get(NULL, "PD_enable", pd_enable, sizeof(pd_enable));
++
++        if (0 == strcmp(pd_enable, "1"))
++        {
++            (void)getClientDetails(addr, ipv6_mac, ipv6_iface);
++            if ((0 != ipv6_iface[0]) &&
++                (0 != strcmp(ipv6_mac, "00:00:00:00:00:00")))
++            {
++                addIpv6Rules(ipv6_iface, addr, ipv6_mac);
++            }
++        }
++        else
++        {
++            syscfg_get(NULL, "ipv6_prefix", ipv6Prefix, sizeof(ipv6Prefix));
++            prefix_temp = strtok_r(ipv6Prefix, "/", &ptr);
++            if (NULL != prefix_temp)
++            {
++                strlcpy(curIpv6Prefix, prefix_temp, sizeof(curIpv6Prefix));
++                while (strlen(curIpv6Prefix) > 0 &&
++                       curIpv6Prefix[strlen(curIpv6Prefix) - 1] == ':')
++                {
++                    curIpv6Prefix[strlen(curIpv6Prefix) - 1] = '\0';
++                }
++                if ((strlen(curIpv6Prefix) > 0) && strstr(addr, curIpv6Prefix))
++                {
++                    (void)getClientDetails(addr, ipv6_mac, ipv6_iface);
++                    if ((0 != ipv6_iface[0]) &&
++                        (0 != strcmp(ipv6_mac, "00:00:00:00:00:00")))
++                    {
++                        addIpv6Rules(ipv6_iface, addr, ipv6_mac);
++                    }
++                }
++            }
++        }
++    }
++    /* ---- End integrated IPv6 packet-stats logic ---- */
+ 
+     if (strncasecmp(addr, "fe80", 4) == 0) { /* only LLA storing */
+         if (ipv6_clients_count > 0) {
+@@ -116,17 +1166,53 @@ static void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
+     }
+     return;
+ }
++/* New: IPv4-only delete handler for packet-stats */
++void handle_netlink_ipneigh_del(struct nlmsghdr *nlmsg, int len)
++{
++    struct ndmsg *ndm = NULL;
++    struct rtattr *tb[NDA_MAX + 1] = {NULL};
++    char addr[BUFLEN_256] = {0};
++
++    ndm = NLMSG_DATA(nlmsg);
++
++    /* Neighbor messages: parse NDA attributes */
++    parse_rtattr_pd(tb, NDA_MAX, NDA_RTA(ndm), len);
++
++    if (!tb[NDA_DST])
++        return;
++
++    if (ndm->ndm_family != AF_INET)
++        return;
++
++    inet_ntop(AF_INET, RTA_DATA(tb[NDA_DST]), addr, INET_ADDRSTRLEN);
++    DBG_MONITOR_PRINT("RTM_DELNEIGH len %d ip %s %d family %d IF (%u) \n",
++                      len, addr, nlmsg->nlmsg_type, ndm->ndm_family,
++                      ndm->ndm_ifindex);
+ 
++    if (true == isIPALanStatEnable())
++    {
++        if ('0' != addr[0])
++        {
++           delClientForStats(IPV4_STATS_FILE, "ipv4", addr);
++        }
++    }
++
++    return;
++}
+ /*
+  * ipv6 clients disconneted link local address taking and
+  * removing from file /tmp/ipv6_neighbor.txt for PD , it will use in zebra
+  */
+-static void handle_netlink_ip6neigh_del(struct nlmsghdr *nlmsg, int len)
++void handle_netlink_ip6neigh_del(struct nlmsghdr *nlmsg, int len)
+ {
+     struct ndmsg *ndm = NULL;
+     struct rtattr *tb[NDA_MAX + 1] = {NULL};
+     char addr[BUFLEN_256] = {0};
+-
++    /* Packet-stats integration variables */
++    char ipv6Prefix[BUFLEN_64] = {0};
++    char curIpv6Prefix[BUFLEN_64] = {0};
++    char pd_enable[BUFLEN_8] = {0};
++    char *prefix_temp = NULL, *ptr = NULL;
+     ndm = NLMSG_DATA(nlmsg);
+ 
+     /* Parse attributes and extract fields of interest. */
+@@ -135,11 +1221,42 @@ static void handle_netlink_ip6neigh_del(struct nlmsghdr *nlmsg, int len)
+     if (!tb[NDA_DST])
+         return;
+ 
++    if (ndm->ndm_family != AF_INET6)
++        return;
++
+     inet_ntop(AF_INET6, RTA_DATA(tb[NDA_DST]), addr, INET6_ADDRSTRLEN);
+     DBG_MONITOR_PRINT("RTM_DELNEIGH len %d ip %s %d family %d IF (%u) \n",
+                    len, addr, nlmsg->nlmsg_type, ndm->ndm_family,
+                    ndm->ndm_ifindex);
+-
++    if ((true == isIPALanStatEnable()) &&
++        (0 != strncasecmp(addr, "fe80", 4)))
++    {
++        memset(pd_enable, 0, sizeof(pd_enable));
++        syscfg_get(NULL, "PD_enable", pd_enable, sizeof(pd_enable));
++        if (0 == strcmp(pd_enable, "1"))
++        {
++            if ('0' != addr[0])
++            {
++                delClientForStats(IPV6_STATS_FILE, "ipv6", addr);
++            }
++        }
++        else
++        {
++            syscfg_get(NULL, "ipv6_prefix", ipv6Prefix, sizeof(ipv6Prefix));
++            prefix_temp = strtok_r(ipv6Prefix, "/", &ptr);
++            if (NULL != prefix_temp)
++            {
++                snprintf(curIpv6Prefix, strlen(prefix_temp) - 1, "%s", prefix_temp);
++                if (strstr(addr, curIpv6Prefix))
++                {
++                    if ('0' != addr[0])
++                    {
++                        delClientForStats(IPV6_STATS_FILE, "ipv6", addr);
++                    }
++                }
++            }
++        }
++    }
+     if (strncasecmp(addr, "fe80", 4) == 0) { /* only LLA */
+ 
+         FILE *orig_fp = NULL, *tmp_fp = NULL;
+@@ -210,9 +1327,71 @@ void handle_pd_neigh_event(struct nlmsghdr *nl_msgHdr)
+     struct ndmsg *ndm = NULL;
+     int len = 0;
+     char pd_enable[BUFLEN_8] = {0};
+-
++    /* Integrated block variables */
++    char ipnei_cmd[BUFLEN_256] = {0};
++    char tmpbuf[BUFLEN_256] = {0};
++    FILE *ipnei_fp = NULL;
++    unsigned int singleClient = 0;
+     memset(pd_enable, 0, sizeof(pd_enable));
+     syscfg_get(NULL, "PD_enable", pd_enable, sizeof(pd_enable));
++    /* Integrated block from wanmgr_network_monitor.c */
++    if (nl_msgHdr->nlmsg_type == RTM_DELNEIGH)
++    {
++        snprintf(ipnei_cmd, sizeof(ipnei_cmd), "ip nei | grep -v 'fe80'");
++        ipnei_fp = popen(ipnei_cmd, "r");
++        if (NULL != ipnei_fp)
++        {
++            fgets(tmpbuf, sizeof(tmpbuf), ipnei_fp);
++            pclose(ipnei_fp);
++            ipnei_fp = NULL;
++        }
++        if (0 == strlen(tmpbuf))
++        {
++            /* if only one client is connected and then disconnected */
++            singleClient = 1;
++        }
++        else
++        {
++            singleClient = 0;
++        }
++    }
++
++    if ((strcmp(pd_enable, "1") == 0) || (isIPALanStatEnable() == true))
++    {
++        len = nl_msgHdr->nlmsg_len - NLMSG_LENGTH(sizeof(struct ndmsg));
++        if (len < 0)
++            return;
++
++        ndm = NLMSG_DATA(nl_msgHdr);
++
++        if ((nl_msgHdr->nlmsg_type == RTM_NEWNEIGH) &&
++            (ndm->ndm_state == NUD_REACHABLE))
++        {
++            if (ndm->ndm_family == AF_INET)
++            {
++                handle_netlink_ipneigh_new(nl_msgHdr, len);
++            }
++            else if ((ndm->ndm_family == AF_INET6))
++            {
++               handle_netlink_ip6neigh_new(nl_msgHdr, len);
++            }
++        }
++        if ((nl_msgHdr->nlmsg_type == RTM_DELNEIGH) &&
++            ((ndm->ndm_state == NUD_FAILED) ||
++             (ndm->ndm_state == NUD_STALE) ||
++             (1 == singleClient)))
++        {
++            if (ndm->ndm_family == AF_INET)
++            {
++                handle_netlink_ipneigh_del(nl_msgHdr, len);
++            }
++            else if ((ndm->ndm_family == AF_INET6))
++            {
++                handle_netlink_ip6neigh_del(nl_msgHdr, len);
++            }
++        }
++    }
++    /*already existing changes for PD*/
+     if (strcmp(pd_enable, "1") == 0)
+     {
+         len = nl_msgHdr->nlmsg_len - NLMSG_LENGTH(sizeof(struct ndmsg));
+diff --git a/source/WanManager/wanmgr_network_monitor_extn_qti.h b/source/WanManager/wanmgr_network_monitor_extn_qti.h
+index 0a44ff2..d9c4102 100644
+--- a/source/WanManager/wanmgr_network_monitor_extn_qti.h
++++ b/source/WanManager/wanmgr_network_monitor_extn_qti.h
+@@ -22,5 +22,10 @@
+  * Called from NetMonitor_ProcessNetlinkRouteMonitorFd()
+  */
+ void handle_pd_neigh_event(struct nlmsghdr *nl_msgHdr);
+-
++void handle_netlink_ip6neigh_new (struct nlmsghdr *nlmsg, int len);
++void handle_netlink_ipneigh_new (struct nlmsghdr *nlmsg, int len);
++void handle_netlink_ip6neigh_del(struct nlmsghdr *nlmsg, int len);
++void handle_netlink_ipneigh_del(struct nlmsghdr *nlmsg, int len);
++void createStatsChain(void);
++bool isIPALanStatEnable(void);
+ #endif /* _WANMGR_NETWORK_MONITOR_EXTN_QTI_H_ */
+-- 
+2.34.1
+

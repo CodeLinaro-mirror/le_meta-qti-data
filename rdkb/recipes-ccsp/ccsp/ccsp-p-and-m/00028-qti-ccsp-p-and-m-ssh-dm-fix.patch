@@ -1,0 +1,61 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 047f9327fb9704bf3a1dda72f891a5946c61fe24 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Sat, 29 Aug 2026 07:37:57 +0000
+Subject: [PATCH] Fix SSHEnable DM get/set on _PLATFORM_SDX_ by reading syscfg
+ directly and trigger sshd-start/sshd-stop sysevent on SSH enable/disable.
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ .../cosa_x_cisco_com_devicecontrol_apis.c      | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_x_cisco_com_devicecontrol_apis.c
+@@ -3310,14 +3310,22 @@ CosaDmlDcGetSSHEnable
+     if(!syscfg_get( NULL, "mgmt_wan_sshaccess", buf, sizeof(buf)))
+     {
+         if (strcmp(buf,"1") == 0) 
++        {
+             *pFlag = 1;
++            return ANSC_STATUS_SUCCESS;
++        }
+         else
++        {
+             *pFlag = 0;
++            return ANSC_STATUS_SUCCESS;
++        }
+     }
++#ifndef _PLATFORM_SDX_
+     if (platform_hal_GetSSHEnable(pFlag) != RETURN_OK )
+         return ANSC_STATUS_FAILURE;
+     else
+         return ANSC_STATUS_SUCCESS;
++#endif
+ }
+ 
+ ANSC_STATUS
+@@ -3378,8 +3386,18 @@ CosaDmlDcSetSSHEnable
+         syscfg_set_commit(NULL, "mgmt_wan_sshaccess", flag ? "1" : "0");
+         v_secure_system("sysevent set firewall-restart");
+ 
++        if (flag == TRUE)
++        {
++            v_secure_system("sysevent set sshd-start");
++        }
++        else if (flag == FALSE)
++        {
++            v_secure_system("sysevent set sshd-stop");
++        }
++#ifndef _PLATFORM_SDX_
+         if (platform_hal_SetSSHEnable(flag) == RETURN_ERR )
+             return ANSC_STATUS_FAILURE;
++#endif
+     }   
+     return ANSC_STATUS_SUCCESS;
+ }

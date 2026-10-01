@@ -1,0 +1,82 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From d778df56ffb6a4a892caae5aa469e369733d26b5 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Thu, 30 Jul 2026 10:05:32 +0000
+Subject: [PATCH]IPv6 mtu fix
+
+[Issue Description]: MTU value is not getting updated for configuring default IPv6 route
+
+[Fix Description]: Replaced the old sysevent fd to another that gets initialized in the default IPv6 route configuration workflow
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c     |  5 +++++
+ source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c | 10 +++++-----
+ 2 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+index 2cac00b..2e60545 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -4255,7 +4255,12 @@ static int getLanUlaInfo(int *ula_enable)
+     return 0;
+ }
+ #endif /* _HUB4_PRODUCT_REQ_ || _RDKB_GLOBAL_PRODUCT_REQ_ */
++
++#if defined(_PLATFORM_SDX_)
++int sysevent_fd_global = 0;
++#else
+ static int sysevent_fd_global = 0;
++#endif
+ token_t sysevent_token_global;
+ /*
+     This API is use to check IPv6 vaild or not
+diff --git a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
+index 060b97b..1904a49 100644
+--- a/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
++++ b/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
+@@ -14,7 +14,7 @@
+ #include <sys/stat.h>
+ #include "ipc_msg.h"
+ extern token_t sysevent_token_global;
+-extern int sysevent_fd_1;
++extern int sysevent_fd_global;
+ extern int send_dhcp_data_to_wanmanager (ipc_dhcpv6_data_t *dhcpv6_data);
+ #ifdef PREFIX_SHARING_CELLULAR
+ #define SYSEVENT_IPV4_MTU_SIZE             "cellular_wan_v4_mtu"
+@@ -41,8 +41,8 @@ void AssignIpv6Addr(char* ifname, char* ipv6Addr, int* prefix)
+     memset(mtu6_val,0,sizeof(mtu6_val));
+     CcspTraceInfo(("%s : interface name=%s , ipv6 address=%s prefix=%d \n", __FUNCTION__, ifname,ipv6Addr,*prefix));
+     v_secure_system("ip -6 addr add %s/%d dev %s", ipv6Addr,*prefix,ifname);
+-    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV4_MTU_SIZE, mtu_val, sizeof(mtu_val));
+-    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
++    sysevent_get(sysevent_fd_global, sysevent_token_global, SYSEVENT_IPV4_MTU_SIZE, mtu_val, sizeof(mtu_val));
++    sysevent_get(sysevent_fd_global, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
+     CcspTraceInfo(("%s : interface name=%s , ipv6 address=%s prefix=%d mtu_v6 =%s mtu =%s\n", __FUNCTION__, ifname,ipv6Addr,*prefix, mtu6_val, mtu_val));
+     if(strlen(mtu6_val) != 0)
+     {
+@@ -89,7 +89,7 @@ void SetV6Route(char* ifname, char* route_addr, int metric_val)
+     char mtu6_val[8];
+     int iMtu6Val=0;
+     memset(mtu6_val,0,sizeof(mtu6_val));
+-    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
++    sysevent_get(sysevent_fd_global, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
+     if(mtu6_val[0] != '\0' && strlen(mtu6_val) != 0)
+     {
+         iMtu6Val = atoi(mtu6_val);
+@@ -127,7 +127,7 @@ void UnSetV6Route(char* ifname, char* route_addr, int metric_val)
+     char mtu6_val[8];
+     int iMtu6Val=0;
+     memset(mtu6_val,0,sizeof(mtu6_val));
+-    sysevent_get(sysevent_fd_1, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
++    sysevent_get(sysevent_fd_global, sysevent_token_global, SYSEVENT_IPV6_MTU_SIZE, mtu6_val, sizeof(mtu6_val));
+     if(mtu6_val[0] != '\0' && strlen(mtu6_val) != 0)
+     {
+         iMtu6Val = atoi(mtu6_val);
+-- 
+2.34.1
+

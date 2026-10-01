@@ -1,0 +1,39 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 8f8b39a2b3e51d6e2c7cae8b8c04d53e7aa8c001 Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Wed, 26 Aug 2026 00:00:00 +0000
+Subject: [PATCH] CellularMgr_CarrierAggregation
+
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+
+---
+ source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+--- a/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
++++ b/source/TR-181/middle_layer_src/cellularmgr_rbus_dml.c
+@@ -3665,6 +3665,18 @@ rbusError_t registerGeneratedDataElements(rbusHandle_t handle)
+ #if defined(CM_EXTN_SUPPORTED) && defined(CM_PROP_SUPPORTED)
+         {"Device.Cellular.Interface.{i}.X_QCOM.SSThresholdRSRQ", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamIntValue_rbus, Cellular_Interface_extn_SetParamIntValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.Interface.{i}.X_QCOM.SSThresholdRSRP", RBUS_ELEMENT_TYPE_PROPERTY, {Cellular_Interface_extn_GetParamIntValue_rbus, Cellular_Interface_extn_SetParamIntValue_rbus, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DLCarrierAggregationNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {extn_DLCarrierAggregation_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DLCarrierAggregation.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DLCarrierAggregation.{i}.State", RBUS_ELEMENT_TYPE_PROPERTY, {extn_DLCarrierAggregation_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DLCarrierAggregation.{i}.ScellBand", RBUS_ELEMENT_TYPE_PROPERTY, {extn_DLCarrierAggregation_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DLCarrierAggregation.{i}.ScellBandwidth", RBUS_ELEMENT_TYPE_PROPERTY, {extn_DLCarrierAggregation_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.DLCarrierAggregation.{i}.ScellChannel", RBUS_ELEMENT_TYPE_PROPERTY, {extn_DLCarrierAggregation_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ULCarrierAggregationNumberOfEntries", RBUS_ELEMENT_TYPE_PROPERTY, {extn_ULCarrierAggregation_GetEntryCount_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ULCarrierAggregation.{i}.", RBUS_ELEMENT_TYPE_TABLE, {NULL, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ULCarrierAggregation.{i}.State", RBUS_ELEMENT_TYPE_PROPERTY, {extn_ULCarrierAggregation_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ULCarrierAggregation.{i}.ScellBand", RBUS_ELEMENT_TYPE_PROPERTY, {extn_ULCarrierAggregation_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ULCarrierAggregation.{i}.ScellBandwidth", RBUS_ELEMENT_TYPE_PROPERTY, {extn_ULCarrierAggregation_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
++        {"Device.Cellular.Interface.{i}.X_QCOM.ULCarrierAggregation.{i}.ScellChannel", RBUS_ELEMENT_TYPE_PROPERTY, {extn_ULCarrierAggregation_GetParamUlongValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+ #endif
+         {"Device.Cellular.X_RDK_Euicc.PowerEnable", RBUS_ELEMENT_TYPE_PROPERTY, {EuiccSlot_GetParamBoolValue_rbus, EuiccSlot_SetParamBoolValue_rbus, NULL, NULL, NULL, NULL}},
+         {"Device.Cellular.X_RDK_Euicc.Status", RBUS_ELEMENT_TYPE_PROPERTY, {EuiccSlot_GetParamStringValue_rbus, NULL, NULL, NULL, NULL, NULL}},
+--
+2.39.0

@@ -1,0 +1,1853 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a5e5bc188f7d276409947472bd3f8596481d5fd7 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Sat, 11 Jul 2026 16:22:28 +0000
+Subject: [PATCH] P and M changes for LAN VLAN
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_bridging_apis.c   | 577 +++++++++++++++++-
+ .../board_sbapi/cosa_bridging_apis_ext.h      |  19 +
+ source/TR-181/include/cosa_bridging_apis.h    |  48 +-
+ .../include/dmsb_tr181_psm_definitions.h      |   3 +
+ .../middle_layer_src/cosa_bridging_dml.c      | 392 +++++++++---
+ .../middle_layer_src/cosa_bridging_internal.c | 143 ++++-
+ 6 files changed, 1068 insertions(+), 114 deletions(-)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_bridging_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_bridging_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_bridging_apis.c
+@@ -86,6 +86,8 @@ static BRIDGE_CONTROL g_lanSwCtl = {
+     lSwBrConfirmStructureUpdate,
+     lSwBrAddVlan,
+     lSwBrRemoveVlan,
++    SWBrAddToVlan,
++    SWBrRemoveFromVlan,
+ };
+ */
+ 
+@@ -153,6 +155,8 @@ static BRIDGE_CONTROL g_SWBrCtl = {
+     SWBrConfirmStructureUpdate,
+     SWBrAddVlan,
+     SWBrRemoveVlan,
++    SWBrAddToVlan,
++    SWBrRemoveFromVlan,
+ };
+ 
+ //$HL 4/10/2013
+@@ -256,9 +260,22 @@ typedef enum
+ _PSM_BVLAN_TML
+ {
+     _PSM_BVLAN_TML_ALIAS =0,
+-    _PSM_BVLAN_TML_INSTNUM    
++    _PSM_BVLAN_TML_INSTNUM,
++    _PSM_BVLAN_TML_VLANID,
++    _PSM_BVLAN_TML_ENABLE
+ } PSM_BVLAN_TML;
+ 
++typedef enum
++_PSM_BVLANPORT_TML
++{
++    _PSM_BVLANPORT_TML_ALIAS =0,
++    _PSM_BVLANPORT_TML_INSTNUM,
++    _PSM_BVLANPORT_TML_ENABLE,
++    _PSM_BVLANPORT_TML_VLANINSNUM,
++    _PSM_BVLANPORT_TML_VLANPORTNUM,
++    _PSM_BVLANPORT_TML_UNTAG
++} PSM_BVLANPORT_TML;
++
+ typedef  enum
+ _PSM_BPORT_TML
+ {
+@@ -345,6 +362,18 @@ static const char *g_bPortTemple[] = {
+ static const char *g_bVlanTemple[] = {
+     DMSB_L2_BVLAN_CONCAT("Alias"),
+     DMSB_L2_BVLAN_CONCAT("InstanceNum"),
++    DMSB_L2_BVLAN_CONCAT("VLANID"),
++    DMSB_L2_BVLAN_CONCAT("Enable"),
++    NULL
++};
++
++static const char *g_bVlanPortTemple[] = {
++    DMSB_L2_BVLANPORT_CONCAT("Alias"),
++    DMSB_L2_BVLANPORT_CONCAT("InstanceNum"),
++    DMSB_L2_BVLANPORT_CONCAT("Enable"),
++    DMSB_L2_BVLANPORT_CONCAT("VlanInsNum"),
++    DMSB_L2_BVLANPORT_CONCAT("PortInsNum"),
++    DMSB_L2_BVLANPORT_CONCAT("Untag"),
+     NULL
+ };
+ #define _PSM_GET_BR(_DmsbInx) { \
+@@ -457,7 +486,7 @@ static const char *g_bVlanTemple[] = {
+         /*AnscTraceFlow(("%s: retPsmGet == CCSP_SUCCESS reading %s=%s\n", __FUNCTION__,param_name,param_value)); */\
+     }    
+ 
+-#define _PSM_SET_BVLAN(_DmsbInx) { \
++#define _PSM_SET_BVLAN(_DmsbInx,param_value) { \
+         errno_t rc = -1; \
+         rc = sprintf_s(param_name, sizeof(param_name), g_bVlanTemple[_DmsbInx], l2InstNum,bvlanInstNum); \
+         if(rc < EOK) { \
+@@ -484,6 +513,45 @@ static const char *g_bVlanTemple[] = {
+             _ansc_memset(param_name, 0, sizeof(param_name)); \
+         }
+ 
++#define _PSM_GET_BVLANPORT(_DmsbInx) { \
++        errno_t rc = -1; \
++        _ansc_memset(param_name, 0, sizeof(param_name)); \
++        rc = sprintf_s(param_name, sizeof(param_name), g_bVlanPortTemple[_DmsbInx], l2InstNum, bvlanPortInstNum); \
++        if(rc < EOK) { \
++            ERR_CHK(rc); \
++        } \
++        retPsmGet = PSM_Get_Record_Value2(bus_handle,g_Subsystem, param_name, NULL, &param_value); \
++        if (retPsmGet != CCSP_SUCCESS) { \
++            goto _Psm_GetBVlanPort_Err; \
++        } \
++    }
++
++#define _PSM_SET_BVLANPORT(_DmsbInx,param_value) { \
++        errno_t rc = -1; \
++        rc = sprintf_s(param_name, sizeof(param_name), g_bVlanPortTemple[_DmsbInx], l2InstNum,bvlanPortInstNum); \
++        if(rc < EOK) { \
++            ERR_CHK(rc); \
++        } \
++        retPsmGet = PSM_Set_Record_Value2(bus_handle,g_Subsystem, param_name, ccsp_string, param_value); \
++        if (retPsmGet != CCSP_SUCCESS) { \
++            goto _Psm_SetBVlanPort_Err; \
++        } \
++        _ansc_memset(param_name, 0, sizeof(param_name)); \
++        _ansc_memset(param_value, 0, sizeof(param_value)); \
++    }
++
++#define _PSM_DEL_BVLANPORT(_DmsbInx) { \
++            errno_t rc = -1; \
++            rc = sprintf_s(param_name, sizeof(param_name), g_bVlanPortTemple[_DmsbInx], l2InstNum,  bvlanportInstNum); \
++            if(rc < EOK) { \
++                ERR_CHK(rc); \
++            } \
++            AnscTraceFlow(("%s delete brigde inst=%lu Vlanport inst =%lu param_name=%s\n", __FUNCTION__,\
++                l2InstNum, bvlanportInstNum,param_name));\
++            PSM_Del_Record(bus_handle, g_Subsystem, param_name); \
++            _ansc_memset(param_name, 0, sizeof(param_name)); \
++        }
++
+ #if !defined (NO_MOCA_FEATURE_SUPPORT)
+ #define _COSA_FORMAT_MEMBERS_STRING(_Bridge, _BPort, _DmsbInx,_Value )  { \
+             errno_t rc = -1; \
+@@ -544,6 +612,7 @@ static const char *g_bVlanTemple[] = {
+             } \
+         } 
+ #else
++
+ #define _COSA_FORMAT_MEMBERS_STRING(_Bridge, _BPort, _DmsbInx,_Value )  { \
+             errno_t rc = -1; \
+             if (_BPort->mode==COSA_DML_BPORT_PASSTHRU) \
+@@ -614,6 +683,7 @@ static const char *g_bVlanTemple[] = {
+ static ANSC_STATUS _COSA_DelBr(ULONG instanceNumber);
+ static ANSC_STATUS _COSA_DelBPort(ULONG ulInstanceNumber,PBRIDGE pBridge);
+ static ANSC_STATUS _COSA_DelBVlan(ULONG ulInstanceNumber,PBRIDGE pBridge);
++static ANSC_STATUS _COSA_DelBVlanPort(ULONG bvlanportInstNum, PBRIDGE pBridge);
+ static char * _COSA_GetInterfaceTypeStr(COSA_DML_BRG_LINK_TYPE linktype);
+ 
+ static ANSC_STATUS _COSA_AddToken(char *token, char *pStr,int pStrlen);
+@@ -640,6 +710,8 @@ static ANSC_STATUS _Psm_SetBPort(ULONG l
+ static ANSC_STATUS _Psm_Cleanup(int instanceNumber);
+ static ANSC_STATUS _Psm_GetBVlan(ULONG l2InstNum, ULONG bVlanInstNum, PBRIDGE_VLAN pBVlan);
+ static ANSC_STATUS _Psm_SetBVlan(ULONG l2InstNum, ULONG bvlanInstNum, PBRIDGE_VLAN pBVlan);
++static ANSC_STATUS _Psm_GetBVlanPort(ULONG l2InstNum, ULONG bvlanPortInstNum, PBRIDGE_VLANPORT pBVlanPort);
++static ANSC_STATUS _Psm_SetBVlanPort(ULONG l2InstNum, ULONG bvlanPortInstNum, PBRIDGE_VLANPORT pBVlanPort);
+ #endif
+ 
+ /**********************************************************************
+@@ -710,6 +782,10 @@ CosaDmlBrgInit
+     unsigned int brCnt = 0, portCnt=0, vlanCnt=0;
+     unsigned  int *brList = NULL, *portList = NULL, *vlanList= NULL;
+     unsigned int i = 0, j=0;
++    unsigned int k = 0;
++    unsigned int vlanPortCnt=0;
++    unsigned  int *vlanPortList= NULL;
++    PBRIDGE_VLANPORT curVlanport = NULL;
+     char param_name[256] = {0};
+     errno_t rc = -1;
+ 
+@@ -803,6 +879,43 @@ CosaDmlBrgInit
+             {
+                 AnscTraceFlow(("<HL> %s Cannot find any VLAN entry:%s\n",__FUNCTION__, param_name));
+             }
++            _ansc_memset(param_name, 0, sizeof(param_name));
++            rc = sprintf_s(param_name, sizeof(param_name), DMSB_L2_BVLANPORT_PREFIX, brList[i]);
++            if(rc < EOK)
++            {
++                ERR_CHK(rc);
++            }
++            //rebuild vlanport list for the bridge
++            retPsmGet2 = PsmGetNextLevelInstances(bus_handle, g_Subsystem, param_name, &vlanPortCnt, &vlanPortList);
++            if ( retPsmGet2 == CCSP_SUCCESS && vlanPortList != NULL )
++            {
++                for( k=0; k < vlanPortCnt; k++)
++                {
++                    curVlanport = (PBRIDGE_VLANPORT)AnscAllocateMemory(sizeof (BRIDGE_VLANPORT));
++                    if(_Psm_GetBVlanPort(brList[i],vlanPortList[k],curVlanport)==ANSC_STATUS_SUCCESS)
++                    {
++                        if (k == 0)
++                        {
++                            AnscSListPushEntry(&lanbr->vlanPortList, &curVlanport->Linkage);
++                        }
++                        else
++                        {
++                            AnscSListPushEntryAtBack(&lanbr->vlanPortList, &curVlanport->Linkage);
++                        }
++                        lanbr->numOfVlanPorts++;
++                    }
++                    else
++                    {
++                        AnscFreeMemory(curVlanport);
++                        continue;
++                    }
++                }
++                ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(vlanPortList);
++            }
++            else
++            {
++                AnscTraceFlow(("<HL> %s Cannot find any VLANPort entry:%s\n",__FUNCTION__, param_name));
++            }
+             //rebuild port list for the bridge
+             _ansc_memset(param_name, 0, sizeof(param_name));
+             rc = sprintf_s(param_name, sizeof(param_name), DMSB_L2_BPORT_PREFIX, brList[i]);
+@@ -1246,6 +1359,7 @@ CosaDmlBrgSetCfg
+     CcspTraceInfo(("------CosaDmlBrgSetCfg...\n"));
+     PBRIDGE pBridge = getBridge(pCfg->InstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found insnum (%lu)\n",__FUNCTION__,__LINE__,pCfg->InstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     
+@@ -1375,6 +1489,7 @@ CosaDmlBrgGetInfo
+     AnscTraceFlow(("<HL> %s\n",__FUNCTION__));
+     PBRIDGE pBridge = getBridge(ulInstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+ 
+@@ -1395,6 +1510,7 @@ int CosaDmlBrgGetVLANID
+     AnscTraceFlow(("<HL> %s\n",__FUNCTION__));
+     PBRIDGE pBridge = getBridge(ulInstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     return pBridge->vlanid;
+@@ -1715,6 +1831,7 @@ CosaDmlBrgPortDelEntry
+     PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
+     AnscTraceFlow(("<HL> %s\n",__FUNCTION__));
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     return pBridge->control->removePort(pBridge, ulInstanceNumber);
+@@ -1801,7 +1918,7 @@ CosaDmlBrgPortSetCfg
+     pBPort->bPriTag = pCfg->bPriorityTagging;
+     pBPort->linkType = pCfg->LinkType;
+     //pBPort->pvid = pCfg->PVID;
+-    pBPort->pvid = pBridge->vlanid;
++    pBPort->pvid = pCfg->PVID;
+     pBPort->mode = pCfg->mode;
+     pBPort->bUpstream = pCfg->bUpstream;
+     pBPort->bEnabled = pCfg->bEnabled;
+@@ -1872,10 +1989,12 @@ CosaDmlBrgPortGetCfg
+     PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
+     errno_t rc      = -1;
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     PBRIDGE_PORT pBPort = getBPort(pBridge, pCfg->InstanceNumber);
+     if (pBPort == NULL) {
++        CcspTraceInfo(("[%s:%d] port not found for insnum (%lu)\n",__FUNCTION__,__LINE__,pCfg->InstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+ 
+@@ -1948,10 +2067,12 @@ CosaDmlBrgPortGetInfo
+     AnscTraceFlow(("<HL> %s\n",__FUNCTION__));
+     PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     PBRIDGE_PORT pBPort = getBPort(pBridge, ulInstanceNumber);
+     if (pBPort == NULL) {
++        CcspTraceInfo(("[%s:%d] port not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     errno_t rc = -1;
+@@ -2010,6 +2131,7 @@ CosaDmlBrgPortGetStats
+     CcspTraceInfo(("------CosaDmlBrgPortGetStats, Bridge:%p...\n", pBridge->hwid));
+     PBRIDGE_PORT pBPort = getBPort(pBridge, ulInstanceNumber);
+     if (pBPort == NULL) {
++        CcspTraceInfo(("[%s:%d] port not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+ 
+@@ -2064,6 +2186,7 @@ CosaDmlBrgVlanAddEntry
+     AnscTraceFlow(("<HL> %s\n",__FUNCTION__));
+     PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     return pBridge->control->addVlan(pBridge, &pEntry->Cfg);
+@@ -2114,6 +2237,7 @@ CosaDmlBrgVlanDelEntry
+     AnscTraceFlow(("------%s...\n", __func__));
+     PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     return pBridge->control->removeVlan(pBridge, ulVLANInsNum);
+@@ -2150,7 +2274,9 @@ CosaDmlBrgVlanSetValues
+         ULONG                       ulBrgInstanceNumber,
+         ULONG                       ulIndex,
+         ULONG                       ulInstanceNumber,
+-        char*                       pAlias
++        char*                       pAlias,
++        int                         vlanid,
++        BOOLEAN                     enable
+     )
+ {
+     UNREFERENCED_PARAMETER(hContext);
+@@ -2173,6 +2299,8 @@ CosaDmlBrgVlanSetValues
+     rc = strcpy_s(pVLAN->alias,sizeof(pVLAN->alias), pAlias);
+     ERR_CHK(rc);
+     pVLAN->instanceNumber = ulInstanceNumber;
++    pVLAN->VlanId = vlanid;
++    pVLAN->enable = enable;
+     CcspTraceInfo(("------CosaDmlBrgPortSetValues, We are trying to save instancenum %lu:%s...\n",
+         pVLAN->instanceNumber, pVLAN->alias));
+     _Psm_SetBVlan(ulBrgInstanceNumber, ulInstanceNumber, pVLAN); 
+@@ -2214,8 +2342,8 @@ ANSC_STATUS CosaDmlBrgVlanGetEntry
+     //pEntry->Cfg.bEnabled = TURE; 
+     // Suport only one VLAN entry per Bridge
+     // TODO: need to fix after bridge needs to support multi-VLANs
+-    pEntry->Cfg.bEnabled = pBridge->bEnabled; 
+-    pEntry->Cfg.VLANID = pBridge->vlanid;
++    pEntry->Cfg.VLANID = pBVlan->VlanId;
++    pEntry->Cfg.bEnabled = pBVlan->enable;
+     rc = strcpy_s(pEntry->Cfg.Alias,sizeof(pEntry->Cfg.Alias), pBVlan->alias);
+     ERR_CHK(rc);
+     rc = strcpy_s(pEntry->Info.Name,sizeof(pEntry->Info.Name), pBridge->name);
+@@ -2239,6 +2367,7 @@ CosaDmlBrgVlanSetCfg
+     PBRIDGE_VLAN curVlan = NULL;
+     errno_t rc = -1;
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+     curVlan = getBVlan(pBridge, pCfg->InstanceNumber);
+@@ -2252,6 +2381,8 @@ CosaDmlBrgVlanSetCfg
+     _COSA_UpdateBrVLANID(pBridge,pCfg->VLANID);
+     rc = strcpy_s(curVlan->alias,sizeof(curVlan->alias), pCfg->Alias);
+     ERR_CHK(rc);
++    curVlan->VlanId = pCfg->VLANID;
++    curVlan->enable = pCfg->bEnabled;
+     _Psm_SetBVlan(ulBrgInstanceNumber, curVlan->instanceNumber, curVlan);
+     return ANSC_STATUS_SUCCESS;
+ #endif
+@@ -2302,9 +2433,7 @@ CosaDmlBrgVlanPortAddEntry
+     (
+         ANSC_HANDLE                 hContext,
+         ULONG                       ulBrgInstanceNumber,
+-        int                         VLANID,
+-        ULONG                       ulPortInstanceNumber,
+-        BOOLEAN                     bUntagged
++        PCOSA_DML_BRG_VLANPORT_FULL pEntry
+     )
+ {
+     UNREFERENCED_PARAMETER(hContext);
+@@ -2312,16 +2441,12 @@ CosaDmlBrgVlanPortAddEntry
+     return ANSC_STATUS_CANT_FIND;
+ #endif
+ #if defined(_COSA_INTEL_USG_ARM_) || defined(_COSA_BCM_ARM_) || defined(_COSA_BCM_MIPS_)
+-    AnscTraceFlow(("------%s...\n", __func__));
+     PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+-    PBRIDGE_PORT pBPort = getBPort(pBridge, ulPortInstanceNumber);
+-    if (pBPort == NULL) {
+-        return ANSC_STATUS_CANT_FIND;
+-    }
+-    return pBPort->control->addToVlan(pBPort, VLANID, bUntagged);
++    return pBridge->control->addToVlan(pBridge, &pEntry->Cfg);
+ #endif
+ }
+ 
+@@ -2362,7 +2487,6 @@ CosaDmlBrgVlanPortDelEntry
+     (
+         ANSC_HANDLE                 hContext,
+         ULONG                       ulBrgInstanceNumber,
+-        int                         VLANID,
+         ULONG                       ulPortInstanceNumber
+     )
+ {
+@@ -2374,16 +2498,144 @@ CosaDmlBrgVlanPortDelEntry
+     AnscTraceFlow(("------%s...\n", __func__));
+     PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
+     if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
+         return ANSC_STATUS_CANT_FIND;
+     }
+-    PBRIDGE_PORT pBPort = getBPort(pBridge, ulPortInstanceNumber);
+-    if (pBPort == NULL) {
++    return pBridge->control->removeFromVlan(pBridge, ulPortInstanceNumber);
++#endif
++}
++
++ULONG
++CosaDmlBrgVlanPortGetNumberOfEntries
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber
++    )
++{
++    UNREFERENCED_PARAMETER(hContext);
++#if _COSA_INTEL_USG_ARM_ || _COSA_BCM_MIPS_
++    PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
++    if (pBridge == NULL)
++    {
++        AnscTraceFlow(("<HL> %s ulBrgInstanceNumber=%lu Not found\n",__FUNCTION__,
++            ulBrgInstanceNumber));
++        return 0;
++    }
++    AnscTraceFlow(("<HL> %s ulBrgInstanceNumber=%lu numOfVlanPorts=%d\n",__FUNCTION__,
++            ulBrgInstanceNumber,pBridge->numOfVlanPorts));
++    return (pBridge->numOfVlanPorts);
++#endif
++}
++
++ANSC_STATUS CosaDmlBrgVlanPortGetEntry
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber,
++        ULONG                       ulIndex,
++        PCOSA_DML_BRG_VLANPORT_FULL pEntry
++    )
++{
++    UNREFERENCED_PARAMETER(hContext);
++#if _COSA_INTEL_USG_ARM_ || _COSA_BCM_MIPS_
++    PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
++    if (pBridge == NULL) {
++        AnscTraceFlow(("<HL> %s Bridge not found ulBrgInstanceNumber=%lu, ulIndex=%lu\n",__FUNCTION__,
++            ulBrgInstanceNumber,ulIndex));
+         return ANSC_STATUS_CANT_FIND;
+     }
+-    return pBPort->control->removeFromVlan(pBPort, VLANID);
++    PBRIDGE_VLANPORT pBVlanPort = (PBRIDGE_VLANPORT) AnscSListGetEntryByIndex(&pBridge->vlanPortList, ulIndex);
++    if (pBVlanPort == NULL) {
++        AnscTraceFlow(("<HL> %s vlanPort not found ulBrgInstanceNumber=%lu, ulIndex=%lu\n",__FUNCTION__,
++            ulBrgInstanceNumber,ulIndex));
++        return ANSC_STATUS_CANT_FIND;
++    }
++    CcspTraceInfo(("------CosaDmlBrgVlanPortGetEntry,instancenum:%lu,alias:%s\n", pBVlanPort->instanceNumber, pBVlanPort->alias));
++    AnscCopyString(pEntry->Cfg.Alias, pBVlanPort->alias);
++    pEntry->Cfg.InstanceNumber = pBVlanPort->instanceNumber;
++    pEntry->Cfg.bEnabled = pBVlanPort->enable;
++    pEntry->Cfg.VLANInsNum = pBVlanPort->vlaninsnum;
++    pEntry->Cfg.PortInsNum = pBVlanPort->portinsnum;
++    pEntry->Cfg.bUntagged = pBVlanPort->untag;
++
++    return ANSC_STATUS_SUCCESS;
+ #endif
+ }
+ 
++ANSC_STATUS
++CosaDmlBrgVlanPortSetValues
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber,
++        ULONG                       ulIndex,
++        ULONG                       ulInstanceNumber,
++        char*                       pAlias,
++        BOOLEAN                     untagged,
++        BOOLEAN                     enable,
++        ULONG                       vlaninsnum,
++        ULONG                       portinsnum
++    )
++{
++    UNREFERENCED_PARAMETER(hContext);
++#if _COSA_INTEL_USG_ARM_ || _COSA_BCM_MIPS_
++    PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
++    errno_t rc = -1;
++    CcspTraceInfo(("------CosaDmlBrgVlanPortSetValues...\n"));
++    if (pBridge == NULL) {
++        AnscTraceFlow(("<$HL> %s cannot find bridge inst =%lu, \n",__FUNCTION__,ulBrgInstanceNumber));
++        return ANSC_STATUS_CANT_FIND;
++    }
++    PBRIDGE_VLANPORT pVLANPort = (PBRIDGE_VLANPORT) AnscSListGetEntryByIndex(&pBridge->vlanPortList, ulIndex);
++    if (pVLANPort == NULL) {
++        AnscTraceFlow(("<$HL> %s cannot find bridge inst =%lu, vlan port index=%lu\n",__FUNCTION__,ulBrgInstanceNumber,ulIndex));
++        return ANSC_STATUS_CANT_FIND;
++    }
++    rc = strcpy_s(pVLANPort->alias,sizeof(pVLANPort->alias), pAlias);
++    ERR_CHK(rc);
++    pVLANPort->instanceNumber = ulInstanceNumber;
++    pVLANPort->enable = enable;
++    pVLANPort->untag = untagged;
++    pVLANPort->vlaninsnum = vlaninsnum;
++    pVLANPort->portinsnum = portinsnum;
++    _Psm_SetBVlanPort(ulBrgInstanceNumber, ulInstanceNumber, pVLANPort);
++    return ANSC_STATUS_SUCCESS;
++#endif
++}
++
++ANSC_STATUS
++CosaDmlBrgVlanPortSetCfg
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber,
++        PCOSA_DML_BRG_VLANPORT_CFG      pCfg
++    )
++{
++    UNREFERENCED_PARAMETER(hContext);
++    PBRIDGE pBridge = getBridge(ulBrgInstanceNumber);
++    PBRIDGE_VLANPORT curVlanPort = NULL;
++    errno_t rc = -1;
++    if (pBridge == NULL) {
++        CcspTraceInfo(("[%s:%d] bridge not found for insnum (%lu)\n",__FUNCTION__,__LINE__,ulBrgInstanceNumber));
++        return ANSC_STATUS_CANT_FIND;
++    }
++    curVlanPort = getBVlanPort(pBridge, pCfg->InstanceNumber);
++    if (curVlanPort == NULL)
++    {
++        AnscTraceFlow(("<$HL> %s cannot find brInst =%lu, bVlanPort inst=%lu\n",__FUNCTION__,
++            pBridge->l2InstanceNumber,pCfg->InstanceNumber));
++        return ANSC_STATUS_CANT_FIND;
++    }
++    rc = strcpy_s(curVlanPort->alias,sizeof(curVlanPort->alias), pCfg->Alias);
++    ERR_CHK(rc);
++    curVlanPort->enable = pCfg->bEnabled;
++    curVlanPort->untag = pCfg->bUntagged;
++    curVlanPort->instanceNumber = pCfg->InstanceNumber;
++    curVlanPort->vlaninsnum = pCfg->VLANInsNum;
++    curVlanPort->portinsnum = pCfg->PortInsNum;
++    _Psm_SetBVlanPort(ulBrgInstanceNumber, curVlanPort->instanceNumber, curVlanPort);
++
++    return ANSC_STATUS_SUCCESS;
++}
++
+ #if defined(_COSA_INTEL_USG_ARM_) || defined(_COSA_BCM_ARM_) || defined(_COSA_BCM_MIPS_)
+ 
+ ///Maps a bridge instance number to a backend object
+@@ -2393,6 +2645,7 @@ PBRIDGE getBridge(ULONG instanceNumber)
+     PBRIDGE curBridge = (PBRIDGE) AnscSListGetFirstEntry(&g_Bridgings.bridgeList);
+     while (curBridge != NULL) {
+         if (curBridge->instanceNumber == instanceNumber) {
++            CcspTraceInfo(("[%s:%d] bridge Insnum (%lu) curBridge (%p)\n",__FUNCTION__,__LINE__,curBridge->instanceNumber,curBridge));
+             return curBridge;
+         }
+         curBridge = (PBRIDGE) curBridge->Linkage.Next;
+@@ -2405,6 +2658,11 @@ PBRIDGE getBridge(ULONG instanceNumber)
+ ///Maps a bridge port instance to a backend object
+ PBRIDGE_PORT getBPort(PBRIDGE pBridge, ULONG ulInstanceNumber)
+ {
++    if (NULL == pBridge)
++    {
++        AnscTraceFlow(("<HL> %s Bridge not found, pBridge NULL\n",__FUNCTION__));
++        return NULL;
++    }
+     PBRIDGE_PORT curPort = (PBRIDGE_PORT) AnscSListGetFirstEntry(&pBridge->portList);
+     while (curPort != NULL) {
+         if (curPort->instanceNumber == ulInstanceNumber) {
+@@ -2421,6 +2679,11 @@ PBRIDGE_PORT getBPort(PBRIDGE pBridge, U
+ 
+ PBRIDGE_VLAN getBVlan(PBRIDGE pBridge, ULONG ulInstanceNumber)
+ {
++    if (NULL == pBridge)
++    {
++        AnscTraceFlow(("<HL> %s input param pBridge NULL\n",__FUNCTION__));
++        return NULL;
++    }
+     PBRIDGE_VLAN curVlan = (PBRIDGE_VLAN) AnscSListGetFirstEntry(&pBridge->vlanList);
+     AnscTraceFlow(("<HL> %s \n",__FUNCTION__));
+     while (curVlan != NULL) {
+@@ -2436,6 +2699,27 @@ PBRIDGE_VLAN getBVlan(PBRIDGE pBridge, U
+     return NULL;
+ }
+ 
++PBRIDGE_VLANPORT getBVlanPort(PBRIDGE pBridge, ULONG ulInstanceNumber)
++{
++    if (NULL == pBridge)
++    {
++        AnscTraceFlow(("<HL> %s input param pBridge NULL\n",__FUNCTION__));
++        return NULL;
++    }
++    PBRIDGE_VLANPORT curVlanPort = (PBRIDGE_VLANPORT) AnscSListGetFirstEntry(&pBridge->vlanPortList);
++    AnscTraceFlow(("<HL> %s \n",__FUNCTION__));
++    while (curVlanPort != NULL) {
++        if (curVlanPort->instanceNumber == ulInstanceNumber) {
++
++            return curVlanPort;
++        }
++        curVlanPort = (PBRIDGE_VLANPORT) curVlanPort->Linkage.Next;
++    }
++    AnscTraceFlow(("<HL> %s bVlan not found, bridge instanceNumber=%lu vlanport instanceNumber=%lu\n",
++        __FUNCTION__, pBridge->instanceNumber,ulInstanceNumber));
++    return NULL;
++}
++
+ //$HL 4/10/2013 
+ static char *_COSA_GetInterfaceTypeStr(COSA_DML_BRG_LINK_TYPE linktype)
+ {
+@@ -2636,6 +2920,11 @@ static ANSC_STATUS _COSA_DelBr(ULONG brg
+ //$HL 4/1/2013 
+ ///remove a bridge port instance 
+ static ANSC_STATUS _COSA_DelBPort(ULONG bportInstNum, PBRIDGE pBridge) {
++    if (NULL == pBridge)
++    {
++        AnscTraceFlow(("<HL> %s input param pBridge NULL\n",__FUNCTION__));
++        return ANSC_STATUS_FAILURE;
++    }
+     PBRIDGE_PORT curPort = getBPort(pBridge, bportInstNum);
+     char param_name[256] = {0},param_value[256]={0};
+     char *deviceStr = NULL;
+@@ -2714,6 +3003,11 @@ static ANSC_STATUS _COSA_DelBPort(ULONG
+ }
+ 
+ static ANSC_STATUS _COSA_DelBVlan(ULONG bvlanInstNum, PBRIDGE pBridge) {
++    if (NULL == pBridge)
++    {
++        AnscTraceFlow(("%s input param pBridge NULL\n",__FUNCTION__));
++        return ANSC_STATUS_FAILURE;
++    }
+     PBRIDGE_VLAN curVlan = getBVlan(pBridge, bvlanInstNum);
+     char param_name[256] = {0},param_value[256]={0};
+     ULONG l2InstNum = pBridge->l2InstanceNumber;
+@@ -2734,6 +3028,8 @@ static ANSC_STATUS _COSA_DelBVlan(ULONG
+ 
+     _PSM_DEL_BVLAN(_PSM_BVLAN_TML_ALIAS);
+     _PSM_DEL_BVLAN(_PSM_BVLAN_TML_INSTNUM);
++    _PSM_DEL_BVLAN(_PSM_BVLAN_TML_VLANID);
++    _PSM_DEL_BVLAN(_PSM_BVLAN_TML_ENABLE);
+ 
+     if (pBridge->numOfVlans)
+         pBridge->numOfVlans --;
+@@ -2743,6 +3039,45 @@ static ANSC_STATUS _COSA_DelBVlan(ULONG
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
++static ANSC_STATUS _COSA_DelBVlanPort(ULONG bvlanportInstNum, PBRIDGE pBridge) {
++    if (NULL == pBridge)
++    {
++        AnscTraceFlow(("%s input param pBridge NULL\n",__FUNCTION__));
++        return ANSC_STATUS_FAILURE;
++    }
++    PBRIDGE_VLANPORT curVlanPort = getBVlanPort(pBridge, bvlanportInstNum);
++    char param_name[256] = {0},param_value[256]={0};
++    ULONG l2InstNum = pBridge->l2InstanceNumber;
++    AnscTraceFlow(("<HL> %s\n",__FUNCTION__));
++    if (curVlanPort==NULL)
++    {
++        AnscTraceFlow(("<$HL> %s cannot find brInst =%lu, bvlanport inst=%lu\n",__FUNCTION__,
++            pBridge->l2InstanceNumber,bvlanportInstNum));
++        return ANSC_STATUS_CANT_FIND;
++    }
++
++    AnscSListPopEntryByLink(&pBridge->vlanPortList,&curVlanPort->Linkage);
++
++    AnscTraceFlow(("%s Delete curVlanPort instanceNumber=%lu\n",
++         __FUNCTION__, curVlanPort->instanceNumber));
++
++    _ansc_memset(param_value, 0, sizeof(param_value));
++
++    _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_ALIAS);
++    _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_INSTNUM);
++    _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_ENABLE);
++    _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_VLANINSNUM);
++    _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_VLANPORTNUM);
++    _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_UNTAG);
++
++    if (pBridge->numOfVlanPorts)
++        pBridge->numOfVlanPorts --;
++
++    //free memory
++    AnscFreeMemory(curVlanPort);
++    return ANSC_STATUS_SUCCESS;
++}
++
+ static ANSC_STATUS _COSA_AddToken(char *token, char *pStr,int pStrlen)
+ {
+     char *result = NULL;
+@@ -2982,6 +3317,9 @@ static ANSC_STATUS _Psm_Cleanup(int inst
+     unsigned int *portList = NULL,*vlanList = NULL;
+     ULONG l2InstNum = instanceNumber;
+     ULONG bportInstNum = 0, bvlanInstNum=0;
++    unsigned int *vlanportList = NULL;
++    unsigned int vlanportCnt = 0;
++    ULONG bvlanportInstNum = 0;
+     errno_t rc = -1;
+     char * deviceStr = NULL;
+     AnscTraceFlow(("<HL> %s \n",__FUNCTION__));
+@@ -3068,6 +3406,38 @@ static ANSC_STATUS _Psm_Cleanup(int inst
+     {
+         AnscTraceFlow(("<HL> %s Cannot find any vlan entry:%s\n",__FUNCTION__, param_name));
+     }
++    _ansc_memset(param_name, 0, sizeof(param_name));
++    i = 0;
++    rc = sprintf_s(param_name, sizeof(param_name), DMSB_L2_BVLANPORT_PREFIX, instanceNumber);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++        return ANSC_STATUS_FAILURE;
++    }
++    retPsmGet = PsmGetNextLevelInstances(bus_handle, g_Subsystem, param_name, &vlanportCnt, &vlanportList);
++    if ( retPsmGet == CCSP_SUCCESS && vlanportList != NULL )
++    {
++        AnscTraceFlow(("<HL> %s Vlanport Init: count=%d\n",__FUNCTION__,vlanportCnt));
++        for( i=0; i < vlanportCnt; i++)
++        {
++            bvlanportInstNum = vlanportList[i];
++            AnscTraceFlow(("<HL> %s Vlan port Init: count=%d bvlanportInstNum=%lu\n",
++                __FUNCTION__,vlanportCnt,bvlanportInstNum));
++
++            _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_ALIAS);
++            _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_INSTNUM);
++            _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_ENABLE);
++            _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_VLANINSNUM);
++            _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_VLANPORTNUM);
++            _PSM_DEL_BVLANPORT(_PSM_BVLANPORT_TML_UNTAG);
++
++        }
++        ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(vlanportList);
++    }
++    else
++    {
++        AnscTraceFlow(("<HL> %s Cannot find any vlan port entry:%s\n",__FUNCTION__, param_name));
++    }
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
+@@ -3482,6 +3852,14 @@ static ANSC_STATUS _Psm_GetBVlan(ULONG l
+     pBVlan->instanceNumber = _ansc_atol(param_value);
+     ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
+ 
++    _PSM_GET_BVLAN(_PSM_BVLAN_TML_VLANID);
++    pBVlan->VlanId = _ansc_atoi(param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
++    _PSM_GET_BVLAN(_PSM_BVLAN_TML_ENABLE);
++    pBVlan->enable = _ansc_atoi(param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
+     return ANSC_STATUS_SUCCESS;    
+ 
+ _Psm_GetBVlan_Err:
+@@ -3501,7 +3879,7 @@ static ANSC_STATUS _Psm_SetBVlan(ULONG l
+  
+     rc = strcpy_s(param_value, sizeof(param_value), pBVlan->alias);
+     ERR_CHK(rc);
+-    _PSM_SET_BVLAN(_PSM_BVLAN_TML_ALIAS);
++    _PSM_SET_BVLAN(_PSM_BVLAN_TML_ALIAS,param_value);
+ 
+  
+     rc = sprintf_s(param_value, sizeof(param_value), "%lu", pBVlan->instanceNumber);
+@@ -3509,9 +3887,22 @@ static ANSC_STATUS _Psm_SetBVlan(ULONG l
+     {
+         ERR_CHK(rc);
+     }
+-    _PSM_SET_BVLAN(_PSM_BVLAN_TML_INSTNUM);
+-  
+- 
++    _PSM_SET_BVLAN(_PSM_BVLAN_TML_INSTNUM,param_value);
++
++    rc = sprintf_s(param_value, sizeof(param_value), "%d", pBVlan->VlanId);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++    }
++    _PSM_SET_BVLAN(_PSM_BVLAN_TML_VLANID,param_value);
++
++    rc = sprintf_s(param_value, sizeof(param_value), "%d", pBVlan->enable);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++    }
++    _PSM_SET_BVLAN(_PSM_BVLAN_TML_ENABLE,param_value);
++
+     return ANSC_STATUS_SUCCESS;
+ 
+ _Psm_SetBVlan_Err:
+@@ -3519,6 +3910,98 @@ _Psm_SetBVlan_Err:
+     return ANSC_STATUS_FAILURE;
+ }
+ 
++static ANSC_STATUS _Psm_GetBVlanPort(ULONG l2InstNum, ULONG bvlanPortInstNum, PBRIDGE_VLANPORT pBVlanPort)
++{
++    int retPsmGet = CCSP_SUCCESS;
++    char *param_value= NULL;
++    char param_name[256]= {0};
++
++    AnscTraceFlow(("<HL> %s \n",__FUNCTION__));
++
++    _PSM_GET_BVLANPORT(_PSM_BVLANPORT_TML_ALIAS);
++    AnscCopyString(pBVlanPort->alias, param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
++    _PSM_GET_BVLANPORT(_PSM_BVLANPORT_TML_INSTNUM);
++    pBVlanPort->instanceNumber = _ansc_atol(param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
++    _PSM_GET_BVLANPORT(_PSM_BVLANPORT_TML_ENABLE);
++    pBVlanPort->enable = _ansc_atoi(param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
++    _PSM_GET_BVLANPORT(_PSM_BVLANPORT_TML_VLANINSNUM);
++    pBVlanPort->vlaninsnum = _ansc_atol(param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
++    _PSM_GET_BVLANPORT(_PSM_BVLANPORT_TML_VLANPORTNUM);
++    pBVlanPort->portinsnum = _ansc_atol(param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
++    _PSM_GET_BVLANPORT(_PSM_BVLANPORT_TML_UNTAG);
++    pBVlanPort->untag = _ansc_atoi(param_value);
++    ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(param_value);
++
++    return ANSC_STATUS_SUCCESS;
++
++_Psm_GetBVlanPort_Err:
++    AnscTraceFlow(("%s: cannot find %s\n",__FUNCTION__,param_name));
++    return ANSC_STATUS_FAILURE;
++}
++
++static ANSC_STATUS _Psm_SetBVlanPort(ULONG l2InstNum, ULONG bvlanPortInstNum, PBRIDGE_VLANPORT pBVlanPort)
++{
++    int retPsmGet = CCSP_SUCCESS;
++    char param_value[256]={0};
++    char param_name[256]= {0};
++    errno_t rc = -1;
++
++    rc = strcpy_s(param_value, sizeof(param_value), pBVlanPort->alias);
++    ERR_CHK(rc);
++    _PSM_SET_BVLANPORT(_PSM_BVLANPORT_TML_ALIAS,param_value);
++
++    rc = sprintf_s(param_value, sizeof(param_value), "%lu", pBVlanPort->instanceNumber);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++    }
++    _PSM_SET_BVLANPORT(_PSM_BVLANPORT_TML_INSTNUM,param_value);
++
++    rc = sprintf_s(param_value, sizeof(param_value), "%lu", pBVlanPort->vlaninsnum);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++    }
++    _PSM_SET_BVLANPORT(_PSM_BVLANPORT_TML_VLANINSNUM,param_value);
++
++    rc = sprintf_s(param_value, sizeof(param_value), "%lu", pBVlanPort->portinsnum);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++    }
++    _PSM_SET_BVLANPORT(_PSM_BVLANPORT_TML_VLANPORTNUM,param_value);
++
++    rc = sprintf_s(param_value, sizeof(param_value), "%d", pBVlanPort->untag);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++    }
++    _PSM_SET_BVLANPORT(_PSM_BVLANPORT_TML_UNTAG,param_value);
++
++    rc = sprintf_s(param_value, sizeof(param_value), "%d", pBVlanPort->enable);
++    if(rc < EOK)
++    {
++        ERR_CHK(rc);
++    }
++    _PSM_SET_BVLANPORT(_PSM_BVLANPORT_TML_ENABLE,param_value);
++
++    return ANSC_STATUS_SUCCESS;
++
++_Psm_SetBVlanPort_Err:
++    AnscTraceFlow(("%s: cannot set %s\n",__FUNCTION__,param_name));
++    return ANSC_STATUS_FAILURE;
++}
++
+ /*
+ ///Saves an instance number and alias for a given namespaced object name.
+ static int saveID(char* Namespace, char* ifName, ULONG ulInstanceNumber,char* pAlias) {
+@@ -4012,7 +4495,13 @@ ANSC_STATUS SWBrAddPort(PBRIDGE pBridge,
+ ANSC_STATUS SWBrRemovePort(struct bridge* bridge, ULONG portInstanceNumber) {
+     //$HL 4/16/2013
+     //return ANSC_STATUS_NOT_SUPPORTED;
+-    _COSA_DelBPort(portInstanceNumber,bridge);
++    ANSC_STATUS ret = ANSC_STATUS_FAILURE;
++    ret = _COSA_DelBPort(portInstanceNumber,bridge);
++    if (ANSC_STATUS_SUCCESS != ret)
++    {
++        AnscTraceFlow(("<HL> %s _COSA_DelBPort failed\n",__FUNCTION__));
++        return ret;
++    }
+     v_secure_system("sysevent set multinet-syncMembers %lu", bridge->l2InstanceNumber);
+     return ANSC_STATUS_SUCCESS;
+ }
+@@ -4055,6 +4544,8 @@ ANSC_STATUS SWBrAddVlan(struct bridge *p
+     pBVlan = (PBRIDGE_VLAN)AnscAllocateMemory(sizeof (BRIDGE_VLAN));
+     AnscCopyString(pBVlan->alias, pEntry->Alias);
+     pBVlan->instanceNumber = pEntry->InstanceNumber;
++    pBVlan->VlanId = pEntry->VLANID;
++    pBVlan->enable = pEntry->bEnabled;
+     _COSA_UpdateBrVLANID(pBridge,pEntry->VLANID);
+     pBridge->numOfVlans++;
+     AnscSListPushEntryAtBack(&pBridge->vlanList, &pBVlan->Linkage);
+@@ -4064,7 +4555,39 @@ ANSC_STATUS SWBrAddVlan(struct bridge *p
+ 
+ ANSC_STATUS SWBrRemoveVlan(struct bridge *pBridge, ULONG vlanInstanceNumber)
+ {
+-    _COSA_DelBVlan(vlanInstanceNumber,pBridge);
++    ANSC_STATUS ret = ANSC_STATUS_FAILURE;
++    ret = _COSA_DelBVlan(vlanInstanceNumber,pBridge);
++    if (ANSC_STATUS_SUCCESS != ret)
++    {
++        return ret;
++    }
++    return ANSC_STATUS_SUCCESS;
++}
++
++ANSC_STATUS SWBrAddToVlan(struct bridge *pBridge, PCOSA_DML_BRG_VLANPORT_CFG pEntry)
++{
++    PBRIDGE_VLANPORT pBVlanPort;
++    pBVlanPort = (PBRIDGE_VLANPORT)AnscAllocateMemory(sizeof (BRIDGE_VLANPORT));
++    AnscCopyString(pBVlanPort->alias, pEntry->Alias);
++    pBVlanPort->instanceNumber = pEntry->InstanceNumber;
++    pBVlanPort->enable = pEntry->bEnabled;
++    pBVlanPort->vlaninsnum = pEntry->VLANInsNum;
++    pBVlanPort->portinsnum = pEntry->PortInsNum;
++    pBVlanPort->untag = pEntry->bUntagged;
++    pBridge->numOfVlanPorts++;
++    AnscSListPushEntryAtBack(&pBridge->vlanPortList, &pBVlanPort->Linkage);
++    _Psm_SetBVlanPort(pBridge->l2InstanceNumber, pBVlanPort->instanceNumber, pBVlanPort);
++    return ANSC_STATUS_SUCCESS;
++}
++
++ANSC_STATUS SWBrRemoveFromVlan(struct bridge *pBridge, ULONG vlanportInstanceNumber)
++{
++    ANSC_STATUS ret = ANSC_STATUS_FAILURE;
++    ret = _COSA_DelBVlanPort(vlanportInstanceNumber,pBridge);
++    if (ANSC_STATUS_SUCCESS != ret)
++    {
++       return ret;
++    }
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
+Index: git/source-arm/TR-181/board_sbapi/cosa_bridging_apis_ext.h
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_bridging_apis_ext.h
++++ git/source-arm/TR-181/board_sbapi/cosa_bridging_apis_ext.h
+@@ -83,20 +83,34 @@ typedef struct _cosa_bvlan {
+     SINGLE_LINK_ENTRY Linkage;
+     char alias[COSA_DML_IF_NAME_LENGTH];
+     ULONG instanceNumber;
++    int VlanId;
++    int enable;
+ } BRIDGE_VLAN, *PBRIDGE_VLAN;
+ 
++typedef struct _cosa_bvlanport {
++    SINGLE_LINK_ENTRY Linkage;
++    char alias[COSA_DML_IF_NAME_LENGTH];
++    ULONG vlaninsnum;
++    ULONG portinsnum;
++    ULONG instanceNumber;
++    BOOLEAN enable;
++    BOOLEAN untag;
++} BRIDGE_VLANPORT, *PBRIDGE_VLANPORT;
++
+ //Struture for a TR-181 Bridge object
+ typedef struct bridge {
+     SINGLE_LINK_ENTRY Linkage;
+     SLIST_HEADER portList;
+     //$HL 7/8/2013
+     SLIST_HEADER vlanList;
++    SLIST_HEADER vlanPortList;
+     char alias[COSA_DML_IF_NAME_LENGTH];
+     ULONG instanceNumber;
+     void * hwid;
+     //$HL 4/15/2013
+     int   numOfPorts;
+     int   numOfVlans;
++    int   numOfVlanPorts;
+     int   vlanid;
+     char  type[COSA_DML_IF_NAME_LENGTH];
+     ULONG   l2InstanceNumber;
+@@ -124,6 +138,8 @@ typedef struct _bridge_ctl {
+     ANSC_STATUS (*confirmStructureUpdate)(struct bridge* bridge, PBRIDGE_PORT pBPort,PCOSA_DML_BRG_PORT_CFG cfg);
+     ANSC_STATUS (*addVlan)(struct bridge* bridge, PCOSA_DML_BRG_VLAN_CFG pEntry);
+     ANSC_STATUS (*removeVlan)(struct bridge* bridge, ULONG vlanId);
++    ANSC_STATUS (*addToVlan) (struct bridge *bridge, PCOSA_DML_BRG_VLANPORT_CFG pEntry);
++    ANSC_STATUS (*removeFromVlan) (struct bridge *bridge, ULONG vlanPortInstanceNumber);
+ } BRIDGE_CONTROL, *PBRIDGE_CONTROL;
+ 
+ typedef struct bridging {
+@@ -134,6 +150,7 @@ typedef struct bridging {
+ PBRIDGE getBridge(ULONG instanceNumber);
+ PBRIDGE_PORT getBPort(PBRIDGE bridge, ULONG instanceNumber);
+ PBRIDGE_VLAN getBVlan(PBRIDGE pBridge, ULONG ulInstanceNumber);
++PBRIDGE_VLANPORT getBVlanPort(PBRIDGE pBridge, ULONG ulInstanceNumber);
+ 
+ //Lan switch bridge functions
+ ANSC_STATUS lSwBrGetStatus(struct bridge* bridge, PCOSA_DML_BRG_STATUS status);
+@@ -189,6 +206,8 @@ ANSC_STATUS SWBrRemovePort(struct bridge
+ ANSC_STATUS SWBrConfirmStructureUpdate(struct bridge* bridge, PBRIDGE_PORT pBPort, PCOSA_DML_BRG_PORT_CFG cfg);
+ ANSC_STATUS SWBrAddVlan(struct bridge *bridge, PCOSA_DML_BRG_VLAN_CFG pEntry);
+ ANSC_STATUS SWBrRemoveVlan(struct bridge *bridge, ULONG vlanId);
++ANSC_STATUS SWBrAddToVlan(struct bridge *bridge, PCOSA_DML_BRG_VLANPORT_CFG pEntry);
++ANSC_STATUS SWBrRemoveFromVlan(struct bridge *bridge, ULONG vlanPortInstanceNumber);
+ #endif
+ 
+ #endif //_COSA_BRIDGE_API_EXT_
+Index: git/source/TR-181/include/dmsb_tr181_psm_definitions.h
+===================================================================
+--- git.orig/source/TR-181/include/dmsb_tr181_psm_definitions.h
++++ git/source/TR-181/include/dmsb_tr181_psm_definitions.h
+@@ -195,6 +195,9 @@
+ //#define DMSB_ATOM_L2_DEVICE_CONCAT(b)     DMSB_ATOM_L2_DEVICE_INST_PREFIX "." b 
+ #define DMSB_L2_BPORT_CONCAT(b)           DMSB_L2_BPORT_INST_PREFIX "." b 
+ #define DMSB_L2_BVLAN_CONCAT(b)           DMSB_L2_BVLAN_INST_PREFIX "." b 
++#define DMSB_L2_BVLANPORT_PREFIX              "dmsb.l2net.%u.VlanPort."
++#define DMSB_L2_BVLANPORT_INST_PREFIX     "dmsb.l2net.%u.VlanPort.%u"
++#define DMSB_L2_BVLANPORT_CONCAT(b)       DMSB_L2_BVLANPORT_INST_PREFIX "." b
+ 
+ 
+ /**********************************************************************
+Index: git/source/TR-181/middle_layer_src/cosa_bridging_dml.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_bridging_dml.c
++++ git/source/TR-181/middle_layer_src/cosa_bridging_dml.c
+@@ -74,6 +74,9 @@
+ #include "dml_tr181_custom_cfg.h"
+ #include "safec_lib_common.h"
+ #include "syscfg/syscfg.h"
++#include "cosa_bridging_apis_ext.h"
++#include "cosa_x_cisco_com_devicecontrol_apis.h"
++#include "secure_wrapper.h"
+ 
+ extern ANSC_HANDLE bus_handle;
+ extern char g_Subsystem[32];
+@@ -1844,7 +1847,22 @@ Port_GetParamIntValue
+         /* collect value */
+         //PCOSA_DML_BRG_PORT_FULL         pPort            = (PCOSA_DML_BRG_PORT_FULL  )pCosaContext->hContext;
+         //*pInt = pPort->Cfg.PVID;
+-        *pInt = CosaDmlBrgGetVLANID(pDmlBridge->Cfg.InstanceNumber);
++        PCOSA_DML_BRG_PORT_FULL         pPort            = (PCOSA_DML_BRG_PORT_FULL  )pCosaContext->hContext;
++        PBRIDGE pBridge = getBridge(pDmlBridge->Cfg.InstanceNumber);
++        PBRIDGE_PORT pBPort = getBPort(pBridge, pPort->Cfg.InstanceNumber);
++        if (NULL == pBPort)
++        {
++            AnscTraceFlow(("<HL> %s pBPort NULL\n",__FUNCTION__));
++            return FALSE;
++        }
++        if (0 == strcmp(pBPort->name,"eth0"))
++        {
++            *pInt = CosaDmlBrgGetVLANID(pDmlBridge->Cfg.InstanceNumber);
++        }
++        else
++        {
++            *pInt = 0;
++        }
+         return TRUE;
+     }
+ 
+@@ -2477,13 +2495,23 @@ Port_SetParamIntValue
+     )
+ {
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext     = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_BRG_FULL_ALL          pDmlBridge       = (PCOSA_DML_BRG_FULL_ALL   )pCosaContext->hParentTable;
+     PCOSA_DML_BRG_PORT_FULL         pPort            = (PCOSA_DML_BRG_PORT_FULL  )pCosaContext->hContext;
+ 
+     /* check the parameter name and set the corresponding value */
+     if (strcmp(ParamName, "PVID") == 0)
+     {
+-        /* save update to backup */
+-        pPort->Cfg.PVID = iValue;
++        PBRIDGE pBridge = getBridge(pDmlBridge->Cfg.InstanceNumber);
++        PBRIDGE_PORT pBPort = getBPort(pBridge, pPort->Cfg.InstanceNumber);
++        if (NULL == pBPort)
++        {
++            AnscTraceFlow(("<HL> %s pBPort NULL\n",__FUNCTION__));
++            return FALSE;
++        }
++        if (0 == strcmp(pBPort->name,"eth0"))
++        {
++            pPort->Cfg.PVID = iValue;
++        }
+ 
+         return TRUE;
+     }
+@@ -3516,9 +3544,6 @@ VLAN_AddEntry
+     PCOSA_DML_BRG_VLAN_FULL         pVLAN           = (PCOSA_DML_BRG_VLAN_FULL  )NULL;
+     errno_t                         rc              = -1;
+ 
+-	// not support
+-	return NULL;
+-
+     pVLAN = (PCOSA_DML_BRG_VLAN_FULL)AnscAllocateMemory(sizeof(COSA_DML_BRG_VLAN_FULL));
+ 
+     if ( !pVLAN )
+@@ -3540,6 +3565,8 @@ VLAN_AddEntry
+        AnscFreeMemory(pVLAN);
+        return NULL;
+     }
++    pVLAN->Cfg.VLANID = 0;
++    pVLAN->Cfg.bEnabled = false;
+ 
+     /* Update the middle layer cache */
+     if ( TRUE )
+@@ -3554,6 +3581,7 @@ VLAN_AddEntry
+         }
+ 
+         pCosaContext->InstanceNumber = pVLAN->Cfg.InstanceNumber = pDmlBridge->ulNextVLANInsNum;
++        CosaDmlBrgVlanAddEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLAN);
+ 
+         pDmlBridge->ulNextVLANInsNum++;
+ 
+@@ -3627,10 +3655,14 @@ VLAN_DelEntry
+     
+     //$HL 7/8/2013
+ 
+- /*
+     PSLIST_HEADER                   pVlanPortList   = (PSLIST_HEADER            )&pDmlBridge->VLANPortList;
+     PSINGLE_LINK_ENTRY              pSLinkEntry     = (PSINGLE_LINK_ENTRY       )AnscSListGetFirstEntry(pVlanPortList);
+- 
++
++    if (1 == pVLAN->Cfg.InstanceNumber)
++    {
++        AnscTraceFlow(("<HL> %s cannot delete vlan inst=%lu\n",__FUNCTION__,pVLAN->Cfg.InstanceNumber));
++        return 1;
++    }
+     while ( pSLinkEntry )
+     {
+         PCOSA_CONTEXT_LINK_OBJECT pCosaContext3 = ACCESS_COSA_CONTEXT_LINK_OBJECT(pSLinkEntry);
+@@ -3644,11 +3676,8 @@ VLAN_DelEntry
+             pVLANPort->Cfg.VLANInsNum = 0;
+         }
+     }
+-*/
+-    if (pVLAN->Cfg.bEnabled && pVLAN->Cfg.VLANID > 0)
+-    {
+-        CosaDmlBrgVlanDelEntry(NULL, pCosaContext->InstanceNumber, pVLAN->Cfg.InstanceNumber);
+-    }
++
++    CosaDmlBrgVlanDelEntry(NULL, pCosaContext->InstanceNumber, pVLAN->Cfg.InstanceNumber);
+ 
+     /* Update the middle layer cache */
+ 
+@@ -3936,8 +3965,7 @@ VLAN_SetParamBoolValue
+         BOOL                        bValue
+     )
+ {
+-    UNREFERENCED_PARAMETER(hInsContext);
+-    UNREFERENCED_PARAMETER(bValue);
++
+ 
+     /* check the parameter name and set the corresponding value */
+     if (strcmp(ParamName, "Enable") == 0)
+@@ -3948,7 +3976,10 @@ VLAN_SetParamBoolValue
+         //PCOSA_DML_BRG_VLAN_FULL         pVLAN            = (PCOSA_DML_BRG_VLAN_FULL  )pCosaContext->hContext;
+         //pVLAN->Cfg.bEnabled = bValue;
+ 
+-        return FALSE;
++        PCOSA_CONTEXT_LINK_OBJECT       pCosaContext     = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++        PCOSA_DML_BRG_VLAN_FULL         pVLAN            = (PCOSA_DML_BRG_VLAN_FULL  )pCosaContext->hContext;
++        pVLAN->Cfg.bEnabled = bValue;
++        return TRUE;
+     }
+ 
+ 
+@@ -3996,12 +4027,126 @@ VLAN_SetParamIntValue
+ {
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext     = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
+     PCOSA_DML_BRG_VLAN_FULL         pVLAN            = (PCOSA_DML_BRG_VLAN_FULL  )pCosaContext->hContext;
++    PCOSA_DML_BRG_FULL_ALL pDmlBridge = (PCOSA_DML_BRG_FULL_ALL )pCosaContext->hParentTable;
++    PSLIST_HEADER pListHead = (PSLIST_HEADER )&pDmlBridge->VLANPortList;
++    PSINGLE_LINK_ENTRY pSLinkEntry = (PSINGLE_LINK_ENTRY )NULL;
++    PCOSA_CONTEXT_LINK_OBJECT pCosaContext2  = (PCOSA_CONTEXT_LINK_OBJECT)NULL;
++    PCOSA_DML_BRG_VLANPORT_FULL pVLANPort = (PCOSA_DML_BRG_VLANPORT_FULL)NULL;
++    char buf[16] = {0};
++    char buf1[16] = {0};
++    char buf2[16] = {0};
++    char bufval[16] = {0};
++    char *token = NULL;
++    char *saveptr = NULL;
++    int id1 = 0;
++    int id2 = 0;
++    bool needLanRestart = 0;
+ 
+     /* check the parameter name and set the corresponding value */
+     if (strcmp(ParamName, "VLANID") == 0)
+     {
++        pVLAN->Cfg.prevVlanId = pVLAN->Cfg.VLANID;
++        syscfg_get( NULL, "lan_ethernet_virtual_ifnums", buf, sizeof(buf));
++        syscfg_set_commit(NULL, "lan_ethernet_prev_virtual_ifnums", buf);
+         /* save update to backup */
+         pVLAN->Cfg.VLANID = iValue;
++        pSLinkEntry = AnscSListGetFirstEntry(pListHead);
++        while ( pSLinkEntry )
++        {
++            pCosaContext2 = ACCESS_COSA_CONTEXT_LINK_OBJECT(pSLinkEntry);
++            pSLinkEntry = AnscSListGetNextEntry(pSLinkEntry);
++            pVLANPort = (PCOSA_DML_BRG_VLANPORT_FULL)pCosaContext2->hContext;
++            if ((pVLANPort->Cfg.VLANInsNum == pVLAN->Cfg.InstanceNumber) && (TRUE == pVLANPort->Cfg.bEnabled))
++            {
++                needLanRestart = 1;
++                break;
++            }
++        }
++        syscfg_get( NULL, "lan_vlan_enable", bufval, sizeof(bufval));
++        if(0 == strcmp(buf, "1"))
++        {
++            //virtual_ifnums is empty
++            memset(buf, 0, sizeof(buf));
++            snprintf(buf, sizeof(buf), "%d", pVLAN->Cfg.VLANID);
++            syscfg_set_commit(NULL, "lan_ethernet_virtual_ifnums", buf);
++            if ((0 == strcmp(bufval, "1")) && (1 == needLanRestart))
++            {
++                v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
++            }
++            return TRUE;
++        }
++        token = strtok_r(buf, ",", &saveptr);
++        if (NULL != token)
++        {
++            strlcpy(buf1, token, sizeof(buf1));
++            id1 = atoi(buf1);
++        }
++        token = strtok_r(NULL, ",", &saveptr);
++        if (NULL != token)
++        {
++            strlcpy(buf2, token, sizeof(buf2));
++            id2 = atoi(buf2);
++        }
++
++        if (strlen(buf2) > 0)
++        {
++            //virtual_ifnums has both values
++            if (1 == pVLAN->Cfg.InstanceNumber)
++            {
++                id1 = pVLAN->Cfg.VLANID;
++            }
++            else
++            {
++                id2 = pVLAN->Cfg.VLANID;
++            }
++            memset(buf, 0, sizeof(buf));
++            snprintf(buf, sizeof(buf), "%d,%d",id1,id2);
++        }
++        else
++        {
++            //virtual_ifnums has only one value
++            if (1 == pVLAN->Cfg.InstanceNumber)
++            {
++                //virtual_ifnums has instance2 vlanid. new vlan id to be set for instance1
++                if (id1 != pVLAN->Cfg.prevVlanId)
++                {
++                    id2 = id1;
++                    id1 = pVLAN->Cfg.VLANID;
++                    memset(buf, 0, sizeof(buf));
++                    snprintf(buf, sizeof(buf), "%d,%d",id1,id2);
++                }
++                //virtual_ifnums has instance1 vlanid. new vlan id also to be set for instance1
++                else
++                {
++                    id1 = pVLAN->Cfg.VLANID;
++                    memset(buf, 0, sizeof(buf));
++                    snprintf(buf, sizeof(buf), "%d",id1);
++                }
++            }
++            else
++            {
++                //virtual_ifnums has instance1 vlanid. new vlan id to be set for instance2
++                if (id1 != pVLAN->Cfg.prevVlanId)
++                {
++                    id2 = pVLAN->Cfg.VLANID;
++                    memset(buf, 0, sizeof(buf));
++                    snprintf(buf, sizeof(buf), "%d,%d",id1,id2);
++                }
++                //virtual_ifnums has instance2 vlanid. new vlan id also to be set for instance2
++                else
++                {
++                    id1 = pVLAN->Cfg.VLANID;
++                    memset(buf, 0, sizeof(buf));
++                    snprintf(buf, sizeof(buf), "%d",id1);
++                }
++            }
++        }
++        syscfg_set_commit(NULL, "lan_ethernet_virtual_ifnums", buf);
++        if ((0 == strcmp(bufval, "1")) && (1 == needLanRestart))
++        {
++            v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
++        }
++
+         return TRUE;
+     }
+ 
+@@ -4260,7 +4405,7 @@ VLAN_Commit
+     PCOSA_DML_BRG_FULL_ALL          pDmlBridge       = (PCOSA_DML_BRG_FULL_ALL   )pCosaContext->hParentTable;
+ 
+     //$HL 07/2/2013
+-    /*if (pVLAN->Cfg1.bEnabled && pVLAN->Cfg1.VLANID > 0)
++    if (pVLAN->Cfg1.bEnabled && pVLAN->Cfg1.VLANID > 0)
+     {
+         if (!pVLAN->Cfg.bEnabled || pVLAN->Cfg.VLANID != pVLAN->Cfg1.VLANID)
+         {
+@@ -4269,39 +4414,6 @@ VLAN_Commit
+         }
+     }
+ 
+-    if (pVLAN->Cfg.bEnabled && pVLAN->Cfg.VLANID > 0)
+-    {
+-        if (!pVLAN->Cfg1.bEnabled || pVLAN->Cfg.VLANID != pVLAN->Cfg1.VLANID)
+-        {
+-            PSLIST_HEADER           pListHead        = (PSLIST_HEADER            )&pDmlBridge->VLANPortList;
+-            PSINGLE_LINK_ENTRY      pSLinkEntry      = (PSINGLE_LINK_ENTRY       )NULL;
+-            PCOSA_CONTEXT_LINK_OBJECT pCosaContext2  = (PCOSA_CONTEXT_LINK_OBJECT)NULL;
+-            PCOSA_DML_BRG_VLANPORT_FULL pVLANPort    = (PCOSA_DML_BRG_VLANPORT_FULL)NULL;
+-
+-            // add new vlan if just enabled or vlanID changed
+-            CosaDmlBrgVlanAddEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLAN->Cfg1.VLANID);
+-
+-            pSLinkEntry = AnscSListGetFirstEntry(pListHead);
+-
+-            while ( pSLinkEntry )
+-            {
+-                pCosaContext2 = ACCESS_COSA_CONTEXT_LINK_OBJECT(pSLinkEntry);
+-                pSLinkEntry   = AnscSListGetNextEntry(pSLinkEntry);
+-
+-                pVLANPort = (PCOSA_DML_BRG_VLANPORT_FULL)pCosaContext2->hContext;
+-
+-                if (pVLANPort && pVLANPort->Cfg.bEnabled
+-                              && pVLANPort->Cfg.VLANInsNum == pVLAN->Cfg.InstanceNumber
+-                              && pVLANPort->Cfg.PortInsNum)
+-                {
+-                    // activate all associated vlan port entry
+-                    CosaDmlBrgVlanPortAddEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLAN->Cfg.VLANID,
+-                                               pVLANPort->Cfg.PortInsNum, pVLANPort->Cfg.bUntagged);
+-                }
+-            }
+-        }
+-    }
+-*/
+     if ( pCosaContext->bNew )
+     {
+         pCosaContext->bNew = FALSE;
+@@ -4313,9 +4425,9 @@ VLAN_Commit
+         CosaDmlBrgVlanSetCfg(NULL, pDmlBridge->Cfg.InstanceNumber, &pVLAN->Cfg);
+     }
+     // save configuration to backup
+-    //pVLAN->Cfg1.bEnabled = pVLAN->Cfg.bEnabled;
+-    //pVLAN->Cfg1.VLANID   = pVLAN->Cfg.VLANID;
+-    //AnscCopyString(pVLAN->Cfg1.Alias, pVLAN->Cfg.Alias);
++    pVLAN->Cfg1.bEnabled = pVLAN->Cfg.bEnabled;
++    pVLAN->Cfg1.VLANID   = pVLAN->Cfg.VLANID;
++    AnscCopyString(pVLAN->Cfg1.Alias, pVLAN->Cfg.Alias);
+ 
+     return 0;
+ }
+@@ -4541,6 +4653,11 @@ VLANPort_AddEntry
+         }
+ 
+         pCosaContext->InstanceNumber = pVLANPort->Cfg.InstanceNumber = pDmlBridge->ulNextVLANPortInsNum;
++        pVLANPort->Cfg.bEnabled = false;
++        pVLANPort->Cfg.VLANInsNum = 0;
++        pVLANPort->Cfg.PortInsNum = 0;
++        pVLANPort->Cfg.bUntagged = false;
++        CosaDmlBrgVlanPortAddEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLANPort);
+ 
+         pDmlBridge->ulNextVLANPortInsNum++;
+ 
+@@ -4611,6 +4728,16 @@ VLANPort_DelEntry
+     PSLIST_HEADER                   pListHead       = (PSLIST_HEADER            )&pDmlBridge->VLANPortList;
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext2   = (PCOSA_CONTEXT_LINK_OBJECT)hInstance;
+     PCOSA_DML_BRG_VLANPORT_FULL     pVLANPort       = (PCOSA_DML_BRG_VLANPORT_FULL)pCosaContext2->hContext;
++    char buf[16] = {0};
++    char bufval[16] = {0};
++    char *pos = NULL;
++    int len = 0;
++
++    if (1 == pVLANPort->Cfg.InstanceNumber)
++    {
++        AnscTraceFlow(("<HL> %s cannot delete vlanport inst=%lu\n",__FUNCTION__,pVLANPort->Cfg.InstanceNumber));
++        return 1;
++    }
+ 
+     // TODO CosaDmlBrgPortDelEntry(NULL, pCosaContext->InstanceNumber, pVLANPort->Cfg.InstanceNumber);
+     if (pVLANPort->Cfg.bEnabled && pVLANPort->Cfg.VLANInsNum > 0 && pVLANPort->Cfg.PortInsNum > 0)
+@@ -4623,9 +4750,32 @@ VLANPort_DelEntry
+ 
+         if (pVLAN && pVLAN->Cfg.bEnabled && pVLAN->Cfg.VLANID > 0)
+         {
+-            CosaDmlBrgVlanPortDelEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLAN->Cfg.VLANID,
+-                                       pVLANPort->Cfg.PortInsNum);
++            syscfg_get( NULL, "lan_ethernet_virtual_ifnums", buf, sizeof(buf));
++            snprintf(bufval, sizeof(bufval), "%d", pVLAN->Cfg.VLANID);
++            len = strlen(bufval);
++            pos = strstr(buf,bufval);
++            if (NULL != pos)
++            {
++                memmove(pos, pos+len+1, strlen(pos+len+1)+1);
++            }
++            if (strlen(buf) > 0)
++            {
++                if (',' == buf[strlen(buf) - 1])
++                {
++                    buf[strlen(buf) - 1] = '\0';
++                }
++                syscfg_set_commit(NULL, "lan_ethernet_virtual_ifnums", buf);
++            }
++            else
++            {
++                syscfg_set_commit(NULL, "lan_ethernet_virtual_ifnums", "1");
++            }
++            pVLAN->Cfg.VLANID = 0;
++            pVLAN->Cfg.bEnabled = 0;
++            CosaDmlBrgVlanSetCfg(NULL, pDmlBridge->Cfg.InstanceNumber, &pVLAN->Cfg);
++            v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
+         }
++        CosaDmlBrgVlanPortDelEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLANPort->Cfg.InstanceNumber);
+     }
+ 
+     /* Update the middle layer cache */
+@@ -4677,6 +4827,7 @@ VLANPort_GetParamBoolValue
+     )
+ {
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext     = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
++    PCOSA_DML_BRG_FULL_ALL          pDmlBridge      = (PCOSA_DML_BRG_FULL_ALL)pCosaContext->hParentTable;
+     PCOSA_DML_BRG_VLANPORT_FULL     pVLANPort        = (PCOSA_DML_BRG_VLANPORT_FULL)pCosaContext->hContext;
+ 
+     /* check the parameter name and return the corresponding value */
+@@ -4944,12 +5095,110 @@ VLANPort_SetParamBoolValue
+ {
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext     = (PCOSA_CONTEXT_LINK_OBJECT)hInsContext;
+     PCOSA_DML_BRG_VLANPORT_FULL     pVLANPort        = (PCOSA_DML_BRG_VLANPORT_FULL)pCosaContext->hContext;
++    PCOSA_DML_BRG_FULL_ALL pDmlBridge = (PCOSA_DML_BRG_FULL_ALL )pCosaContext->hParentTable;
++    PSLIST_HEADER pListHead3 = (PSLIST_HEADER )&pDmlBridge->VLANPortList;
++    PSINGLE_LINK_ENTRY pSLinkEntry3 = (PSINGLE_LINK_ENTRY )NULL;
++    PCOSA_CONTEXT_LINK_OBJECT pCosaContext2  = (PCOSA_CONTEXT_LINK_OBJECT)NULL;
++    PCOSA_CONTEXT_LINK_OBJECT pCosaContext3  = (PCOSA_CONTEXT_LINK_OBJECT)NULL;
++    PCOSA_DML_BRG_VLAN_FULL pVLAN = (PCOSA_DML_BRG_VLAN_FULL)NULL;
++    PCOSA_DML_BRG_VLANPORT_FULL pVLANPort3 = (PCOSA_DML_BRG_VLANPORT_FULL)NULL;
++    char buf[16] = {0};
++    char bufval[16] = {0};
++    char lanVlanEnable[16] = {0};
++    char *pos = NULL;
++    char* wanVlanEnable = NULL;
++    int len = 0;
++    ULONG found = 0;
++    ULONG vlanportcount = 0;
++    int retPsmGet = CCSP_SUCCESS;
+ 
+     /* check the parameter name and set the corresponding value */
+     if (strcmp(ParamName, "Enable") == 0)
+     {
+         /* save update to backup */
+-        pVLANPort->Cfg.bEnabled = bValue;
++        if (pVLANPort->Cfg.bEnabled != bValue)
++        {
++            vlanportcount = CosaDmlBrgVlanPortGetNumberOfEntries(NULL,pDmlBridge->Cfg.InstanceNumber);
++            pVLANPort->Cfg.bEnabled = bValue;
++            if (1 == bValue)
++            {
++                syscfg_set_commit(NULL, "lan_ethernet_physical_ifnames", "eth0,eth1");
++                syscfg_set_commit(NULL, "lan_vlan_enable", "1");
++            }
++            else if (0 == bValue)
++            {
++                //set corresponding vlanid to 0 and vlan.enable to false when vlanport.enable is set to false
++                if (pVLANPort->Cfg.VLANInsNum > 0)
++                {
++                    pCosaContext2 = Find_SListEntry_By_InstanceNumber(&pDmlBridge->VLANList, pVLANPort->Cfg.VLANInsNum);
++                    if (pCosaContext2)
++                    {
++                        pVLAN = (PCOSA_DML_BRG_VLAN_FULL)pCosaContext2->hContext;
++                    }
++                    else
++                    {
++                        CcspTraceInfo(("[%s:%d] no such vlan table found with vlaninsnum (%lu)\n",__FUNCTION__,__LINE__,pVLANPort->Cfg.VLANInsNum));
++                    }
++                    syscfg_get( NULL, "lan_ethernet_virtual_ifnums", buf, sizeof(buf));
++                    syscfg_set_commit(NULL, "lan_ethernet_prev_virtual_ifnums", buf);
++                    if (pVLAN && (FALSE == pVLANPort->Cfg.bEnabled) && (pVLANPort->Cfg.VLANInsNum == pVLAN->Cfg.InstanceNumber))
++                    {
++                        snprintf(bufval, sizeof(bufval), "%d", pVLAN->Cfg.VLANID);
++                        len = strlen(bufval);
++                        pos = strstr(buf,bufval);
++                        if (NULL != pos)
++                        {
++                            memmove(pos, pos+len+1, strlen(pos+len+1)+1);
++                        }
++                        if (strlen(buf) > 0)
++                        {
++                            if (',' == buf[strlen(buf) - 1])
++                            {
++                                buf[strlen(buf) - 1] = '\0';
++                            }
++                            syscfg_set_commit(NULL, "lan_ethernet_virtual_ifnums", buf);
++                        }
++                        else
++                        {
++                            syscfg_set_commit(NULL, "lan_ethernet_virtual_ifnums", "1");
++                        }
++                        pVLAN->Cfg.VLANID = 0;
++                        pVLAN->Cfg.bEnabled = 0;
++                        CosaDmlBrgVlanSetCfg(NULL, pDmlBridge->Cfg.InstanceNumber, &pVLAN->Cfg);
++                        pVLANPort->Cfg.VLANInsNum = 0;
++                        pVLANPort->Cfg.PortInsNum = 0;
++                    }
++                }
++                //checking if enable is false for all vlanport. If yes then set lan_vlan_set to 0
++                pSLinkEntry3 = AnscSListGetFirstEntry(pListHead3);
++                while ( pSLinkEntry3 )
++                {
++                    pCosaContext3 = ACCESS_COSA_CONTEXT_LINK_OBJECT(pSLinkEntry3);
++                    pSLinkEntry3 = AnscSListGetNextEntry(pSLinkEntry3);
++                    pVLANPort3 = (PCOSA_DML_BRG_VLANPORT_FULL)pCosaContext3->hContext;
++                    if (FALSE == pVLANPort3->Cfg.bEnabled)
++                    {
++                        found++;
++                    }
++                }
++                if (found == vlanportcount)
++                {
++                    syscfg_set_commit(NULL, "lan_vlan_enable", "0");
++                }
++            }
++            v_secure_system("/etc/utopia/service.d/service_lan.sh lan-restart");
++            retPsmGet = PSM_Get_Record_Value2(bus_handle, g_Subsystem, "dmsb.wanmanager.if.1.VirtualInterface.1.VlanCount", NULL, &wanVlanEnable);
++            if ((CCSP_SUCCESS == retPsmGet) && (NULL != wanVlanEnable))
++            {
++                syscfg_get( NULL, "lan_vlan_enable", lanVlanEnable, sizeof(lanVlanEnable));
++                if ((0 == strcmp(lanVlanEnable,"0") && (0 == strcmp(wanVlanEnable, "0"))))
++                {
++                    v_secure_system("ipa xml multi_vlan_on_bridge disable");
++                    CosaDmlDcSetRebootDevice(NULL, "Device");
++                }
++                ((CCSP_MESSAGE_BUS_INFO *)bus_handle)->freefunc(wanVlanEnable);
++            }
++        }
+         return TRUE;
+     }
+ 
+@@ -5324,26 +5573,9 @@ VLANPort_Commit
+ 
+             // remove old entry if just disabled or configuration changed
+             if (pVLAN && pVLAN->Cfg.bEnabled && pVLAN->Cfg.VLANID)
+-                CosaDmlBrgVlanPortDelEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLAN->Cfg.VLANID,
+-                                           pVLANPort->Cfg1.PortInsNum);
+-        }
+-    }
+-
+-    if (pVLANPort->Cfg.bEnabled && pVLANPort->Cfg.VLANInsNum > 0 && pVLANPort->Cfg.PortInsNum > 0)
+-    {
+-        if (!pVLANPort->Cfg1.bEnabled || pVLANPort->Cfg.VLANInsNum != pVLANPort->Cfg1.VLANInsNum
+-                                      || pVLANPort->Cfg.PortInsNum != pVLANPort->Cfg1.PortInsNum
+-                                      || pVLANPort->Cfg.bUntagged  != pVLANPort->Cfg1.bUntagged)
+-        {
+-            pCosaContext2 = Find_SListEntry_By_InstanceNumber(&pDmlBridge->VLANList, pVLANPort->Cfg.VLANInsNum);
+-            pVLAN = pCosaContext2 ? (PCOSA_DML_BRG_VLAN_FULL)pCosaContext2->hContext : (PCOSA_DML_BRG_VLAN_FULL)NULL;
+-
+-            // add new entry if just enabled or configuration changed
+-            if (pVLAN && pVLAN->Cfg.bEnabled && pVLAN->Cfg.VLANID > 0)
+             {
+-                CosaDmlBrgVlanPortAddEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLAN->Cfg.VLANID,
+-                                           pVLANPort->Cfg.PortInsNum, pVLANPort->Cfg.bUntagged);
+-           }
++                CosaDmlBrgVlanPortDelEntry(NULL, pDmlBridge->Cfg.InstanceNumber, pVLANPort->Cfg1.InstanceNumber);
++            }
+         }
+     }
+ 
+@@ -5353,6 +5585,10 @@ VLANPort_Commit
+ 
+         CosaBridgingRegDelInfo((ANSC_HANDLE)pCosaDMBridging, (ANSC_HANDLE)pCosaContext);
+     }
++    else
++    {
++        CosaDmlBrgVlanPortSetCfg(NULL, pDmlBridge->Cfg.InstanceNumber, &pVLANPort->Cfg);
++    }
+ 
+     // backup configuration
+     pVLANPort->Cfg1.bEnabled   = pVLANPort->Cfg.bEnabled;
+Index: git/source/TR-181/middle_layer_src/cosa_bridging_internal.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_bridging_internal.c
++++ git/source/TR-181/middle_layer_src/cosa_bridging_internal.c
+@@ -172,6 +172,8 @@ CosaBridgingInitialize
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext        = (PCOSA_CONTEXT_LINK_OBJECT  )NULL;
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext2       = (PCOSA_CONTEXT_LINK_OBJECT  )NULL;
+     PCOSA_CONTEXT_LINK_OBJECT       pCosaContext3       = (PCOSA_CONTEXT_LINK_OBJECT  )NULL;
++    PCOSA_CONTEXT_LINK_OBJECT       pCosaContext4       = (PCOSA_CONTEXT_LINK_OBJECT  )NULL;
++    PCOSA_DML_BRG_VLANPORT_FULL     pVLANPort           = (PCOSA_DML_BRG_VLANPORT_FULL  )NULL;
+     PCOSA_DML_BRG_FULL_ALL          pDmlBridge          = (PCOSA_DML_BRG_FULL_ALL     )NULL;
+     PCOSA_DML_BRG_PORT_FULL         pPort               = (PCOSA_DML_BRG_PORT_FULL    )NULL;
+     ULONG                           ulBridgeCount       = 0;
+@@ -639,7 +641,7 @@ CosaBridgingInitialize
+                 }
+                 else
+                 {
+-                    pCosaContext2->InstanceNumber = pVLAN->Cfg.InstanceNumber = pDmlBridge->ulNextPortInsNum;
++                    pCosaContext3->InstanceNumber = pVLAN->Cfg.InstanceNumber = pDmlBridge->ulNextPortInsNum;
+ 
+                     pDmlBridge->ulNextVLANInsNum++;
+ 
+@@ -648,7 +650,7 @@ CosaBridgingInitialize
+                         pDmlBridge->ulNextVLANInsNum = 1;
+                     }
+ 
+-                    rc = sprintf_s(pVLAN->Cfg.Alias, sizeof(pVLAN->Cfg.Alias), "VLAN%lu", pCosaContext2->InstanceNumber);
++                    rc = sprintf_s(pVLAN->Cfg.Alias, sizeof(pVLAN->Cfg.Alias), "VLAN%lu", pCosaContext3->InstanceNumber);
+                     if(rc < EOK)
+                     {
+                       ERR_CHK(rc);
+@@ -660,7 +662,9 @@ CosaBridgingInitialize
+                             pDmlBridge->Cfg.InstanceNumber,
+                             ulSubIndex,
+                             pVLAN->Cfg.InstanceNumber,
+-                            pVLAN->Cfg.Alias
++                            pVLAN->Cfg.Alias,
++                            pVLAN->Cfg.VLANID,
++                            pVLAN->Cfg.bEnabled
+                         );
+                 }
+ 
+@@ -671,6 +675,139 @@ CosaBridgingInitialize
+                 CosaSListPushEntryByInsNum(&pDmlBridge->VLANList, pCosaContext3);
+             }
+         }
++        /* VLANPort */
++        if ( TRUE )
++        {
++            rc = sprintf_s
++                (
++                    FolderName,
++                    sizeof(FolderName),
++                    "%s%lu",
++                    COSA_DML_RR_NAME_Bridge_VLANPort_NextInsNumber,
++                    pDmlBridge->Cfg.InstanceNumber
++                );
++            if(rc < EOK)
++            {
++              ERR_CHK(rc);
++            }
++
++            pPoamIrepFoNextIns =
++                (PPOAM_IREP_FOLDER_OBJECT)pPoamIrepFoBRG->GetFolder
++                    (
++                        (ANSC_HANDLE)pPoamIrepFoBRG,
++                        FolderName
++                    );
++
++            if ( pPoamIrepFoNextIns )
++            {
++                pSlapVariable =
++                    (PSLAP_VARIABLE)pPoamIrepFoNextIns->GetRecord
++                        (
++                            (ANSC_HANDLE)pPoamIrepFoNextIns,
++                            COSA_DML_RR_NAME_Bridge_VLANPort_NextInsNumber,
++                            NULL
++                        );
++
++                if ( pSlapVariable )
++                {
++
++                    pDmlBridge->ulNextVLANPortInsNum = pSlapVariable->Variant.varUint32;
++                    SlapFreeVariable(pSlapVariable);
++               }
++                else
++                {
++                    AnscTraceFlow(("<HL>%s pSlapVariable == NULL\n", __FUNCTION__));
++                }
++
++                pPoamIrepFoNextIns->Remove((ANSC_HANDLE)pPoamIrepFoNextIns);
++            }
++            else
++            {
++                AnscTraceFlow(("<HL>%s pPoamIrepFoNextIns == NULL\n", __FUNCTION__));
++            }
++        }
++        ulSubCount = CosaDmlBrgVlanPortGetNumberOfEntries(NULL, pDmlBridge->Cfg.InstanceNumber);
++
++        for ( ulSubIndex = 0; ulSubIndex < ulSubCount; ulSubIndex++ )
++        {
++            pVLANPort = (PCOSA_DML_BRG_VLANPORT_FULL)AnscAllocateMemory(sizeof(COSA_DML_BRG_VLANPORT_FULL));
++
++            if ( !pVLANPort )
++            {
++                returnStatus = ANSC_STATUS_RESOURCES;
++
++                goto EXIT;
++            }
++            if(CosaDmlBrgVlanPortGetEntry(NULL, pDmlBridge->Cfg.InstanceNumber, ulSubIndex, pVLANPort)
++                != ANSC_STATUS_SUCCESS)
++            {
++                AnscFreeMemory(pVLANPort);
++                break;
++            }
++            else
++            {
++                pCosaContext4 = (PCOSA_CONTEXT_LINK_OBJECT)AnscAllocateMemory(sizeof(COSA_CONTEXT_LINK_OBJECT));
++
++                if ( !pCosaContext4 )
++                {
++                    returnStatus = ANSC_STATUS_RESOURCES;
++                    AnscTraceFlow(("<$HL> %s bridge instance:%lu cannot allocate any memory for pCosaContext4\n",__FUNCTION__,
++                        pDmlBridge->Cfg.InstanceNumber));
++                    AnscFreeMemory(pVLANPort);
++                    goto EXIT;
++                }
++
++                if ( pVLANPort->Cfg.InstanceNumber != 0 )
++                {
++                    pCosaContext4->InstanceNumber = pVLANPort->Cfg.InstanceNumber;
++
++                    if ( pDmlBridge->ulNextVLANPortInsNum <= pVLANPort->Cfg.InstanceNumber )
++                    {
++                        pDmlBridge->ulNextVLANPortInsNum = pVLANPort->Cfg.InstanceNumber + 1;
++
++                        if ( pDmlBridge->ulNextVLANPortInsNum == 0 )
++                        {
++                            pDmlBridge->ulNextVLANPortInsNum = 1;
++                        }
++                    }
++                }
++                else
++                {
++                    pCosaContext4->InstanceNumber = pVLANPort->Cfg.InstanceNumber = pDmlBridge->ulNextVLANPortInsNum;
++
++                    pDmlBridge->ulNextVLANPortInsNum++;
++
++                    if ( pDmlBridge->ulNextVLANPortInsNum == 0 )
++                    {
++                        pDmlBridge->ulNextVLANPortInsNum = 1;
++                    }
++
++                    rc = sprintf_s(pVLANPort->Cfg.Alias, sizeof(pVLANPort->Cfg.Alias), "VLANPort%lu", pCosaContext4->InstanceNumber);
++                    if(rc < EOK)
++                    {
++                      ERR_CHK(rc);
++                    }
++                    CosaDmlBrgVlanPortSetValues
++                        (
++                            NULL,
++                            pDmlBridge->Cfg.InstanceNumber,
++                            ulSubIndex,
++                            pVLANPort->Cfg.InstanceNumber,
++                            pVLANPort->Cfg.Alias,
++                            pVLANPort->Cfg.bUntagged,
++                            pVLANPort->Cfg.bEnabled,
++                            pVLANPort->Cfg.VLANInsNum,
++                            pVLANPort->Cfg.PortInsNum
++                        );
++                }
++
++                pCosaContext4->hContext     = (ANSC_HANDLE)pVLANPort;
++                pCosaContext4->hParentTable = (ANSC_HANDLE)pDmlBridge;
++                pCosaContext4->bNew         = FALSE;
++
++                CosaSListPushEntryByInsNum(&pDmlBridge->VLANPortList, pCosaContext4);
++            }
++        }
+     }
+     //$HL 4/29/2013
+     CosaBridgingRegGetInfo((ANSC_HANDLE)pMyObject);
+Index: git/source/TR-181/include/cosa_bridging_apis.h
+===================================================================
+--- git.orig/source/TR-181/include/cosa_bridging_apis.h
++++ git/source/TR-181/include/cosa_bridging_apis.h
+@@ -258,7 +258,8 @@ _COSA_DML_BRG_VLAN_CFG
+     char                            Alias[COSA_DML_IF_NAME_LENGTH];
+ 
+     BOOLEAN                         bEnabled;
+-    int                             VLANID;                             /* 1-4094 */
++    int                             VLANID;    /* 1-4094 */
++    int                             prevVlanId;
+ }
+ COSA_DML_BRG_VLAN_CFG, *PCOSA_DML_BRG_VLAN_CFG;
+ 
+@@ -905,7 +906,9 @@ CosaDmlBrgVlanSetValues
+         ULONG                       ulBrgInstanceNumber,
+         ULONG                       ulIndex,
+         ULONG                       ulInstanceNumber,
+-        char*                       pAlias
++        char*                       pAlias,
++        int                         vlanid,
++        BOOLEAN                     enable
+     );
+ 
+ /**
+@@ -962,7 +965,42 @@ CosaDmlBrgVlanSetCfg
+         ULONG                       ulBrgInstanceNumber,
+         PCOSA_DML_BRG_VLAN_CFG      pCfg
+     );
++ULONG
++CosaDmlBrgVlanPortGetNumberOfEntries
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber
++    );
+ 
++ANSC_STATUS
++CosaDmlBrgVlanPortSetValues
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber,
++        ULONG                       ulIndex,
++        ULONG                       ulInstanceNumber,
++        char*                       pAlias,
++        BOOLEAN                     untagged,
++        BOOLEAN                     enable,
++        ULONG                       vlaninsnum,
++        ULONG                       portinsnum
++    );
++
++ANSC_STATUS
++CosaDmlBrgVlanPortSetCfg
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber,
++        PCOSA_DML_BRG_VLANPORT_CFG      pCfg
++    );
++
++ANSC_STATUS CosaDmlBrgVlanPortGetEntry
++    (
++        ANSC_HANDLE                 hContext,
++        ULONG                       ulBrgInstanceNumber,
++        ULONG                       ulIndex,
++        PCOSA_DML_BRG_VLANPORT_FULL pEntry
++    );
+ /**
+ * @brief Add a port to a VLAN.
+ *
+@@ -991,9 +1029,7 @@ CosaDmlBrgVlanPortAddEntry
+     (
+         ANSC_HANDLE                 hContext,
+         ULONG                       ulBrgInstanceNumber,
+-        int                         VLANID,
+-        ULONG                       ulPortInstanceNumber,
+-        BOOLEAN                     bUntagged
++        PCOSA_DML_BRG_VLANPORT_FULL pVLANPort
+     );
+ 
+ /**
+@@ -1020,7 +1056,6 @@ CosaDmlBrgVlanPortDelEntry
+     (
+         ANSC_HANDLE                 hContext,
+         ULONG                       ulBrgInstanceNumber,
+-        int                         VLANID,
+         ULONG                       ulPortInstanceNumber
+     );
+ 

@@ -15,11 +15,33 @@ SRC_URI += " \
               file://00004-qti-ccsp-p-and-m_DNSProxy-bringup.patch \
               file://00005-qti-ccsp-p-and-m_Cellular_v6_bringup.patch \
               file://00006-qti-ccsp-p-and-m_Cellular_v6_Extension_Support.patch \
-              file://00007-qti-ccsp-p-and-m_fix-buffer-size.patch \
-              file://00008-qti-ccsp-p-and-m_Fix-nonnull-RfcJsonInit-null-filename.patch \
-              file://00009-qti-ccsp-p-and-m_USB-DM.patch \
-              file://00010-qti-ccsp-p-and-m_IPPT-changes.patch \
-              file://00011-qti-ccsp-p-and-m_Fix-ipv6-dm-population.patch \
+              file://00007-qti-ccsp-p-and-m_Fix-nonnull-RfcJsonInit-null-filename.patch \
+              file://00008-qti-ccsp-p-and-m_USB-DM.patch \
+              file://00009-qti-ccsp-p-and-m_IPPT-changes.patch \
+              file://00010-qti-ccsp-p-and-m_Fix-ipv6-dm-population.patch \
+              file://00011-qti-ccsp-p-and-m_changes_for_factory_reset.patch \
+              file://00012-qti-ccsp-p-and-m_lan-vlan-changes.patch \
+              file://00013-qti-ccsp-p-and-m_lan-restart-after-dhcp-pool-change.patch \
+              file://00014-qti-ccsp-p-and-m_sip-dm-implementation.patch \
+              file://00015-qti-ccsp-p-and-m_vpn-passthrough-read-syscfg-state.patch \
+              file://00016-qti-CcspPandM_address_reconf.patch \
+              file://00017-qti-ccsp-p-and-m_v6_mtu_fix.patch \
+              file://00018-qti-ccsp-p-and-m_dhcpv6-stateless.patch \
+              file://00019-qti-ccsp-p-and-m-RTSP-DM-support.patch \
+              file://00020-qti-ccsp-p-and-m_PacketStats-Enable-Disable.patch \
+              file://00021-qti-ccsp-p-and-m-usb-ecm-interface-count-fix.patch \
+              file://00022-qti-ccsp-p-and-m_brlan0-not-releasingIP_fix.patch \
+              file://00023-qti-ccsp-p-and-m-DeviceMode-support.patch \
+              file://00024-qti-ccsp-p-and-m-DNS_proxy_enable.patch \
+              file://00025-qti-ccsp-p-and-m-vpn-passthrough-dm-syscfg-key-fix.patch \
+              file://00026-qti-ccsp-p-and-m_firewall_black_white_list.patch \
+              file://00027-qti-ccsp-p-and-m-DDNS.patch \
+              file://00028-qti-ccsp-p-and-m-ssh-dm-fix.patch \
+              file://00029-qti-ccsp-p-and-m-cellular_priority_fix.patch \
+              file://00030-qti-ccsp-p-and-m_skip-dhcpv6-stateful-autoswitch.patch \
+              file://00031-qti-ccsp-p-and-m-Fix_for_zebra_update_issue.patch \
+              file://00032-qti-ccsp-p-and-m_firewall_X_QCOM_delTable_fix.patch \
+              file://00033-qti-ccsp-p-and-m-lan_IP_DM_fix.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "

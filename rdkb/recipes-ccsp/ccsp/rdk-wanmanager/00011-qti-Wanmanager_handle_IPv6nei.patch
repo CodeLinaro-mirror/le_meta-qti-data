@@ -1,0 +1,355 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 0e07d46015834beae33f37055cce54e81dbfafa8 Mon Sep 17 00:00:00 2001
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Tue, 14 Jul 2026 05:04:16 +0000
+Subject: [PATCH] Changes for Monitoring Neighbor client events
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+---
+ source/WanManager/Makefile.am                 |   2 +-
+ source/WanManager/wanmgr_network_monitor.c    |  13 +-
+ .../wanmgr_network_monitor_extn_qti.c         | 244 ++++++++++++++++++
+ .../wanmgr_network_monitor_extn_qti.h         |  26 ++
+ 4 files changed, 283 insertions(+), 2 deletions(-)
+ create mode 100644 source/WanManager/wanmgr_network_monitor_extn_qti.c
+ create mode 100644 source/WanManager/wanmgr_network_monitor_extn_qti.h
+ 
+Index: git/source/WanManager/wanmgr_network_monitor.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_network_monitor.c
++++ git/source/WanManager/wanmgr_network_monitor.c
+@@ -32,6 +32,7 @@
+ #include "secure_wrapper.h"
+ #include "wanmgr_dhcpv6_apis.h"
+ #include "usb_tether_interface.h"
++#include "wanmgr_network_monitor_extn_qti.h"
+ 
+ /* ---- Global Variables ------------------------------------ */
+ int sysevent_nwm_fd = -1;
+@@ -69,6 +70,7 @@ static bool g_toggle_flag = TRUE;
+ #define BUFLEN_256 256
+ #define BUFLEN_1024 1024
+ #endif
++
+ /* ---- Private Function Prototypes -------------------------- */
+ static void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, int len); // Parse the route entries
+ static ANSC_STATUS parse_addrattr(struct nlmsghdr *nlh); // Parse the interface address entries
+@@ -323,7 +325,7 @@ static ANSC_STATUS NetMonitor_InitNetlin
+ 
+     memset(&addr, 0, sizeof(addr));
+     addr.nl_family = AF_NETLINK;
+-    addr.nl_groups = RTMGRP_IPV6_ROUTE | RTMGRP_IPV6_IFADDR | RTMGRP_LINK;
++    addr.nl_groups = RTMGRP_IPV6_ROUTE | RTMGRP_IPV6_IFADDR | RTMGRP_LINK | RTMGRP_NEIGH;
+     if (0 > bind(netlinkRouteMonitorFd, (struct sockaddr *) &addr, sizeof(addr)))
+     {
+         CcspTraceError(("%s Failed to bind netlink socket: %s\n", __FUNCTION__, strerror(errno)));
+@@ -464,6 +466,12 @@ static void NetMonitor_ProcessNetlinkRou
+                      teardown_usb_tether_interface();
+                  }
+                 break;
++            case RTM_NEWNEIGH:
++            case RTM_DELNEIGH:
++                 {
++                     handle_pd_neigh_event(nl_msgHdr);
++                 }
++                break;
+             default:
+                 break;
+         }
+Index: git/source/WanManager/wanmgr_network_monitor_extn_qti.c
+===================================================================
+--- /dev/null
++++ git/source/WanManager/wanmgr_network_monitor_extn_qti.c
+@@ -0,0 +1,244 @@
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ * SPDX-License-Identifier: BSD-3-Clause-Clear
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <errno.h>
++#include <unistd.h>
++#include <arpa/inet.h>
++#include <linux/rtnetlink.h>
++#include <linux/neighbour.h>
++#include "wanmgr_network_monitor_extn_qti.h"
++#include "ansc_platform.h"
++#include "ccsp_trace.h"
++#include "secure_wrapper.h"
++#include "syscfg/syscfg.h"
++
++#define BUFLEN_8   8
++#define BUFLEN_256 256
++
++#ifndef DBG_MONITOR_PRINT
++#define DBG_MONITOR_PRINT(fmt, args...)  CcspTraceInfo((fmt, ##args))
++#endif
++
++static uint ipv6_clients_count = 0;
++
++/*
++ * parse_rtattr_pd - parse netlink attributes for neighbor messages.
++ * Local copy since parse_rtattr in wanmgr_network_monitor.c is static.
++ */
++static void parse_rtattr_pd(struct rtattr *tb[], int max,
++                             struct rtattr *rta, int len)
++{
++    memset(tb, 0, sizeof(struct rtattr *) * (max + 1));
++    while (RTA_OK(rta, len)) {
++        if (rta->rta_type <= max)
++            tb[rta->rta_type] = rta;
++        rta = RTA_NEXT(rta, len);
++    }
++}
++
++/*
++ * ipv6 clients connected link local address taking and
++ * saving in file /tmp/ipv6_neighbor.txt for PD , it will use in zebra
++ */
++static void handle_netlink_ip6neigh_new(struct nlmsghdr *nlmsg, int len)
++{
++    struct ndmsg *ndm = NULL;
++    struct rtattr *tb[NDA_MAX + 1] = {NULL};
++    char addr[BUFLEN_256] = {0};
++    int ret = -1;
++
++    ndm = NLMSG_DATA(nlmsg);
++
++    /* Parse attributes and extract fields of interest. */
++    parse_rtattr_pd(tb, NDA_MAX, NDA_RTA(ndm), len);
++
++    if (!tb[NDA_DST])
++        return;
++
++    inet_ntop(AF_INET6, RTA_DATA(tb[NDA_DST]), addr, INET6_ADDRSTRLEN);
++    DBG_MONITOR_PRINT("RTM_NEWNEIGH len %d ip %s %d family %d IF (%u) \n",
++                   len, addr, nlmsg->nlmsg_type, ndm->ndm_family,
++                   ndm->ndm_ifindex);
++
++    if (strncasecmp(addr, "fe80", 4) == 0) { /* only LLA storing */
++        if (ipv6_clients_count > 0) {
++            FILE *fp = NULL;
++
++            fp = fopen(IPV6_NEI_FILE, "r");
++            if (fp == NULL) {
++                DBG_MONITOR_PRINT("%s : unable to open file %s\n",
++                                  __FUNCTION__, IPV6_NEI_FILE);
++                return;
++            }
++
++            if (fp != NULL) {
++                ssize_t nread;
++                size_t len = 0;
++                char *line = NULL;
++
++                while ((nread = getline(&line, &len, fp)) != -1) {
++                    if (strstr(line, addr)) {
++                        DBG_MONITOR_PRINT("addr %s already in file \n ",
++                                          addr);
++                        if (line) {
++                            free(line);
++                            line = NULL;
++                        }
++                        fclose(fp);
++                        fp = NULL;
++                        return;
++                    }
++                }
++                if (line) {
++                    free(line);
++                    line = NULL;
++                }
++                fclose(fp);
++                fp = NULL;
++            }
++        }
++        ret = v_secure_system("echo %s >> /tmp/ipv6_neighbor.txt", addr);
++        if (ret == 0) {
++            ipv6_clients_count++;
++            DBG_MONITOR_PRINT(" %s addr writing into the file,"
++                              "No.of ipv6_clients %u \n",
++                              addr, ipv6_clients_count);
++        }
++        else {
++            DBG_MONITOR_PRINT("Failure in executing command ret:[%d] \n",
++                              ret);
++        }
++    }
++    return;
++}
++
++/*
++ * ipv6 clients disconneted link local address taking and
++ * removing from file /tmp/ipv6_neighbor.txt for PD , it will use in zebra
++ */
++static void handle_netlink_ip6neigh_del(struct nlmsghdr *nlmsg, int len)
++{
++    struct ndmsg *ndm = NULL;
++    struct rtattr *tb[NDA_MAX + 1] = {NULL};
++    char addr[BUFLEN_256] = {0};
++
++    ndm = NLMSG_DATA(nlmsg);
++
++    /* Parse attributes and extract fields of interest. */
++    parse_rtattr_pd(tb, NDA_MAX, NDA_RTA(ndm), len);
++
++    if (!tb[NDA_DST])
++        return;
++
++    inet_ntop(AF_INET6, RTA_DATA(tb[NDA_DST]), addr, INET6_ADDRSTRLEN);
++    DBG_MONITOR_PRINT("RTM_DELNEIGH len %d ip %s %d family %d IF (%u) \n",
++                   len, addr, nlmsg->nlmsg_type, ndm->ndm_family,
++                   ndm->ndm_ifindex);
++
++    if (strncasecmp(addr, "fe80", 4) == 0) { /* only LLA */
++
++        FILE *orig_fp = NULL, *tmp_fp = NULL;
++
++        orig_fp = fopen(IPV6_NEI_FILE, "r");
++        tmp_fp = fopen(IPV6_NEI_TMPFILE, "w");
++
++        if (orig_fp == NULL) {
++            if (tmp_fp) {
++                fclose(tmp_fp);
++                tmp_fp = NULL;
++            }
++            DBG_MONITOR_PRINT("%s : unable to open file %s \n",
++                              __FUNCTION__, IPV6_NEI_FILE);
++            return;
++        }
++        if (tmp_fp == NULL) {
++            DBG_MONITOR_PRINT("%s : unable to open file %s \n",
++                              __FUNCTION__, IPV6_NEI_TMPFILE);
++            fclose(orig_fp);
++            orig_fp = NULL;
++            return;
++        }
++
++        if (orig_fp != NULL) {
++            ssize_t nread;
++            size_t len = 0;
++            char *line = NULL;
++
++            while ((nread = getline(&line, &len, orig_fp)) != -1) {
++                if (strstr(line, addr)) {
++                    if (ipv6_clients_count > 0) {
++                        ipv6_clients_count--;
++                    }
++                    DBG_MONITOR_PRINT("addr %s removing from file, "
++                                      "No.of ipv6_clients %u \n",
++                                      addr, ipv6_clients_count);
++                    continue;
++                }
++                fwrite(line, nread, 1, tmp_fp);
++            }
++
++            if (line) {
++                free(line);
++                line = NULL;
++            }
++            fclose(orig_fp);
++            orig_fp = NULL;
++        }
++        fclose(tmp_fp);
++        tmp_fp = NULL;
++        if (rename(IPV6_NEI_TMPFILE, IPV6_NEI_FILE) != 0) {
++            DBG_MONITOR_PRINT("%s: rename failed: %s\n",
++                              __FUNCTION__, strerror(errno));
++            unlink(IPV6_NEI_TMPFILE);
++        }
++    }
++    return;
++}
++
++/*
++ * handle_pd_neigh_event - Entry point called from
++ * NetMonitor_ProcessNetlinkRouteMonitorFd() for
++ * RTM_NEWNEIGH and RTM_DELNEIGH events.
++ */
++void handle_pd_neigh_event(struct nlmsghdr *nl_msgHdr)
++{
++    struct ndmsg *ndm = NULL;
++    int len = 0;
++    char pd_enable[BUFLEN_8] = {0};
++
++    memset(pd_enable, 0, sizeof(pd_enable));
++    syscfg_get(NULL, "PD_enable", pd_enable, sizeof(pd_enable));
++    if (strcmp(pd_enable, "1") == 0)
++    {
++        len = nl_msgHdr->nlmsg_len - NLMSG_LENGTH(sizeof(struct ndmsg));
++        if (len < 0)
++            return;
++        ndm = NLMSG_DATA(nl_msgHdr);
++        if (ndm->ndm_family != AF_INET6) /* only requires IPV6 neighbor */
++            return;
++
++        DBG_MONITOR_PRINT(" %s Received event on 0x%x NEIGH and state 0x%x\n",
++                               __FUNCTION__, nl_msgHdr->nlmsg_type,
++                               ndm->ndm_state);
++        if ((nl_msgHdr->nlmsg_type == RTM_NEWNEIGH) &&
++            (ndm->ndm_state == NUD_REACHABLE)) {
++            handle_netlink_ip6neigh_new(nl_msgHdr, len);
++        }
++        /* Kernel may not send RTM_DELNEIGH for aged-out neighbours.
++         * Treat NUD_FAILED / NUD_STALE transitions as implicit deletes. */
++        if ((nl_msgHdr->nlmsg_type == RTM_NEWNEIGH) &&
++                    (ndm->ndm_state & (NUD_FAILED | NUD_STALE))) {
++            handle_netlink_ip6neigh_del(nl_msgHdr, len);
++        }
++        if (nl_msgHdr->nlmsg_type == RTM_DELNEIGH)
++        {
++            handle_netlink_ip6neigh_del(nl_msgHdr, len);
++        }
++    }
++    return;
++}
+Index: git/source/WanManager/wanmgr_network_monitor_extn_qti.h
+===================================================================
+--- /dev/null
++++ git/source/WanManager/wanmgr_network_monitor_extn_qti.h
+@@ -0,0 +1,26 @@
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ * SPDX-License-Identifier: BSD-3-Clause-Clear
++ */
++
++#ifndef _WANMGR_NETWORK_MONITOR_EXTN_QTI_H_
++#define _WANMGR_NETWORK_MONITOR_EXTN_QTI_H_
++
++#include <linux/rtnetlink.h>
++#include <linux/neighbour.h>
++
++#ifndef NDA_RTA
++#define NDA_RTA(r) \
++    ((struct rtattr *)(((char *)(r)) + NLMSG_ALIGN(sizeof(struct ndmsg))))
++#endif
++
++#define IPV6_NEI_FILE    "/tmp/ipv6_neighbor.txt"
++#define IPV6_NEI_TMPFILE "/tmp/ipv6_neighbor_temp.txt"
++
++/*
++ * Handle IPv6 neighbor events for PD feature.
++ * Called from NetMonitor_ProcessNetlinkRouteMonitorFd()
++ */
++void handle_pd_neigh_event(struct nlmsghdr *nl_msgHdr);
++
++#endif /* _WANMGR_NETWORK_MONITOR_EXTN_QTI_H_ */
+Index: git/source/WanManager/Makefile.am
+===================================================================
+--- git.orig/source/WanManager/Makefile.am
++++ git/source/WanManager/Makefile.am
+@@ -31,7 +31,7 @@ wanmanager_CPPFLAGS = -I$(top_srcdir)/so
+ wanmanager_CFLAGS = -DFEATURE_SUPPORT_RDKLOG $(SYSTEMD_CFLAGS)
+ wanmanager_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
+ 
+-wanmanager_SOURCES = wanmgr_webconfig_apis.c wanmgr_webconfig.c wanmgr_main.c  wanmgr_ssp_action.c wanmgr_ssp_messagebus_interface.c wanmgr_core.c wanmgr_controller.c wanmgr_data.c wanmgr_sysevents.c wanmgr_interface_sm.c wanmgr_utils.c wanmgr_net_utils.c wanmgr_dhcpv4_apis.c wanmgr_dhcpv6_apis.c wanmgr_ipc.c wanmgr_dhcpv4_internal.c wanmgr_dhcpv6_internal.c wanmgr_policy_auto_impl.c dm_pack_datamodel.c wanmgr_wan_failover.c wanmgr_policy_parallel_scan_impl.c wanmgr_dhcp_legacy_apis.c wanmgr_interface_apis.c wanmgr_telemetry.c wanmgr_t2_telemetry.c wanmgr_network_monitor.c wanmgr_mape.c usb_tether_interface.c
++wanmanager_SOURCES = wanmgr_webconfig_apis.c wanmgr_webconfig.c wanmgr_main.c  wanmgr_ssp_action.c wanmgr_ssp_messagebus_interface.c wanmgr_core.c wanmgr_controller.c wanmgr_data.c wanmgr_sysevents.c wanmgr_interface_sm.c wanmgr_utils.c wanmgr_net_utils.c wanmgr_dhcpv4_apis.c wanmgr_dhcpv6_apis.c wanmgr_ipc.c wanmgr_dhcpv4_internal.c wanmgr_dhcpv6_internal.c wanmgr_policy_auto_impl.c dm_pack_datamodel.c wanmgr_wan_failover.c wanmgr_policy_parallel_scan_impl.c wanmgr_dhcp_legacy_apis.c wanmgr_interface_apis.c wanmgr_telemetry.c wanmgr_t2_telemetry.c wanmgr_network_monitor.c wanmgr_mape.c usb_tether_interface.c wanmgr_network_monitor_extn_qti.c
+ wanmanager_LDADD = $(wanmanager_DEPENDENCIES) -lccsp_common -lrdkloggers $(SYSTEMD_LDFLAGS) -lhal_platform -lapi_dhcpv4c -lnanomsg -lwebconfig_framework -lmsgpackc  -lprivilege -lrbus -lsecure_wrapper
+ 
+ 

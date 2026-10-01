@@ -1,0 +1,57 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 8865ac4697438857d26909b02b54315354711412 Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Thu, 6 Aug 2026 10:46:22 +0000
+Subject: [PATCH] To run 6brd
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+---
+ source/service_routed/service_routed.c | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+Index: git/source/service_routed/service_routed.c
+===================================================================
+--- git.orig/source/service_routed/service_routed.c
++++ git/source/service_routed/service_routed.c
+@@ -178,6 +178,10 @@ int gModeSwitched = NO_SWITCHING ;
+ #define DEF_ULA_PREF_LEN 64
+ #endif 
+ 
++#define IPv4_Only 1
++#define IPv6_Only 2
++#define IPv4IPV6  3
++
+ #ifdef RDKB_EXTENDER_ENABLED
+ //#define PSM_MESH_WAN_IFNAME "dmsb.Mesh.WAN.Interface.Name"
+ typedef enum DeviceMode {
+@@ -2144,6 +2148,25 @@ STATIC int radv_start(struct serv_routed
+     printf("DHCPv6 is %s. Starting zebra Process\n", (bEnabled?"Enabled":"Disabled"));
+ #else
+     v_secure_system("zebra -d -f %s -P 0 2> /tmp/.zedra_error", ZEBRA_CONF_FILE);
++    char line[50]={0};
++    char wan_interface[16]={0};
++    char tmpBuf[2]={0};
++    int  device_mode=0;
++    pid_t pid = 0;
++    FILE *cmd = v_secure_popen("r","pidof 6brd");
++    if(cmd != NULL)
++    {
++        fgets(line, sizeof(line), cmd);
++        v_secure_pclose(cmd);
++        pid = (pid_t)strtoul(line, NULL, 10);
++    }
++    sysevent_get(sr->sefd, sr->setok, "current_wan_ifname",wan_interface,sizeof(wan_interface));
++    syscfg_get(NULL, "last_erouter_mode",tmpBuf,sizeof(tmpBuf));
++    device_mode=atoi(tmpBuf);
++    if ((strstr(wan_interface,"qmapmux")!=NULL) && (!pid) && ((device_mode == IPv6_Only) || (device_mode == IPv4IPV6)))
++    {
++        v_secure_system("6brd -f !%s ~brlan0",wan_interface);
++    }
+ #endif
+ 
+     return 0;

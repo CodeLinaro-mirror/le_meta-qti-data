@@ -111,6 +111,21 @@ unload_ecm_sdx_pcc() {
 
 }
 
+load_ecm_ae_select() {
+	local ecm_ae_select_ko="/usr/lib/modules/$(uname -r)/extra/ecm_ae_select.ko"
+	[ -e "$ecm_ae_select_ko" ] && {
+		[ -d /sys/module/ecm_ae_select ] || insmod "$ecm_ae_select_ko"
+	}
+}
+
+unload_ecm_ae_select() {
+
+	if [ -d /sys/module/ecm_ae_select ]; then
+		rmmod ecm_ae_select
+	fi
+
+}
+
 pre_start() {
 	#Pre-Start Commands
 
@@ -163,6 +178,10 @@ post_start() {
 
 	echo "post_start"
 
+	#update alg tcp/udp denied ports
+	echo add 21 53 554 5060 1720 1723 4500 6566 6667 > /proc/sys/net/ecm/tcp_denied_ports
+	echo add 53 67 69 137 138 1719 5060 4500 10080 > /proc/sys/net/ecm/udp_denied_ports
+
 }
 
 start() {
@@ -175,6 +194,9 @@ start() {
 
 	#Load ECM
 	load_ecm || { echo "qca-nss-ecm: Failed to load ECM"; exit 1; }
+
+	#Load ECM AE Select (optional - skipped if module not present)
+	load_ecm_ae_select
 
 	#Post-Start commands
 	post_start
@@ -189,6 +211,9 @@ pre_stop() {
 
 	#Unload ECM_SDX_PCC
 	unload_ecm_sdx_pcc
+
+	#Unload ECM_AE_SELECT
+	unload_ecm_ae_select
 
 	echo "pre_stop"
 

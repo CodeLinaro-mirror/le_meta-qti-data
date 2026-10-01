@@ -1,0 +1,49 @@
+From 918cf0a5beb81d7d528de8f32577f25a3eca5401 Mon Sep 17 00:00:00 2001
+From: Vatte Vishnuvardhan Reddy <vishnuvr@qti.qualcomm.com>
+Date: Thu, 2 Jul 2026 12:48:35 +0530
+Subject: [PATCH] macsec_linux: Driver changes to set iface name
+
+Driver changes to update macsec iface name once wpa supplicant command is
+executed.
+
+Upstream-Status: Inappropriate [patch used only in downstream]
+Signed-off-by: Vatte Vishnuvardhan Reddy <vishnuvr@qti.qualcomm.com>
+---
+ src/drivers/driver_macsec_linux.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/src/drivers/driver_macsec_linux.c b/src/drivers/driver_macsec_linux.c
+index c86715498..a75798e76 100644
+--- a/src/drivers/driver_macsec_linux.c
++++ b/src/drivers/driver_macsec_linux.c
+@@ -1142,6 +1142,19 @@ static struct rtnl_link * lookup_sc(struct nl_cache *cache, int parent, u64 sci,
+ }
+ 
+ 
++/* Set macsec interface name to <phys_intf>.s0 */
++static int set_iface_name(struct transmit_sc *sc,
++		struct macsec_drv_data *drv,
++		struct rtnl_link *link)
++{
++	char ifname[IFNAMSIZ + 1];
++
++	os_snprintf(ifname, sizeof(ifname), "%s.s0", drv->common.ifname);
++
++	rtnl_link_set_name(link, ifname);
++}
++
++
+ /**
+  * macsec_drv_create_transmit_sc - Create secure connection for transmit
+  * @priv: private driver interface data from init()
+@@ -1176,6 +1189,7 @@ static int macsec_drv_create_transmit_sc(
+ 		return -1;
+ 	}
+ 
++	set_iface_name(sc, drv, link);
+ 	rtnl_link_set_link(link, drv->parent_ifi);
+ 
+ 	sci = mka_sci_u64(&sc->sci);
+-- 
+2.34.1
+

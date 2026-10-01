@@ -14,10 +14,10 @@ else ifeq ($(BOARD),sdx85)
 	QTIDATA+= kmod-dataipa ipanat ipacm kmod-datarmnet kmod-datarmnet-ext datafactory avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos kmod-smem-mailbox kmod-data-devicetree kmod-ioss kmod-emac_ioss kmod-rtl8125 kmod-r8125_ioss eth-cfg set_eth_perf kmod-qca-nss-sfe kmod-qca-nss-ecm-premium kmod-aquantia nanopb kmod-r8152
 	QTIDATA512M:=kmod-dataipa ipacm rmnetctl libpugixml kmod-datarmnet kmod-data-devicetree
 else ifeq ($(BOARD),echo)
-	QTIDATA+= kmod-dataipa kmod-datarmnet kmod-data-devicetree ipanat ipa-kernel-tests datafactory avahi-nodbus-daemon hostap phytool zonedetect ianatzdata eth-qos eth-cfg set_eth_perf thermal-eth-netlink locationdb nanopb kmod-datarmnet-ext kmod-eth-sdk-dlkm kmod-qca-nss-sfe kmod-qca-nss-ecm-premium
+	QTIDATA+= kmod-dataipa kmod-datarmnet kmod-data-devicetree ipanat ipa-kernel-tests datafactory avahi-nodbus-daemon hostap phytool zonedetect ianatzdata eth-qos thermal-eth-netlink locationdb nanopb kmod-datarmnet-ext kmod-eth-sdk-dlkm kmod-qca-nss-sfe kmod-qca-nss-ecm-premium tc-full
 	QTIDATA512M:=kmod-dataipa ipa-kernel-tests rmnetctl libpugixml kmod-datarmnet kmod-data-devicetree
 endif
 ifneq ($(PRPL_VERSION),)
-	QTIDATA:=kmod-dataipa ipanat ipacm ipa-kernel-tests kmod-rtsp_alg kmod-ioss kmod-emac_ioss avahi-nodbus-daemon thermal-eth-netlink hostap phytool zonedetect locationdb ianatzdata eth-qos eth-cfg set_eth_perf kmod-datarmnet kmod-datarmnet-ext
-	QTIDATA512M:=
+        QTIDATA:=locationdb ianatzdata nanopb kmod-eth-sdk-dlkm kmod-data-devicetree kmod-dataipa ipanat kmod-qca-nss-sfe kmod-smem-mailbox kmod-datarmnet kmod-datarmnet-ext libpugixml newstrongswan newstrongswan-full avahi-nodbus-daemon hostap phytool zonedetect kmod-qca-nss-ecm-premium tc-full
+        QTIDATA512M:=
 endif

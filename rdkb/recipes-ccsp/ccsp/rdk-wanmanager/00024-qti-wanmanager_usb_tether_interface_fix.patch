@@ -1,0 +1,98 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a1b2c3d4e5f6789012345678901234567890abcd Mon Sep 17 00:00:00 2001
+From: abishaac <abishaac@qti.qualcomm.com>
+Date: Mon, 24 Aug 2026 00:00:00 +0000
+Subject: [PATCH] Fix brlan0 ecm0/rndis0 disabled state due to unfiltered RTM_DELLINK handling in automated usb tethering
+
+[Issue Description]: brlan0: port 2(ecm0/rndis0) entered disabled state is observed repeatedly during active ECM/RNDIS USB tethering data transfer causing
+IPA deceleration and SW path fallback. IP address is not getting assigned back on LAN client after eth1 WAN interface toggle (ifconfig eth1 down/up).
+
+[Fix Description]: Added IFLA_IFNAME attribute parsing from the netlink message payload to identify the triggering interface. bringup_usb_tether_interface and teardown_usb_tether_interface are called only if the interface name equals rndis0 or ecm0, all other interface events are ignored.
+
+Signed-off-by: Abisha Accamma Vinod<abishaac@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_network_monitor.c | 66 ++++++++++++++++++++++++++++++++++++++++++++++++-----------
+ 1 file changed, 54 insertions(+), 12 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_network_monitor.c b/source/WanManager/wanmgr_network_monitor.c
+index 845eabc..c1d2e3f 100644
+--- a/source/WanManager/wanmgr_network_monitor.c
++++ b/source/WanManager/wanmgr_network_monitor.c
+@@ -475,18 +475,58 @@ static void NetMonitor_ProcessNetlinkRouteMonitorFd()
+                     parse_addrattr(nl_msgHdr);
+                     break;
+                 }
+-            case RTM_NEWLINK:
+-                 {
+-                     bringup_usb_tether_interface();
+-                     bringup_ethernet_interface(nl_msgHdr);
+-                 }
+-                break;
+-            case RTM_DELLINK:
+-                 {
+-                     teardown_usb_tether_interface();
+-                     teardown_ethernet_interface(nl_msgHdr);
+-                 }
+-                break;
++            case RTM_NEWLINK:
++            case RTM_DELLINK:
++                 {
++                     char interface_name[IFNAMSIZ] = {0};
++                     if (nl_msgHdr->nlmsg_len >= NLMSG_LENGTH(sizeof(struct ifinfomsg)))
++                     {
++                         struct ifinfomsg *ifi_msg = (struct ifinfomsg *)NLMSG_DATA(nl_msgHdr);
++                         int length = (int)nl_msgHdr->nlmsg_len -
++                                      (int)NLMSG_LENGTH(sizeof(*ifi_msg));
++                         if (length > 0)
++                         {
++                             struct rtattr *attr_msg = NULL;
++                             for (attr_msg = IFLA_RTA(ifi_msg); RTA_OK(attr_msg, length);
++                                  attr_msg = RTA_NEXT(attr_msg, length))
++                             {
++                                 if (IFLA_IFNAME == attr_msg->rta_type)
++                                 {
++                                     strlcpy(interface_name, (char *)RTA_DATA(attr_msg),
++                                             sizeof(interface_name));
++                                     break;
++                                 }
++                             }
++                         }
++                     }
++                     CcspTraceInfo(("%s %d RTM_%s received for iface=[%s]\n",
++                         __FUNCTION__, __LINE__,
++                         (nl_msgHdr->nlmsg_type == RTM_NEWLINK) ? "NEWLINK" : "DELLINK",
++                         interface_name[0] ? interface_name : "<unknown>"));
++                     int is_usb_iface = ((0 == strcmp(interface_name, "rndis0")) ||
++                                         (0 == strcmp(interface_name, "ecm0")));
++                     if (nl_msgHdr->nlmsg_type == RTM_NEWLINK)
++                     {
++                         if (is_usb_iface)
++                         {
++                             CcspTraceInfo(("%s %d calling bringup for iface=[%s]\n",
++                                 __FUNCTION__, __LINE__, interface_name));
++                             bringup_usb_tether_interface();
++                         }
++                         bringup_ethernet_interface(nl_msgHdr);
++                     }
++                     else
++                     {
++                         if (is_usb_iface)
++                         {
++                             CcspTraceInfo(("%s %d calling teardown for iface=[%s]\n",
++                                 __FUNCTION__, __LINE__, interface_name));
++                             teardown_usb_tether_interface();
++                         }
++                         teardown_ethernet_interface(nl_msgHdr);
++                     }
++                 }
++                break;
+             case RTM_NEWNEIGH:
+             case RTM_DELNEIGH:
+                  {
+-- 
+2.34.1

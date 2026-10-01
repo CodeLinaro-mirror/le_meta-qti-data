@@ -18,6 +18,36 @@ SRC_URI += " \
     file://0011-qti-rdk-cellularmanager-mm_fix-PRAT-switch.patch \
     file://0012-qti-rdk-cellularmanager-mm_loopback_mode.patch \
     file://0013-qti-rdk-cellularmanager-mm_prop_HAL_integration.patch \
+    file://0014-qti-rdk-cellularmanager-mm_factory_reset.patch \
+    file://0015-qti-rdk-cellularmanager-mm_ipv6_prefix_delegation.patch \
+    file://0016-qti-rdk-cellularmanager-mm_modem_SSR_handling.patch \
+    file://0017-qti-rdk-cellularmanager-mm_roaming.patch \
+    file://0018-qti-rdk-cellularmanager-mm_address_reconf.patch \
+    file://0019-qti-rdk-cellularmanager-mm_modem_status.patch \
+    file://0020-qti-rdk-cellularmanager-mm_SM_optimization.patch \
+    file://0021-qti-rdk-cellularmanager-mm_add_error_stats.patch \
+    file://0022-qti-rdk-cellularmanager-mm_data_quota_usage.patch \
+    file://0023-qti-rdk-cellularmanager-mm_DataUsageDM.patch \
+    file://0024-qti-rdk-cellularmanager-mm_Add-DNSSL-SM-triggers-and-RBUS-DM-registrations.patch \
+    file://0025-qti-rdk-cellularmanager-mm_available_network.patch \
+    file://0026-qti-rdk-cellularmanager-mm_USIM_port.patch \
+    file://0027-qti-rdk-cellularmanager-mm_IP_continuity.patch \
+    file://0028-qti-rdk-cellularmanager-mm_WAN_ipmode_support.patch \
+    file://0029-qti-rdk-cellularmanager-mm_Interface_DM.patch \
+    file://0030-qti-rdk-cellularmanager-mm_NRSA_Enabled.patch \
+    file://0031-qti-rdk-cellularmanager-mm_IP_continuity_data_quota_usage.patch \
+    file://0032-qti-rdk-cellularmanager-mm_rsrp_rsrq.patch \
+    file://0033-qti-rdk-cellularmanager-mm_CellTower_DM.patch \
+    file://0034-qti-rdk-cellularmanager-mm_carrier_aggregation.patch \
+    file://0035-qti-rdk-cellularmanager-mm_factory_test_mode_fix.patch \
+    file://0036-qti-rdk-cellularmanager-mm_KPI_marker.patch \
+    file://0037-qti-rdk-cellularmanager-mm_refcount.patch \
+    file://0038-qti-rdk-cellularmanager-mmDNSSL-Unregistartion-Fix.patch \
+    file://0039-qti-rdk-cellularmanager-mm_utc_timestamp_log_update.patch \
+    file://0040-qti-rdk-cellularmanager-mm_USIM_pin_retry_attempt_left.patch \
+    file://0041-qti-rdk-cellularmanager-mm_IPPT_transition.patch \
+    file://0042-qti-rdk-cellularmanager-mm_code_optimization.patch \
+    file://0043-qti-rdk-cellularmanager-mm_state_roll_back_on_nw_start_failure.patch \
 "
 DEPENDS += " modemmanager libbsd libqmi "
 DEPENDS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', ' libqrtr-glib', '', d)}"
@@ -36,13 +66,14 @@ CFLAGS_append += " -Dstrlcpy=g_strlcpy -Dstrlcat=g_strlcat "
 CFLAGS_remove = "-DINCLUDE_BREAKPAD"
 CFLAGS += "-DRBUS_BUILD_FLAG_ENABLE"
 
-PACKAGECONFIG_append = " cm_extn_support cm_prop_support"
+PACKAGECONFIG_append = " cm_extn_support cm_prop_support ip_continuity_enabled"
 PACKAGECONFIG[cm_extn_support] = ""
 CFLAGS_append  += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_extn_support', ' -DCM_EXTN_SUPPORTED', '', d)}"
 
 LDFLAGS += " -lmm-glib -lpthread -lbsd -lrt"
 CFLAGS_append += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' -DCM_PROP_SUPPORTED', '', d)}"
 CFLAGS_append += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' -I${STAGING_INCDIR}/cellular-hal-qmi/', '', d)}"
+CFLAGS_append += " ${@bb.utils.contains('PACKAGECONFIG', 'ip_continuity_enabled', ' -DIP_CONTINUITY_ENABLED', '', d)}"
 LDFLAGS_append += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' -lcellular_hal_qmi', '', d)}"
 DEPENDS += " ${@bb.utils.contains('PACKAGECONFIG', 'cm_prop_support', ' hal-cellular-qmi', '', d)}"
 LDFLAGS += " ${@bb.utils.contains('DISTRO_FEATURES', 'cellular_libqmi_support', '-lqmi-glib -lqrtr-glib', '', d)}"
@@ -54,6 +85,7 @@ do_configure:prepend() {
 
     cp ${UNPACKDIR}/RdkCellularManager-MM/CellularManager_extn/CellularManager/* ${S}/source/CellularManager/
     cp ${UNPACKDIR}/RdkCellularManager-MM/CellularManager_extn/TR-181/middle_layer_src/* ${S}/source/TR-181/middle_layer_src/
+
     if ${@bb.utils.contains_any('DISTRO_FEATURES', 'WanFailOverSupportEnable rdkb_cellular_manager', 'true', 'false', d)}; then
         (${PYTHON} ${STAGING_BINDIR_NATIVE}/dm_pack_code_gen.py ${S}/config/RdkCellularManager.xml ${S}/source/CellularManager/dm_pack_datamodel.c)
     fi

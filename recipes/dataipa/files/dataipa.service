@@ -1,8 +1,9 @@
 [Unit]
 Description= Load dataipa dlkm
 SourcePath=/etc/initscripts/start_dataipa_le
-After= systemrw.mount
+After= systemrw.mount etc.mount
 Requires= systemrw.mount
+RequiresMountsFor=/etc/data/ipa_be/ipa_ini_file.ini
 DefaultDependencies=no
 
 [Service]

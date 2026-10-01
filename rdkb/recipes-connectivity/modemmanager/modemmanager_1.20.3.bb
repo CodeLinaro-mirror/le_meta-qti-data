@@ -34,6 +34,10 @@ SRC_URI_append += " \
     file://00011-Add_modem_ready_dependency_in_service.patch \
     file://00012-ModemManager_qmi_ready_check.patch \
     file://00013-IPv4_Fix_for_xlat.patch \
+    file://00014-modemmanager-add-support-address-reconfig.patch \
+    file://00015-ModemManager-support-for-factory-test-mode.patch \
+    file://00016-qcom-soc-rps-cpus-config.patch \
+    file://00017-ModemManager_utc_timestamp_log_update.patch \
 "
 
 S = "${UNPACKDIR}/git"
@@ -65,6 +69,7 @@ FILES:${PN} += " \
     ${datadir}/polkit-1 \
     ${datadir}/dbus-1 \
     ${datadir}/ModemManager \
+    ${sysconfdir}/ModemManager \
     ${libdir}/ModemManager \
     ${systemd_unitdir}/system \
 "

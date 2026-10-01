@@ -1,0 +1,1491 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 00e6446f3f93499a862daa0d67d3a2bfe95ffc2f Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Thu, 20 Aug 2026 11:00:33 +0530
+Subject: [PATCH] Support for firewall white list and black list.
+
+[Description]:
+ 1. Updating the syscfg db based on DM parameter value from user.
+ 1. Based on DM parameters inserted the iptables and ip6tables.
+ 2. Handled the conntrack entries.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/firewall/firewall.c       | 153 +++++++++++++++++++++++++++++++
+ source/firewall/firewall_ipv6.c  | 147 +++++++++++++++++++++++++++++
+ source/include/utctx/utctx_api.h |  14 +++
+ source/utapi/lib/utapi.c         | 137 +++++++++++++++++++++++++++
+ source/utapi/lib/utapi.h         |  30 ++++++
+ source/utctx/lib/utctx.c         |  14 +++
+ 6 files changed, 495 insertions(+)
+
+Index: git/source/firewall/firewall_ipv6.c
+===================================================================
+--- git.orig/source/firewall/firewall_ipv6.c
++++ git/source/firewall/firewall_ipv6.c
+@@ -323,6 +323,7 @@ int prepare_ipv6_firewall(const char *fw
+ 	WAN_FAILOVER_SUPPORT_CHECk_END
+ #endif
+         prepare_lnf_internet_rules(mangle_fp,6);
++        do_x_qcomrule_firewall_v6(mangle_fp);
+         if (isContainerEnabled) {
+             do_container_allow(filter_fp, mangle_fp, nat_fp, AF_INET6);
+         }
+@@ -2011,6 +2012,236 @@ void do_ipv6_UIoverWAN_filter(FILE* fp)
+ 
+         FIREWALL_DEBUG("Exiting do_ipv6_UIoverWAN_filter \n"); 
+ }
++/*********************************************************
++ *  Procedure     : do_x_qcomrule_firewall_v6
++ *  Purpose       : prepare the ip6tables-restore statements for
++                    whitelist & blacklist
++ *  Parameters    :
++ *     fp         : An open file that will be used for ip6tables-restore
++ *  Return Values :
++ *     0          : done
++ *********************************************************/
++
++int do_x_qcomrule_firewall_v6(FILE* mangle_fp)
++{
++    /*
++     * syscfg tuple X_QCOMRule_x, where x is a digit
++     * keeps track of the syscfg namespace of a defined firewall X_QCOMRule.
++     * We iterate through these tuples until we dont find another instance in syscfg.
++     */
++
++    int idx=0;
++    char namespace[MAX_NAMESPACE]={0}; //This variable holds the namespace for the current rule being processed using query variable.
++    char query[MAX_QUERY]={0};  //store the name of the configuration parameter being queried from the system configuration (syscfg_get).
++    int  rc=0;
++    int  count=0;
++    FIREWALL_DEBUG("Entering do_x_qcomrule_firewall_v6\n");
++
++    /**Rule_Enable**/
++    rc = syscfg_get(NULL, "firewall_rule_type", query, sizeof(query));
++    // Adding the DROP rule for marked packet in case of Blacklist in PREROUTING to handle DL and POSTROUTING to handle UL
++    if  (strncasecmp(query, "Blacklist", strlen("Blacklist")) == 0)
++    {
++        fprintf(mangle_fp,"-I PREROUTING -m connmark --mark 53 -j DROP\n");
++        fprintf(mangle_fp,"-I POSTROUTING -m connmark --mark 53 -j DROP\n");
++    }
++    // Adding the ACCEPT rule for marked packet and default DROP rule for rest in case of Whitelist in PREROUTING to handle DL and POSTROUTING to handle UL
++    else if(strncasecmp(query, "Whitelist", strlen("Whitelist")) == 0)
++    {
++        fprintf(mangle_fp,"-A PREROUTING -i %s -j DROP\n",current_wan_ifname);
++        fprintf(mangle_fp,"-I POSTROUTING -o %s -j DROP\n",current_wan_ifname);
++        fprintf(mangle_fp,"-I POSTROUTING -m connmark --mark 53 -j ACCEPT\n");
++        fprintf(mangle_fp,"-I PREROUTING -m connmark --mark 53 -j ACCEPT\n");
++    }
++    else
++    {
++        FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall_v6 as firewall type not Blacklist or Whitelist\n");
++        return -1;
++    }
++
++    // Finding X_QCOMRule_Count
++    query[0] = '\0';
++    rc = syscfg_get(NULL, "X_QCOMRule_Count", query, sizeof(query));
++    if (0 != rc || '\0' == query[0]) {
++        FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall_v6 as syscfg X_QCOMRule_Count not available\n");
++        return -1;
++    }
++    else {
++        count = atoi(query);
++        if (0 == count) {
++            FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall_v6 as X_QCOMRule_Count 0\n");
++            return -1;
++        }
++        if (MAX_SYSCFG_ENTRIES < count) {
++            count = MAX_SYSCFG_ENTRIES;
++        }
++    }
++    for (idx=1 ; idx<=count ; idx++)
++    {
++        char rule_udp[256]={0}; // For storing rule for udp if both tcp and udp.
++        int rule_form = 0;
++        char rule[256]={0};
++        char iptables_cmd[512]={0};  // For storing complete ip6tables command
++
++        namespace[0] = '\0';
++        snprintf(query, sizeof(query), "X_QCOMRule_%d", idx);
++        rc = syscfg_get(NULL, query, namespace, sizeof(namespace));
++        if (0 != rc || '\0' == namespace[0]) {
++            continue;
++        }
++
++        // Check Enable status first
++        query[0] = '\0';
++        rc = syscfg_get(namespace, "Enable", query, sizeof(query));
++        if (0 != rc || '\0' == query[0]) {
++            continue;
++        }
++
++        // Forming rule based on current firewall entry
++        char source_ipv6[64]={0};
++        rc = syscfg_get(namespace, "SourceIPv6Addr", source_ipv6, sizeof(source_ipv6));
++        if (0 == rc && '\0' != source_ipv6[0]) {
++            // Adding source IPv6 to rule
++            strlcat(rule, " -s ", sizeof(rule));
++            strlcat(rule, source_ipv6, sizeof(rule));
++            rule_form = 1;
++        }
++        char destination_ipv6[64]={0};
++        rc = syscfg_get(namespace, "DestinationIPv6Addr", destination_ipv6, sizeof(destination_ipv6));
++        if (0 == rc && '\0' != destination_ipv6[0]) {
++            // Adding Destination IPv6 to rule
++            strlcat(rule, " -d ", sizeof(rule));
++            strlcat(rule, destination_ipv6, sizeof(rule));
++            rule_form = 1;
++        }
++        char protocol[10]={0};
++        rc = syscfg_get(namespace, "Protocol", protocol, sizeof(protocol));
++        if (0 == rc && '\0' != protocol[0] ) {
++            // Adding protocol to rule
++            if (strcmp(protocol, "tcp") == 0 || strcmp(protocol, "udp") == 0){ //for tcp or udp
++                strlcat(rule, " -p ",sizeof(rule));
++                strlcat(rule, protocol, sizeof(rule));
++                rule_form = 1;
++            }
++            else if(strcmp(protocol, "tcp_udp") == 0){ //for tcp and udp
++                strlcpy(rule_udp, rule, sizeof(rule_udp));
++                strlcat(rule, " -p tcp",sizeof(rule));
++                strlcat(rule_udp, " -p udp",sizeof(rule_udp));
++            }
++            char source_port[15]={0};
++            rc = syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
++            if (0 == rc && '\0' != source_port[0] && '0'!=source_port[0]) {
++                // Adding source port to rule
++                strlcat(rule, " --sport ", sizeof(rule));
++                strlcat(rule, source_port, sizeof(rule));
++                rule_form = 1;
++                if(strcmp(protocol, "tcp_udp") == 0){
++                    strlcat(rule_udp, " --sport ", sizeof(rule_udp));
++                    strlcat(rule_udp, source_port, sizeof(rule_udp));
++                    rule_form = 1;
++                }
++             }
++             char destination_port[15]={0};
++             rc = syscfg_get(namespace, "DestinationPort", destination_port, sizeof(destination_port));
++             if (0 == rc && '\0' != destination_port[0] && '0'!=destination_port[0]) {
++                 // Adding destination port to rule
++                 strlcat(rule, " --dport ", sizeof(rule));
++                 strlcat(rule, destination_port, sizeof(rule));
++                 if(strcmp(protocol, "tcp_udp") == 0){
++                     strlcat(rule_udp, " --dport ", sizeof(rule_udp));
++                     strlcat(rule_udp, destination_port, sizeof(rule_udp));
++                 }
++                 rule_form = 1;
++             }
++        }
++        char direction[15]={0};
++        rc = syscfg_get(namespace, "Direction", direction, sizeof(direction));
++
++        if (rule_form == 1) {
++            char firewall_rule_type[MAX_QUERY]={0};
++            rc = syscfg_get(NULL, "firewall_rule_type", firewall_rule_type, sizeof(firewall_rule_type));
++            v_secure_system("echo 0 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
++            // Adding connmark 53 to rule
++            strlcat(rule, " -j CONNMARK --set-mark 53", sizeof(rule));
++            // Adding connmark 53 to rule for tcp_udp
++            if(strcmp(protocol, "tcp_udp") == 0)
++                strlcat(rule_udp, " -j CONNMARK --set-mark 53", sizeof(rule_udp));
++            if (0 == strcmp("0", query)) {
++                // Delete rule using ip6tables command
++                if (direction[0] != '\0' && strncasecmp(direction, "Uplink", strlen("Uplink")) == 0)
++                {
++                    snprintf(iptables_cmd, sizeof(iptables_cmd),"ip6tables -t mangle -D FORWARD -o %s %s",current_wan_ifname, rule);
++                }
++                else if (direction[0] != '\0' && strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
++                {
++                    snprintf(iptables_cmd, sizeof(iptables_cmd),"ip6tables -t mangle -D PREROUTING -i %s %s",current_wan_ifname, rule);
++                }
++                system(iptables_cmd);  // Execute the delete command
++                if(strcmp(protocol, "tcp_udp") == 0){
++                    strlcpy(iptables_cmd, "", sizeof(iptables_cmd));  // deleting the contents of iptables_cmd array for executing it for udp rule.
++                    if (direction[0] != '\0' && strncasecmp(direction, "Uplink", strlen("Uplink")) == 0)
++                    {
++                        snprintf(iptables_cmd, sizeof(iptables_cmd),"ip6tables -t mangle -D FORWARD -o %s %s",current_wan_ifname, rule_udp);
++                    }
++                    else if (direction[0] != '\0' && strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
++                    {
++                        snprintf(iptables_cmd, sizeof(iptables_cmd),"ip6tables -t mangle -D PREROUTING -i %s %s",current_wan_ifname, rule_udp);
++                    }
++                    system(iptables_cmd);  // Execute the delete command for udp
++                }
++                //To remove the existing conntrack entry rule if its whitelist
++                //as enable for the current rule is false
++                if (0 == rc && strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++                {
++                    if (strcmp(protocol, "tcp") == 0)
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                    else if (strcmp(protocol, "udp") == 0)
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
++                    else
++                    {
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
++                    }
++                }
++            }
++            else {
++                // Add FORWARD marking rule to mangle file to handle UL and PREROUTING marking rule to handle DL
++                if (direction[0] != '\0' && strncasecmp(direction, "Uplink", strlen("Uplink")) == 0)
++                    fprintf(mangle_fp, "-I FORWARD -o %s %s\n", current_wan_ifname, rule);
++                else if (direction[0] != '\0' && strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
++                    fprintf(mangle_fp, "-I PREROUTING -i %s %s\n", current_wan_ifname, rule);
++                if(strcmp(protocol, "tcp_udp") == 0){
++                    if (direction[0] != '\0' && strncasecmp(direction, "Uplink", strlen("Uplink")) == 0)
++                        fprintf(mangle_fp, "-I FORWARD -o %s %s\n", current_wan_ifname, rule_udp);
++                    else if (direction[0] != '\0' && strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
++                        fprintf(mangle_fp, "-I PREROUTING -i %s %s\n", current_wan_ifname, rule_udp);
++	         }
++                //Deleting conntrack entries Blacklist
++                if (0 == rc && strncasecmp(firewall_rule_type, "Blacklist", strlen("Blacklist")) == 0)
++                {
++                    if (strcmp(protocol, "tcp") == 0)
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                    else if (strcmp(protocol, "udp") == 0)
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
++                    else
++                    {
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
++                    }
++                }
++                //Deleting conntrack entries Whitelist
++                else if (0 == rc && strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++                {
++                    DeleteConntrackEntryForAcceptIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                    DeleteConntrackEntryForAcceptIPv6FirewallEntries(PROTOCOL_UDP, idx);
++                }
++            }
++            v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
++        }
++    }
++    FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall_v6\n");
++    return 0;
++}
+ /*-----*/
+ void do_ipv6_sn_filter(FILE* fp) {
+  FIREWALL_DEBUG("Inside do_ipv6_sn_filter \n"); 
+Index: git/source/include/utctx/utctx_api.h
+===================================================================
+--- git.orig/source/include/utctx/utctx_api.h
++++ git/source/include/utctx/utctx_api.h
+@@ -610,6 +610,7 @@ typedef enum _UtopiaValue
+ 	UtopiaValue_PFR_PrevRuleEnabledState,
+ 	UtopiaValue_PRT_PrevRuleEnabledState,
+     UtopiaValue_HashPassword,
++    UtopiaValue_Firewall_RuleType,
+     #if defined(_WAN_MANAGER_ENABLED_)
+       UtopiaValue_WanMode,
+       UtopiaValue_WanConnEnabled,
+@@ -634,6 +635,19 @@ typedef enum _UtopiaValue
+     UtopiaValue_Dslite_IPv6_Frag_Enable,
+     UtopiaValue_Dslite_Tunnel_V4Addr,
+     #endif /* DSLITE_FEATURE_SUPPORT */
++    UtopiaValue_Firewall_X_QCOMRule_Count,
++    UtopiaValue_Firewall_X_QCOMRule,
++    UtopiaValue_Firewall_X_QCOMRule_InsNum,
++    UtopiaValue_Firewall_X_QCOMRule_DestinationIPAddr,
++    UtopiaValue_Firewall_X_QCOMRule_SourceIPAddr,
++    UtopiaValue_Firewall_X_QCOMRule_Enable,
++    UtopiaValue_Firewall_X_QCOMRule_Alias,
++    UtopiaValue_Firewall_X_QCOMRule_SourcePort,
++    UtopiaValue_Firewall_X_QCOMRule_DestinationPort,
++    UtopiaValue_Firewall_X_QCOMRule_Protocol,
++    UtopiaValue_Firewall_X_QCOMRule_Direction,
++    UtopiaValue_Firewall_X_QCOMRule_DestinationIPv6Addr,
++    UtopiaValue_Firewall_X_QCOMRule_SourceIPv6Addr,
+     UtopiaValue__LAST__
+ } UtopiaValue;
+ 
+Index: git/source/utapi/lib/utapi.c
+===================================================================
+--- git.orig/source/utapi/lib/utapi.c
++++ git/source/utapi/lib/utapi.c
+@@ -7787,5 +7787,144 @@ int Utopia_DelDynamicDnsClient(UtopiaCon
+     UTOPIA_SETINT_NORETURN(ctx, UtopiaValue_DynamicDnsClientCount, g_DynamicDnsClientCount);
+     return 0;
+ }
++/*************** X_QCOMRule API ****************/
++
++int Utopia_GetFirewall_XQCOMRuleInsNumByIndex(UtopiaContext *ctx, unsigned long uIndex, int *ins)
++{
++    Utopia_GetIndexedInt(ctx, UtopiaValue_Firewall_X_QCOMRule_InsNum, uIndex+1, ins);
++    return 0;
++}
++static int g_Firewall_X_QCOMRule_Count = 0;
++
++int Utopia_GetNumberOfFirewall_XQCOMRule(UtopiaContext *ctx, int *num)
++{
++    Utopia_GetInt(ctx, UtopiaValue_Firewall_X_QCOMRule_Count, &g_Firewall_X_QCOMRule_Count);
++    *num = g_Firewall_X_QCOMRule_Count;
++    return 0;
++}
++
++int Utopia_SetFirewall_XQCOMRuleInsAndAliasByIndex(UtopiaContext *ctx, unsigned long ulIndex, unsigned long ins, const char *alias)
++{
++    int index = ulIndex+1;
++    Utopia_SetIndexedInt(ctx, UtopiaValue_Firewall_X_QCOMRule_InsNum, index, ins);
++    Utopia_SetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_Alias, index, (char*)alias);
++    return 0;
++}
++
++int Utopia_GetFirewall_XQCOMRuleByIndex(UtopiaContext *ctx, unsigned long ulIndex, firewall_x_qcomrule_t *x_qcomrule_t)
++{
++    int ins_num=0,s_port=0,des_port=0;
++    int index = ulIndex+1;
++    char ip_address_str[INET_ADDRSTRLEN] = {0};
++    Utopia_GetIndexedInt(ctx, UtopiaValue_Firewall_X_QCOMRule_InsNum , index, &ins_num);
++    x_qcomrule_t->ins_num = ins_num;
++    if (Utopia_GetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationIPAddr, index, ip_address_str, INET_ADDRSTRLEN))
++    {
++        uint32_t dest_ip = inet_addr(ip_address_str);
++        memcpy(x_qcomrule_t->destination_ipaddress.Dot, &dest_ip, sizeof(x_qcomrule_t->destination_ipaddress.Dot));
++    }
++    memset(ip_address_str, 0, INET_ADDRSTRLEN);
++    if (Utopia_GetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_SourceIPAddr, index, ip_address_str, INET_ADDRSTRLEN))
++    {
++        uint32_t src_ip = inet_addr(ip_address_str);
++        memcpy(x_qcomrule_t->source_ipaddress.Dot, &src_ip, sizeof(x_qcomrule_t->source_ipaddress.Dot));
++    }
++    Utopia_GetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_Alias , index, x_qcomrule_t->alias, sizeof(x_qcomrule_t->alias));
++    Utopia_GetIndexedBool(ctx, UtopiaValue_Firewall_X_QCOMRule_Enable, index, &x_qcomrule_t->enable);
++    Utopia_GetIndexedInt(ctx, UtopiaValue_Firewall_X_QCOMRule_SourcePort , index,&s_port);
++    x_qcomrule_t->source_port=s_port;
++    Utopia_GetIndexedInt(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationPort , index,&des_port);
++    x_qcomrule_t->destination_port=des_port;
++    Utopia_GetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_Protocol , index,x_qcomrule_t->protocol, sizeof(x_qcomrule_t->protocol));
++    Utopia_GetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_Direction , index,x_qcomrule_t->direction, sizeof(x_qcomrule_t->direction));
++    Utopia_GetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationIPv6Addr , index,x_qcomrule_t->destination_ipv6address, sizeof(x_qcomrule_t->destination_ipv6address));
++    Utopia_GetIndexed(ctx, UtopiaValue_Firewall_X_QCOMRule_SourceIPv6Addr , index,x_qcomrule_t->source_ipv6address, sizeof(x_qcomrule_t->source_ipv6address));
++
++    return 0;
++}
++
++int Utopia_SetFirewall_XQCOMRuleByIndex(UtopiaContext *ctx, unsigned long ulIndex, const firewall_x_qcomrule_t *x_qcomrule_t)
++{
++    char s_tokenbuf[256];
++    int index = ulIndex+1;
++    snprintf(s_tokenbuf, sizeof(s_tokenbuf), "QCOMRule_%d", index);
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule, index, s_tokenbuf);
++    UTOPIA_SETINDEXEDINT(ctx, UtopiaValue_Firewall_X_QCOMRule_InsNum , index, x_qcomrule_t->ins_num);
++    unsigned long val_di = (unsigned long)x_qcomrule_t->destination_ipaddress.Value;
++    struct in_addr d_addr = {(val_di)};
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationIPAddr ,index,(char*) inet_ntoa( d_addr ));
++    unsigned long val_si = (unsigned long)x_qcomrule_t->source_ipaddress.Value;
++    struct in_addr s_addr = {(val_si)};
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_SourceIPAddr , index, (char*)inet_ntoa( s_addr ));
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_Alias , index,(char*)x_qcomrule_t->alias);
++    UTOPIA_SETINDEXEDBOOL(ctx, UtopiaValue_Firewall_X_QCOMRule_Enable , index, x_qcomrule_t->enable);
++    UTOPIA_SETINDEXEDINT(ctx, UtopiaValue_Firewall_X_QCOMRule_SourcePort , index, x_qcomrule_t->source_port);
++    UTOPIA_SETINDEXEDINT(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationPort ,index, x_qcomrule_t->destination_port);
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_Protocol , index,(char*)x_qcomrule_t->protocol);
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_Direction , index,(char*)x_qcomrule_t->direction);
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationIPv6Addr , index,(char*)x_qcomrule_t->destination_ipv6address);
++    UTOPIA_SETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_SourceIPv6Addr , index,(char*)x_qcomrule_t->source_ipv6address);
++    return 0;
++}
++
++int Utopia_AddFirewall_XQCOMRule(UtopiaContext *ctx, const firewall_x_qcomrule_t *x_qcomrule_t)
++{
++    int index=0;
++    Utopia_GetNumberOfFirewall_XQCOMRule(ctx, &index);
++    g_Firewall_X_QCOMRule_Count++;
++    Utopia_SetInt(ctx, UtopiaValue_Firewall_X_QCOMRule_Count , g_Firewall_X_QCOMRule_Count);
++    Utopia_SetFirewall_XQCOMRuleByIndex(ctx, index, x_qcomrule_t);
++    return 0;
++}
++
++int Utopia_DelFirewall_XQCOMRule(UtopiaContext *ctx, unsigned long ins)
++{
++    int count=0, index=0;
++
++    Utopia_GetNumberOfFirewall_XQCOMRule(ctx, &count);
++    for (index = 0; index < count; index++)
++    {
++        int ins_num;
++        Utopia_GetFirewall_XQCOMRuleInsNumByIndex(ctx, index, &ins_num);
++        if (ins_num == (int)ins)
++        {
++            break;
++        }
++    }
++
++    if (index >= count)
++    {
++        return -1;
++    }
++
++    if (index < count-1)
++    {
++        for (;index < count-1; index++)
++        {
++            firewall_x_qcomrule_t x_qcomrule_t;
++            Utopia_GetFirewall_XQCOMRuleByIndex(ctx, index+1, &x_qcomrule_t);
++            Utopia_SetFirewall_XQCOMRuleByIndex(ctx, index, &x_qcomrule_t);
++        }
++    }
++
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_InsNum , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationIPAddr , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_SourceIPAddr , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_Enable , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_Alias , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_SourcePort , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationPort , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_Protocol , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_Direction , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_DestinationIPv6Addr , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule_SourceIPv6Addr , count);
++    UTOPIA_UNSETINDEXED(ctx, UtopiaValue_Firewall_X_QCOMRule , count);
++
++
++    g_Firewall_X_QCOMRule_Count--;
++    Utopia_SetInt(ctx, UtopiaValue_Firewall_X_QCOMRule_Count , g_Firewall_X_QCOMRule_Count);
++
++    return 0;
++}
+ 
+ #endif
+Index: git/source/utapi/lib/utapi.h
+===================================================================
+--- git.orig/source/utapi/lib/utapi.h
++++ git/source/utapi/lib/utapi.h
+@@ -3569,5 +3569,34 @@ int Utopia_AddDynamicDnsClient(UtopiaCon
+ */
+ int Utopia_DelDynamicDnsClient(UtopiaContext *ctx, unsigned long ins);
+ #endif
++#define  IPV4_ADDRESS1                                                        \
++         union                                                               \
++         {                                                                   \
++            unsigned char           Dot[4];                                  \
++            unsigned long           Value;                                   \
++         }
++
++typedef struct firewall_x_qcomrule
++{
++    unsigned long ins_num;
++    boolean_t enable;
++    unsigned long destination_port;
++    unsigned long source_port;
++    IPV4_ADDRESS1 destination_ipaddress;
++    IPV4_ADDRESS1 source_ipaddress;
++    char alias[256];
++    char protocol[12];
++    char direction[12];
++    char destination_ipv6address[64];
++    char source_ipv6address[64];
++}firewall_x_qcomrule_t;
++
++int Utopia_GetFirewall_XQCOMRuleInsNumByIndex(UtopiaContext *ctx, unsigned long uIndex, int *ins);
++int Utopia_GetNumberOfFirewall_XQCOMRule(UtopiaContext *ctx, int *num);
++int Utopia_GetFirewall_XQCOMRuleByIndex(UtopiaContext *ctx, unsigned long ulIndex, firewall_x_qcomrule_t *x_qcomrule_t);
++int Utopia_SetFirewall_XQCOMRuleByIndex(UtopiaContext *ctx, unsigned long ulIndex, const firewall_x_qcomrule_t *x_qcomrule_t);
++int Utopia_SetFirewall_XQCOMRuleInsAndAliasByIndex(UtopiaContext *ctx, unsigned long ulIndex, unsigned long ins, const char *alias);
++int Utopia_AddFirewall_XQCOMRule(UtopiaContext *ctx, const firewall_x_qcomrule_t *x_qcomrule_t);
++int Utopia_DelFirewall_XQCOMRule(UtopiaContext *ctx, unsigned long ins);
+ 
+ #endif // _UTAPI_H_
+Index: git/source/utctx/lib/utctx.c
+===================================================================
+--- git.orig/source/utctx/lib/utctx.c
++++ git/source/utctx/lib/utctx.c
+@@ -769,6 +769,7 @@ static struct
+     { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS,  1, "prev_rule_enabled_state",          UtopiaValue_PortRangeForward },     /* UtopiaValue_PFR_PrevRuleEnabledState */        
+     { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS,  1, "prev_rule_enabled_state",          UtopiaValue_PortRangeTrigger },     /* UtopiaValue_PRT_PrevRuleEnabledState */
+     	{ Utopia_Type_IndexedConfig, Utopia_Event__NONE__, Utopia_Static__NONE__, Utopia_Index_For_Key, 1, "hash_password_%d", UtopiaValue__UNKNOWN__ },  /* UtopiaValue_HashPassword */
++    { Utopia_Type_Config, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_For__NONE__, 1, "firewall_rule_type",                             UtopiaValue__UNKNOWN__ }, /* UtopiaValue_Firewall_RuleType */
+ #if defined(_WAN_MANAGER_ENABLED_)
+       { Utopia_Type_Config, Utopia_Event__NONE__, Utopia_Static__NONE__, Utopia_For__NONE__, 1, "wan_mode",  UtopiaValue__UNKNOWN__ }, /* UtopiaValue_WanMode */
+       { Utopia_Type_Config, Utopia_Event__NONE__, Utopia_Static__NONE__, Utopia_For__NONE__, 1, "wan_conn_enabled",  UtopiaValue__UNKNOWN__ }, /* UtopiaValue_WanConnEnabled */
+@@ -793,6 +794,19 @@ static struct
+     { Utopia_Type_IndexedConfig, Utopia_Event_DSLite_Restart,       Utopia_Static__NONE__, Utopia_Index_For_Key, 1, "dslite_ipv6_frag_enable_%d", UtopiaValue__UNKNOWN__ },         /* UtopiaValue_Dslite_IPv6_Frag_Enable */
+     { Utopia_Type_IndexedConfig, Utopia_Event__NONE__,              Utopia_Static__NONE__, Utopia_Index_For_Key, 1, "dslite_tunnel_v4addr_%d",   UtopiaValue__UNKNOWN__ },          /* UtopiaValue_Dslite_Tunneled_Interface */
+ #endif
++    { Utopia_Type_Config, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_For__NONE__, 1, "X_QCOMRule_Count",                             UtopiaValue__UNKNOWN__ }, /* UtopiaValue_Firewall_X_QCOMRule_Count */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__,Utopia_Index_For_Key, 1, "X_QCOMRule_%d",                        UtopiaValue__UNKNOWN__ }, /* UtopiaValue_Firewall_X_QCOMRule */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "InsNum",                            UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_InsNum */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "DestinationIPAddr",                 UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_DestinationIPAddr */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "SourceIPAddr",                      UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_SourceIPAddr */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "Enable",                            UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_Enable */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__,Utopia_Index_For_NS, 1, "Alias",                              UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_Alias */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__,Utopia_Index_For_NS, 1, "SourcePort",                         UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_SourcePort */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "DestinationPort",                  UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_DestinationPort */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "Protocol",                         UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_Protocol */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "Direction",                         UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_Direction */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "DestinationIPv6Addr",                 UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_DestinationIPv6Addr */
++    { Utopia_Type_IndexedConfig, Utopia_Event_Firewall_Restart,   Utopia_Static__NONE__, Utopia_Index_For_NS, 1, "SourceIPv6Addr",                      UtopiaValue_Firewall_X_QCOMRule }, /* UtopiaValue_Firewall_X_QCOMRule_SourceIPv6Addr */
+     { Utopia_Type__UNKNOWN__, Utopia_Event__NONE__, Utopia_Static__NONE__, Utopia_For__NONE__, 0, 0, UtopiaValue__UNKNOWN__ }, /* UtopiaValue__LAST__ */
+ };
+ 
+Index: git/source/firewall/firewall.h
+===================================================================
+--- git.orig/source/firewall/firewall.h
++++ git/source/firewall/firewall.h
+@@ -125,6 +125,18 @@ int prepare_ipv4_firewall(const char *fw
+ *
+ */
+ int prepare_ipv6_firewall(const char *fw_file);
++bool DeleteConntrackEntryForDropIPv4FirewallEntries(int protocol_num, int idx);
++bool DeleteConntrackEntryForAcceptIPv4FirewallEntries(int protocol_num, int idx);
++bool DeleteConntrackEntryForDropIPv6FirewallEntries(int protocol_num, int idx);
++bool DeleteConntrackEntryForAcceptIPv6FirewallEntries(int protocol_num, int idx);
++#define CONNTRACK_ENTRIES "/tmp/conntrack_entries.txt"
++#define CONNTRACK_ENTRIES_V6 "/tmp/conntrack_entries_v6.txt"
++#define UTOPIA_FW_LOG "/tmp/utopia_firewall.txt"
++enum protocol_type {
++    PROTOCOL_TCP,
++    PROTOCOL_UDP
++};
++
+ #define CCSP_SUBSYS "eRT."
+ 
+ #define IF_IPV6ADDR_MAX 16
+@@ -202,6 +214,7 @@ int get_ip6address (char * ifname, char
+ #define MAX_NO_IPV6_INF 10
+ #define MAX_LEN_IPV6_INF 32
+ #endif
++#define MAX_NAMESPACE 64
+ 
+ 
+ // Raw table functions
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -376,6 +376,7 @@ NOT_DEF:
+ #define AUTO_IP_FOR_IPPT    "169.254.1.50"
+ #define IPPT_MODE_WITH_NAT         1
+ #define IPPT_MODE_WITHOUT_NAT      2
++#define MAX_COMMAND_STR_LEN        1024
+ 
+ #if defined(RDKB_EXTENDER_ENABLED)
+ char cellular_ifname[32];
+@@ -741,7 +742,6 @@ int rfstatus;
+  */
+ #define MAX_PORT 65535
+ 
+-#define MAX_NAMESPACE 64
+ 
+ #define MAX_SRC_IP_TABLE_ROW    10   /*RDKB-7145, CID-33123, defining max size for src_ip[MAX_SRC_IP_TABLE_ENTRY][]*/
+ #define MAX_SRC_IP_ENTRY_LEN    25   /*RDKB-7145, CID-33123, defining max size for src_ip[][MAX_SRC_IP_ENTRY_LEN]*/
+@@ -3037,6 +3037,255 @@ static int prepare_globals_from_configur
+    return(0);
+ }
+ 
++/*********************************************************
++ *  Procedure     : do_x_qcomrule_firewall
++ *  Purpose       : prepare the iptables-restore statements for
++                    whitelist & blacklist
++ *  Parameters    :
++ *     fp         : An open file that will be used for iptables-restore
++ *  Return Values :
++ *     0          : done
++ *********************************************************/
++
++static int do_x_qcomrule_firewall(FILE* mangle_fp)
++{
++    /*
++     * syscfg tuple X_QCOMRule_x, where x is a digit
++     * keeps track of the syscfg namespace of a defined firewall X_QCOMRule.
++     * We iterate through these tuples until we dont find another instance in syscfg.
++     */
++
++    int idx=0;
++    char namespace[MAX_NAMESPACE]={0}; //Acts as a container prefix to group related rule settings like X_QCOMRule_1.Enable and  parameter being queried within that namespace
++    char query[MAX_QUERY]={0};  //Builds rule identifiers & Stores the Enable status ("0" or "1") for each rule to determine whether to add or delete the iptable rule
++    int  rc=0;
++    int  count=0;
++    FIREWALL_DEBUG("Entering do_x_qcomrule_firewall\n");
++
++    /**Rule_Enable**/
++    rc = syscfg_get(NULL, "firewall_rule_type", query, sizeof(query));
++    // Adding the DROP rule for marked packet in case of Blacklist in PREROUTING to handle DL and POSTROUTING to handle UL
++    if  (strncasecmp(query, "Blacklist", strlen("Blacklist")) == 0)
++    {
++        fprintf(mangle_fp,"-I PREROUTING -m connmark --mark 53 -j DROP\n");
++        fprintf(mangle_fp,"-I POSTROUTING -m connmark --mark 53 -j DROP\n");
++    }
++    // Adding the ACCEPT rule for marked packet and default DROP rule for rest in case of Whitelist in PREROUTING to handle DL and POSTROUTING to handle UL
++    else if(strncasecmp(query, "Whitelist", strlen("Whitelist")) == 0)
++    {
++        fprintf(mangle_fp,"-A PREROUTING -i %s -j DROP\n",current_wan_ifname);
++        fprintf(mangle_fp,"-I POSTROUTING -o %s -j DROP\n",current_wan_ifname);
++        fprintf(mangle_fp,"-I POSTROUTING -m connmark --mark 53 -j ACCEPT\n");
++        fprintf(mangle_fp,"-I PREROUTING -m connmark --mark 53 -j ACCEPT\n");
++    }
++    else
++    {
++        FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall as firewall type not blacklist or whitelist\n");
++        return -1;
++    }
++    // Finding X_QCOMRule_Count
++    query[0] = '\0';
++    rc = syscfg_get(NULL, "X_QCOMRule_Count", query, sizeof(query));
++    if (0 != rc || '\0' == query[0]) {
++        FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall as syscfg X_QCOMRule_Count not available\n");
++        return -1;
++    }
++    else {
++        count = atoi(query);
++        if (0 == count) {
++            FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall as X_QCOMRule_Count 0\n");
++            return -1;
++        }
++        if (MAX_SYSCFG_ENTRIES < count) {
++            count = MAX_SYSCFG_ENTRIES;
++        }
++    }
++    for (idx=1 ; idx<=count ; idx++)
++    {
++        char rule_udp[256]={0}; // For storing rule for udp if both tcp and udp.
++        int rule_form = 0;
++        char rule[256]={0};
++        char iptables_cmd[512]={0};  // For storing complete iptables command
++        namespace[0] = '\0';
++        snprintf(query, sizeof(query), "X_QCOMRule_%d", idx);
++        rc = syscfg_get(NULL, query, namespace, sizeof(namespace));
++        if (0 != rc || '\0' == namespace[0]) {
++            continue;
++        }
++
++        // Check Enable status
++        query[0] = '\0';
++        rc = syscfg_get(namespace, "Enable", query, sizeof(query));
++        if (0 != rc || '\0' == query[0]) {
++            continue;
++        }
++
++        // Forming rule based on current firewall entry
++        char source_ip[20]={0};
++        rc = syscfg_get(namespace, "SourceIPAddr", source_ip, sizeof(source_ip));
++        if (0 == rc && '\0' != source_ip[0] && strcmp("0.0.0.0",source_ip)) {
++            // Adding source IPv4 to rule
++            strlcat(rule, " -s ", sizeof(rule));
++            strlcat(rule, source_ip, sizeof(rule));
++            rule_form = 1;
++        }
++        char destination_ip[20]={0};
++        rc = syscfg_get(namespace, "DestinationIPAddr", destination_ip, sizeof(destination_ip));
++
++        if (0 == rc && '\0' != destination_ip[0] && strcmp("0.0.0.0",destination_ip)) { // Checking destination IPv4
++            rule_form = 1;
++        }
++        char protocol[10]={0};
++        rc = syscfg_get(namespace, "Protocol", protocol, sizeof(protocol));
++        if (0 == rc && '\0' != protocol[0] ) {
++            // Adding protocol to rule
++            if (strcmp(protocol, "tcp") == 0 || strcmp(protocol, "udp") == 0){ //for tcp or udp only
++                strlcat(rule, " -p ",sizeof(rule));
++                strlcat(rule, protocol, sizeof(rule));
++                rule_form = 1;
++            }
++            else if(strcmp(protocol, "tcp_udp") == 0){ // for both tcp and udp
++                strlcpy(rule_udp, rule, sizeof(rule_udp));
++                strlcat(rule, " -p tcp",sizeof(rule));
++                strlcat(rule_udp, " -p udp",sizeof(rule_udp));
++            }
++            char source_port[15]={0};
++            rc = syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
++            if (0 == rc && '\0' != source_port[0] && '0'!=source_port[0]) {
++                // Adding source port to rule
++                strlcat(rule, " --sport ", sizeof(rule));
++                strlcat(rule, source_port, sizeof(rule));
++                rule_form = 1;
++                if(strcmp(protocol, "tcp_udp") == 0){
++                    strlcat(rule_udp, " --sport ", sizeof(rule_udp));
++                    strlcat(rule_udp, source_port, sizeof(rule_udp));
++                }
++            }
++            char destination_port[15]={0};
++            rc = syscfg_get(namespace, "DestinationPort", destination_port, sizeof(destination_port));
++            if (0 == rc && '\0' != destination_port[0] && '0'!=destination_port[0]) {
++                // Adding destination port to rule
++                strlcat(rule, " --dport ", sizeof(rule));
++                strlcat(rule, destination_port, sizeof(rule));
++                rule_form = 1;
++                if(strcmp(protocol, "tcp_udp") == 0){
++                    strlcat(rule_udp, " --dport ", sizeof(rule_udp));
++                    strlcat(rule_udp, destination_port, sizeof(rule_udp));
++                }
++            }
++        }
++        char direction[15]={0};
++        rc = syscfg_get(namespace, "Direction", direction, sizeof(direction));
++        if (rule_form == 1) {
++            char firewall_rule_type[MAX_QUERY]={0};
++            rc = syscfg_get(NULL, "firewall_rule_type", firewall_rule_type, sizeof(firewall_rule_type));
++            v_secure_system("echo 0 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
++            strlcat(rule, " -j CONNMARK --set-mark 53", sizeof(rule));  // Adding connmark 53 to rule
++            if(strcmp(protocol, "tcp_udp") == 0)
++                strlcat(rule_udp, " -j CONNMARK --set-mark 53", sizeof(rule_udp));
++            if (0 == strcmp("0", query)) {
++            // Delete rule using iptables command
++            if (direction[0] != '\0'&& strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
++            {
++                snprintf(iptables_cmd, sizeof(iptables_cmd),"iptables -t mangle -D PREROUTING -i %s %s -d %s",current_wan_ifname, rule,current_wan_ipaddr);
++            }
++
++            if (('\0' != destination_ip[0]) && strcmp("0.0.0.0",destination_ip)) {
++                //Adding destination IPv4 to rule
++                strlcat(rule, " -d ", sizeof(rule));
++                strlcat(rule, destination_ip, sizeof(rule));
++            }
++            if (direction[0] != '\0'&& strncasecmp(direction, "Uplink", strlen("Uplink")) == 0)
++            {
++                snprintf(iptables_cmd, sizeof(iptables_cmd),"iptables -t mangle -D FORWARD -o %s %s",current_wan_ifname, rule);
++            }
++            system(iptables_cmd);  // Execute the delete command
++
++            //checking for protocol is tcp_udp
++            if(strcmp(protocol, "tcp_udp") == 0){
++                strlcpy(iptables_cmd, "", sizeof(iptables_cmd));  // deleting the contents of iptables_cmd array for executing it for udp rule.
++                if (direction[0] != '\0'&& strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
++                {
++                    snprintf(iptables_cmd, sizeof(iptables_cmd),"iptables -t mangle -D PREROUTING -i %s %s -d %s",current_wan_ifname, rule_udp,current_wan_ipaddr);
++                }
++                if (('\0' != destination_ip[0]) && strcmp("0.0.0.0",destination_ip)) {
++                    //Adding destination IPv4 to rule_udp
++                    strlcat(rule_udp, " -d ", sizeof(rule_udp));
++                    strlcat(rule_udp, destination_ip, sizeof(rule_udp));
++                }
++
++                if (direction[0] != '\0'&& strncasecmp(direction, "Uplink", strlen("Uplink")) == 0)
++                {
++                    snprintf(iptables_cmd, sizeof(iptables_cmd),"iptables -t mangle -D FORWARD -o %s %s",current_wan_ifname, rule_udp);
++                }
++                system(iptables_cmd);
++            }
++            //To remove the existing conntrack entry rule if its whitelist
++            //as enable for the current rule is false
++            if (0 == rc && strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++            {
++                if (strcmp(protocol, "tcp") == 0)
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                else if (strcmp(protocol, "udp") == 0)
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
++                else
++                {
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
++                }
++            }
++        }
++        else {
++               // Add PREROUTING marking rule to handle DL
++               if (direction[0] != '\0'&& strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
++               {
++                   fprintf(mangle_fp, "-I PREROUTING -i %s %s -d %s \n", current_wan_ifname, rule,current_wan_ipaddr);
++                   if(strcmp(protocol, "tcp_udp") == 0)
++                       fprintf(mangle_fp, "-I PREROUTING -i %s %s -d %s \n", current_wan_ifname, rule_udp,current_wan_ipaddr);
++               }
++                //Conntrack deletion Blacklist
++                if (0 == rc && strncasecmp(firewall_rule_type, "Blacklist", strlen("Blacklist")) == 0)
++                {
++                    if (strcmp(protocol, "tcp") == 0)
++                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                    else if (strcmp(protocol, "udp") == 0)
++                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
++                    else
++                    {
++                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
++                    }
++                }
++                //Conntrack deletion Whitelist
++                else if (0 == rc && strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++                {
++                    DeleteConntrackEntryForAcceptIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                    DeleteConntrackEntryForAcceptIPv4FirewallEntries(PROTOCOL_UDP, idx);
++                }
++                if (('\0' != destination_ip[0]) && strcmp("0.0.0.0",destination_ip)) {
++                    //Adding destination IPv4 to rule
++                    strlcat(rule, " -d ", sizeof(rule));
++                    strlcat(rule, destination_ip, sizeof(rule));
++                    if(strcmp(protocol, "tcp_udp") == 0){
++                        strlcat(rule_udp, " -d ", sizeof(rule_udp));
++                        strlcat(rule_udp, destination_ip, sizeof(rule_udp));
++                    }
++		}
++                // Add FORWARD marking rule to handle UL
++                if (direction[0] != '\0' && strncasecmp(direction, "Uplink", strlen("Uplink")) == 0)
++                {
++                    fprintf(mangle_fp, "-I FORWARD -o %s %s\n", current_wan_ifname, rule);
++                    if(strcmp(protocol, "tcp_udp") == 0)
++                        fprintf(mangle_fp, "-I FORWARD -o %s %s\n", current_wan_ifname, rule_udp);
++                }
++            }
++            v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
++        }
++    }
++    FIREWALL_DEBUG("Exiting do_x_qcomrule_firewall\n");
++    return 0;
++}
++
+ /*
+  ****************************************************************
+  *               IPv4 Firewall                                  *
+@@ -10282,7 +10531,7 @@ static int do_lan2wan(FILE *mangle_fp, F
+    //do_lan_access_restrictions(filter_fp, nat_fp);
+    do_lan2wan_disable(filter_fp);
+    do_parental_control(filter_fp, nat_fp, mangle_fp, raw_fp, 4);
+-
++   do_x_qcomrule_firewall(mangle_fp);
+    do_add_TCP_MSS_rules(mangle_fp);
+    /* XDNS - route dns req though dnsmasq */
+ #ifdef XDNS_ENABLE
+@@ -15813,6 +16062,647 @@ int do_wpad_isatap_blockv6 (FILE *filter
+     return 0;
+ }
+ 
++
++/*********************************************************
++ *  Procedure     : DeleteConntrackEntryForDropIPv4FirewallEntries
++ *  Purpose       : Delete the IPV4 conntrack entry which is part
++                    of the rule
++ *  Parameters    :
++ *   protocol_num : protocol
++ *   idx          : rule index
++ *  Return Values :
++ *     TRUE       : SUCCESS
++ *     FALSE      : FAILURE
++ *********************************************************/
++bool DeleteConntrackEntryForDropIPv4FirewallEntries(int protocol_num, int idx)
++{
++    char command[MAX_COMMAND_STR_LEN]={0};
++    char source_port[16]={0};
++    char destination_port[16]={0};
++    char source_ip[16]={0};
++    char dest_ip[16]={0};
++    char tmp[MAX_COMMAND_STR_LEN]={0};
++    char namespace[MAX_NAMESPACE]={0};
++    char *ptr;
++    char query[MAX_QUERY]={0};
++    char *line = NULL;
++    size_t len = 0;
++    ssize_t read;
++
++    snprintf(query, sizeof(query), "X_QCOMRule_%d", idx);
++    syscfg_get(NULL, query, namespace, sizeof(namespace));
++    syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
++    syscfg_get(namespace, "DestinationPort", destination_port, sizeof(destination_port));
++    syscfg_get(namespace, "SourceIPAddr", source_ip, sizeof(source_ip));
++    syscfg_get(namespace, "DestinationIPAddr",dest_ip,sizeof(dest_ip));
++    //Adding source IP to the conntrack searching rule
++    if('\0' != source_ip[0] && strcmp("0.0.0.0",source_ip))
++        snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -L | grep src=%s ",source_ip);
++    else
++        snprintf(command, MAX_COMMAND_STR_LEN , "conntrack -L ");
++
++    switch (protocol_num) {
++        case PROTOCOL_TCP:
++            //Adding tcp to the conntrack searching rule
++            strlcat(command, " | cut -f1,10,11,12,13 -d ' ' | grep tcp ", MAX_COMMAND_STR_LEN);
++            break;
++
++        case PROTOCOL_UDP:
++            //Adding udp to the conntrack searching rule
++            strlcat(command, " | cut -f1,9,10,11,12 -d ' ' | grep udp ", MAX_COMMAND_STR_LEN);
++            break;
++
++        default:
++            return FALSE;
++    }
++    //Adding source port to the conntrack searching rule
++    if (source_port[0] != '\0' && '0'!=source_port[0] ) {
++        strlcat(command, "| grep sport=",MAX_COMMAND_STR_LEN);
++        strlcat(command, source_port,MAX_COMMAND_STR_LEN);
++    }
++    //Adding destination port to the conntrack searching rule
++    if (destination_port[0] != '\0' && '0'!=destination_port[0] ) {
++        strlcat(command, " | grep dport=",MAX_COMMAND_STR_LEN);
++        strlcat(command, destination_port,MAX_COMMAND_STR_LEN);
++    }
++    //Adding CONNTRACK_ENTRIES as destination to the conntrack searching rule
++    snprintf(tmp, MAX_COMMAND_STR_LEN, "> %s", CONNTRACK_ENTRIES);
++    strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++    system(command);
++
++    FILE *fp = fopen(CONNTRACK_ENTRIES, "r");
++    if (fp == NULL) {
++        return FALSE;
++    }
++    //Reading line by line from CONNTRACK_ENTRIES
++    while (((read = getline(&line, &len, fp)) != -1))
++    {
++        char *protocol=NULL, *saddr=NULL, *daddr=NULL, *sport=NULL, *dport=NULL;
++        protocol = strtok_r(line, " ", &ptr);
++        saddr = strtok_r(NULL, " ", &ptr);
++        if(saddr)
++            *(saddr + 3) = ' ';
++        daddr = strtok_r(NULL, " ", &ptr);
++        if(daddr)
++            *(daddr + 3) = ' ';
++        sport = strtok_r(NULL, " ", &ptr);
++        if(sport)
++            *(sport + 5) = ' ';
++        dport = strtok_r(NULL, "\n", &ptr);
++        if(dport)
++            *(dport + 5) = ' ';
++
++        //To get source address from current conntrack line
++        if (saddr)
++            saddr = saddr + 4;
++        //To get destination address from current conntrack line
++        if (daddr)
++            daddr = daddr + 4;
++        //To get source port from current conntrack line
++        if (sport)
++            sport = sport +6;
++        //To get destination port from current conntrack line
++        if (dport)
++            dport =dport+6;
++
++        if (!saddr || !daddr || !sport || !dport)
++            continue;   // skip malformed line
++
++        //continue if source IPv4 is not 0.0.0.0 and doesnot match with current conntrack line saddr
++        if (strcmp(saddr, source_ip) != 0 && strcmp("0.0.0.0",source_ip) != 0)
++            continue;
++        //continue if destination IPv4 is not 0.0.0.0 and doesnot match with current conntrack line daddr and doesnot match with WAN IP
++        if (strcmp(daddr,dest_ip) != 0 && strcmp(daddr,current_wan_ipaddr) != 0  && strcmp("0.0.0.0",dest_ip) != 0 )
++            continue;
++        //continue if source port is valid and doesnot match with current conntrack line sport
++        if (strcmp(sport,source_port)!=0 && '\0' != source_port[0] && '0'!=source_port[0] )
++            continue;
++        //continue if destination port is valid and doesnot match with current conntrack line dport
++        if (strcmp(dport,destination_port)!=0 && '\0' != destination_port[0] && '0'!=destination_port[0])
++            continue;
++
++        //Delete conntrack entry
++        memset(tmp,0,MAX_COMMAND_STR_LEN);
++        //Creating conntrack deletion command based on protocol saddr sport and dport
++        snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -D");
++        if (protocol) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " -p %s", protocol);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (saddr) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, "  --orig-src %s", saddr);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (sport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --sport %s", sport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (dport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --dport %s", dport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        //To delete conntrack entry
++        system(command);
++        memset(command, 0, MAX_COMMAND_STR_LEN);
++    }
++
++    if(fp)
++    {
++        fclose(fp);
++        fp=NULL;
++    }
++    if(line)
++    {
++        free(line);
++        line=NULL;
++    }
++    //To remove the CONNTRACK_ENTRIES file
++    snprintf(command, MAX_COMMAND_STR_LEN, "rm -rf %s", CONNTRACK_ENTRIES);
++    system(command);
++    return TRUE;
++}
++
++/*********************************************************
++ *  Procedure     : DeleteConntrackEntryForAcceptIPv4FirewallEntries
++ *  Purpose       : Delete the IPv4 conntrack entry which is not part
++                    of the rule
++ *  Parameters    :
++ *   protocol_num : protocol
++ *   idx          : rule index
++ *  Return Values :
++ *     TRUE       : SUCCESS
++ *     FALSE      : FAILURE
++ *********************************************************/
++bool DeleteConntrackEntryForAcceptIPv4FirewallEntries(int protocol_num, int idx)
++{
++    char command[MAX_COMMAND_STR_LEN]={0};
++    char source_port[16]={0};
++    char destination_port[16]={0};
++    char source_ip[16]={0};
++    char dest_ip[16]={0};
++    char prot[12]={0};
++    char tmp[MAX_COMMAND_STR_LEN]={0};
++    char namespace[MAX_NAMESPACE]={0};
++    char *ptr;
++    char query[MAX_QUERY]={0};
++    char lan_ip[64]={0};
++    char *line = NULL;
++    size_t len = 0;
++    ssize_t read;
++    snprintf(query, sizeof(query), "X_QCOMRule_%d", idx);
++    syscfg_get(NULL, query, namespace, sizeof(namespace));
++    syscfg_get(namespace, "Protocol", prot, sizeof(prot));
++    syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
++    syscfg_get(namespace, "DestinationPort", destination_port, sizeof(destination_port));
++    syscfg_get(namespace, "SourceIPAddr", source_ip, sizeof(source_ip));
++    syscfg_get(namespace, "DestinationIPAddr", dest_ip,sizeof(dest_ip));
++    syscfg_get(NULL, "lan_ipaddr", lan_ip, sizeof(lan_ip));
++
++    switch (protocol_num) {
++        case PROTOCOL_TCP:
++            //Adding grep -v gateway IPv4 as  source IPv4 and tcp to the conntrack searching rule and saving to CONNTRACK_ENTRIES
++            snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -L | cut -f1,10,11,12,13 -d ' ' | grep -v -w src=%s | grep tcp > %s", lan_ip, CONNTRACK_ENTRIES);
++            break;
++
++        case PROTOCOL_UDP:
++            //Adding grep -v gateway IPv4 as source IPv4 and udp to the conntrack searching rule and saving to CONNTRACK_ENTRIES
++            snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -L | cut -f1,9,10,11,12 -d ' ' | grep -v -w src=%s | grep udp > %s", lan_ip, CONNTRACK_ENTRIES);
++            break;
++
++        default:
++            return FALSE;
++    }
++
++    system(command);
++    FILE *fp = fopen(CONNTRACK_ENTRIES, "r");
++    if (fp == NULL) {
++        return FALSE;
++    }
++    //Reading line by line from CONNTRACK_ENTRIES
++    while (((read = getline(&line, &len, fp)) != -1)) {
++        char *protocol=NULL, *saddr=NULL, *daddr=NULL, *sport=NULL, *dport=NULL;
++
++        protocol = strtok_r(line, " ", &ptr);
++        saddr = strtok_r(NULL, " ", &ptr);
++        if(saddr)
++            *(saddr + 3) = ' ';
++        daddr = strtok_r(NULL, " ", &ptr);
++        if(daddr)
++            *(daddr + 3) = ' ';
++        sport = strtok_r(NULL, " ", &ptr);
++        if(sport)
++            *(sport + 5) = ' ';
++        dport = strtok_r(NULL, "\n", &ptr);
++        if(dport)
++            *(dport + 5) = ' ';
++        //To get source address from current conntrack line
++        if (saddr)
++            saddr = saddr+4;
++        //To get destination address from current conntrack line
++        if (daddr)
++            daddr = daddr+4;
++        //To get source port from current conntrack line
++        if (sport)
++            sport = sport+6;
++        //To get destination port from current conntrack line
++        if(dport)
++            dport =dport+6;
++
++      	if (!saddr || !daddr || !sport || !dport)
++            continue;   // skip malformed line
++
++	//goto delete entry if prot doesnot match with current conntrack line protocol
++        if (strcmp("tcp", prot) == 0 || strcmp("udp", prot) == 0){
++            if (strcmp(protocol,prot)!=0 && '\0' != prot[0])
++                goto delete_entry;
++        }
++        if (strcmp("tcp_udp", prot) == 0){ // for tcp and udp
++            if (strcmp(protocol, "tcp")!=0 && '\0' != prot[0])
++                goto delete_entry;
++            else if (strcmp(protocol, "udp")!=0 && '\0' != prot[0])
++                goto delete_entry;
++        }
++        //goto delete entry if source_port doesnot match with current conntrack line sport
++        if (strcmp(sport,source_port)!=0 && '\0' != source_port[0] && '0'!=source_port[0] )
++            goto delete_entry;
++        //goto delete entry if destination_port doesnot match with current conntrack line dport
++        if (strcmp(dport,destination_port)!=0 && '\0' != destination_port[0] && '0'!=destination_port[0])
++            goto delete_entry;
++        //continue if source ip and destination ip or WAN IPv4 matches with current conntrack line
++        //or if source IP and destination IP both 0.0.0.0
++        //or if source IP matches and destination IP 0.0.0.0
++        //or if source Ip 0.0.0.0 and destination IP matches
++        if (strcmp(saddr, source_ip) == 0 || strcmp("0.0.0.0",source_ip) == 0) {
++            if (strcmp(daddr,dest_ip) == 0 || strcmp("0.0.0.0",dest_ip) == 0 || (strcmp(daddr,current_wan_ipaddr) == 0 ))
++                continue;
++        }
++
++        delete_entry:
++        memset(tmp,0,MAX_COMMAND_STR_LEN);
++        //Creating conntrack deletion command based on protocol saddr sport and dport
++        snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -D");
++        if (protocol) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " -p %s", protocol);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (saddr) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, "  --orig-src %s", saddr);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (sport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --sport %s", sport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (dport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --dport %s", dport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        //To delete conntrack entry
++        system(command);
++    }
++
++    if(fp)
++    {
++        fclose(fp);
++        fp=NULL;
++    }
++    if(line)
++    {
++        free(line);
++        line=NULL;
++    }
++    //To remove CONNTRACK_ENTRIES
++    snprintf(command, MAX_COMMAND_STR_LEN, "rm -rf %s", CONNTRACK_ENTRIES);
++    system(command);
++    return TRUE;
++}
++
++/*********************************************************
++ *  Procedure     : DeleteConntrackEntryForDropIPv6FirewallEntries
++ *  Purpose       : Delete the IPv6 conntrack entry which is part
++                    of the rule
++ *  Parameters    :
++ *   protocol_num : protocol
++ *   idx          : rule index
++ *  Return Values :
++ *     TRUE       : SUCCESS
++ *     FALSE      : FAILURE
++ *********************************************************/
++bool DeleteConntrackEntryForDropIPv6FirewallEntries(int protocol_num, int idx)
++{
++    char command[MAX_COMMAND_STR_LEN]={0};
++    char source_port[16]={0};
++    char destination_port[16]={0};
++    char source_ipv6[64]={0};
++    char destination_ipv6[64]={0};
++    char tmp[MAX_COMMAND_STR_LEN]={0};
++    char namespace[MAX_NAMESPACE]={0};
++    char *ptr;
++    char query[MAX_QUERY]={0};
++    char *line = NULL;
++    size_t len = 0;
++    ssize_t read;
++
++    snprintf(query, sizeof(query), "X_QCOMRule_%d", idx);
++    syscfg_get(NULL, query, namespace, sizeof(namespace));
++    syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
++    syscfg_get(namespace, "DestinationPort", destination_port, sizeof(destination_port));
++    syscfg_get(namespace, "SourceIPv6Addr", source_ipv6, sizeof(source_ipv6));
++    syscfg_get(namespace, "DestinationIPv6Addr", destination_ipv6, sizeof(destination_ipv6));
++    //Adding source IPv6 to the conntrack searching rule
++    if('\0' != source_ipv6[0])
++        snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -L -f ipv6 | grep src=%s ",source_ipv6);
++    else
++        snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -L -f ipv6 ");
++
++    switch (protocol_num) {
++        case PROTOCOL_TCP:
++            //Adding tcp and grep -v dport 53 to the conntrack searching rule
++            strlcat(command, "| cut -f1,10,11,12,13 -d ' ' | grep -v dport=53 | grep tcp ",MAX_COMMAND_STR_LEN);
++            break;
++
++        case PROTOCOL_UDP:
++            //Adding udp and grep -v dport 53 to the conntrack searching rule
++            strlcat(command, "| cut -f1,9,10,11,12 -d ' ' | grep -v dport=53 | grep udp ",MAX_COMMAND_STR_LEN);
++            break;
++
++        default:
++            return FALSE;
++    }
++    //Adding source port to the conntrack searching rule
++    if (source_port[0] != '\0' && '0'!=source_port[0]) {
++        strlcat(command, "| grep sport=",MAX_COMMAND_STR_LEN);
++        strlcat(command, source_port,MAX_COMMAND_STR_LEN);
++    }
++    //Adding destination port to the conntrack searching rule
++    if (destination_port[0] != '\0' && '0'!=destination_port[0]) {
++        strlcat(command, "| grep dport=",MAX_COMMAND_STR_LEN);
++        strlcat(command, destination_port,MAX_COMMAND_STR_LEN);
++    }
++    //Adding CONNTRACK_ENTRIES as destination to the conntrack searching rule
++    snprintf(tmp, MAX_COMMAND_STR_LEN, "> %s", CONNTRACK_ENTRIES_V6);
++    strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++    memset(tmp,0,MAX_COMMAND_STR_LEN);
++    system(command);
++
++    FILE *fp = fopen(CONNTRACK_ENTRIES_V6, "r");
++    if (fp == NULL) {
++        return FALSE;
++    }
++    //Reading line by line from CONNTRACK_ENTRIES
++    while (((read = getline(&line, &len, fp)) != -1))
++    {
++        char *protocol=NULL, *saddr=NULL, *daddr=NULL, *sport=NULL, *dport=NULL;
++        protocol = strtok_r(line, " ", &ptr);
++        saddr = strtok_r(NULL, " ", &ptr);
++        if(saddr)
++            *(saddr + 3) = ' ';
++        daddr = strtok_r(NULL, " ", &ptr);
++        if(daddr)
++            *(daddr + 3) = ' ';
++        sport = strtok_r(NULL, " ", &ptr);
++        if(sport)
++            *(sport + 5) = ' ';
++        dport = strtok_r(NULL, "\n", &ptr);
++        if(dport)
++            *(dport + 5) = ' ';
++        //To get source IPv6 address from current conntrack line
++        if (saddr)
++            saddr = saddr + 4;
++        //To get destination IPv6 address from current conntrack line
++        if (daddr)
++            daddr = daddr + 4;
++        //To get source port from current conntrack line
++        if (sport)
++            sport = sport +6;
++        //To get destination port from current conntrack line
++        if(dport)
++            dport =dport+6;
++
++        if (!saddr || !daddr || !sport || !dport)
++            continue;   // skip malformed line
++
++        //continue if source IPv6 doesnot match with current conntrack line saddr
++        if (strcmp(saddr, source_ipv6) != 0 && '\0' != source_ipv6[0])
++            continue;
++        //continue if destination IPv6 doesnot match with current conntrack line daddr
++        if (strcmp(daddr,destination_ipv6) != 0 && '\0' != destination_ipv6[0])
++            continue;
++        //continue if source port is valid and doesnot match with current conntrack line sport
++        if (strcmp(sport,source_port)!=0 && '\0' != source_port[0] && '0'!=source_port[0] )
++            continue;
++        //continue if destination port is valid and doesnot match with current conntrack line dport
++        if (strcmp(dport,destination_port)!=0 && '\0' != destination_port[0] && '0'!=destination_port[0])
++            continue;
++
++        //Creating conntrack deletion command based on protocol saddr sport and dport
++        memset(tmp,0,MAX_COMMAND_STR_LEN);
++        snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -D -f ipv6");
++        if (protocol) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " -p %s", protocol);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (saddr) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, "  --orig-src %s", saddr);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (sport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --sport %s", sport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (dport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --dport %s", dport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        //To delete conntrack entry
++        system(command);
++        memset(command, 0, MAX_COMMAND_STR_LEN);
++    }
++
++    if(fp)
++    {
++        fclose(fp);
++        fp=NULL;
++    }
++    if(line)
++    {
++        free(line);
++        line=NULL;
++    }
++    snprintf(command, MAX_COMMAND_STR_LEN, "rm -rf %s", CONNTRACK_ENTRIES_V6);
++    system(command);
++    return TRUE;
++}
++
++/*********************************************************
++ *  Procedure     : DeleteConntrackEntryForAcceptIPv6FirewallEntries
++ *  Purpose       : Delete the IPv6 conntrack entry which is not part
++                    of the rule
++ *  Parameters    :
++ *   protocol_num : protocol
++ *   idx          : rule index
++ *  Return Values :
++ *     TRUE       : SUCCESS
++ *     FALSE      : FAILURE
++ *********************************************************/
++bool DeleteConntrackEntryForAcceptIPv6FirewallEntries(int protocol_num, int idx)
++{
++    char command[MAX_COMMAND_STR_LEN]={0};
++    char source_port[16]={0};
++    char destination_port[16]={0};
++    char tmp[MAX_COMMAND_STR_LEN]={0};
++    char namespace[MAX_NAMESPACE]={0};
++    char *ptr;
++    char query[MAX_QUERY]={0};
++    char source_ipv6[64]={0};
++    char destination_ipv6[64]={0};
++    char *line = NULL;
++    size_t len = 0;
++    ssize_t read;
++    char prot[4]={0};
++
++    snprintf(query, sizeof(query), "X_QCOMRule_%d", idx);
++    syscfg_get(NULL, query, namespace, sizeof(namespace));
++    syscfg_get(namespace, "Protocol", prot, sizeof(prot));
++    syscfg_get(namespace, "SourcePort", source_port, sizeof(source_port));
++    syscfg_get(namespace, "DestinationPort", destination_port, sizeof(destination_port));
++    syscfg_get(namespace, "SourceIPv6Addr", source_ipv6, sizeof(source_ipv6));
++    syscfg_get(namespace, "DestinationIPv6Addr", destination_ipv6, sizeof(destination_ipv6));
++
++    switch (protocol_num) {
++        case PROTOCOL_TCP:
++            //Adding tcp and grep -v dport 53 to the conntrack searching rule and saving to CONNTRACK_ENTRIES
++            snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -L -f ipv6 | cut -f1,10,11,12,13 -d ' ' | grep -v dport=53 | grep tcp > %s", CONNTRACK_ENTRIES_V6);
++            break;
++
++        case PROTOCOL_UDP:
++            //Adding udp and grep -v dport 53 to the conntrack searching rule and saving to CONNTRACK_ENTRIES
++            snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -L -f ipv6 | cut -f1,9,10,11,12 -d ' ' | grep -v dport=53 | grep udp > %s", CONNTRACK_ENTRIES_V6);
++            break;
++
++        default:
++            return FALSE;
++    }
++
++    system(command);
++
++    FILE *fp = fopen(CONNTRACK_ENTRIES_V6, "r");
++    if (fp == NULL) {
++        return FALSE;
++    }
++    //Reading line by line from CONNTRACK_ENTRIES
++    while (((read = getline(&line, &len, fp)) != -1)) {
++        char *protocol=NULL, *saddr=NULL, *daddr=NULL, *sport=NULL, *dport=NULL;
++        protocol = strtok_r(line, " ", &ptr);
++        saddr = strtok_r(NULL, " ", &ptr);
++        if(saddr)
++            *(saddr + 3) = ' ';
++        daddr = strtok_r(NULL, " ", &ptr);
++        if(daddr)
++            *(daddr + 3) = ' ';
++        sport = strtok_r(NULL, " ", &ptr);
++        if(sport)
++            *(sport + 5) = ' ';
++        dport = strtok_r(NULL, "\n", &ptr);
++        if(dport)
++            *(dport + 5) = ' ';
++        //To get source IPv6 address from current conntrack line
++        if (saddr)
++            saddr = saddr + 4;
++        //To get destination IPv6 address from current conntrack line
++        if (daddr)
++            daddr = daddr+4;
++        //To get source port from current conntrack line
++        if (sport)
++            sport = sport+6;
++        //To get destination port from current conntrack line
++        if(dport)
++            dport =dport+6;
++
++        if (!saddr || !daddr || !sport || !dport)
++            continue;  // skip malformed line
++
++        //goto delete entry if prot doesnot match with current conntrack line protocol
++        if (strcmp("tcp", prot) == 0 || strcmp("udp", prot) == 0){
++            if (strcmp(protocol,prot)!=0 && '\0' != prot[0])
++                goto delete_entry;
++        }
++        if (strcmp("tcp_udp",prot) == 0){
++            if (strcmp(protocol, "tcp")!=0 && '\0' != prot[0])
++                goto delete_entry;
++            else if (strcmp(protocol, "udp")!=0 && '\0' != prot[0])
++                goto delete_entry;
++        }
++	//goto delete entry if source_port doesnot match with current conntrack line sport
++        if (strcmp(sport,source_port)!=0 && '\0' != source_port[0] && '0'!=source_port[0] )
++            goto delete_entry;
++        //goto delete entry if destination_port doesnot match with current conntrack line dport
++        if (strcmp(dport,destination_port)!=0 && '\0' != destination_port[0] && '0'!=destination_port[0])
++            goto delete_entry;
++        //continue if source IPv6 and destination IPv6 matches with current conntrack line
++        //or if source IPv6 not set and destination IPv6 matches with current conntrack line
++        //or if source IPv6 and destination IPv6 not set
++        if (strcmp(saddr, source_ipv6) == 0 || '\0' == source_ipv6[0]) {
++            if (strcmp(daddr,destination_ipv6) == 0 || '\0' == destination_ipv6[0])
++                continue;
++        }
++        delete_entry:
++        //Creating conntrack deletion command based on protocol saddr sport and dport
++        memset(tmp,0,MAX_COMMAND_STR_LEN);
++        snprintf(command, MAX_COMMAND_STR_LEN, "conntrack -D -f ipv6");
++        if (protocol) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " -p %s", protocol);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (saddr) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, "  --orig-src %s", saddr);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (sport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --sport %s", sport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        if (dport) {
++            snprintf(tmp, MAX_COMMAND_STR_LEN, " --dport %s", dport);
++            strlcat(command, tmp, MAX_COMMAND_STR_LEN);
++            memset(tmp, 0, MAX_COMMAND_STR_LEN);
++        }
++        system(command);
++        memset(command, 0, MAX_COMMAND_STR_LEN);
++    }
++
++    if(fp)
++    {
++        fclose(fp);
++        fp=NULL;
++    }
++    if(line)
++    {
++        free(line);
++        line=NULL;
++    }
++    //To remove CONNTRACK_ENTRIES
++    snprintf(command, MAX_COMMAND_STR_LEN, "rm -rf %s", CONNTRACK_ENTRIES_V6);
++    system(command);
++
++    return TRUE;
++}
++
+ // Function to query parameters from RDK Bus
+ ANSC_STATUS RdkBus_GetParamValues(
+     char *pComponent,

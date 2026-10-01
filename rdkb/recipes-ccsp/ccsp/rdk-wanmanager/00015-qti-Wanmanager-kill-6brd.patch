@@ -1,0 +1,43 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From f091cec41c1cc36ce424298bc0a100ec8dc22ad5 Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Thu, 6 Aug 2026 11:05:03 +0000
+Subject: [PATCH] To kill 6brd when WAN goes down
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+
+Index: git/source/WanManager/wanmgr_interface_sm.c
+===================================================================
+--- git.orig/source/WanManager/wanmgr_interface_sm.c
++++ git/source/WanManager/wanmgr_interface_sm.c
+@@ -1817,9 +1817,25 @@ static int wan_tearDownIPv6(WanMgr_Iface
+     WanMgr_Config_Data_t    *pWanConfigData = NULL;
+ #endif /** _RDKB_GLOBAL_PRODUCT_REQ_ */
+ 
++    char line[50] = {0};
++    FILE *cmd = v_secure_popen("r","pidof 6brd");
++    pid_t pid = 0;
++
+     DML_WAN_IFACE * pInterface = pWanIfaceCtrl->pIfaceData;
+     DML_VIRTUAL_IFACE* p_VirtIf = WanMgr_getVirtualIfaceById(pInterface->VirtIfList, pWanIfaceCtrl->VirIfIdx);
+ 
++    if(cmd != NULL)
++    {
++        fgets(line, sizeof(line), cmd);
++        v_secure_pclose(cmd);
++        pid = (pid_t)strtoul(line, NULL, 10);
++    }
++    //To kill 6brd if running
++    if (pid)
++    {
++        v_secure_system("killall 6brd");
++    }
++
+     /* Voice interfaces (VOIP, VOICE, MTA) don't need system configuration */
+     if (WanMgr_IsVoiceInterface(p_VirtIf))
+     {

@@ -1,0 +1,57 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 51ec44b34986e97418d2596ee7fa933443c333a7 Mon Sep 17 00:00:00 2001
+From: Hanna Jose <hjose@qti.qualcomm.com>
+Date: Wed, 15 Jul 2026 11:29:23 +0000
+Subject: [Description]:Ensures host objects are created when an ip nei entry exists but no prior host record is found by MAC.
+Supports both IPv4 and IPv6 address insertion for these newly discovered static neighbor entries.
+
+[RCA/Root Cause Analysis]:Hosts_SyncArp() assumed host object existence and skipped creation when only neighbor-table data was available.That caused missing Device.Hosts.Host rows for valid clients, especially neighbor-driven discovery paths.
+
+[Fix Description]:When Hosts_FindHostByPhysAddress() returns NULL, code now calls Hosts_AddHostByPhysAddress().
+After creation, it sets source metadata and adds IPv4/IPv6 using Host_AddIPv4Address() or Host_AddIPv6Address().
+
+Signed-off-by: Hanna Jose <hjose@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+
+diff --git a/source/lm/lm_main.c b/source/lm/lm_main.c
+index 53049a9..d67b63b 100644
+--- a/source/lm/lm_main.c
++++ b/source/lm/lm_main.c
+@@ -2694,6 +2694,27 @@ static void Hosts_SyncArp (void)
+             PRINTD("%s: Process No.%d mac %s\n", __FUNCTION__, i+1, hosts[i].phyAddr);
+ 
+             pHost = Hosts_FindHostByPhysAddress((char *)hosts[i].phyAddr);
++            if ( !pHost )
++            {
++                pHost = Hosts_AddHostByPhysAddress((char *)hosts[i].phyAddr);
++                if ( pHost )
++                {
++                    if ( pHost->pStringParaValue[LM_HOST_Layer1InterfaceId] )
++                    {
++                        AnscFreeMemory(pHost->pStringParaValue[LM_HOST_Layer1InterfaceId]);
++                        pHost->pStringParaValue[LM_HOST_Layer1InterfaceId] = NULL;
++                    }
++                    LanManager_CheckCloneCopy(&(pHost->pStringParaValue[LM_HOST_AddressSource]), "Static");
++                    if ( _isIPv6Addr((char *)hosts[i].ipAddr) )
++                    {
++                        pIP = Host_AddIPv6Address(pHost, (char *)hosts[i].ipAddr);
++                    }
++                    else
++                    {
++                        pIP = Host_AddIPv4Address(pHost, (char *)hosts[i].ipAddr);
++                    }
++                }
++            }
+ 
+             if ( pHost )
+             {
+-- 
+2.34.1
+

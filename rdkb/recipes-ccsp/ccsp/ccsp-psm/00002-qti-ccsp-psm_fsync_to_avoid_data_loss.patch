@@ -1,0 +1,33 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 52f5672f9db8c0871108319e5bfbee1d17d8edf8 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Sat, 29 Aug 2026 18:41:14 +0000
+Subject: Added fsync to avoid data loss on abrupt power cycles
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ source/Ssp/ssp_cfmif.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/source/Ssp/ssp_cfmif.c b/source/Ssp/ssp_cfmif.c
+index 3f6350f..fbeffa9 100644
+--- a/source/Ssp/ssp_cfmif.c
++++ b/source/Ssp/ssp_cfmif.c
+@@ -2208,6 +2208,11 @@ int backup_file (const char *bkupFile, const char *localFile)
+         CcspTraceError(("%s : munmap failed %d \n",__FUNCTION__,__LINE__));
+   }
+ 
++  /* Added fsync to avoid data loss on power disrupt/abrupt reboots */
++  if(fsync(fd_to) < 0) {
++        CcspTraceError(("%s : fsync for %s failed \n",__FUNCTION__, bkupFile));
++  }
++
+   if(close(fd_to) < 0) {
+         fd_to = -1;
+                 CcspTraceError(("%s : closing file descriptor failed during db backup %d \n",__FUNCTION__,__LINE__));
+-- 
+2.34.1
+

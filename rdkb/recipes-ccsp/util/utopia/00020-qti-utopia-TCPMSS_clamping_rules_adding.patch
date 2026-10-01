@@ -1,0 +1,80 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 5066b2e1c6a9bb6c7295abc198dbed7d63540567 Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Fri, 7 Aug 2026 09:07:00 +0000
+Subject: [PATCH] TCP MSS clamp rule addition
+
+[Description]: Added TCP MSS clamping rule to support HW path for TCP packets
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/firewall/Makefile.am     | 2 +-
+ source/firewall/firewall.c      | 4 ++++
+ source/firewall/firewall.h      | 4 ++++
+ source/firewall/firewall_ipv6.c | 3 +++
+ 4 files changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/source/firewall/Makefile.am b/source/firewall/Makefile.am
+index 0af5c82..3ac4b35 100644
+--- a/source/firewall/Makefile.am
++++ b/source/firewall/Makefile.am
+@@ -23,7 +23,7 @@ AM_LDFLAGS = -lccsp_common -lsecure_wrapper -lnetfilter_queue -lnfnetlink $(DBUS
+ 
+ bin_PROGRAMS = firewall nfq_handler
+ 
+-firewall_SOURCES = firewall_ipv6.c firewall.c firewall_priv.c firewall_interface.c  firewall_ext.c
++firewall_SOURCES = firewall_ipv6.c firewall.c firewall_priv.c firewall_interface.c  firewall_ext.c firewall_extn_qti.c
+ if CPC_FIREWALL_ENABLE
+ firewall_SOURCES += firewall_lib.c firewall_dsl.c rabid.c
+ AM_LDFLAGS += -lrdkconfig
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index 1c25729..9aa4159 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -12064,6 +12064,10 @@ static int prepare_subtables(FILE *raw_fp, FILE *mangle_fp, FILE *nat_fp, FILE *
+    fprintf(mangle_fp, "-A PREROUTING -i %s -p udp -m conntrack --ctstate NEW -m limit --limit 200/sec --limit-burst 100 -j ACCEPT\n",ecm_wan_ifname);
+    fprintf(mangle_fp, "-A PREROUTING -i %s -p udp -m conntrack --ctstate NEW -m limit --limit 200/sec --limit-burst 100 -j ACCEPT\n",emta_wan_ifname);
+ #endif
++
++#ifdef _PLATFORM_SDX_
++   add_if_mss_clamping_HW_path(mangle_fp,AF_INET,lan_ifname);
++#endif
+    /*
+     * nat
+     */
+diff --git a/source/firewall/firewall.h b/source/firewall/firewall.h
+index 1fc0541..cf2838c 100644
+--- a/source/firewall/firewall.h
++++ b/source/firewall/firewall.h
+@@ -62,6 +62,10 @@
+ #include "safec_lib_common.h"
+ #include "ansc_status.h"
+ 
++#ifdef _PLATFORM_SDX_
++#include "firewall_extn_qti.h"
++#endif
++
+ /**
+ * @brief Apply logging rules to the filter table.
+ *
+diff --git a/source/firewall/firewall_ipv6.c b/source/firewall/firewall_ipv6.c
+index 9d8a1b7..296e59a 100644
+--- a/source/firewall/firewall_ipv6.c
++++ b/source/firewall/firewall_ipv6.c
+@@ -2048,6 +2048,9 @@ void do_ipv6_sn_filter(FILE* fp) {
+         fprintf(fp, "-A PREROUTING -i %s -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP\n",current_wan_ifname);
+         fprintf(fp, "-A PREROUTING -i %s -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP\n",ecm_wan_ifname);
+ 	fprintf(fp, "-A PREROUTING -i %s -p tcp -m tcp ! --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j DROP\n",emta_wan_ifname);
++#endif
++#ifdef _PLATFORM_SDX_
++   add_if_mss_clamping_HW_path(fp,AF_INET6,lan_ifname);
+ #endif
+      FIREWALL_DEBUG("Exiting do_ipv6_sn_filter \n"); 
+ }
+--
+2.34.1
+

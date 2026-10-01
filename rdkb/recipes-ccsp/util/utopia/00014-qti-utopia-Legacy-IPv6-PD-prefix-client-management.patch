@@ -1,0 +1,463 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 98c9e524e2c3449a6bebe4bf3b1e92a9841bed76 Mon Sep 17 00:00:00 2001
+From: Keerthana K T <keerkt@qti.qualcomm.com>
+Date: Tue, 14 Jul 2026 05:09:54 +0000
+Subject: [PATCH] Legacy IPv6 PD support in SLAAC for client prefix management
+
+Signed-off-by: Keerthana K T <keerkt@qti.qualcomm.com>
+---
+ .../scripts/init/c_registration/20_routing.c  |   4 +-
+ .../scripts/init/service.d/service_routed.sh  |  11 +-
+ source/service_routed/Makefile.am             |   2 +-
+ source/service_routed/service_routed.c        |  31 ++-
+ .../service_routed/service_routed_extn_qti.c  | 263 ++++++++++++++++++
+ .../service_routed/service_routed_extn_qti.h  |  26 ++
+ 6 files changed, 329 insertions(+), 8 deletions(-)
+ create mode 100644 source/service_routed/service_routed_extn_qti.c
+ create mode 100644 source/service_routed/service_routed_extn_qti.h
+
+Index: git/source/scripts/init/c_registration/20_routing.c
+===================================================================
+--- git.orig/source/scripts/init/c_registration/20_routing.c
++++ git/source/scripts/init/c_registration/20_routing.c
+@@ -49,6 +49,7 @@ const char* SERVICE_CUSTOM_EVENTS[] = {
+                                         "wan-status|/etc/utopia/service.d/service_routed.sh",
+                                         "lan-status|/etc/utopia/service.d/service_routed.sh",
+                                         "dhcpv6_option_changed|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
++                                        "lan-prefix-update|/etc/utopia/service.d/service_routed.sh",
+                                         "ripd-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         "zebra-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         "staticroute-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+@@ -60,6 +61,7 @@ const char* SERVICE_CUSTOM_EVENTS[] = {
+                                         "lan-status|/etc/utopia/service.d/service_routed.sh",
+                                         "ipv6_nameserver|/etc/utopia/service.d/service_routed.sh",
+                                         "ipv6_prefix|/etc/utopia/service.d/service_routed.sh",
++                                        "lan-prefix-update|/etc/utopia/service.d/service_routed.sh",
+                                         "ripd-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         "zebra-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+                                         "staticroute-restart|/etc/utopia/service.d/service_routed.sh|NULL|"TUPLE_FLAG_EVENT,
+Index: git/source/scripts/init/service.d/service_routed.sh
+===================================================================
+--- git.orig/source/scripts/init/service.d/service_routed.sh
++++ git/source/scripts/init/service.d/service_routed.sh
+@@ -84,7 +84,7 @@ case "$1" in
+    staticroute-restart)
+        service_routed radv-restart
+        ;;
+-   ipv6_prefix|ipv6_nameserver)
++   ipv6_prefix|ipv6_nameserver|dns-search-list|lan-prefix-update)
+        service_routed radv-restart
+        ;;
+    *)
+Index: git/source/service_routed/Makefile.am
+===================================================================
+--- git.orig/source/service_routed/Makefile.am
++++ git/source/service_routed/Makefile.am
+@@ -21,7 +21,7 @@ bin_PROGRAMS = service_routed
+ 
+ AM_LDFLAGS = -lsecure_wrapper
+ 
+-service_routed_SOURCES = service_routed.c service_routed_main.c
++service_routed_SOURCES = service_routed.c service_routed_main.c service_routed_extn_qti.c
+ 
+ service_routed_CFLAGS = -I$(top_srcdir)/source \
+                         -I$(top_srcdir)/source/include \
+Index: git/source/service_routed/service_routed.c
+===================================================================
+--- git.orig/source/service_routed/service_routed.c
++++ git/source/service_routed/service_routed.c
+@@ -51,6 +51,8 @@
+ #include <string.h>
+ #include <stdbool.h>
+ #include <net/if.h>
++#include <netinet/in.h>
++#include <arpa/inet.h>
+ #include <signal.h>
+ #include "safec_lib_common.h"
+ #include "secure_wrapper.h"
+@@ -81,6 +83,7 @@ static const char* const service_routed_
+ #else 
+ #define STATIC static 
+ #endif
++#include "service_routed_extn_qti.h"
+ 
+ #ifdef CORE_NET_LIB
+ #define LOG_FILE_1 "/rdklogs/logs/Consolelog.txt.0"
+@@ -170,6 +173,9 @@ enum ipv6_mode {
+ int gIpv6AddrAssignment = GLOBAL_IPV6 ;
+ int gModeSwitched = NO_SWITCHING ;
+ #define PSM_MESH_WAN_IFNAME "dmsb.Mesh.WAN.Interface.Name"
++#define MAX_PREFIXES 16
++#define MIN_LAN_PREFIX_LEN 60
++#define MAX_LAN_PREFIX_LEN 64
+ #define DEF_ULA_PREF_LEN 64
+ #endif 
+ 
+@@ -872,8 +878,8 @@ STATIC int gen_zebra_conf(int sefd, toke
+     char dnssl[2560] = {0};
+     char dnssl_lft[16];
+     unsigned int dnssllft = 0;
+-    char prefix[64] = {0}, orig_prefix[64] = {0}, lan_addr[64] = {0};
+     char preferred_lft[16] = {0}, valid_lft[16] = {0};
++    char prefix[64], orig_prefix[64], lan_addr[64] ;
+     unsigned int rdnsslft = 3 * RA_INTERVAL; // as defined in RFC
+ #if defined(MULTILAN_FEATURE)
+     char orig_lan_prefix[64];
+@@ -1193,7 +1199,7 @@ STATIC int gen_zebra_conf(int sefd, toke
+ #endif
+ #endif
+ 	{
+-		char val_DNSServersEnabled[ 32 ];
++               char val_DNSServersEnabled[ 32 ];
+ 
+ #if defined (_HUB4_PRODUCT_REQ_) && (!defined (_WNXL11BWL_PRODUCT_REQ_)) || defined(_SCER11BEL_PRODUCT_REQ_)
+ #if defined(_SCER11BEL_PRODUCT_REQ_)
+@@ -1212,6 +1218,11 @@ STATIC int gen_zebra_conf(int sefd, toke
+ #endif
+         fprintf(fp, "interface %s\n", lan_if);
+         fprintf(fp, "   no ipv6 nd suppress-ra\n");
++
++        if(gen_pd_zebra_conf(fp, sefd, setok, wan_st, valid_lft,
++                  preferred_lft,
++                  default_wan_interface, wan_interface) == 1) {
++
+ #if defined (_HUB4_PRODUCT_REQ_) && (!defined (_WNXL11BWL_PRODUCT_REQ_))
+         if(strlen(orig_prefix)) 
+         { //SKYH4-1765: we add only the latest prefix data to zebra.conf.
+@@ -1324,6 +1334,7 @@ STATIC int gen_zebra_conf(int sefd, toke
+                 fprintf(fp, "   ipv6 nd prefix %s 0 0\n", orig_prefix);
+ #endif
+         }
++}
+ #endif//_HUB4_PRODUCT_REQ_
+ #if defined (INTEL_PUMA7)
+             //Intel Proposed RDKB Generic Bug Fix from XB6 SDK
+@@ -1409,7 +1420,19 @@ STATIC int gen_zebra_conf(int sefd, toke
+ #endif /** _SCER11BEL_PRODUCT_REQ_ */
+                 fprintf(fp, "   no ipv6 nd managed-config-flag\n");
+ #endif
++        char pd_en_chk[8] = {0};
++        char pref_chk[64] = {0};
++        unsigned int pref_len_chk = 0;
++        char pref_len_str[8] = {0};
++
++        syscfg_get(NULL, "PD_enable", pd_en_chk, sizeof(pd_en_chk));
++        syscfg_get(NULL, "lan-prefixes", pref_chk, sizeof(pref_chk));
++        syscfg_get(NULL, "lan-prefix-update", pref_len_str, sizeof(pref_len_str));
++        pref_len_chk = atoi(pref_len_str);
+ 
++        if((strcmp(pd_en_chk, "1") == 0) && strlen(pref_chk) && (pref_len_chk > 0) && (pref_len_chk <= MAX_LAN_PREFIX_LEN)) {
++               fprintf(fp, "   ipv6 nd managed-client-prefix-flag\n");
++            }
+         syscfg_get(NULL, "router_other_flag", o_flag, sizeof(o_flag));
+         if (strcmp(o_flag, "1") == 0)
+             fprintf(fp, "   ipv6 nd other-config-flag\n");
+@@ -1724,8 +1747,7 @@ STATIC int gen_zebra_conf(int sefd, toke
+ 
+ 
+ 		}
+-	}
+-    
++    }
+ 
+     fprintf(fp, "interface %s\n", lan_if);
+     fprintf(fp, "   ip irdp multicast\n");
+Index: git/source/service_routed/service_routed_extn_qti.c
+===================================================================
+--- /dev/null
++++ git/source/service_routed/service_routed_extn_qti.c
+@@ -0,0 +1,261 @@
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ * SPDX-License-Identifier: BSD-3-Clause-Clear
++ */
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <netinet/in.h>
++#include <arpa/inet.h>
++#include "service_routed_extn_qti.h"
++#include "syscfg/syscfg.h"
++#include "sysevent/sysevent.h"
++#include "secure_wrapper.h"
++
++/*
++ * ipv6_to_str - Converts raw IPv6 bytes to prefix string
++ * Moved from service_routed.c
++ */
++static void ipv6_to_str(char *str, char *addr)
++{
++    snprintf(str, MAX_LAN_PREFIX_LEN,
++             "%02x%02x:%02x%02x:%02x%02x:%02x%02x::",
++             (int)addr[0], (int)addr[1],
++             (int)addr[2], (int)addr[3],
++             (int)addr[4], (int)addr[5],
++             (int)addr[6], (int)addr[7]);
++}
++
++/*
++ * fun_power - Calculates x^y
++ * Moved from service_routed.c
++ */
++static int fun_power(int x, int y)
++{
++    int power = 1;
++    int i;
++    for (i = 1; i <= y; i++)
++        power = power * x;
++    return power;
++}
++
++/*
++ * gen_pd_zebra_conf - PD prefix derivation logic
++ * Moved from gen_zebra_conf() in service_routed.c
++ */
++int gen_pd_zebra_conf(FILE *fp, int sefd, token_t setok,
++                       char *wan_st, char *valid_lft,
++                       char *preferred_lft,
++                       char *default_wan_interface,
++                       char *wan_interface)
++{
++    char pd_enable[8]              = {0};
++    char lan_prefixes[64]          = {0};
++    char lan_prefix_update[8]      = {0};
++    char prev_lan_prefixes[64]     = {0};
++    char prev_lan_prefix_update[8] = {0};
++    char prefix[64]                = {0};
++    struct in6_addr buffer;
++    unsigned int lan_prefixes_length_value = 0;
++    int NoOfBitsPrefixes, TotalPrefix;
++    int hex = 0;
++    int start_bit_index = 0;
++    int clearbits = 0xF0;
++
++    /* PD_enable is only applicable in cellular mode */
++    syscfg_get(NULL, "PD_enable", pd_enable, sizeof(pd_enable));
++
++    memset(lan_prefixes, 0, sizeof(lan_prefixes));
++    memset(lan_prefix_update, 0, sizeof(lan_prefix_update));
++    sysevent_get(sefd, setok, "lan-prefixes",
++                 lan_prefixes, sizeof(lan_prefixes));
++    sysevent_get(sefd, setok, "lan-prefix-update",
++                 lan_prefix_update, sizeof(lan_prefix_update));
++
++    /* syscfg fallback - survives zebra-restart event */
++    if (!strlen(lan_prefixes))
++        syscfg_get(NULL, "lan-prefixes",
++                   lan_prefixes, sizeof(lan_prefixes));
++    if (!strlen(lan_prefix_update))
++        syscfg_get(NULL, "lan-prefix-update",
++                   lan_prefix_update, sizeof(lan_prefix_update));
++    /* Also restore ipv6_prefix sysevent if empty */
++    if (!strlen(lan_prefixes)) {
++    syscfg_get(NULL, "lan-prefixes", lan_prefixes, sizeof(lan_prefixes));
++        if (strlen(lan_prefixes)) {
++            char prefixlen_str[8] = {0};
++            syscfg_get(NULL, "lan-prefix-update", prefixlen_str, sizeof(prefixlen_str));
++            char ipv6_pref[72] = {0};
++            snprintf(ipv6_pref, sizeof(ipv6_pref), "%s/%s", lan_prefixes, prefixlen_str);
++            sysevent_set(sefd, setok, "ipv6_prefix", ipv6_pref, 0);
++            sysevent_set(sefd, setok, "lan-prefixes", lan_prefixes, 0);
++            sysevent_set(sefd, setok, "lan-prefix-update", prefixlen_str, 0);
++        }
++    }
++
++    lan_prefixes_length_value = atoi(lan_prefix_update);
++
++    if ((strcmp(pd_enable, "1") == 0) && strlen(lan_prefixes) &&
++        (lan_prefixes_length_value > 0) &&
++        (lan_prefixes_length_value <= MAX_LAN_PREFIX_LEN))
++    {
++        NoOfBitsPrefixes = MAX_LAN_PREFIX_LEN - lan_prefixes_length_value;
++        TotalPrefix = fun_power(2, NoOfBitsPrefixes);
++
++        inet_pton(AF_INET6, lan_prefixes, &buffer);
++        unsigned char *ip = buffer.s6_addr;
++
++        start_bit_index = lan_prefixes_length_value / 8;
++
++        if ((lan_prefixes_length_value > 0) &&
++            (lan_prefixes_length_value < MAX_LAN_PREFIX_LEN))
++        {
++            fprintf(stderr,
++                    "prefix length is %d, total prefixes possible is %d\n",
++                    lan_prefixes_length_value, TotalPrefix);
++
++            if (lan_prefixes_length_value < MIN_LAN_PREFIX_LEN ||
++                lan_prefixes_length_value % 4 == 0)
++            {
++                clearbits = 0xF0;
++                if (lan_prefixes_length_value < MIN_LAN_PREFIX_LEN)
++                    start_bit_index = 7;
++            }
++            else if (lan_prefixes_length_value % 4 == 1)
++            {
++                clearbits = 0xF8;
++            }
++            else if (lan_prefixes_length_value % 4 == 2)
++            {
++                clearbits = 0xFC;
++            }
++            else if (lan_prefixes_length_value % 4 == 3)
++            {
++                clearbits = 0xFE;
++            }
++
++            ip[start_bit_index] &= clearbits;
++            hex = ip[start_bit_index];
++            for (int i = 0, j = hex;
++                 i < MAX_PREFIXES && i < TotalPrefix; j++, i++)
++            {
++                ip[start_bit_index] |= j;
++                memset(prefix, 0, sizeof(prefix));
++                ipv6_to_str(prefix, (char *)ip);
++
++                if (strlen(prefix))
++                {
++#ifdef WAN_FAILOVER_SUPPORTED
++                    if (strcmp(default_wan_interface,
++                               wan_interface) != 0)
++                    {
++                        fprintf(fp,
++                            "   ipv6 nd prefix %s/64 %s %s\n",
++                            prefix, valid_lft, preferred_lft);
++                    }
++                    else
++#endif
++                    {
++                        if (strcmp(wan_st, "stopped") == 0)
++                        {
++                            fprintf(fp,
++                                "   ipv6 nd prefix %s/64 0 0\n",
++                                prefix);
++                        }
++                        else
++                        {
++                            fprintf(fp,
++                                "   ipv6 nd prefix %s/64 %s %s\n",
++                                prefix, valid_lft, preferred_lft);
++                        }
++                    }
++                }
++                ip[start_bit_index] &= clearbits;
++            }
++
++            memset(prev_lan_prefixes, 0, sizeof(prev_lan_prefixes));
++            memset(prev_lan_prefix_update, 0,
++                   sizeof(prev_lan_prefix_update));
++            syscfg_get(NULL, "prev-wan6-prefix",
++                       prev_lan_prefixes, sizeof(prev_lan_prefixes));
++            syscfg_get(NULL, "prev-wan6-prefixlen",
++                       prev_lan_prefix_update,
++                       sizeof(prev_lan_prefix_update));
++
++            if ((strcmp(prev_lan_prefixes, lan_prefixes) != 0) ||
++                (strcmp(prev_lan_prefix_update,
++                        lan_prefix_update) != 0))
++            {
++                v_secure_system(
++                    "ip -6 addr del %s/%d dev brlan0",
++                    prev_lan_prefixes,
++                    atoi(prev_lan_prefix_update));
++            }
++
++            v_secure_system("ip -6 addr add %s/%d dev brlan0",
++                            lan_prefixes, lan_prefixes_length_value);
++
++            /* Save to syscfg for persistence */
++            syscfg_set_commit(NULL, "lan-prefixes", lan_prefixes);
++            syscfg_set_commit(NULL, "lan-prefix-update",
++                              lan_prefix_update);
++            syscfg_set_commit(NULL, "prev-wan6-prefix",
++                              lan_prefixes);
++            syscfg_set_commit(NULL, "prev-wan6-prefixlen",
++                              lan_prefix_update);
++
++            v_secure_system("ethtool -r eth0");
++            v_secure_system("ethtool -r eth1");
++            v_secure_system(
++                "nohup /sbin/start_usb restart "
++                "</dev/null >/dev/null 2>&1");
++        }
++        else if (lan_prefixes_length_value == MAX_LAN_PREFIX_LEN)
++        {
++            fprintf(fp, "   ipv6 nd prefix %s %s %s\n",
++                    prefix, valid_lft, preferred_lft);
++        }
++        else
++        {
++            fprintf(stderr,
++                    "Unknown error prefix length is %d \n",
++                    lan_prefixes_length_value);
++        }
++    }
++    else
++    {
++        memset(prev_lan_prefixes, 0, sizeof(prev_lan_prefixes));
++        memset(prev_lan_prefix_update, 0,
++               sizeof(prev_lan_prefix_update));
++        syscfg_get(NULL, "prev-wan6-prefix",
++                   prev_lan_prefixes, sizeof(prev_lan_prefixes));
++        syscfg_get(NULL, "prev-wan6-prefixlen",
++                   prev_lan_prefix_update,
++                   sizeof(prev_lan_prefix_update));
++
++        if ((strlen(prev_lan_prefixes) != 0) ||
++            (strlen(prev_lan_prefix_update) != 0))
++        {
++            v_secure_system(
++                "ip -6 addr del %s/%d dev brlan0",
++                prev_lan_prefixes,
++                atoi(prev_lan_prefix_update));
++            syscfg_set_commit(NULL, "prev-wan6-prefix", "");
++            syscfg_set_commit(NULL, "prev-wan6-prefixlen", "");
++            /* Clear saved wan6 values on PD disable */
++            syscfg_set_commit(NULL, "lan-prefixes", "");
++            syscfg_set_commit(NULL, "lan-prefix-update", "");
++        }
++        if (strcmp(pd_enable, "1") == 0)
++        {
++            fprintf(stderr,
++                    "PD enable however unknown prefix {%s} "
++                    "prefix length {%d} hence fallback to "
++                    "prefix sharing\n",
++                    lan_prefixes, lan_prefixes_length_value);
++        }
++        return 1;
++    }
++    return 0;
++}
+Index: git/source/service_routed/service_routed_extn_qti.h
+===================================================================
+--- /dev/null
++++ git/source/service_routed/service_routed_extn_qti.h
+@@ -0,0 +1,24 @@
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ * SPDX-License-Identifier: BSD-3-Clause-Clear
++ */
++
++#ifndef _SERVICE_ROUTED_EXTN_QTI_H_
++#define _SERVICE_ROUTED_EXTN_QTI_H_
++
++#include <stdio.h>
++#include <netinet/in.h>
++#include <arpa/inet.h>
++#include "sysevent/sysevent.h"
++
++#define MAX_PREFIXES       16
++#define MIN_LAN_PREFIX_LEN 60
++#define MAX_LAN_PREFIX_LEN 64
++
++int gen_pd_zebra_conf(FILE *fp, int sefd, token_t setok,
++                       char *wan_st, char *valid_lft,
++                       char *preferred_lft,
++                       char *default_wan_interface,
++                       char *wan_interface);
++
++#endif /* _SERVICE_ROUTED_EXTN_QTI_H_ */

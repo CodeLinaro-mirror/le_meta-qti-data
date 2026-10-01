@@ -1,0 +1,60 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From e4298ef83521c1e180d2f7a73053b196a2b39901 Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Sat, 29 Aug 2026 08:05:59 +0000
+Subject: [PATCH] Fix empty SSH_FILTER iptables chain on _PLATFORM_SDX_ by
+ adding SSH_FILTER ACCEPT rule based on  mgmt_wan_sshaccess syscfg for both
+ IPv4 and IPv6.
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/firewall/firewall.c      |  9 +++++++--
+ source/firewall/firewall_ipv6.c | 10 ++++++++++
+ 2 files changed, 17 insertions(+), 2 deletions(-)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -12580,10 +12580,15 @@ static int prepare_subtables(FILE *raw_f
+    } else {
+        fprintf(filter_fp, "-A SSH_FILTER -j ACCEPT\n");
+    } */   
+-#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_) && !defined(_PLATFORM_BANANAPI_R4_)
++#if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_) && !defined(_PLATFORM_BANANAPI_R4_) && !defined(_PLATFORM_SDX_)
+    do_ssh_IpAccessTable(filter_fp, "22", AF_INET, ecm_wan_ifname);
+ #else
+-    fprintf(filter_fp, "-A SSH_FILTER -j ACCEPT\n");
++    memset(tmpQuery, 0, sizeof(tmpQuery));
++    ret = syscfg_get(NULL, "mgmt_wan_sshaccess", tmpQuery, sizeof(tmpQuery));
++    if ((ret == 0) && atoi(tmpQuery) == 1)
++    {
++       fprintf(filter_fp, "-A SSH_FILTER -j ACCEPT\n");
++    }
+ #endif
+ 
+    do_snmp_IpAccessTable(filter_fp, AF_INET);
+Index: git/source/firewall/firewall_ipv6.c
+===================================================================
+--- git.orig/source/firewall/firewall_ipv6.c
++++ git/source/firewall/firewall_ipv6.c
+@@ -984,6 +984,16 @@ void do_ipv6_filter_table(FILE *fp){
+           fprintf(fp, "-A SSH_FILTER -j ACCEPT\n");
+       } */
+       do_ssh_IpAccessTable(fp, "22", AF_INET6, ecm_wan_ifname);
++      #if !defined(_PLATFORM_RASPBERRYPI_) && !defined(_PLATFORM_TURRIS_) && !defined(_PLATFORM_SDX_)
++         do_ssh_IpAccessTable(fp, "22", AF_INET6, ecm_wan_ifname);
++      #else
++         memset(tmpQuery, 0, sizeof(tmpQuery));
++         ret = syscfg_get(NULL, "mgmt_wan_sshaccess", tmpQuery, sizeof(tmpQuery));
++         if ((ret == 0) && atoi(tmpQuery) == 1)
++         {
++            fprintf(fp, "-A SSH_FILTER -j ACCEPT\n");
++         }
++      #endif
+ 
+        do_snmp_IpAccessTable(fp, AF_INET6);
+ 

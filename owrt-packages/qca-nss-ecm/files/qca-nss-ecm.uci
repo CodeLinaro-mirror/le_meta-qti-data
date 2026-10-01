@@ -1,2 +1,2 @@
 config ecm 'global'
-	option acceleration_engine 'ipa'
+	option acceleration_engine 'ipa-sfe'

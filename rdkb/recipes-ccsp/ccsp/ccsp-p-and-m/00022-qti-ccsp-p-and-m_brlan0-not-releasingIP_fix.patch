@@ -1,0 +1,30 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 6d34143f5d26e066fca0406a08d1fc2210380f00 Mon Sep 17 00:00:00 2001
+From: Shiras Rahman U <shirasra@qti.qualcomm.com>
+Date: Wed, 19 Aug 2026 18:40:00 +0530
+Subject: [PATCH] Fix for brlan0 not releasing ipv6 when cellular wan is down
+
+Signed-off-by: Shiras Rahman U <shirasra@qti.qualcomm.com>
+---
+ source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c | 18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -10794,6 +10794,9 @@ dhcpv6c_dbg_thrd(void * in)
+ #elif defined(_PLATFORM_SDX_)
+                         char wan_ifname_val[32] = {'\0'};
+                         commonSyseventGet("current_wan_ifname", wan_ifname_val, sizeof(wan_ifname_val));
++                        if (wan_ifname_val[0] == '\0') {
++                            commonSyseventGet("current_wan_ipv6_interface", wan_ifname_val, sizeof(wan_ifname_val));
++                        }
+                         strlcpy(dhcpv6_data.ifname, wan_ifname_val, sizeof(dhcpv6_data.ifname));
+ #else
+                         strlcpy(dhcpv6_data.ifname, CFG_TR181_DHCPv6_CLIENT_IfName, sizeof(dhcpv6_data.ifname));
