@@ -49,6 +49,7 @@ SRC_URI:append = " \
     file://00044-qti-utopia-connmark_entry_empty_tcp_udp_fix.patch \
     file://00045-qti-utopia-managed-devices-udp-block-mangle-fix.patch \
     file://00046-qti-utopia-firewall_whitelist_Uplink-embedded-traffic-support.patch \
+    file://00047-qti-utopia-RelayMode_support.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
