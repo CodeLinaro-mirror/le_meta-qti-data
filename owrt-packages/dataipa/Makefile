@@ -58,9 +58,9 @@ define KernelPackage/$(PKG_NAME)/install
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipa_clients/ipa_clientsm.ko $(1)/lib/modules/ipa/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/drivers/platform/msm/ipa/ipatestm.ko $(1)/lib/modules/ipa/
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_DIR) $(1)/etc/initscripts/
+	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_BIN) ./files/dataipa.init $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/start_dataipa_le  $(1)/etc/initscripts/
+	$(INSTALL_BIN) ./files/start_dataipa_le  $(1)/usr/bin/
 
 #install dataipa ko's in /bin/targets/$(TARGET_VARIANT)/modules to be shown in owrt CRM APPS
 	$(INSTALL_DIR) $(TOPDIR)/bin/targets/$(TARGET_VARIANT)/modules
