@@ -1,0 +1,41 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 2bfb80fd36362b77211552dbc05fda4d3a45951c Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Tue, 6 Oct 2026 08:11:57 +0000
+Subject: Fix -Werror=stringop-truncation by replacing USP_STRNCPY with USP_SNPRINTF in PingThreadMain
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ src/vendor/vendor.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/vendor.c b/vendor.c
+index 3aaa5cd..70da23c 100644
+--- a/vendor.c
++++ b/vendor.c
+@@ -286,7 +286,7 @@ void *PingThreadMain(void* params)
+         goto exit;
+     }
+     rbusValue_ToString(values, value_str, sizeof(value_str));
+-    USP_STRNCPY(res->SuccessCount, value_str, sizeof(res->SuccessCount));
++    USP_SNPRINTF(res->SuccessCount, sizeof(res->SuccessCount), "%s", value_str);
+     USP_LOG_Info("%s = %s", pingtest_output_args[1], value_str);
+     rbusValue_Release(values);
+ 
+@@ -299,7 +299,7 @@ void *PingThreadMain(void* params)
+         goto exit;
+     }
+     rbusValue_ToString(values, value_str, sizeof(value_str));
+-    USP_STRNCPY(res->FailureCount, value_str, sizeof(res->FailureCount));
++    USP_SNPRINTF(res->FailureCount, sizeof(res->FailureCount), "%s", value_str);
+     USP_LOG_Info("%s = %s", pingtest_output_args[2], value_str);
+     rbusValue_Release(values);
+ 
+-- 
+2.34.1
+
