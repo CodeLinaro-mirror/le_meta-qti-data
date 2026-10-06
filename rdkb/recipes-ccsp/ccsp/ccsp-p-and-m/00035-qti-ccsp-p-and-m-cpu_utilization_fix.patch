@@ -1,0 +1,65 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries. 
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 765f29a4fcf37e6558be63d38b29e03060e3c5ad Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Sat, 26 Sep 2026 16:50:08 +0530
+Subject: [PATCH] CPU optimization fix p-and-m
+
+[Description]:
+Removed unnecessary Parodus initialization from PANDM on SDX platforms to prevent continuous Nanomsg reconnect attempts and reduce idle CPU utilization.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/TR-181/middle_layer_src/plugin_main_apis.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+Index: git/source/TR-181/middle_layer_src/plugin_main_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/plugin_main_apis.c
++++ git/source/TR-181/middle_layer_src/plugin_main_apis.c
+@@ -284,6 +284,26 @@ printf("-- %s %d\n", __func__, __LINE__)
+ 
+ **********************************************************************/
+ 
++static int is_parodus_url_configured(void)
++{
++    char str[255] = {'\0'};
++    int found = 0;
++    FILE *fp = fopen("/etc/device.properties", "r");
++    if (fp == NULL) {
++        CcspTraceError(("Failed to open device.properties file\n"));
++        return 0;
++    }
++    while (fscanf(fp, "%254s", str) == 1) {
++        if (strncmp(str, "PARODUS_URL=", strlen("PARODUS_URL=")) == 0 &&
++            strlen(str) > strlen("PARODUS_URL=")) {
++            found = 1;
++            break;
++        }
++    }
++    fclose(fp);
++    return found;
++}
++
+ ANSC_STATUS
+ CosaBackEndManagerInitialize
+     (
+@@ -499,9 +519,12 @@ if(id != 0)
+     
+     CheckAndSetRebootReason();
+ 
+-    printf("Calling PARODUS!\n");
+-    CcspTraceWarning(("RDKB_SYSTEM_BOOT_UP_LOG : PARODUS call!\n")); 
+-    initparodusTask();
++    if (is_parodus_url_configured()) {
++        CcspTraceWarning(("RDKB_SYSTEM_BOOT_UP_LOG : PARODUS call!\n"));
++        initparodusTask();
++    } else {
++        CcspTraceWarning(("RDKB_SYSTEM_BOOT_UP_LOG : Skipping PARODUS call, PARODUS_URL not set\n"));
++    }
+     SetAutoreboot((ANSC_HANDLE)pMyObject->hDeviceInfo);
+ #if defined (WIFI_MANAGE_SUPPORTED)
+     char cAmenityReceived [8] = {0};

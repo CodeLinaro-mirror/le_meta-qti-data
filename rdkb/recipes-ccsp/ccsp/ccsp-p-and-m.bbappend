@@ -43,6 +43,7 @@ SRC_URI += " \
               file://00032-qti-ccsp-p-and-m_firewall_X_QCOM_delTable_fix.patch \
               file://00033-qti-ccsp-p-and-m-lan_IP_DM_fix.patch \
               file://00034-qti-ccsp-p-and-m-eth_slaac_enablement.patch \
+              file://00035-qti-ccsp-p-and-m-cpu_utilization_fix.patch \
 "
 SECURITY_CFLAGS_remove += " -Werror=format-security -Werror=format "
 SECURITY_CFLAGS_append += " -Wno-error=format-security -Wno-error=format "
