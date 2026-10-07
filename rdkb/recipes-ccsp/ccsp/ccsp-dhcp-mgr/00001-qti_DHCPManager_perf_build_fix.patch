@@ -1,0 +1,773 @@
+This patch file is from Qualcomm Technologies, Inc.
+are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From b011e81dc15495184b2219a464863e2fedf8ee3f Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Sun, 4 Oct 2026 12:56:37 +0000
+Subject: [PATCH] DHCP Manager Perf and AB build failure fix
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ .../TR-181/middle_layer_src/cosa_apis_util.c  |  8 +++----
+ .../middle_layer_src/dhcpmgr_rbus_apis.c      | 24 +++++++++----------
+ 2 files changed, 16 insertions(+), 16 deletions(-)
+
+Index: git/source/TR-181/middle_layer_src/cosa_apis_util.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/cosa_apis_util.c
++++ git/source/TR-181/middle_layer_src/cosa_apis_util.c
+@@ -20,6 +20,7 @@
+ #include <sys/stat.h>
+ #include <stdio.h>
+ #include <string.h>
++#include <bsd/string.h>
+ #include <syscfg/syscfg.h>
+ #include "sysevent/sysevent.h"
+ #include "utapi/utapi.h"
+@@ -142,7 +143,7 @@ static int Get_comp_paramvalue(char* com
+ 
+ 
+         if(ret == CCSP_SUCCESS){
+-                strncpy(param_value, parameterval[0]->parameterValue, MAX_STR_SIZE);
++                snprintf(param_value, MAX_STR_SIZE, "%s", parameterval[0]->parameterValue);
+                 free_parameterValStruct_t (bus_handle, val_size, parameterval);
+                 return 1;
+         }
+@@ -211,7 +212,7 @@ CosaGetParamValueString
+             DHCPMGR_LOG_ERROR("[%s][%d]Failed to get param value\n", __FUNCTION__, __LINE__);
+             return -1;
+         }
+-        strncpy(pBuffer, acTmpReturnValue, strlen(acTmpReturnValue));
++        strlcpy(pBuffer, acTmpReturnValue, *pulSize);
+         *pulSize = strlen(acTmpReturnValue) + 1;
+         return 0;
+     }
+@@ -229,7 +230,7 @@ CosaGetParamValueString
+         ret=Get_comp_paramvalue(comp_name,dbus_path,pParamName,acTmpReturnValue);
+         if(ret){
+ 
+-                strncpy(pBuffer, acTmpReturnValue, strlen(acTmpReturnValue));
++                strlcpy(pBuffer, acTmpReturnValue, *pulSize);
+                 *pulSize = strlen(acTmpReturnValue) + 1;
+                 return 0;
+         }
+@@ -591,7 +592,7 @@ ANSC_STATUS fillCurrentPartnerId
+         memset(buf, 0, sizeof(buf));
+     if(ANSC_STATUS_SUCCESS == syscfg_get( NULL, "PartnerID", buf, sizeof(buf)))
+     {
+-         strncpy(pValue ,buf,strlen(buf));
++         strlcpy(pValue, buf, *pulSize);
+          *pulSize = AnscSizeOfString(pValue);
+          return ANSC_STATUS_SUCCESS;
+     }
+@@ -898,12 +899,12 @@ int lm_get_host_by_mac(char *mac, LM_cmd
+ 
+ 
+         memset(lm_param_name,0,MAX_STR_SIZE);
+-        strncpy(lm_param_name,"Device.Hosts.HostNumberOfEntries", MAX_STR_SIZE);
++        snprintf(lm_param_name, MAX_STR_SIZE, "%s", "Device.Hosts.HostNumberOfEntries");
+ 
+         NumberofEntries = CosaGetParamValueUlong(lm_param_name);
+ 
+         memset(lm_param_name,0,MAX_STR_SIZE);
+-        strncpy(lm_param_name,"Device.Hosts.Host.", MAX_STR_SIZE);
++        snprintf(lm_param_name, MAX_STR_SIZE, "%s", "Device.Hosts.Host.");
+ 
+         for ( i = 0 ; i < NumberofEntries; i++ )
+         {
+@@ -940,7 +941,7 @@ int lm_get_host_by_mac(char *mac, LM_cmd
+                                 ulEntryNameLen = sizeof(ucEntryNameValue);
+                                 if(0 == CosaGetParamValueString(ucEntryParamName, ucEntryNameValue, &ulEntryNameLen)){
+ 
+-                                        strncpy(pHost->data.host.l1IfName, ucEntryNameValue, sizeof(pHost->data.host.l1IfName));
++                                        snprintf(pHost->data.host.l1IfName, sizeof(pHost->data.host.l1IfName), "%s", ucEntryNameValue);
+                                         pHost->result=0;
+                                 }else{
+                                         DHCPMGR_LOG_ERROR("%s failed to get ucEntryParamName = %s\n",__FUNCTION__,ucEntryParamName);
+Index: git/source/TR-181/middle_layer_src/dhcpmgr_rbus_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/dhcpmgr_rbus_apis.c
++++ git/source/TR-181/middle_layer_src/dhcpmgr_rbus_apis.c
+@@ -166,13 +166,13 @@ rbusError_t DhcpMgr_Rbus_SubscribeHandle
+  */
+ static void DhcpMgr_createLeaseInfoMsg(DHCPv4_PLUGIN_MSG *src, DHCP_MGR_IPV4_MSG *dest) 
+ {
+-    strncpy(dest->ifname, src->ifname, sizeof(dest->ifname) - 1);
+-    strncpy(dest->address, src->address, sizeof(dest->address) - 1);
+-    strncpy(dest->netmask, src->netmask, sizeof(dest->netmask) - 1);
+-    strncpy(dest->gateway, src->gateway, sizeof(dest->gateway) - 1);
+-    strncpy(dest->dnsServer, src->dnsServer, sizeof(dest->dnsServer) - 1);
+-    strncpy(dest->dnsServer1, src->dnsServer1, sizeof(dest->dnsServer1) - 1);
+-    strncpy(dest->timeZone, src->timeZone, sizeof(dest->timeZone) - 1);
++    snprintf(dest->ifname, sizeof(dest->ifname), "%s", src->ifname);
++    snprintf(dest->address, sizeof(dest->address), "%s", src->address);
++    snprintf(dest->netmask, sizeof(dest->netmask), "%s", src->netmask);
++    snprintf(dest->gateway, sizeof(dest->gateway), "%s", src->gateway);
++    snprintf(dest->dnsServer, sizeof(dest->dnsServer), "%s", src->dnsServer);
++    snprintf(dest->dnsServer1, sizeof(dest->dnsServer1), "%s", src->dnsServer1);
++    snprintf(dest->timeZone, sizeof(dest->timeZone), "%s", src->timeZone);
+     dest->mtuSize = src->mtuSize;
+     dest->timeOffset = src->timeOffset;
+     dest->isTimeOffsetAssigned = src->isTimeOffsetAssigned;
+@@ -223,11 +223,11 @@ static void DhcpMgr_UpdateDhcpv6MapInfo(
+  */
+ static void DhcpMgr_createDhcpv6LeaseInfoMsg(DHCPv6_PLUGIN_MSG *src, DHCP_MGR_IPV6_MSG *dest)
+ {
+-    strncpy(dest->ifname, src->ifname, sizeof(dest->ifname) - 1);
+-    strncpy(dest->address, src->ia_na.address, sizeof(dest->address) - 1);
+-    strncpy(dest->nameserver, src->dns.nameserver, sizeof(dest->nameserver) - 1);
+-    strncpy(dest->nameserver1, src->dns.nameserver1, sizeof(dest->nameserver1) - 1);
+-    strncpy(dest->domainName, src->domainName, sizeof(dest->domainName) - 1);
++    snprintf(dest->ifname, sizeof(dest->ifname), "%s", src->ifname);
++    snprintf(dest->address, sizeof(dest->address), "%s", src->ia_na.address);
++    snprintf(dest->nameserver, sizeof(dest->nameserver), "%s", src->dns.nameserver);
++    snprintf(dest->nameserver1, sizeof(dest->nameserver1), "%s", src->dns.nameserver1);
++    snprintf(dest->domainName, sizeof(dest->domainName), "%s", src->domainName);
+     snprintf(dest->sitePrefix, sizeof(dest->sitePrefix), "%s/%d", src->ia_pd.Prefix, src->ia_pd.PrefixLength);
+ 
+     dest->prefixPltime = src->ia_pd.PreferedLifeTime;
+Index: git/source/TR-181/board_sbapi/cosa_dhcpv4_apis.c
+===================================================================
+--- git.orig/source/TR-181/board_sbapi/cosa_dhcpv4_apis.c
++++ git/source/TR-181/board_sbapi/cosa_dhcpv4_apis.c
+@@ -69,6 +69,7 @@
+ **************************************************************************/
+ #define _XOPEN_SOURCE 700
+ #include <string.h>
++#include <bsd/string.h>
+ #include <strings.h>
+ #include "secure_wrapper.h"
+ #include "cosa_apis.h"
+@@ -3372,7 +3373,7 @@ CosaDmlDhcpsGetLeaseTimeDuration
+ 
+     /*get lease create time*/
+     localtime_r(&current_time, &t);
+-    strncpy(time_buf, (char*)pDhcpsClient->X_CISCO_COM_LeaseTimeCreation, strlen((const char*)pDhcpsClient->X_CISCO_COM_LeaseTimeCreation));
++    strlcpy(time_buf, (char*)pDhcpsClient->X_CISCO_COM_LeaseTimeCreation, sizeof(time_buf));
+     for (i = 0; i < strlen(time_buf); i++)
+     {
+         if('T' == time_buf[i])
+@@ -3542,7 +3543,7 @@ CosaDhcpInitJournal
+         cJSON *json = NULL;
+         FILE *fileRead = NULL;
+         char PartnerID[PARTNER_ID_LEN] = {0};
+-        ULONG size = PARTNER_ID_LEN - 1;
++        ULONG size = sizeof(PartnerID);
+         int len;
+         errno_t rc = -1;
+         int check_ret;
+Index: git/source/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+===================================================================
+--- git.orig/source/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ git/source/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -74,6 +74,7 @@
+ #include "autoconf.h"
+ #include "secure_wrapper.h"
+ #include "safec_lib_common.h"
++#include <bsd/string.h>
+ #include "cosa_common_util.h"
+ #include <ccsp_psm_helper.h>
+ #include <sys/stat.h>
+@@ -4447,7 +4448,10 @@ CosaDmlDhcpv6sGetStartAddress
+     char globalAddress[64] = {0};
+     commonSyseventGet(COSA_DML_DHCPV6C_PREF_SYSEVENT_NAME, globalAddress, sizeof(globalAddress));
+ 
+-    strncpy(addr, globalAddress, (unsigned int)len>strlen(globalAddress)?strlen(globalAddress):(unsigned int)len);
++    if (len > 0)
++    {
++        strlcpy(addr, globalAddress, (size_t)len);
++    }
+ 
+     return ANSC_STATUS_SUCCESS;
+ }
+Index: git/source/DHCPClientUtils/DHCPv4Client/dhcpmgr_udhcpc_plugin/dhcpmgr_udhcpc.c
+===================================================================
+--- git.orig/source/DHCPClientUtils/DHCPv4Client/dhcpmgr_udhcpc_plugin/dhcpmgr_udhcpc.c
++++ git/source/DHCPClientUtils/DHCPv4Client/dhcpmgr_udhcpc_plugin/dhcpmgr_udhcpc.c
+@@ -95,20 +95,20 @@ static int get_and_fill_env_data (DHCPv4
+ 
+     if ((env = getenv(DHCP_INTERFACE_NAME)) != NULL)
+     {
+-        strncpy(dhcpv4_data->ifname, env, sizeof(dhcpv4_data->ifname));
++        snprintf(dhcpv4_data->ifname, sizeof(dhcpv4_data->ifname), "%s", env);
+     }
+ 	
+     //need to handle the else case incase of interface name is null
+ 
+     if ((env = getenv(DHCP_SIPSRV)) != NULL)
+     {
+-        strncpy(dhcpv4_data->sipSrv, env, sizeof(dhcpv4_data->sipSrv));
++        snprintf(dhcpv4_data->sipSrv, sizeof(dhcpv4_data->sipSrv), "%s", env);
+     }
+  
+   //need to handle the else case incase of DHCP_SIPSRV name is null
+     if ((env = getenv(DHCP_STATIC_ROUTES)) != NULL)
+     {
+-        strncpy(dhcpv4_data->staticRoutes, env, sizeof(dhcpv4_data->staticRoutes));
++        snprintf(dhcpv4_data->staticRoutes, sizeof(dhcpv4_data->staticRoutes), "%s", env);
+     }
+    
+     //need to handle the else case incase of DHCP_STATIC_ROUTES name is null
+@@ -116,7 +116,7 @@ static int get_and_fill_env_data (DHCPv4
+     /** DHCP server id */
+     if ((env = getenv(DHCP_SERVER_ID)) != NULL)
+     {
+-        strncpy(dhcpv4_data->dhcpServerId, env, sizeof(dhcpv4_data->dhcpServerId));
++        snprintf(dhcpv4_data->dhcpServerId, sizeof(dhcpv4_data->dhcpServerId), "%s", env);
+     }
+     else
+     {
+@@ -126,7 +126,7 @@ static int get_and_fill_env_data (DHCPv4
+     /** DHCP State */
+     if (pinfo->input_option != NULL)
+     {
+-        strncpy(dhcpv4_data->dhcpState, pinfo->input_option, sizeof(dhcpv4_data->dhcpState));
++        snprintf(dhcpv4_data->dhcpState, sizeof(dhcpv4_data->dhcpState), "%s", pinfo->input_option);
+     }
+     else
+     {
+@@ -140,7 +140,7 @@ static int get_and_fill_env_data (DHCPv4
+         /** IP */
+         if ((env = getenv(DHCP_IP_ADDRESS)) != NULL)
+         {
+-            strncpy(dhcpv4_data->address, env, sizeof(dhcpv4_data->address));
++            snprintf(dhcpv4_data->address, sizeof(dhcpv4_data->address), "%s", env);
+         }
+         else
+         {
+@@ -150,7 +150,7 @@ static int get_and_fill_env_data (DHCPv4
+         /** Subnet mask. */
+         if ((env = getenv(DHCP_SUBNET)) != NULL)
+         {
+-            strncpy(dhcpv4_data->netmask, env, sizeof(dhcpv4_data->netmask));
++            snprintf(dhcpv4_data->netmask, sizeof(dhcpv4_data->netmask), "%s", env);
+         }
+         else
+         {
+@@ -160,7 +160,7 @@ static int get_and_fill_env_data (DHCPv4
+         /** Gateway. */
+         if (pinfo->router != NULL)
+         {
+-            strncpy(dhcpv4_data->gateway, pinfo->router, sizeof(dhcpv4_data->gateway));
++            snprintf(dhcpv4_data->gateway, sizeof(dhcpv4_data->gateway), "%s", pinfo->router);
+         }
+         else
+         {
+@@ -180,13 +180,13 @@ static int get_and_fill_env_data (DHCPv4
+             tok = strtok (dns, " ");
+             if (tok)
+             {
+-                strncpy(dhcpv4_data->dnsServer, tok, sizeof(dhcpv4_data->dnsServer));
++                snprintf(dhcpv4_data->dnsServer, sizeof(dhcpv4_data->dnsServer), "%s", tok);
+             }
+             /** dnsserver2 */
+             tok = strtok(NULL, " ");
+             if (tok)
+             {
+-                strncpy(dhcpv4_data->dnsServer1, tok, sizeof(dhcpv4_data->dnsServer1));
++                snprintf(dhcpv4_data->dnsServer1, sizeof(dhcpv4_data->dnsServer1), "%s", tok);
+             }
+         }
+         else
+@@ -235,7 +235,7 @@ static int get_and_fill_env_data (DHCPv4
+         /** TimeZone. */
+         if ((env = getenv(DHCP_TIMEZONE)) != NULL)
+         {
+-            strncpy(dhcpv4_data->timeZone, env, sizeof(dhcpv4_data->timeZone));
++            snprintf(dhcpv4_data->timeZone, sizeof(dhcpv4_data->timeZone), "%s", env);
+         }
+         else
+         {
+@@ -257,7 +257,7 @@ static int get_and_fill_env_data (DHCPv4
+         /* opt122 and opt125 for MTA */
+         if ((env = getenv(DHCP_MTA_IPV4)) != NULL)
+         {
+-            strncpy(dhcpv4_data->mtaOption.option_122, env, sizeof(dhcpv4_data->mtaOption.option_122));
++            snprintf(dhcpv4_data->mtaOption.option_122, sizeof(dhcpv4_data->mtaOption.option_122), "%s", env);
+             if (dhcpv4_data->mtaOption.option_122 == NULL)
+             {
+                 DHCPMGR_LOG_ERROR("[%s-%d] Failed to copy data for MTA IPv4 option \n", __FUNCTION__, __LINE__);
+@@ -266,7 +266,7 @@ static int get_and_fill_env_data (DHCPv4
+         }
+         else if ((env = getenv(DHCP_MTA_IPV6)) != NULL)
+         {
+-            strncpy(dhcpv4_data->mtaOption.option_125, env, sizeof(dhcpv4_data->mtaOption.option_125));
++            snprintf(dhcpv4_data->mtaOption.option_125, sizeof(dhcpv4_data->mtaOption.option_125), "%s", env);
+             if (dhcpv4_data->mtaOption.option_125 == NULL)
+             {
+                 DHCPMGR_LOG_ERROR("[%s-%d] Failed to copy data for MTA IPv6 option \n", __FUNCTION__, __LINE__);
+Index: git/source/DHCPClientUtils/DHCPv6Client/dhcpmgr_dibbler_plugin/dhcpmgr_dibbler_plugin.c
+===================================================================
+--- git.orig/source/DHCPClientUtils/DHCPv6Client/dhcpmgr_dibbler_plugin/dhcpmgr_dibbler_plugin.c
++++ git/source/DHCPClientUtils/DHCPv6Client/dhcpmgr_dibbler_plugin/dhcpmgr_dibbler_plugin.c
+@@ -82,7 +82,7 @@ static int get_and_fill_env_data_dhcp6(D
+     /** Interface name */
+     if ((env = getenv(DHCPv6_INTERFACE_NAME)) != NULL)
+     {
+-        strncpy(dhcpv6_data->ifname, env, sizeof(dhcpv6_data->ifname));
++        snprintf(dhcpv6_data->ifname, sizeof(dhcpv6_data->ifname), "%s", env);
+     }
+     else
+     {
+@@ -106,7 +106,7 @@ static int get_and_fill_env_data_dhcp6(D
+     /** IA_NA (Non-temporary address) */
+     if ((env = getenv(DHCPv6_IANA_ADDRESS)) != NULL)
+     {
+-        strncpy(dhcpv6_data->ia_na.address, env, sizeof(dhcpv6_data->ia_na.address));
++        snprintf(dhcpv6_data->ia_na.address, sizeof(dhcpv6_data->ia_na.address), "%s", env);
+         dhcpv6_data->ia_na.assigned = true;
+     }
+ 
+@@ -138,7 +138,7 @@ static int get_and_fill_env_data_dhcp6(D
+     /** IA_PD (Prefix delegation) */
+     if ((env = getenv(DHCPv6_IAPD_PREFIX)) != NULL)
+     {
+-        strncpy(dhcpv6_data->ia_pd.Prefix, env, sizeof(dhcpv6_data->ia_pd.Prefix));
++        snprintf(dhcpv6_data->ia_pd.Prefix, sizeof(dhcpv6_data->ia_pd.Prefix), "%s", env);
+         dhcpv6_data->ia_pd.assigned = true;
+     }
+ 
+@@ -200,7 +200,7 @@ static int get_and_fill_env_data_dhcp6(D
+     /** Domain Name */
+     if ((env = getenv(DHCPv6_OPTION_DOMAIN)) != NULL)
+     {
+-        strncpy(dhcpv6_data->domainName, env, sizeof(dhcpv6_data->domainName));
++        snprintf(dhcpv6_data->domainName, sizeof(dhcpv6_data->domainName), "%s", env);
+     }
+     else
+     {
+@@ -210,7 +210,7 @@ static int get_and_fill_env_data_dhcp6(D
+     /** NTP Server */
+     if ((env = getenv(DHCPv6_OPTION_NTP)) != NULL)
+     {
+-        strncpy(dhcpv6_data->ntpserver, env, sizeof(dhcpv6_data->ntpserver));
++        snprintf(dhcpv6_data->ntpserver, sizeof(dhcpv6_data->ntpserver), "%s", env);
+     }
+     else
+     {
+@@ -220,7 +220,7 @@ static int get_and_fill_env_data_dhcp6(D
+     /** AFTR (Access Gateway for DS-Lite) */
+     if ((env = getenv(DHCPv6_OPTION_DSLITE)) != NULL)
+     {
+-        strncpy(dhcpv6_data->aftr, env, sizeof(dhcpv6_data->aftr));
++        snprintf(dhcpv6_data->aftr, sizeof(dhcpv6_data->aftr), "%s", env);
+     }
+     else
+     {
+@@ -230,7 +230,7 @@ static int get_and_fill_env_data_dhcp6(D
+     /** MAP-T Configuration */
+     if ((env = getenv(DHCPv6_OPTION_MAPT)) != NULL)
+     {
+-        strncpy((char *) dhcpv6_data->mapt.Container, env, sizeof(dhcpv6_data->mapt.Container));
++        snprintf((char *) dhcpv6_data->mapt.Container, sizeof(dhcpv6_data->mapt.Container), "%s", env);
+         dhcpv6_data->mapt.Assigned = true;
+     }
+     else
+Index: git/source/DHCPMgrUtils/dhcpmgr_v4_lease_handler.c
+===================================================================
+--- git.orig/source/DHCPMgrUtils/dhcpmgr_v4_lease_handler.c
++++ git/source/DHCPMgrUtils/dhcpmgr_v4_lease_handler.c
+@@ -39,6 +39,7 @@
+ 
+ 
+ #include <string.h>
++#include <bsd/string.h>
+ #include <unistd.h>
+ #include <sys/ioctl.h>
+ #include <net/if.h>
+@@ -187,14 +188,14 @@ ANSC_STATUS DhcpMgr_updateDHCPv4DML(PCOS
+     return ANSC_STATUS_SUCCESS;
+ }
+ 
+-int DhcpMgr_GetBCastFromIpSubnetMask(const char* inIpStr, const char* inSubnetMaskStr, char *outBcastStr)
++int DhcpMgr_GetBCastFromIpSubnetMask(const char* inIpStr, const char* inSubnetMaskStr, char *outBcastStr, size_t outBcastStrSize)
+ {
+    struct in_addr ip;
+    struct in_addr subnetMask;
+    struct in_addr bCast;
+    int ret = RETURN_OK;
+ 
+-   if (inIpStr == NULL || inSubnetMaskStr == NULL || outBcastStr == NULL)
++   if (inIpStr == NULL || inSubnetMaskStr == NULL || outBcastStr == NULL || outBcastStrSize == 0)
+    {
+       return RETURN_ERR;
+    }
+@@ -202,7 +203,7 @@ int DhcpMgr_GetBCastFromIpSubnetMask(con
+    ip.s_addr = inet_addr(inIpStr);
+    subnetMask.s_addr = inet_addr(inSubnetMaskStr);
+    bCast.s_addr = ip.s_addr | ~subnetMask.s_addr;
+-   strncpy(outBcastStr, inet_ntoa(bCast),strlen(inet_ntoa(bCast))+1);
++   strlcpy(outBcastStr, inet_ntoa(bCast), outBcastStrSize);
+ 
+    return ret;
+ }
+@@ -226,7 +227,7 @@ int configureNetworkInterface(PCOSA_DML_
+     }
+ 
+     // Set the interface name
+-    strncpy(ifr.ifr_name, pDhcpc->Cfg.Interface, IFNAMSIZ);
++    snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s", pDhcpc->Cfg.Interface);
+ 
+     // Set the IP address
+     addr = (struct sockaddr_in*)&ifr.ifr_addr;
+@@ -247,7 +248,7 @@ int configureNetworkInterface(PCOSA_DML_
+     }
+ 
+     char broadcast[BUFLEN_32] = {0};
+-    DhcpMgr_GetBCastFromIpSubnetMask(current->address, current->netmask, broadcast);
++    DhcpMgr_GetBCastFromIpSubnetMask(current->address, current->netmask, broadcast, sizeof(broadcast));
+     
+     // Set the broadcast address
+     inet_pton(AF_INET, broadcast, &addr->sin_addr);
+Index: git/source/DHCPServerUtils/DHCPv4Server/dhcp_server_functions.c
+===================================================================
+--- git.orig/source/DHCPServerUtils/DHCPv4Server/dhcp_server_functions.c
++++ git/source/DHCPServerUtils/DHCPv4Server/dhcp_server_functions.c
+@@ -20,6 +20,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <bsd/string.h>
+ #include <sys/socket.h>
+ #include <arpa/inet.h>
+ #include <unistd.h>
+@@ -510,7 +511,7 @@ void prepare_dhcp_options_wan_dns()
+                                         safec_rc = sprintf_s(pL_cNs, sizeof(pL_cNs),"%s,%s", l_cNs, l_cToken);
+                                         ERR_CHK(safec_rc);
+ 
+-                                        strncpy(l_cNs, pL_cNs, strlen(pL_cNs));
++                                        strlcpy(l_cNs, pL_cNs, sizeof(l_cNs));
+                                 }
+                                 else
+                                 {
+@@ -533,11 +534,16 @@ void prepare_dhcp_options_wan_dns()
+         remove_file(l_cLocalDhcpOpt);
+ }
+ 
+-void get_ipv4_dns(char *cNsServer4)
++void get_ipv4_dns(char *cNsServer4, size_t cNsServer4Size)
+ {
+     char l_cLine[255] = {0};
+     FILE *l_fResolv_Conf = NULL;
+ 
++    if (cNsServer4 == NULL || cNsServer4Size == 0)
++    {
++        return;
++    }
++
+     cNsServer4[0] = '\0';
+ 
+     l_fResolv_Conf = fopen(RESOLV_CONF, "r");
+@@ -551,8 +557,8 @@ void get_ipv4_dns(char *cNsServer4)
+                 property = property + strlen("nameserver ");
+                 if (strstr(property, "."))
+                 {
+-                    //strlen - 1 to strip \n
+-                    strncpy(cNsServer4, property, (strlen(property) - 1));
++                    property[strcspn(property, "\r\n")] = '\0';
++                    strlcpy(cNsServer4, property, cNsServer4Size);
+                     break;
+                 }
+             }
+@@ -586,7 +592,7 @@ void prepare_whitelist_urls(FILE *fp_loc
+         else if (NULL != (l_cRemoveHttp = strstr(l_cRedirect_Url, "https://")))
+         {
+                       l_cRemoveHttp = l_cRemoveHttp + strlen("https://");
+-            strncpy(l_cRedirect_Url, l_cRemoveHttp, sizeof(l_cRedirect_Url));
++            memmove(l_cRedirect_Url, l_cRemoveHttp, strlen(l_cRemoveHttp) + 1);
+         }
+                 else
+                 {
+@@ -605,12 +611,12 @@ void prepare_whitelist_urls(FILE *fp_loc
+             if (NULL != (l_cRemoveHttp = strstr(l_cCloud_Personal_Url, "http://")))
+             {
+             l_cRemoveHttp = l_cRemoveHttp + strlen("http://");
+-                strncpy(l_cCloud_Personal_Url, l_cRemoveHttp, sizeof(l_cCloud_Personal_Url));
++                memmove(l_cCloud_Personal_Url, l_cRemoveHttp, strlen(l_cRemoveHttp) + 1);
+        }
+                 else if (NULL != (l_cRemoveHttp = strstr(l_cCloud_Personal_Url, "https://")))
+                 {
+                           l_cRemoveHttp = l_cRemoveHttp + strlen("https://");
+-            strncpy(l_cCloud_Personal_Url, l_cRemoveHttp, sizeof(l_cCloud_Personal_Url));
++            memmove(l_cCloud_Personal_Url, l_cRemoveHttp, strlen(l_cRemoveHttp) + 1);
+                 }
+                 else
+                 {
+@@ -620,7 +626,7 @@ void prepare_whitelist_urls(FILE *fp_loc
+         iface_get_ipv4addr(WAN_IF_NAME, l_cErouter0_Ipv4Addr, sizeof(l_cErouter0_Ipv4Addr));
+     if (0 != l_cErouter0_Ipv4Addr[0])
+         {
+-            get_ipv4_dns(l_cNsServer4);
++            get_ipv4_dns(l_cNsServer4, sizeof(l_cNsServer4));
+     }
+     // erouter0 doesnt have IPv4 Address not doing anything
+     // TODO: ipv6 DNS whitelisting in case of ipv6 only clients
+@@ -639,7 +645,8 @@ void prepare_whitelist_urls(FILE *fp_loc
+                 {
+                         while(fgets(l_cLine, 80, l_fStatic_Urls) != NULL)
+                         {
+-                                strncpy(l_cUrl, l_cLine, (strlen(l_cLine) - 1));
++                                l_cLine[strcspn(l_cLine, "\r\n")] = '\0';
++                                strlcpy(l_cUrl, l_cLine, sizeof(l_cUrl));
+                                 fprintf(fp_local_dhcp_conf, "server=/%s/%s\n", l_cUrl, l_cNsServer4);
+                         }
+                         fclose(l_fStatic_Urls);
+@@ -1012,7 +1019,7 @@ int prepare_dhcp_conf (char *input)
+ 
+         if (CCSP_SUCCESS == ret_val && psmStrValue != NULL)
+         {
+-                strncpy(mesh_wan_ifname, psmStrValue, sizeof(mesh_wan_ifname));
++                snprintf(mesh_wan_ifname, sizeof(mesh_wan_ifname), "%s", psmStrValue);
+                 DHCPMGR_LOG_INFO("mesh_wan_ifname is %s", mesh_wan_ifname);
+                 Ansc_FreeMemory_Callback(psmStrValue);
+                 psmStrValue = NULL;
+@@ -1253,10 +1260,10 @@ int prepare_dhcp_conf (char *input)
+                 syscfg_commit();
+ 
+                 memset(l_cLanIPAddress, 0, sizeof(l_cLanIPAddress));
+-                strncpy(l_cLanIPAddress,lanIP,sizeof(l_cLanIPAddress));
++                snprintf(l_cLanIPAddress, sizeof(l_cLanIPAddress), "%s", lanIP);
+ 
+                 memset(l_cLanNetMask, 0, sizeof(l_cLanNetMask));
+-                strncpy(l_cLanNetMask,lanNetMask,sizeof(l_cLanNetMask));
++                snprintf(l_cLanNetMask, sizeof(l_cLanNetMask), "%s", lanNetMask);
+ 
+                 pclose(fp);
+         }
+@@ -1302,7 +1309,7 @@ int prepare_dhcp_conf (char *input)
+         }
+     if (CCSP_SUCCESS == l_iRet_Val && l_cpPsm_Get != NULL)
+         {
+-            strncpy(l_cWifi_Not_Configured, l_cpPsm_Get, sizeof(l_cWifi_Not_Configured));
++            snprintf(l_cWifi_Not_Configured, sizeof(l_cWifi_Not_Configured), "%s", l_cpPsm_Get);
+                            DHCPMGR_LOG_INFO("DHCP SERVER : NotifyWiFiChanges is %s", l_cWifi_Not_Configured);
+                 Ansc_FreeMemory_Callback(l_cpPsm_Get);
+                 l_cpPsm_Get = NULL;
+Index: git/source/DHCPServerUtils/DHCPv4Server/service_dhcp_server.c
+===================================================================
+--- git.orig/source/DHCPServerUtils/DHCPv4Server/service_dhcp_server.c
++++ git/source/DHCPServerUtils/DHCPv4Server/service_dhcp_server.c
+@@ -19,6 +19,7 @@
+ 
+ #include <stdio.h>
+ #include <string.h>
++#include <bsd/string.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <fcntl.h>
+@@ -184,7 +185,7 @@ int get_Pool_cnt(char arr[15][2],FILE *p
+         if (atoi(sg_buff)!=0 && strncmp(sg_buff,"",1) != 0)
+         {
+             DHCPMGR_LOG_INFO("\n - Value=%s",sg_buff);
+-            strncpy(arr[iter],sg_buff,2);
++            strlcpy(arr[iter], sg_buff, sizeof(arr[iter]));
+             iter++;
+         }
+     }
+@@ -221,18 +222,23 @@ int get_PSM_VALUES_FOR_POOL(char *cmd,ch
+     return 0;
+ }
+ 
+-void getRFC_Value(const char* dnsOption)
++void getRFC_Value(char* dnsOption, size_t dnsOptionSize)
+ {
+     int result = 0;
+     char status[16] = "true";
+     char dnsSet[8] = " -o ";
+     char l_DnsStrictOrderStatus[16] = {0};
+ 
++    if (dnsOption == NULL || dnsOptionSize == 0)
++    {
++        return;
++    }
++
+     syscfg_get(NULL, "DNSStrictOrder", l_DnsStrictOrderStatus, sizeof(l_DnsStrictOrderStatus));
+     result = strcmp (status,l_DnsStrictOrderStatus);
+     if (result == 0)
+     {
+-        strncpy((char *)dnsOption,dnsSet, strlen(dnsSet));
++        strlcpy(dnsOption, dnsSet, dnsOptionSize);
+         fprintf(stdout, "DNSMASQ getRFC_Value %s %s %zu\n",status,l_DnsStrictOrderStatus,sizeof(l_DnsStrictOrderStatus));
+         DHCPMGR_LOG_INFO("Starting dnsmasq with additional dns strict order option: %s",l_DnsStrictOrderStatus);
+     }
+@@ -268,7 +274,7 @@ int dnsmasq_server_start()
+     char l_cSystemCmd[255] = {0};
+     errno_t safec_rc = -1;
+ 
+-    getRFC_Value (dnsOption);
++    getRFC_Value (dnsOption, sizeof(dnsOption));
+     DHCPMGR_LOG_INFO("\n Adding DNSMASQ Option: %s", dnsOption);
+     strtok(dnsOption,"\n");
+     char l_cXdnsRefacCodeEnable[8] = {0};
+@@ -761,7 +767,7 @@ int dhcp_server_start (char *input)
+     DHCPMGR_LOG_INFO("SERVICE DHCP : dhcp_server-progress is set to inProgress from dhcp_server_start ");
+     ifl_set_event( "dhcp_server-errinfo", "");
+ 
+-    strncpy(l_cDhcp_Tmp_Conf, "/tmp/dnsmasq.conf.orig", sizeof(l_cDhcp_Tmp_Conf));
++    snprintf(l_cDhcp_Tmp_Conf, sizeof(l_cDhcp_Tmp_Conf), "%s", "/tmp/dnsmasq.conf.orig");
+     if (access(DHCP_CONF, F_OK) == 0) {
+         copy_file(DHCP_CONF, l_cDhcp_Tmp_Conf);
+     }
+@@ -1456,29 +1462,29 @@ int service_dhcp_init()
+             if (0 == l_cDhcp_Slow_Start_Quanta[0])
+         {
+             l_iDhcpSlowQuanta = 1;
+-            strncpy(g_cTime_File, DHCP_SLOW_START_1_FILE, sizeof(g_cTime_File));
++            snprintf(g_cTime_File, sizeof(g_cTime_File), "%s", DHCP_SLOW_START_1_FILE);
+             }
+         else if (0 == l_cTemp_Dhcp_Lease[0])
+         {
+             if (l_iDhcpSlowQuanta < 5)
+             {
+                 l_iDhcpSlowQuanta = l_iDhcpSlowQuanta + 1;
+-               strncpy(g_cTime_File, DHCP_SLOW_START_1_FILE, sizeof(g_cTime_File));
++               snprintf(g_cTime_File, sizeof(g_cTime_File), "%s", DHCP_SLOW_START_1_FILE);
+             }
+             else if (l_iDhcpSlowQuanta <= 15)
+             {
+                 l_iDhcpSlowQuanta = l_iDhcpSlowQuanta + 5;
+-                strncpy(g_cTime_File, DHCP_SLOW_START_2_FILE, sizeof(g_cTime_File));
++                snprintf(g_cTime_File, sizeof(g_cTime_File), "%s", DHCP_SLOW_START_2_FILE);
+             }
+                 else if (l_iDhcpSlowQuanta <= 100)
+            {
+                 l_iDhcpSlowQuanta = l_iDhcpSlowQuanta * 2;
+-                strncpy(g_cTime_File, DHCP_SLOW_START_3_FILE, sizeof(g_cTime_File));
++                snprintf(g_cTime_File, sizeof(g_cTime_File), "%s", DHCP_SLOW_START_3_FILE);
+            }
+           else
+                 {
+                 l_iDhcpSlowQuanta = atoi(g_cDhcp_Lease_Time);
+-               strncpy(g_cTime_File, DHCP_SLOW_START_3_FILE, sizeof(g_cTime_File));
++               snprintf(g_cTime_File, sizeof(g_cTime_File), "%s", DHCP_SLOW_START_3_FILE);
+                }
+         }
+ 
+@@ -1499,7 +1505,7 @@ int service_dhcp_init()
+         if(0 == g_cDhcp_Lease_Time[0])
+         {
+             DHCPMGR_LOG_INFO("DHCP Lease time is empty, set to default value 24h");
+-            strncpy(g_cDhcp_Lease_Time, "24h", sizeof(g_cDhcp_Lease_Time));
++            snprintf(g_cDhcp_Lease_Time, sizeof(g_cDhcp_Lease_Time), "%s", "24h");
+         }
+ 
+     get_device_props();
+@@ -1946,4 +1952,3 @@ int init_dhcp_server_service(void )
+     sysevent_syscfg_init();
+     return 0;
+ }
+-
+Index: git/source/DHCPServerUtils/DHCPv6Server/service_ipv6.c
+===================================================================
+--- git.orig/source/DHCPServerUtils/DHCPv6Server/service_ipv6.c
++++ git/source/DHCPServerUtils/DHCPv6Server/service_ipv6.c
+@@ -1243,6 +1243,7 @@ static int lan_addr6_set()
+     char evt_val[64] = {0};
+ #ifdef MULTILAN_FEATURE
+     char action[64] = {0};
++    char *actionSavePtr = NULL;
+     char cmd[CMD_BUF_SIZE] = {0};
+     char iapd_preftm[64] = {0};
+     char iapd_vldtm[64] = {0};
+@@ -1339,16 +1340,16 @@ static int lan_addr6_set()
+ 
+         if(action[0]!='\0') {
+             if(!strcmp(action,"'\\0'"))
+-                strncpy(iapd_preftm, "forever", sizeof(iapd_preftm));
++                snprintf(iapd_preftm, sizeof(iapd_preftm), "%s", "forever");
+             else
+-                strncpy(iapd_preftm, strtok (action,"'"), sizeof(iapd_preftm));
++                snprintf(iapd_preftm, sizeof(iapd_preftm), "%s", strtok_r (action,"'", &actionSavePtr));
+         }
+         ifl_get_event( COSA_DML_DHCPV6C_PREF_VLDTM_SYSEVENT_NAME, action, sizeof(action));
+         if(action[0]!='\0') {
+             if(!strcmp(action,"'\\0'"))
+-                strncpy(iapd_vldtm, "forever", sizeof(iapd_vldtm));
++                snprintf(iapd_vldtm, sizeof(iapd_vldtm), "%s", "forever");
+             else
+-                strncpy(iapd_vldtm, strtok (action,"'"), sizeof(iapd_vldtm));
++                snprintf(iapd_vldtm, sizeof(iapd_vldtm), "%s", strtok_r (action,"'", &actionSavePtr));
+         }
+ 
+ #if defined (INTEL_PUMA7)
+@@ -1420,10 +1421,10 @@ static int lan_addr6_unset()
+     snprintf(evt_name, sizeof(evt_name), "previous_ipv6_%s-prefix", default_lan_ifname);
+     ifl_get_event( evt_name, old_lan_iface_prefix, sizeof(iface_prefix));
+     if (strstr(old_iface_prefix, "/")) {
+-        strncpy(old_iface_prefix, strtok(old_iface_prefix, "/"), sizeof(old_iface_prefix));
++        old_iface_prefix[strcspn(old_iface_prefix, "/")] = '\0';
+     }
+     if (strstr(old_lan_iface_prefix, "/")) {
+-        strncpy(old_lan_iface_prefix, strtok(old_lan_iface_prefix, "/"), sizeof(old_lan_iface_prefix));
++        old_lan_iface_prefix[strcspn(old_lan_iface_prefix, "/")] = '\0';
+     }
+ #endif
+ 
+@@ -1705,7 +1706,7 @@ static int gen_dibbler_conf()
+                 errno_t  rc = -1;
+                 memset( HwAddr, 0, sizeof( HwAddr ) );
+                 memset( dummyAddr, 0, sizeof( dummyAddr ) );
+-                strncpy(dummyAddr,prefix_value,sizeof(dummyAddr));
++                snprintf(dummyAddr, sizeof(dummyAddr), "%s", prefix_value);
+ 
+                 dummyAddr[sizeof(dummyAddr)-1] = '\0';
+                 if( ( ifd = fopen( HwAdrrPath, "r" ) ) != NULL )
+Index: git/source/DHCPClientUtils/DHCPv4Client/dhcp_client_common.c
+===================================================================
+--- git.orig/source/DHCPClientUtils/DHCPv4Client/dhcp_client_common.c
++++ git/source/DHCPClientUtils/DHCPv4Client/dhcp_client_common.c
+@@ -19,6 +19,7 @@
+ 
+ #include "dhcp_client_common_utils.h"
+ #include <sys/prctl.h>
++#include <bsd/string.h>
+ 
+ /*
+  * signal_process ()
+@@ -408,7 +409,7 @@ static int parseArgs(const char *cmd, co
+     int numArgs=3, i, len, argIndex=0;
+     bool inSpace= TRUE;
+     const char *cmdStr;
+-    int  cmdStrlen = 0;
++    size_t cmdStrSize = 0;
+     char **array;
+ 
+     len = (args == NULL) ? 0 : strlen(args);
+@@ -443,20 +444,19 @@ static int parseArgs(const char *cmd, co
+         cmdStr++;
+     }
+ 
+-    cmdStrlen = strlen(cmdStr);
+-    array[argIndex] = calloc (1, cmdStrlen + 1);
++    cmdStrSize = strlen(cmdStr) + 1;
++    array[argIndex] = calloc (1, cmdStrSize);
+ 
+     if (array[argIndex] == NULL)
+     {
+-        DBG_PRINT("memory allocation of %lu failed", (ULONG)strlen(cmdStr) + 1);
++        DBG_PRINT("memory allocation of %lu failed", (ULONG)cmdStrSize);
+         freeArgs(array);
+         return FAILURE;
+     }
+     else
+     {
+         /* CID 182678 Calling risky function */
+-        strncpy(array[argIndex], cmdStr, cmdStrlen);
+-        array[argIndex][cmdStrlen] = '\0';
++        strlcpy(array[argIndex], cmdStr, cmdStrSize);
+         argIndex++;
+     }
+ 
+Index: git/source/DHCPMgrSsp/Makefile.am
+===================================================================
+--- git.orig/source/DHCPMgrSsp/Makefile.am
++++ git/source/DHCPMgrSsp/Makefile.am
+@@ -58,4 +58,4 @@ endif
+ CcspDHCPMgr_CFLAGS = $(SYSTEMD_CFLAGS) $(NONROOT_CFLAGS)
+ CcspDHCPMgr_SOURCES = ssp_messagebus_interface.c ssp_main.c ssp_action.c dm_pack_datamodel.c
+ CcspDHCPMgr_LDFLAGS = -rdynamic $(SYSTEMD_LDFLAGS) -pthread
+-CcspDHCPMgr_LDADD = $(CcspDHCPMgr_DEPENDENCIES) -lccsp_common -lsyscfg -ldl -lrbus
++CcspDHCPMgr_LDADD = $(CcspDHCPMgr_DEPENDENCIES) -lccsp_common -lsyscfg -ldl -lrbus -lbsd
