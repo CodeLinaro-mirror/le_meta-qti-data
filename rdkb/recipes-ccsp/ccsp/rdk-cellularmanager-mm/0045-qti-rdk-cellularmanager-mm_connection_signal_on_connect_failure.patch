@@ -1,0 +1,30 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From d6c0d0580bd11f73ae04c11e7dcc2cfb6620f7a4 Mon Sep 17 00:00:00 2001
+From: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+Date: Wed, 12 Aug 2026 16:43:10 +0530
+Subject: Fail-indication-sem-post
+Signed-off-by: Guru Siva Karthik Mekala <gurusiva@qti.qualcomm.com>
+---
+ source/CellularManager/cellularmgr_sm.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index 6253bd1..15b4e9c 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -2635,6 +2637,11 @@ int CellularMgrBearerConnectFailedCBForSM( void )
+                           __FUNCTION__, __LINE__, autoConnect, connectBackHaul));
+     }
+ 
++    /* Wake up the ConnectBackHaul request waiting in CellularMgr_Update_AccessPoint_Table().
++     * Without this the waiter blocks for its full 10s timeout on a connect failure (e.g.
++     * network PDN reject), during which CellularManager does not serve other rbus requests. */
++    sem_post(&connection_signal_sem);
++
+     return RETURN_OK;
+ }
+ 
