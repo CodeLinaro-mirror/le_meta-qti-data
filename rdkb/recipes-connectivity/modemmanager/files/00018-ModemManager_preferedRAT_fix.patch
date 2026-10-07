@@ -1,0 +1,24 @@
+From 7fd2616c2971ece3dc6cd9d00a487cd20f3be6cc Mon Sep 17 00:00:00 2001
+From: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+Date: Tue, 29 Sep 2026 05:04:40 +0000
+Subject: Prefered RAT fix
+Signed-off-by: Ananyasreya P P <ananyasr@qti.qualcomm.com>
+---
+ src/mm-shared-qmi.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/mm-shared-qmi.c b/src/mm-shared-qmi.c
+index e3654f57..451da5d6 100644
+--- a/src/mm-shared-qmi.c
++++ b/src/mm-shared-qmi.c
+@@ -1310,6 +1310,7 @@ set_current_modes_system_selection_preference_ready (QmiClientNas *client,
+     GError                                          *error = NULL;
+ 
+     output = qmi_client_nas_set_system_selection_preference_finish (client, res, &error);
++    usleep(5000);
+     if (!output || !qmi_message_nas_set_system_selection_preference_output_get_result (output, &error))
+         g_task_return_error (task, error);
+     else
+-- 
+2.34.1
+
