@@ -1,0 +1,48 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 9d7fe6ecbb90ba081be576604ed386e8d4b8434a Mon Sep 17 00:00:00 2001
+From: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+Date: Tue, 6 Oct 2026 17:29:10 +0000
+Subject: [PATCH] Fix for site filter bypass due to hardware acceleration
+
+Signed-off-by: Nishana Biddanda Belliappa <nbiddand@qti.qualcomm.com>
+---
+ source/firewall/firewall.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
+index c028cb7..0bb7daf 100644
+--- a/source/firewall/firewall.c
++++ b/source/firewall/firewall.c
+@@ -9675,6 +9675,7 @@ static int do_parcon_mgmt_site_keywd(FILE *raw_fp, FILE *fp, FILE *nat_fp, FILE
+     if (rc == 0 && query[0] != '\0' && query[0] != '0') // managed site list enabled
+     {
+         int count = 0, idx;
++        int active_count = 0;
+ #if !defined(_COSA_BCM_MIPS_)
+         int ruleIndex = 0;
+ 
+@@ -9976,7 +9977,16 @@ static int do_parcon_mgmt_site_keywd(FILE *raw_fp, FILE *fp, FILE *nat_fp, FILE
+                 }
+ #endif
+             }
++            active_count++;
+         }
++        if (active_count > 0) {
++              v_secure_system("echo 5 > /proc/sys/net/ecm/ecm_classifier_default/accel_delay_pkts");
++        } else {
++              v_secure_system("echo 0 > /proc/sys/net/ecm/ecm_classifier_default/accel_delay_pkts");
++        }
++    }
++    else {
++        v_secure_system("echo 0 > /proc/sys/net/ecm/ecm_classifier_default/accel_delay_pkts");
+     }
+    FIREWALL_DEBUG("Exiting do_parcon_mgmt_site_keywd\n"); 
+     return(0);
+-- 
+2.34.1
+
