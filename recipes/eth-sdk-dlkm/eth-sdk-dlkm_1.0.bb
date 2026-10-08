@@ -11,7 +11,7 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/${LICENSE};md5
 
 RM_WORK_EXCLUDE += "${PN}"
 
-inherit module linux-kernel-base systemd
+inherit module linux-kernel-base systemd deploy
 
 KERNEL_SPLIT_MODULES = "0"
 
@@ -65,7 +65,7 @@ do_compile() {
 }
 
 # -----------------------------------------------------------------------
-# do_install – generic install for every .ko and every .service found
+# do_install – install every .ko and every .service found
 # -----------------------------------------------------------------------
 do_install() {
 	# Run the kernel modules_install target so that modules.dep / modules.alias
@@ -83,14 +83,9 @@ do_install() {
 	for ko in $(find ${S} -name "*.ko" -not -path "*/.tmp_versions/*"); do
 		rel_dir=$(dirname ${ko} | sed "s|${S}/||")
 		ko_name=$(basename ${ko})
-		deploy_dir="${DEPLOY_DIR_IMAGE}/kernel_modules/data-eth/drivers/${rel_dir}"
 		install_dir="${D}/usr/lib/modules/${KERNEL_VERSION}/extra/drivers/${rel_dir}"
 
-		install -d ${deploy_dir}
 		install -d ${install_dir}
-
-		# Keep an unstripped copy in the deploy directory for debugging.
-		cp ${ko} ${deploy_dir}/
 
 		# Strip debug symbols in-place.
 		${STRIP} --strip-debug ${ko}
@@ -121,6 +116,25 @@ do_install() {
 	install -d ${D}${sysconfdir}/data/eth
 	install -m 0755 ${ETH_CLI_DIR}/set_eth_perf ${D}${sysconfdir}/data/eth/set_eth_perf
 }
+
+# -----------------------------------------------------------------------
+# do_deploy – keep unstripped modules for debugging.
+# BitBake may restore recipes from sstate during incremental builds, skipping
+# do_install() in certain ECRM creation tools. Move .ko file deployment to
+# do_deploy() to ensure modules are always copied to the deploy directory.
+# -----------------------------------------------------------------------
+do_deploy() {
+	for ko in $(find ${S} -name "*.ko" -not -path "*/.tmp_versions/*"); do
+		rel_dir=$(dirname ${ko} | sed "s|${S}/||")
+		ko_name=$(basename ${ko})
+		deploy_dir="${DEPLOYDIR}/kernel_modules/data-eth/drivers/${rel_dir}"
+
+		install -d ${deploy_dir}
+		install -m 0644 ${ko} ${deploy_dir}/${ko_name}
+	done
+}
+
+addtask do_deploy after do_compile before do_install
 
 # qperf class adds do_copy_kernel_module() after do_module_signing().
 # Since we do not yet support module signing, explicitly add the task to
