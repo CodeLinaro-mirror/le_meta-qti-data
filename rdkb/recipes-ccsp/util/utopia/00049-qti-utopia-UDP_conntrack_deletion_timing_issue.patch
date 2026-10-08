@@ -9,7 +9,8 @@ Date: Tue, 29 Sep 2026 10:52:58 +0530
 Subject: [PATCH] UDP_conntrack_deletion_timing_issue
 
 [Description]:
- Fix for when switching the firewall mode from Whitelist to Blacklist while continuous IPv4/IPv6 UDP UL data transfer is ongoing  UDP traffic was not blocked.
+ 1. Fix for when switching the firewall mode from Whitelist to Blacklist while continuous IPv4/IPv6 UDP UL data transfer is ongoing  UDP traffic was not blocked.
+ 2. Fix for When deltable is called to delete the only (or last) active Whitelist rule, X_QCOMRule_Count is decremented to 0 in Syscfg. During the subsequent firewall restart, flush_xqcomrule_conntrack_entries() reads the count as 0 and returns immediately without performing any conntrack cleanup.
 
 Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
 ---
@@ -17,11 +18,11 @@ Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
  source/firewall/firewall_ipv6.c |  24 +------
  2 files changed, 104 insertions(+), 44 deletions(-)
 
-diff --git a/source/firewall/firewall.c b/source/firewall/firewall.c
-index 787a29c..b8a4542 100644
---- a/source/firewall/firewall.c
-+++ b/source/firewall/firewall.c
-@@ -3342,25 +3339,6 @@ static int do_x_qcomrule_firewall(FILE* mangle_fp)
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -3342,25 +3342,6 @@ static int do_x_qcomrule_firewall(FILE*
                     if(strcmp(protocol, "tcp_udp") == 0)
                         fprintf(mangle_fp, "-I PREROUTING -i %s %s -d %s \n", current_wan_ifname, rule_udp,current_wan_ipaddr);
                 }
@@ -47,7 +48,7 @@ index 787a29c..b8a4542 100644
                  if (('\0' != destination_ip[0]) && strcmp("0.0.0.0",destination_ip)) {
                      //Adding destination IPv4 to rule
                      strlcat(rule, " -d ", sizeof(rule));
-@@ -3377,6 +3355,8 @@ static int do_x_qcomrule_firewall(FILE* mangle_fp)
+@@ -3377,6 +3358,8 @@ static int do_x_qcomrule_firewall(FILE*
                      if(strcmp(protocol, "tcp_udp") == 0)
                          fprintf(mangle_fp, "-I FORWARD -o %s %s\n", current_wan_ifname, rule_udp);
                  }
@@ -56,7 +57,7 @@ index 787a29c..b8a4542 100644
              }
              v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
          }
-@@ -14874,6 +14854,89 @@ static int prepare_disabled_ipv4_firewall(FILE *raw_fp, FILE *mangle_fp, FILE *n
+@@ -14874,6 +14857,102 @@ static int prepare_disabled_ipv4_firewal
     return(0);
  }
  
@@ -84,8 +85,21 @@ index 787a29c..b8a4542 100644
 +        return;
 +
 +    count = atoi(query);
++
++    /* Case 3: All rules deleted but firewall mode still active.
++     * Flush all remaining mark=53 conntrack entries so existing
++     * sessions are not allowed to continue under Whitelist mode. */
 +    if (0 == count)
++    {
++        if (strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++        {
++            if (!is_ipv6)
++                v_secure_system("conntrack -D -m mark --mark 53 2>/dev/null");
++            else
++                v_secure_system("conntrack -D -f ipv6 -m mark --mark 53 2>/dev/null");
++        }
 +        return;
++    }
 +
 +    for (idx = 1; idx <= count; idx++)
 +    {
@@ -97,7 +111,7 @@ index 787a29c..b8a4542 100644
 +
 +        query[0] = '\0';
 +        rc = syscfg_get(namespace, "Enable", query, sizeof(query));
-+        if (0 != rc || '\0' == query[0] || 0 == strcmp("0", query))
++        if (0 != rc || '\0' == query[0])
 +            continue;
 +
 +        protocol[0] = '\0';
@@ -146,7 +160,7 @@ index 787a29c..b8a4542 100644
  /*
   *  Procedure     : prepare_ipv4_firewall
   *  Purpose       : prepare the iptables-restore file that establishes all
-@@ -15638,6 +15701,11 @@ static int service_start ()
+@@ -15638,6 +15717,11 @@ static int service_start ()
     v_secure_system("iptables-restore -w 10 -c  < /tmp/.ipt 2> /tmp/.ipv4table_error");
  #endif
     FIREWALL_DEBUG("iptables-restore for ipv4 ends\n");
@@ -158,7 +172,7 @@ index 787a29c..b8a4542 100644
  
     //if (!isFirewallEnabled) {
     //   unlink(filename1);
-@@ -15662,6 +15730,8 @@ static int service_start ()
+@@ -15662,6 +15746,8 @@ static int service_start ()
     v_secure_system("ip6tables-restore -w 10 < /tmp/.ipt_v6 2> /tmp/.ipv6table_error");
  #endif
     FIREWALL_DEBUG("iptables-restore for ipv6 ends\n");
@@ -167,11 +181,11 @@ index 787a29c..b8a4542 100644
  
     if (!isDmzEnabled)
     {
-diff --git a/source/firewall/firewall_ipv6.c b/source/firewall/firewall_ipv6.c
-index 2c8cc27..4e1c2f4 100644
---- a/source/firewall/firewall_ipv6.c
-+++ b/source/firewall/firewall_ipv6.c
-@@ -2230,25 +2227,8 @@ int do_x_qcomrule_firewall_v6(FILE* mangle_fp)
+Index: git/source/firewall/firewall_ipv6.c
+===================================================================
+--- git.orig/source/firewall/firewall_ipv6.c
++++ git/source/firewall/firewall_ipv6.c
+@@ -2230,25 +2230,8 @@ int do_x_qcomrule_firewall_v6(FILE* mang
                      else if (direction[0] != '\0' && strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
                          fprintf(mangle_fp, "-I PREROUTING -i %s %s\n", current_wan_ifname, rule_udp);
  	         }
@@ -199,6 +213,3 @@ index 2c8cc27..4e1c2f4 100644
              }
              v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
          }
--- 
-2.34.1
-
