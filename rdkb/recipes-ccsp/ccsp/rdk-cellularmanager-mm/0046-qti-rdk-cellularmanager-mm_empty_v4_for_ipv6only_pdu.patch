@@ -1,0 +1,53 @@
+From a5a2898d526523fa672ba3849d8ca7c395c3ec21 Mon Sep 17 00:00:00 2001
+From: Ramanasarvesh Sadula <ramanasa@qti.qualcomm.com>
+Date: Wed, 7 Oct 2026 08:23:36 +0530
+Subject: [PATCH] Skip empty IPv4 info for IPv6-only PDU session
+
+For IPv6-only PDU, CellularManager receives an empty IPv4 callback
+from ModemManager. This causes WAN Manager to default to MTU 1500
+instead of using the correct IPv6 MTU from the network.
+
+Skip IPv4 IP configuration processing in CellularMgrIPReadyCBForSM
+when the selected profile is IPv6-only (CELLULAR_PDP_TYPE_IPV6), so
+WAN Manager only sees the valid IPv6 configuration.
+
+Signed-off-by: Ramanasarvesh Sadula <ramanasa@qti.qualcomm.com>
+---
+# This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+#
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+ source/CellularManager/cellularmgr_sm.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/source/CellularManager/cellularmgr_sm.c b/source/CellularManager/cellularmgr_sm.c
+index fc63e69..93b3f9f 100755
+--- a/source/CellularManager/cellularmgr_sm.c
++++ b/source/CellularManager/cellularmgr_sm.c
+@@ -405,6 +405,11 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+ 
+     if( CELLULAR_NETWORK_IP_FAMILY_IPV4 == pstIPStruct->IPType )
+     {
++        if( CELLULAR_PDP_TYPE_IPV6 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++        {
++            CcspTraceInfo(("%s - Skipping empty IPv4 info for IPv6-only PDU session\n", __FUNCTION__));
++            return RETURN_OK;
++        }
+         gpstCellularPolicyCtrl->bIPv4NetworkStartInProgress = FALSE;
+         gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus  = ip_ready_status;
+         if (gpstCellularPolicyCtrl->enNetworkIPv4IPReadyStatus == DEVICE_NETWORK_IP_NOT_READY){
+@@ -437,6 +442,11 @@ int CellularMgrIPReadyCBForSM( CellularIPStruct *pstIPStruct, CellularDeviceIPRe
+     }
+     else
+     {
++        if( CELLULAR_PDP_TYPE_IPV4 == gpstCellularPolicyCtrl->enPDPTypeForSelectedProfile )
++        {
++            CcspTraceInfo(("%s - Skipping empty IPv6 info for IPv4-only PDU session\n", __FUNCTION__));
++            return RETURN_OK;
++        }
+         gpstCellularPolicyCtrl->bIPv6NetworkStartInProgress = FALSE;
+         gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus  = ip_ready_status;
+         if (gpstCellularPolicyCtrl->enNetworkIPv6IPReadyStatus == DEVICE_NETWORK_IP_NOT_READY){
+-- 
+2.34.1
+
