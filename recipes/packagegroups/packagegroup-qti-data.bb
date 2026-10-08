@@ -33,7 +33,7 @@ RDEPENDS:packagegroup-qti-data = ' \
     mosquitto \
     phytool \
     '
-RDEPENDS:packagegroup-qti-data:append:echo = "data-devicetree qca-nss-sfe miniupnpd rtsp-alg"
+RDEPENDS:packagegroup-qti-data:append:echo = "data-devicetree qca-nss-sfe miniupnpd rtsp-alg usp-pa"
 RDEPENDS:packagegroup-qti-data:remove:echo = "aquantia tcpdump iproute2 dnsmasq bridge-utils data-ipa-cfg-mgr"
 # sa535m enables ECM, so data-ipa-cfg-mgr is not required
 RDEPENDS:packagegroup-qti-data:remove:sa535m = "data-ipa-cfg-mgr mosquitto"
