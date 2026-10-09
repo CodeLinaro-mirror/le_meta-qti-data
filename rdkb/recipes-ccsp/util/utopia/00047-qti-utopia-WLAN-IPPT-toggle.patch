@@ -1,0 +1,100 @@
+This patch file is from Qualcomm Technologies, Inc. 
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From ae127bcee13dc7534d2e4be9f2ee1555f96b3930 Mon Sep 17 00:00:00 2001
+From: Robin Rajamony <rrajamon@qti.qualcomm.com>
+Date: Fri, 2 Oct 2026 23:38:36 +0530
+Subject: [PATCH] IPPT WLAN Toggle
+
+Signed-off-by: Robin Rajamony <rrajamon@qti.qualcomm.com>
+---
+ source/scripts/init/service.d/service_lan.sh | 69 +++++++++-----------
+ 1 file changed, 30 insertions(+), 39 deletions(-)
+
+diff --git a/source/scripts/init/service.d/service_lan.sh b/source/scripts/init/service.d/service_lan.sh
+index c89d1bf..c7b3e73 100755
+--- a/source/scripts/init/service.d/service_lan.sh
++++ b/source/scripts/init/service.d/service_lan.sh
+@@ -275,46 +275,37 @@ bringup_wireless_interfaces() {
+ # Toggling the wifi clients
+ #--------------------------------------------------------------
+ toggling_wifi_clients() {
+-    my_array=()
+-    wifiInterfaces=("wifi0" "wifi1" "wifi2")
+-    for token in "${wifiInterfaces[@]}"; do
+-        isDisabled=$(syscfg get wireless.$token.disabled)
+-        if [ "$isDisabled" != "1" ]; then  # Check if interface is enabled
+-           if [ "$IPPT_Enable" == "true" ] && [ "$IPPT_ClientType" == "4" ]; then
+-                interface_found=0
+-                for path in /sys/class/net/ath*/parent; do
+-                    [ -e "$path" ] || continue
+-                    if grep -q "$token" "$path"; then
+-                        ath_iface=$(basename "$(dirname "$path")")
+-                        hostapd_cli -i "$ath_iface" -p /var/run/hostapd-${token}/ disassociate "$IPPT_MAC"
+-                        interface_found=1
+-                    fi
+-                done
+-                if [ $interface_found -eq 0 ]; then
+-                    echo "Warning [service_lan.sh:toggling_wifi_clients]: No matching interface found for token $token"
+-                fi
+-            else
+-                interfaces=()
+-                for path in /sys/class/net/ath*/parent; do
+-                    [ -e "$path" ] || continue
+-                    if grep -q "$token" "$path"; then
+-                        iface=$(basename "$(dirname "$path")")
+-                        status=$(syscfg get "wireless.${iface}.Enable")
+-                        if [[ "$status" == "1" ]]; then
+-                           ip link set "$iface" down
+-                           my_array+=("$iface")
+-                        fi
+-                    fi
+-                 done
+-            fi # end of IPPT check
+-        fi  # end of isDisabled check
+-    done
+-    for ath in "${my_array[@]}"; do
+-        status=$(ifconfig "$ath" | grep RUNNING | tr -s ' ' | cut -d ' ' -f4)
+-        if [ "$status" != "RUNNING" ]; then
+-           ip link set "$ath" up    # Bring interface up
++    ssid_instances=$(dmcli eRT getv \
++        "Device.WiFi.SSID.*.Enable" 2>/dev/null |
++        sed -n 's/.*Device\.WiFi\.SSID\.\([0-9][0-9]*\)\.Enable.*/\1/p')
++
++    if [ -z "$ssid_instances" ]; then
++        echo "Warning [service_lan.sh:toggling_wifi_clients]: Unable to get enabled OneWiFi SSID instances" > /dev/console
++        return 1
++    fi
++
++    if [ "$IPPT_Enable" = "true" ] && [ "$IPPT_ClientType" = "$IPPT_CLIENTTYPE_WLAN" ]; then
++        if [ -z "$IPPT_MAC" ]; then
++            echo "Warning [service_lan.sh:toggling_wifi_clients]: IPPT MAC is empty" > /dev/console
++            return 1
+         fi
+-    done
++
++        for ssid_instance in $ssid_instances; do
++            ssid_enable=$(dmcli eRT retv \
++                "Device.WiFi.SSID.${ssid_instance}.Enable" 2>/dev/null)
++            if [ "$ssid_enable" = "true" ]; then
++                dmcli eRT setv \
++                    "Device.WiFi.AccessPoint.${ssid_instance}.X_IPQ_DisAssoc" \
++                    string "$IPPT_MAC"
++            fi
++        done
++    else
++        for ssid_instance in $ssid_instances; do
++            dmcli eRT setv \
++                "Device.WiFi.AccessPoint.${ssid_instance}.X_CISCO_COM_KickAssocDevices" \
++                bool true
++        done
++    fi
+ }
+ 
+ #--------------------------------------------------------------
+-- 
+2.43.0
+

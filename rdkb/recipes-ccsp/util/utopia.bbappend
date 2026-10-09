@@ -54,6 +54,7 @@ SRC_URI:append = " \
     file://00049-qti-utopia-UDP_conntrack_deletion_timing_issue.patch \
     file://00050-qti-utopia-dnsmasq-log-facility-fix.patch \
     file://00051-qti-utopia-fix-sitefilter-hw-accel-bypass.patch \
+    file://00047-qti-utopia-WLAN-IPPT-toggle.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \
