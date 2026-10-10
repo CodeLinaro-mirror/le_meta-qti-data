@@ -45,8 +45,10 @@ define KernelPackage/data-devicetree/install
 	@echo "PKG_BUILD_DIR: $(PKG_BUILD_DIR)"
 	mkdir -p $(LINUX_DIR)/../techpack-dtbos
 	mkdir -p $(PKG_BUILD_DIR)/../techpack-dtbos
-	$(CP) `find $(PKG_BUILD_DIR)/ -name "*.dtbo"` $(LINUX_DIR)/../techpack-dtbos/
-	$(CP) `find $(PKG_BUILD_DIR)/ -name "*.dtbo"` $(PKG_BUILD_DIR)/../techpack-dtbos/
+	# Deploy only the platform DTBOs from ipa/ and eth.  DTBOs under
+	# dtbo/ are standalone runtime overlays and must not enter techpack-dtbos.
+	$(CP) `find $(PKG_BUILD_DIR)/ipa $(PKG_BUILD_DIR)/eth -type f -name "*.dtbo"` $(LINUX_DIR)/../techpack-dtbos/
+	$(CP) `find $(PKG_BUILD_DIR)/ipa $(PKG_BUILD_DIR)/eth -type f -name "*.dtbo"` $(PKG_BUILD_DIR)/../techpack-dtbos/
 endef
 
 $(eval	$(call KernelPackage,data-devicetree))
