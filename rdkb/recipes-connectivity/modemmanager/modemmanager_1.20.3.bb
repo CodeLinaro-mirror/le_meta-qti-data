@@ -39,6 +39,7 @@ SRC_URI_append += " \
     file://00016-qcom-soc-rps-cpus-config.patch \
     file://00017-ModemManager_utc_timestamp_log_update.patch \
     file://00018-ModemManager_preferedRAT_fix.patch \
+    file://00019-modemmanager-disconnect-extended-ip-indication-on-reset.patch \
 "
 
 S = "${UNPACKDIR}/git"
