@@ -8,11 +8,17 @@ ${LICENSE};md5=550794465ba0ec5312d6919e203a55f9"
 PR = "r4"
 
 DEPENDS  = "glib-2.0 libxml2 libnetfilter-conntrack virtual/kernel data-ipanat libnl"
+DEPENDS += "${@bb.utils.contains('MACHINE_FEATURES', 'commonlog', 'commonlog-lib', '', d)}"
 
 BASEPRODUCT = "${@d.getVar('PRODUCT', False)}"
 
 PACKAGECONFIG += "${@bb.utils.contains('MACHINE_FEATURES', 'dlt-logging', 'dlt', '', d)}"
 PACKAGECONFIG[dlt] = "--with-dltlogging,,dlt-daemon"
+
+# CLOG unified logging (FR205597). Takes precedence over DLT at compile time
+# (the source ladder selects USE_CLOG over USE_DLT when both are defined).
+PACKAGECONFIG += "${@bb.utils.contains('MACHINE_FEATURES', 'commonlog', 'clog', '', d)}"
+PACKAGECONFIG[clog] = "--with-clog,,commonlog-lib"
 
 EXTRA_OECONF = "--enable-target=${BASEMACHINE} \
 		--with-sanitized-headers=${KERNEL_OUT_PATH}/msm-kernel/usr/include/  \
@@ -53,13 +59,13 @@ do_install:append() {
 		  install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/IPACM_cfg.xml
 		  install -m 0644 -o 1001 -g 1001 ${WORKDIR}/data-ipa-cfg-mgr/ipacm/src/IPACM_cfg.xml -D ${D}${sysconfdir}/data/ipa/factory_IPACM_cfg.xml
 
-	  # Add dlt.service dependency and SupplementaryGroups only if dlt-logging is supported
-	  if ${@bb.utils.contains('PACKAGECONFIG', 'dlt', 'true', 'false', d)}; then
+	  # CLOG logs via DLT, so both backends need the dlt group and ordering
+	  if ${@bb.utils.contains_any('PACKAGECONFIG', 'dlt clog', 'true', 'false', d)}; then
 	      grep -q '^After=dlt.service$' ${D}${systemd_unitdir}/system/ipacm.service || \
 	          sed -i '/^\[Unit\]/a After=dlt.service' ${D}${systemd_unitdir}/system/ipacm.service
 
-	      grep -q '^SupplementaryGroups=dlt$' ${D}${systemd_unitdir}/system/ipacm.service || \
-	          sed -i '/^\[Service\]/a SupplementaryGroups=dlt' ${D}${systemd_unitdir}/system/ipacm.service
+	      grep -q '^SupplementaryGroups=.*\bdlt\b' ${D}${systemd_unitdir}/system/ipacm.service || \
+	          sed -i 's/^SupplementaryGroups=.*/& dlt/' ${D}${systemd_unitdir}/system/ipacm.service
 	  fi
 	fi
 }

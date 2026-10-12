@@ -5,9 +5,11 @@ SourcePath=/usr/sbin/dhcpcd
 [Service]
 Type=forking
 Restart=on-failure
-ExecStart=/usr/sbin/dhcpcd --noarp %i -t 0 -o domain_name_servers --noipv4ll -b -G -C resolv.conf
+KillMode=control-group
+SendSIGKILL=yes
+ExecStart=/usr/sbin/dhcpcd --noarp --nodelay %i -t 0 -o domain_name_servers --noipv4ll -b -G -C resolv.conf
 #Creating file to delete when dhcpcd is stoped insted of deleting .info file
 ExecStartPost=/bin/touch /var/run/dhcpcd/dhcpcd-restart-%i.custom
-ExecStop=/bin/kill -15 $MAINPID
-TimeoutSec=infinity
+ExecStop=/bin/sh -c 'pid=$(cat /var/run/dhcpcd/%i.pid 2>/dev/null); [ -n "$pid" ] && [ "$pid" -ne 0 ] && kill -15 "$pid" || true'
+TimeoutStopSec=5s
 ExecStopPost=rm -rf /var/run/dhcpcd/dhcpcd-restart-%i.custom
