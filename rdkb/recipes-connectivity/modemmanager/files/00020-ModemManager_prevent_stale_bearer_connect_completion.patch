@@ -1,0 +1,36 @@
+From 17e441ca70fb00743a314d6a698f24d37b944a51 Mon Sep 17 00:00:00 2001
+From: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+Date: Sun, 11 Oct 2026 17:08:06 +0530
+Subject: Prevent ModemManager state change due to delayed QMI response
+Signed-off-by: Adnan Mohamed Rias <adnanmoh@qti.qualcomm.com>
+---
+ src/mm-base-bearer.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/src/mm-base-bearer.c b/src/mm-base-bearer.c
+index 4bdbba7a..7fb65485 100644
+--- a/src/mm-base-bearer.c
++++ b/src/mm-base-bearer.c
+@@ -931,6 +931,19 @@ connect_succeeded (MMBaseBearer *self,
+ {
+     MMBearerConnectResult *result;
+ 
++    /* Ignore stale completion if the bearer is no longer connecting. */
++    if (self->priv->status != MM_BEARER_STATUS_CONNECTING) {
++        mm_obj_dbg (self, "ignoring stale connection completion: bearer is no longer connecting");
++
++        g_clear_object (&self->priv->connect_cancellable);
++        g_task_return_new_error (task,
++                                 MM_CORE_ERROR,
++                                 MM_CORE_ERROR_ABORTED,
++                                 "Bearer disconnected before connection completion");
++        g_object_unref (task);
++        return;
++    }
++
+     result = g_task_get_task_data (task);
+ 
+     /* Update bearer and interface status */
+-- 
+2.34.1
+
