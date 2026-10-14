@@ -1,0 +1,70 @@
+From a66f9a5e067f6bc3c920151434d562ab671a189b Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Fri, 9 Oct 2026 11:44:50 -0700
+Subject: ModemManager: map missing 3GPP call end
+ reasons
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+---
+ include/ModemManager-errors.h | 3 +++
+ src/mm-error-helpers.c        | 3 +++
+ src/mm-modem-helpers-qmi.c    | 8 ++++++--
+ 3 files changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/include/ModemManager-errors.h b/include/ModemManager-errors.h
+index 6d3315b5..a8b48bf7 100644
+--- a/include/ModemManager-errors.h
++++ b/include/ModemManager-errors.h
+@@ -460,6 +460,9 @@ typedef enum { /*< underscore_name=mm_mobile_equipment_error >*/
+     MM_MOBILE_EQUIPMENT_ERROR_UNAUTHORIZED_FOR_CAG                              = 231, /*< nick=UnauthorizedForCag >*/
+     MM_MOBILE_EQUIPMENT_ERROR_NO_NETWORK_SLICES_AVAILABLE                       = 232, /*< nick=NoNetworkSlicesAvailable >*/
+     MM_MOBILE_EQUIPMENT_ERROR_WIRELINE_ACCESS_AREA_NOT_ALLOWED                  = 233, /*< nick=WirelineAccessAreaNotAllowed >*/
++    MM_MOBILE_EQUIPMENT_ERROR_APN_TYPE_CONFLICT                                 = 234, /*< nick=ApnTypeConflict >*/
++    MM_MOBILE_EQUIPMENT_ERROR_MAX_DATA_RATE_NOT_SUPPORTED                       = 235, /*< nick=MaxDataRateNotSupported >*/
++    MM_MOBILE_EQUIPMENT_ERROR_INVALID_PCSCF_ADDRESS                             = 236, /*< nick=InvalidPcscfAddress >*/
+ } MMMobileEquipmentError;
+ 
+ /**
+diff --git a/src/mm-error-helpers.c b/src/mm-error-helpers.c
+index 574c7978..c9d8c148 100644
+--- a/src/mm-error-helpers.c
++++ b/src/mm-error-helpers.c
+@@ -205,6 +205,9 @@ static const gchar *me_error_messages[] = {
+     [MM_MOBILE_EQUIPMENT_ERROR_NON_IP_ONLY_ALLOWED]                               = "Non-IP only allowed",
+     [MM_MOBILE_EQUIPMENT_ERROR_BEARER_HANDLING_UNSUPPORTED]                       = "Bearer handling unsupported",
+     [MM_MOBILE_EQUIPMENT_ERROR_APN_RESTRICTION_INCOMPATIBLE]                      = "APN restriction incompatible",
++    [MM_MOBILE_EQUIPMENT_ERROR_APN_TYPE_CONFLICT]                                 = "APN type conflict",
++    [MM_MOBILE_EQUIPMENT_ERROR_MAX_DATA_RATE_NOT_SUPPORTED]                       = "Maximum data rate not supported",
++    [MM_MOBILE_EQUIPMENT_ERROR_INVALID_PCSCF_ADDRESS]                             = "Invalid P-CSCF address",
+     [MM_MOBILE_EQUIPMENT_ERROR_MULTIPLE_ACCESS_TO_PDN_CONNECTION_NOT_ALLOWED]     = "Multiple access to PDN connection not allowed",
+     [MM_MOBILE_EQUIPMENT_ERROR_ESM_INFORMATION_NOT_RECEIVED]                      = "ESM information not received",
+     [MM_MOBILE_EQUIPMENT_ERROR_PDN_CONNECTION_NONEXISTENT]                        = "PDN connection nonexistent",
+diff --git a/src/mm-modem-helpers-qmi.c b/src/mm-modem-helpers-qmi.c
+index 4e1705d7..1af1bebe 100644
+--- a/src/mm-modem-helpers-qmi.c
++++ b/src/mm-modem-helpers-qmi.c
+@@ -1731,6 +1731,10 @@ static const MMMobileEquipmentError qmi_vcer_3gpp_errors[] = {
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_GGSN_REJECT] = MM_MOBILE_EQUIPMENT_ERROR_ACTIVATION_REJECTED_BY_GGSN_OR_GW,
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_ACTIVATION_REJECT] = MM_MOBILE_EQUIPMENT_ERROR_ACTIVATION_REJECTED_UNSPECIFIED,
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_OPTION_NOT_SUPPORTED] = MM_MOBILE_EQUIPMENT_ERROR_SERVICE_OPTION_NOT_SUPPORTED,
++    [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INSUFFICIENT_RESOURCES_FOR_SLICE_DNN] = MM_MOBILE_EQUIPMENT_ERROR_INSUFFICIENT_RESOURCES_FOR_SLICE_AND_DNN,
++    [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INSUFFICIENT_RESOURCES_FOR_SLICE] = MM_MOBILE_EQUIPMENT_ERROR_INSUFFICIENT_RESOURCES_FOR_SLICE,
++    [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MISSING_OR_UNKNOWN_DNN_IN_SLICE] = MM_MOBILE_EQUIPMENT_ERROR_MISSING_OR_UNKNOWN_DNN_IN_SLICE,
++    [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MAX_DATA_RATE_FOR_UE_NOT_SUPPORTED] = MM_MOBILE_EQUIPMENT_ERROR_MAX_DATA_RATE_NOT_SUPPORTED,
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_OPTION_UNSUBSCRIBED] = MM_MOBILE_EQUIPMENT_ERROR_SERVICE_OPTION_NOT_SUBSCRIBED,
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_OPTION_TEMPORARILY_OUT_OF_ORDER] = MM_MOBILE_EQUIPMENT_ERROR_SERVICE_OPTION_OUT_OF_ORDER,
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_NSAPI_ALREADY_USED] = MM_MOBILE_EQUIPMENT_ERROR_NSAPI_OR_PTI_ALREADY_IN_USE,
+@@ -1760,10 +1764,10 @@ static const MMMobileEquipmentError qmi_vcer_3gpp_errors[] = {
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_CONDITIONAL_IE_ERROR] = MM_MOBILE_EQUIPMENT_ERROR_CONDITIONAL_IE_ERROR,
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MESSAGE_AND_PROTOCOL_STATE_UNCOMPATIBLE] = MM_MOBILE_EQUIPMENT_ERROR_MESSAGE_NOT_COMPATIBLE_WITH_PROTOCOL_STATE,
+     [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_PROTOCOL_ERROR] = MM_MOBILE_EQUIPMENT_ERROR_UNSPECIFIED_PROTOCOL_ERROR,
++    [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_APN_TYPE_CONFLICT] = MM_MOBILE_EQUIPMENT_ERROR_APN_TYPE_CONFLICT,
++    [QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INVALID_PROXY_CALL_SESSION_CONTROL_FUNCTION_ADDRESS] = MM_MOBILE_EQUIPMENT_ERROR_INVALID_PCSCF_ADDRESS,
+     /* unmapped errors */
+     /* QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_LLC_SNDCP_FAILURE */
+-    /* QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_APN_TYPE_CONFLICT */
+-    /* QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INVALID_PROXY_CALL_SESSION_CONTROL_FUNCTION_ADDRESS */
+ };
+ 
+ GError *
+-- 
+2.34.1

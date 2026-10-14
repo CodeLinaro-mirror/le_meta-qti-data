@@ -41,6 +41,7 @@ SRC_URI_append += " \
     file://00018-ModemManager_preferedRAT_fix.patch \
     file://00019-modemmanager-disconnect-extended-ip-indication-on-reset.patch \
     file://00020-ModemManager_prevent_stale_bearer_connect_completion.patch \
+    file://00021-ModemManager-map-missing-3GPP-call-end-reasons.patch \
 "
 
 S = "${UNPACKDIR}/git"
