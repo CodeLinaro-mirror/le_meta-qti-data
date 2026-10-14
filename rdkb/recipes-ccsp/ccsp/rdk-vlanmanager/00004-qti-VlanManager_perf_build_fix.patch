@@ -1,0 +1,155 @@
+From 59310ffe5ea7645a8cdbea8346ab24ddd8043342 Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Thu, 8 Oct 2026 07:45:59 +0000
+Subject: [PATCH] Fix patch to resolve the build errors in perf build
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ .../TR-181/middle_layer_src/ethernet_apis.c   | 23 ++++++++++----------
+ .../middle_layer_src/ethernet_internal.c      |  2 +-
+ source/TR-181/middle_layer_src/vlan_apis.c    |  9 ++++----
+ source/RdkVlanManager/Makefile.am             |  2 +-
+ 4 files changed, 19 insertions(+), 17 deletions(-)
+
+Index: git/source/TR-181/middle_layer_src/ethernet_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/ethernet_apis.c
++++ git/source/TR-181/middle_layer_src/ethernet_apis.c
+@@ -39,6 +39,7 @@
+ #include <sys/ioctl.h>
+ #include <net/if.h>
+ #include <syscfg/syscfg.h>
++#include <bsd/string.h>
+ 
+ #include "vlan_mgr_apis.h"
+ #include "ethernet_apis.h"
+@@ -604,7 +605,7 @@ static int EthLink_GetActiveWanInterface
+         return activeIface;
+     }
+ 
+-    strncpy(paramName, "dmsb.wanmanager.wanifcount", sizeof(paramName) - 1);
++    strlcpy(paramName, "dmsb.wanmanager.wanifcount", sizeof(paramName));
+     retPsmGet = PSM_VALUE_GET_VALUE(paramName, strValue);
+     if((retPsmGet == CCSP_SUCCESS) && (strValue != NULL))
+     {
+@@ -815,7 +816,7 @@ ANSC_STATUS EthLink_GetMarking(char *ifn
+                     PCOSA_DML_MARKING pDataModelMarking = (PCOSA_DML_MARKING)&(p_EthLink->pstDataModelMarking[i]);
+                     if ((pDataModelMarking != NULL) && (pVlanCfg->skb_config != NULL))
+                     {
+-                        strncpy(pVlanCfg->skb_config[i].alias, pDataModelMarking->Alias, sizeof(pVlanCfg->skb_config[i].alias) - 1);
++                        strlcpy(pVlanCfg->skb_config[i].alias, pDataModelMarking->Alias, sizeof(pVlanCfg->skb_config[i].alias));
+                         pVlanCfg->skb_config[i].skbPort = pDataModelMarking->SKBPort;
+                         pVlanCfg->skb_config[i].skbMark = pDataModelMarking->SKBMark;
+                         pVlanCfg->skb_config[i].skbEthPriorityMark = pDataModelMarking->EthernetPriorityMark;
+@@ -852,9 +853,9 @@ static ANSC_STATUS EthLink_CreateUnTagge
+ 
+     memset (&VlanCfg, 0, sizeof(vlan_configuration_t));
+ 
+-    strncpy(VlanCfg.BaseInterface, pEntry->BaseInterface, sizeof(VlanCfg.BaseInterface) - 1);
+-    strncpy(VlanCfg.L3Interface, pEntry->Name, sizeof(VlanCfg.L3Interface) - 1);
+-    strncpy(VlanCfg.L2Interface, pEntry->BaseInterface, sizeof(VlanCfg.L2Interface) - 1);
++    strlcpy(VlanCfg.BaseInterface, pEntry->BaseInterface, sizeof(VlanCfg.BaseInterface));
++    strlcpy(VlanCfg.L3Interface, pEntry->Name, sizeof(VlanCfg.L3Interface));
++    strlcpy(VlanCfg.L2Interface, pEntry->BaseInterface, sizeof(VlanCfg.L2Interface));
+     VlanCfg.VLANId = DEFAULT_VLAN_ID;
+     VlanCfg.TPId   = 0;
+ 
+@@ -986,9 +987,9 @@ static ANSC_STATUS EthLink_TriggerVlanRe
+ 
+     memset (&VlanCfg, 0, sizeof(vlan_configuration_t));
+ 
+-    strncpy(VlanCfg.BaseInterface, pEntry->BaseInterface, sizeof(VlanCfg.BaseInterface) - 1);
+-    strncpy(VlanCfg.L3Interface, pEntry->Name, sizeof(VlanCfg.L3Interface) - 1);
+-    strncpy(VlanCfg.L2Interface, pEntry->BaseInterface, sizeof(VlanCfg.L2Interface) - 1);
++    strlcpy(VlanCfg.BaseInterface, pEntry->BaseInterface, sizeof(VlanCfg.BaseInterface));
++    strlcpy(VlanCfg.L3Interface, pEntry->Name, sizeof(VlanCfg.L3Interface));
++    strlcpy(VlanCfg.L2Interface, pEntry->BaseInterface, sizeof(VlanCfg.L2Interface));
+     VlanCfg.VLANId = 0;
+     VlanCfg.TPId   = 0;
+     if (EthLink_GetVlanIdAndTPId(pEntry, &VlanCfg.VLANId, (PULONG)&VlanCfg.TPId) == ANSC_STATUS_FAILURE)
+@@ -1099,7 +1100,7 @@ static ANSC_STATUS EthLink_CreateMarking
+         PCOSA_DML_MARKING pDataModelMarking = (PCOSA_DML_MARKING)&(p_EthLink->pstDataModelMarking[iLoopCount]);
+         if (pDataModelMarking != NULL)
+         {
+-            strncpy( pDataModelMarking->Alias, pVlanCfg->skb_config[iLoopCount].alias, sizeof(pDataModelMarking->Alias) - 1);
++            strlcpy( pDataModelMarking->Alias, pVlanCfg->skb_config[iLoopCount].alias, sizeof(pDataModelMarking->Alias));
+             pDataModelMarking->SKBPort = pVlanCfg->skb_config[iLoopCount].skbPort;
+             pDataModelMarking->SKBMark = pVlanCfg->skb_config[iLoopCount].skbMark;
+             pDataModelMarking->EthernetPriorityMark = pVlanCfg->skb_config[iLoopCount].skbEthPriorityMark;
+@@ -1160,7 +1161,7 @@ static ANSC_STATUS EthLink_GetUnTaggedVl
+     }
+ 
+     memset (&intf, 0, sizeof(struct ifreq));
+-    strncpy(intf.ifr_name, iface, sizeof(intf.ifr_name) - 1);
++    strlcpy(intf.ifr_name, iface, sizeof(intf.ifr_name));
+ 
+     if (ioctl(sfd, SIOCGIFFLAGS, &intf) == -1) {
+         *status = ETH_IF_ERROR;
+@@ -1269,7 +1270,7 @@ ANSC_STATUS EthLink_GetMacAddr( PDML_ETH
+     snprintf(macStr, sizeof(macStr), "%c%c:%c%c:%c%c:%c%c:%c%c:%c%c",
+             hex[0], hex[1], hex[2], hex[3], hex[4], hex[5], hex[6], hex[7], hex[8], hex[9], hex[10], hex[11]);
+ 
+-    strncpy(pEntry->MACAddress, macStr, sizeof(pEntry->MACAddress) - 1);
++    strlcpy(pEntry->MACAddress, macStr, sizeof(pEntry->MACAddress));
+ 
+     return ANSC_STATUS_SUCCESS;
+ }
+Index: git/source/TR-181/middle_layer_src/ethernet_internal.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/ethernet_internal.c
++++ git/source/TR-181/middle_layer_src/ethernet_internal.c
+@@ -147,7 +147,7 @@ static ANSC_STATUS EthLink_Initialize( A
+         return ANSC_STATUS_FAILURE;
+     }
+ 
+-    memset(pEthCfg, 0, sizeof(DML_ETHERNET));
++    memset(pEthCfg, 0, sizeof(DML_ETHERNET) * linkCount);
+ 
+     for(nIndex = 0; nIndex < linkCount; nIndex++)
+     {
+Index: git/source/TR-181/middle_layer_src/vlan_apis.c
+===================================================================
+--- git.orig/source/TR-181/middle_layer_src/vlan_apis.c
++++ git/source/TR-181/middle_layer_src/vlan_apis.c
+@@ -39,6 +39,7 @@
+ #include <sys/stat.h>
+ #include <sys/ioctl.h>
+ #include <net/if.h>
++#include <bsd/string.h>
+ #include "vlan_mgr_apis.h"
+ #include "vlan_apis.h"
+ #include "vlan_internal.h"
+@@ -100,7 +101,7 @@ static ANSC_STATUS Vlan_GetTaggedVlanInt
+     }
+ 
+     memset (&intf, 0, sizeof(struct ifreq));
+-    strncpy(intf.ifr_name, iface, sizeof(intf.ifr_name) - 1);
++    strlcpy(intf.ifr_name, iface, sizeof(intf.ifr_name));
+ 
+     if (ioctl(sfd, SIOCGIFFLAGS, &intf) == -1) {
+         *status = VLAN_IF_ERROR;
+@@ -548,9 +549,9 @@ static ANSC_STATUS Vlan_CreateTaggedInte
+ 
+     memset (&VlanCfg, 0, sizeof(vlan_configuration_t));
+ 
+-    strncpy(VlanCfg.BaseInterface, pEntry->BaseInterface, sizeof(VlanCfg.BaseInterface) - 1);
+-    strncpy(VlanCfg.L3Interface, pEntry->Name, sizeof(VlanCfg.L3Interface) - 1);
+-    strncpy(VlanCfg.L2Interface, pEntry->BaseInterface, sizeof(VlanCfg.L2Interface) - 1);
++    strlcpy(VlanCfg.BaseInterface, pEntry->BaseInterface, sizeof(VlanCfg.BaseInterface));
++    strlcpy(VlanCfg.L3Interface, pEntry->Name, sizeof(VlanCfg.L3Interface));
++    strlcpy(VlanCfg.L2Interface, pEntry->BaseInterface, sizeof(VlanCfg.L2Interface));
+     VlanCfg.VLANId = pEntry->VLANId;
+     VlanCfg.TPId   = pEntry->TPId;
+ 
+Index: git/source/RdkVlanManager/Makefile.am
+===================================================================
+--- git.orig/source/RdkVlanManager/Makefile.am
++++ git/source/RdkVlanManager/Makefile.am
+@@ -49,6 +49,6 @@ VlanManager_DEPENDENCIES = \
+ 
+ VlanManager_CFLAGS = -DFEATURE_SUPPORT_RDKLOG $(DBUS_CFLAGS) $(SYSTEMD_CFLAGS)
+ VlanManager_SOURCES = ssp_action.c ssp_messagebus_interface.c ssp_main.c dm_pack_datamodel.c
+-VlanManager_LDFLAGS = -lccsp_common -lrdkloggers -lprivilege $(DBUS_LIBS) $(SYSTEMD_LDFLAGS) -lsecure_wrapper
++VlanManager_LDFLAGS = -lccsp_common -lrdkloggers -lprivilege $(DBUS_LIBS) $(SYSTEMD_LDFLAGS) -lsecure_wrapper -lbsd
+ VlanManager_LDADD = $(VlanManager_DEPENDENCIES)
+ VlanManager_CFLAGS += -DGIT_VERSION=\"$(GIT_VERSION)\"
