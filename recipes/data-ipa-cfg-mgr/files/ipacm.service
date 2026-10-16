@@ -8,7 +8,7 @@ DefaultDependencies=no
 Conflicts=shutdown.target
 
 [Service]
-Restart=on-failure
+Restart=always
 ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/ipa_filter_cfg.xml /etc/data/ipa/ipa_filter_cfg.xml
 ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/factory_ipa_filter_cfg.xml /etc/data/ipa/factory_ipa_filter_cfg.xml
 ExecStartPre=+/sbin/mount-copybind /systemrw/data/ipa/IPACM_cfg.xml /etc/data/ipa/IPACM_cfg.xml
