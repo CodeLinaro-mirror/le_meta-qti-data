@@ -1,0 +1,51 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From eabc9199defe3adf978844c92e3b70c9f2bf4cb5 Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Wed, 30 Sep 2026 10:37:38 +0530
+Subject: [PATCH] zebra_zombie_toggle_fix
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ source/util/utils/util.c | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/source/util/utils/util.c b/source/util/utils/util.c
+index 379c0ed..3d78de0 100644
+--- a/source/util/utils/util.c
++++ b/source/util/utils/util.c
+@@ -225,7 +225,7 @@ int pid_of(const char *name, const char *keyword)
+     char path[275];
+     char line[257];
+     char *cp;
+-    int n, i;
++    int n, i, is_zombie;
+ 
+     if ((dir = opendir("/proc")) == NULL)
+         return -1;
+@@ -235,6 +235,20 @@ int pid_of(const char *name, const char *keyword)
+         if (pid <= 0)
+             continue;
+ 
++        snprintf(path, sizeof(path), "/proc/%s/status", d->d_name);
++        if ((fp = fopen(path, "rb")) == NULL)
++            continue;
++        is_zombie = 0;
++        while (fgets(line, sizeof(line), fp) != NULL) {
++            if (strncmp(line, "State:", 6) == 0) {
++                is_zombie = strchr(line, 'Z') != NULL;
++                break;
++            }
++        }
++        fclose(fp);
++        if (is_zombie)
++            continue;
++
+         snprintf(path, sizeof(path), "/proc/%s/comm", d->d_name);
+         if ((fp = fopen(path, "rb")) == NULL)
+             continue;
+-- 
+2.34.1

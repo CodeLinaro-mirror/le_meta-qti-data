@@ -1,0 +1,46 @@
+From 1e39da2a99d4d6d78bf1845e6e510c9c49aa916d Mon Sep 17 00:00:00 2001
+From: HuaWen CHEN <huawenc@qti.qualcomm.com>
+Date: Fri, 9 Oct 2026 19:13:01 +0800
+Subject: [PATCH] modemmanager: disconnect extended IP indication on reset
+
+Change-Id: I1f7031f2c8c7bb67ec455741aa073d5e9fcddebd
+Signed-off-by: HuaWen CHEN <huawenc@qti.qualcomm.com>
+---
+src/mm-bearer-qmi.c | 15 +++++++++++++++
+1 file changed, 15 insertions(+)
+
+diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
+index fc3c2d13..b0575865 100644
+--- a/src/mm-bearer-qmi.c
++++ b/src/mm-bearer-qmi.c
+@@ -3124,6 +3124,14 @@ reset_bearer_connection (MMBearerQmi *self,
+                 cleanup_event_report_unsolicited_events (self,
+                                                          self->priv->client_ipv4,
+                                                          &self->priv->event_report_ipv4_indication_id);
++            /* The extended-IP-config callback retains raw self as user data.
++             * Disconnect it before disposing the bearer/client pair so a late
++             * QMI indication cannot dereference a freed MMBearerQmi. */
++            if (self->priv->extended_ipv4_config_change_id) {
++                g_signal_handler_disconnect (self->priv->client_ipv4,
++                                             self->priv->extended_ipv4_config_change_id);
++                self->priv->extended_ipv4_config_change_id = 0;
++            }
+         }
+         self->priv->packet_data_handle_ipv4 = 0;
+         g_clear_object (&self->priv->client_ipv4);
+@@ -3140,6 +3148,13 @@ reset_bearer_connection (MMBearerQmi *self,
+                 cleanup_event_report_unsolicited_events (self,
+                                                          self->priv->client_ipv6,
+                                                          &self->priv->event_report_ipv6_indication_id);
++            /* See the IPv4 cleanup above: this signal callback also owns only
++             * a raw bearer pointer and must be removed before disposal. */
++            if (self->priv->extended_ipv6_config_change_id) {
++                g_signal_handler_disconnect (self->priv->client_ipv6,
++                                             self->priv->extended_ipv6_config_change_id);
++                self->priv->extended_ipv6_config_change_id = 0;
++            }
+         }
+         self->priv->packet_data_handle_ipv6 = 0;
+         g_clear_object (&self->priv->client_ipv6);
+--
+2.34.1

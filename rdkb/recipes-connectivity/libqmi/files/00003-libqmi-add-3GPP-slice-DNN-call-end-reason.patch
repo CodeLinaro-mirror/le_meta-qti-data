@@ -1,0 +1,41 @@
+From dc3900174f942e14342177ac95a063f62de97897 Mon Sep 17 00:00:00 2001
+From: Alan Wong <alanwong@qti.qualcomm.com>
+Date: Mon, 12 Oct 2026 19:37:05 -0700
+Subject: libqmi: add 3GPP slice and DNN call end reasons
+Signed-off-by: Alan Wong <alanwong@qti.qualcomm.com>
+---
+ src/libqmi-glib/qmi-enums-wds.h | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/libqmi-glib/qmi-enums-wds.h b/src/libqmi-glib/qmi-enums-wds.h
+index a92bef76..48fe0254 100644
+--- a/src/libqmi-glib/qmi-enums-wds.h
++++ b/src/libqmi-glib/qmi-enums-wds.h
+@@ -790,6 +790,10 @@ typedef enum { /*< since=1.0 >*/
+  * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_ESM_INFO_NOT_RECEIVED: ESM information not received.
+  * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_PDN_CONNECTION_DOES_NOT_EXIST: PDN connection does not exist.
+  * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MULTIPLE_CONNECTION_TO_SAME_PDN_NOT_ALLOWED: Multiple connection to same PDN not allowed.
++ * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INSUFFICIENT_RESOURCES_FOR_SLICE_DNN: Insufficient resources for specific slice and DNN.
++ * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INSUFFICIENT_RESOURCES_FOR_SLICE: Insufficient resources for specific slice.
++ * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MISSING_OR_UNKNOWN_DNN_IN_SLICE: Missing or unknown DNN in a slice.
++ * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MAX_DATA_RATE_FOR_UE_NOT_SUPPORTED: Maximum data rate for UE not supported.
+  * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INVALID_TRANSACTION_ID: Invalid transaction ID.
+  * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MESSAGE_INCORRECT_SEMANTIC: Message incorrect semantically.
+  * @QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INVALID_MANDATORY_INFO:  Invalid mandatory information.
+@@ -839,8 +843,14 @@ typedef enum { /*< underscore_name=qmi_wds_verbose_call_end_reason_3gpp,since=1.
+     QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_PDN_CONNECTION_DOES_NOT_EXIST               = 54,
+     QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MULTIPLE_CONNECTION_TO_SAME_PDN_NOT_ALLOWED = 55,
+ 
++    QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INSUFFICIENT_RESOURCES_FOR_SLICE_DNN        = 67,
++    QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INSUFFICIENT_RESOURCES_FOR_SLICE            = 69,
++    QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MISSING_OR_UNKNOWN_DNN_IN_SLICE             = 70,
++
+     QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INVALID_TRANSACTION_ID = 81,
+ 
++    QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MAX_DATA_RATE_FOR_UE_NOT_SUPPORTED          = 82,
++
+     QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MESSAGE_INCORRECT_SEMANTIC              = 95,
+     QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_INVALID_MANDATORY_INFO                  = 96,
+     QMI_WDS_VERBOSE_CALL_END_REASON_3GPP_MESSAGE_TYPE_UNSUPPORTED                = 97,
+-- 
+2.34.1

@@ -1,0 +1,64 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries. 
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From ca45f7a23ca087801ce8b231562a19c8aa3b3937 Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Sat, 26 Sep 2026 16:39:39 +0530
+Subject: [PATCH] CPU optimization fix lm-lite
+
+[Description]:
+Removed unnecessary Parodus initialization from LMLite on SDX platforms to prevent continuous Nanomsg reconnect attempts and reduce idle CPU utilization.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -3676,6 +3676,26 @@ static void *ValidateHost_Thread (void *
+     pthread_exit(NULL);
+ }
+ 
++static int is_parodus_url_configured(void)
++{
++    char str[255] = {'\0'};
++    int found = 0;
++    FILE *fp = fopen("/etc/device.properties", "r");
++    if (fp == NULL) {
++        CcspTraceError(("Failed to open device.properties file\n"));
++        return 0;
++    }
++    while (fscanf(fp, "%254s", str) == 1) {
++        if (strncmp(str, "PARODUS_URL=", strlen("PARODUS_URL=")) == 0 &&
++            strlen(str) > strlen("PARODUS_URL=")) {
++            found = 1;
++            break;
++        }
++    }
++    fclose(fp);
++    return found;
++}
++
+ static const char *compName = "LOG.RDK.LM";
+ 
+ void LM_main (void)
+@@ -3741,7 +3761,13 @@ void LM_main (void)
+ 	subscribeTo_InterfaceActiveStatus_Event();  
+     }	     
+ #endif
+-    initparodusTask();
++
++    if (is_parodus_url_configured()) {
++        CcspTraceWarning(("RDKB_SYSTEM_BOOT_UP_LOG : PARODUS call!\n"));
++        initparodusTask();
++    } else {
++        CcspTraceWarning(("RDKB_SYSTEM_BOOT_UP_LOG : Skipping PARODUS call, PARODUS_URL not set\n"));
++    }
+ 
+ #ifdef WAN_TRAFFIC_COUNT_SUPPORT
+ #if defined (RDKB_EXTENDER_ENABLED)

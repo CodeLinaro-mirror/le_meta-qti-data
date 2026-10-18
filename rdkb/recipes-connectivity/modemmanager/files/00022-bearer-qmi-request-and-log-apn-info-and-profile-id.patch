@@ -1,0 +1,323 @@
+From 84b28555be6be7c012d37f13672abd48746a660e Mon Sep 17 00:00:00 2001
+From: Yinxin Sun <yinxsun@qti.qualcomm.com>
+Date: Tue, 25 Aug 2026 19:59:33 +0800
+Subject: [PATCH] bearer-qmi: expose APN name, type mask and resolved APN name
+ via D-Bus
+
+Request Profile ID and APN Name from WDS GetCurrentSettings and parse
+the new TLV 0x33 (APN Type Mask) and TLV 0x36 (Resolved APN Name).
+
+Wire all modem-reported APN values to the D-Bus Bearer interface:
+
+- Add ApnName (s), ApnTypeMask (t) and ResolvedApnName (s) to the
+  Bearer XML interface, ordered by TLV number (0x13, 0x33, 0x36)
+- Extend MMBearerConnectResult with apn_name, apn_type_mask and
+  resolved_apn_name fields and corresponding set/get accessors
+- Store parsed values from ConnectContext into the connect result
+- Set the D-Bus properties in bearer_update_status_connected() and
+  clear them in bearer_reset_interface_status() / mm_base_bearer_init()
+
+Signed-off-by: Yinxin Sun <yinxsun@qti.qualcomm.com>
+---
+ .../org.freedesktop.ModemManager1.Bearer.xml  | 34 ++++++++++
+ src/mm-base-bearer.c                          | 65 ++++++++++++++++++-
+ src/mm-base-bearer.h                          | 10 +++
+ src/mm-bearer-qmi.c                           | 64 ++++++++++++++++++++-
+ 4 files changed, 170 insertions(+), 3 deletions(-)
+
+diff --git a/introspection/org.freedesktop.ModemManager1.Bearer.xml b/introspection/org.freedesktop.ModemManager1.Bearer.xml
+index 512e4003..6573c623 100644
+--- a/introspection/org.freedesktop.ModemManager1.Bearer.xml
++++ b/introspection/org.freedesktop.ModemManager1.Bearer.xml
+@@ -427,6 +427,40 @@
+     -->
+     <property name="ProfileId" type="i" access="read" />
+ 
++    <!--
++        ApnName:
++
++        The APN name as confirmed by the modem after connection. This is
++        the APN the modem is actually using, which may differ from the APN
++        in Properties if the modem selected a default or overrode it.
++        Empty string if not reported by the modem.
++
++        Since: 1.22
++    -->
++    <property name="ApnName" type="s" access="read" />
++
++    <!--
++        ApnTypeMask:
++
++        Bitmask of APN types for the connected APN, as reported by the modem.
++        Indicates the purposes of the APN (e.g. default internet, IMS,
++        emergency, etc.). A value of 0 means the information is not available.
++
++        Since: 1.22
++    -->
++    <property name="ApnTypeMask" type="t" access="read" />
++
++    <!--
++        ResolvedApnName:
++
++        The APN name as resolved by the network after connection. This may
++        differ from the APN in Properties if the network resolves it to a
++        canonical form. Empty string if not reported by the modem.
++
++        Since: 1.22
++    -->
++    <property name="ResolvedApnName" type="s" access="read" />
++
+     <!--
+         Properties:
+ 
+diff --git a/src/mm-base-bearer.c b/src/mm-base-bearer.c
+index c6b57da1..3dde072b 100644
+--- a/src/mm-base-bearer.c
++++ b/src/mm-base-bearer.c
+@@ -555,6 +555,9 @@ bearer_reset_interface_status (MMBaseBearer *self)
+     mm_gdbus_bearer_set_ip6_config (
+         MM_GDBUS_BEARER (self),
+         mm_bearer_ip_config_get_dictionary (NULL));
++    mm_gdbus_bearer_set_apn_name (MM_GDBUS_BEARER (self), "");
++    mm_gdbus_bearer_set_apn_type_mask (MM_GDBUS_BEARER (self), 0);
++    mm_gdbus_bearer_set_resolved_apn_name (MM_GDBUS_BEARER (self), "");
+ }
+ 
+ static void
+@@ -611,7 +614,10 @@ bearer_update_status_connected (MMBaseBearer     *self,
+                                 MMBearerIpConfig *ipv4_config,
+                                 MMBearerIpConfig *ipv6_config,
+                                 guint64           uplink_speed,
+-                                guint64           downlink_speed)
++                                guint64           downlink_speed,
++                                const gchar      *apn_name,
++                                guint64           apn_type_mask,
++                                const gchar      *resolved_apn_name)
+ {
+     mm_gdbus_bearer_set_profile_id (MM_GDBUS_BEARER (self), profile_id);
+     mm_gdbus_bearer_set_multiplexed (MM_GDBUS_BEARER (self), multiplexed);
+@@ -624,6 +630,9 @@ bearer_update_status_connected (MMBaseBearer     *self,
+     mm_gdbus_bearer_set_ip6_config (
+         MM_GDBUS_BEARER (self),
+         mm_bearer_ip_config_get_dictionary (ipv6_config));
++    mm_gdbus_bearer_set_apn_name (MM_GDBUS_BEARER (self), apn_name ? apn_name : "");
++    mm_gdbus_bearer_set_apn_type_mask (MM_GDBUS_BEARER (self), apn_type_mask);
++    mm_gdbus_bearer_set_resolved_apn_name (MM_GDBUS_BEARER (self), resolved_apn_name ? resolved_apn_name : "");
+ 
+     /* If PPP is involved in the requested IP config, we must ignore
+      * all disconnection reports found via CGACT? polling or CGEV URCs.
+@@ -942,7 +951,10 @@ connect_succeeded (MMBaseBearer *self,
+         mm_bearer_connect_result_peek_ipv4_config (result),
+         mm_bearer_connect_result_peek_ipv6_config (result),
+         mm_bearer_connect_result_get_uplink_speed (result),
+-        mm_bearer_connect_result_get_downlink_speed (result));
++        mm_bearer_connect_result_get_downlink_speed (result),
++        mm_bearer_connect_result_get_apn_name (result),
++        mm_bearer_connect_result_get_apn_type_mask (result),
++        mm_bearer_connect_result_get_resolved_apn_name (result));
+ 
+     g_clear_object (&self->priv->connect_cancellable);
+ 
+@@ -1915,6 +1927,9 @@ mm_base_bearer_init (MMBaseBearer *self)
+                                      mm_bearer_ip_config_get_dictionary (NULL));
+     mm_gdbus_bearer_set_ip6_config  (MM_GDBUS_BEARER (self),
+                                      mm_bearer_ip_config_get_dictionary (NULL));
++    mm_gdbus_bearer_set_apn_name          (MM_GDBUS_BEARER (self), "");
++    mm_gdbus_bearer_set_apn_type_mask     (MM_GDBUS_BEARER (self), 0);
++    mm_gdbus_bearer_set_resolved_apn_name (MM_GDBUS_BEARER (self), "");
+     bearer_update_interface_stats (self);
+ }
+ 
+@@ -2026,6 +2041,9 @@ struct _MMBearerConnectResult {
+     gint              profile_id;
+     guint64           uplink_speed;
+     guint64           downlink_speed;
++    gchar            *apn_name;
++    guint64           apn_type_mask;
++    gchar            *resolved_apn_name;
+ };
+ 
+ MMBearerConnectResult *
+@@ -2045,6 +2063,8 @@ mm_bearer_connect_result_unref (MMBearerConnectResult *result)
+             g_object_unref (result->ipv6_config);
+         if (result->data)
+             g_object_unref (result->data);
++        g_free (result->apn_name);
++        g_free (result->resolved_apn_name);
+         g_slice_free (MMBearerConnectResult, result);
+     }
+ }
+@@ -2119,6 +2139,47 @@ mm_bearer_connect_result_get_downlink_speed (MMBearerConnectResult *result)
+     return result->downlink_speed;
+ }
+ 
++void
++mm_bearer_connect_result_set_apn_name (MMBearerConnectResult *result,
++                                       const gchar           *name)
++{
++    g_free (result->apn_name);
++    result->apn_name = g_strdup (name);
++}
++
++const gchar *
++mm_bearer_connect_result_get_apn_name (MMBearerConnectResult *result)
++{
++    return result->apn_name;
++}
++
++void
++mm_bearer_connect_result_set_apn_type_mask (MMBearerConnectResult *result,
++                                            guint64                mask)
++{
++    result->apn_type_mask = mask;
++}
++
++guint64
++mm_bearer_connect_result_get_apn_type_mask (MMBearerConnectResult *result)
++{
++    return result->apn_type_mask;
++}
++
++void
++mm_bearer_connect_result_set_resolved_apn_name (MMBearerConnectResult *result,
++                                                const gchar           *name)
++{
++    g_free (result->resolved_apn_name);
++    result->resolved_apn_name = g_strdup (name);
++}
++
++const gchar *
++mm_bearer_connect_result_get_resolved_apn_name (MMBearerConnectResult *result)
++{
++    return result->resolved_apn_name;
++}
++
+ MMBearerConnectResult *
+ mm_bearer_connect_result_new (MMPort           *data,
+                               MMBearerIpConfig *ipv4_config,
+diff --git a/src/mm-base-bearer.h b/src/mm-base-bearer.h
+index 96cb52b9..eb8806f9 100644
+--- a/src/mm-base-bearer.h
++++ b/src/mm-base-bearer.h
+@@ -62,6 +62,16 @@ void                   mm_bearer_connect_result_set_downlink_speed (MMBearerConn
+                                                                     guint64                speed);
+ guint64                mm_bearer_connect_result_get_downlink_speed (MMBearerConnectResult *result);
+ 
++void                   mm_bearer_connect_result_set_apn_name          (MMBearerConnectResult *result,
++                                                                        const gchar           *name);
++const gchar           *mm_bearer_connect_result_get_apn_name          (MMBearerConnectResult *result);
++void                   mm_bearer_connect_result_set_apn_type_mask     (MMBearerConnectResult *result,
++                                                                        guint64                mask);
++guint64                mm_bearer_connect_result_get_apn_type_mask     (MMBearerConnectResult *result);
++void                   mm_bearer_connect_result_set_resolved_apn_name (MMBearerConnectResult *result,
++                                                                        const gchar           *name);
++const gchar           *mm_bearer_connect_result_get_resolved_apn_name (MMBearerConnectResult *result);
++
+ /*****************************************************************************/
+ 
+ /* Default timeout values to be used in the steps of a connection or
+diff --git a/src/mm-bearer-qmi.c b/src/mm-bearer-qmi.c
+index f43f8cc2..236d1edc 100644
+--- a/src/mm-bearer-qmi.c
++++ b/src/mm-bearer-qmi.c
+@@ -550,6 +550,10 @@ typedef struct {
+     guint             extended_ipv6_config_change_id;
+     /* [LOOPBACK HOOK] TRUE when bearer APN == "loopback" */
+     gboolean          loopback_mode;
++    /* modem-reported APN info from GetCurrentSettings */
++    gchar            *apn_name;
++    guint64           apn_type_mask;
++    gchar            *resolved_apn_name;
+ } ConnectContext;
+ 
+ /* When using the WDS service, we may not only want to have explicit different
+@@ -739,6 +743,8 @@ connect_context_free (ConnectContext *ctx)
+     g_free (ctx->apn);
+     g_free (ctx->user);
+     g_free (ctx->password);
++    g_free (ctx->resolved_apn_name);
++    g_free (ctx->apn_name);
+ 
+     if (ctx->client_ipv4) {
+         if (ctx->packet_service_status_ipv4_indication_id) {
+@@ -1117,6 +1123,52 @@ get_current_settings_ready (QmiClientWds *client,
+         }
+ 
+         process_operator_reserved_pco (self, output);
++
++        /* Profile Info */
++        {
++            QmiWdsProfileType profile_type;
++            guint8            profile_index;
++
++            if (qmi_message_wds_get_current_settings_output_get_profile_id (output, &profile_type, &profile_index, NULL))
++                mm_obj_dbg (self, "  profile id: type %u, index %u", (guint)profile_type, (guint)profile_index);
++            else
++                mm_obj_dbg (self, "  profile id: n/a");
++        }
++
++        /* APN Name */
++        {
++            const gchar *apn_name = NULL;
++
++            if (qmi_message_wds_get_current_settings_output_get_apn_name (output, &apn_name, NULL)) {
++                mm_obj_dbg (self, "    apn name: %s", apn_name);
++                g_free (ctx->apn_name);
++                ctx->apn_name = g_strdup (apn_name);
++            } else
++                mm_obj_dbg (self, "    apn name: n/a");
++        }
++
++        /* APN Type Mask (TLV 0x33) */
++        {
++            QmiWdsApnTypeMask apn_type_mask = 0;
++
++            if (qmi_message_wds_get_current_settings_output_get_apn_type_mask (output, &apn_type_mask, NULL)) {
++                mm_obj_dbg (self, "apn type mask: 0x%016" G_GINT64_MODIFIER "x", (guint64)apn_type_mask);
++                ctx->apn_type_mask = (guint64)apn_type_mask;
++            } else
++                mm_obj_dbg (self, "apn type mask: n/a");
++        }
++
++        /* Resolved APN Name (TLV 0x36) */
++        {
++            const gchar *resolved_apn_name = NULL;
++
++            if (qmi_message_wds_get_current_settings_output_get_resolved_apn_name (output, &resolved_apn_name, NULL)) {
++                mm_obj_dbg (self, " resolved apn: %s", resolved_apn_name);
++                g_free (ctx->resolved_apn_name);
++                ctx->resolved_apn_name = g_strdup (resolved_apn_name);
++            } else
++                mm_obj_dbg (self, " resolved apn: n/a");
++        }
+     }
+ 
+     if (output)
+@@ -1144,7 +1196,11 @@ get_current_settings (GTask *task, QmiClientWds *client)
+                 QMI_WDS_REQUESTED_SETTINGS_MTU |
+                 QMI_WDS_REQUESTED_SETTINGS_DOMAIN_NAME_LIST |
+                 QMI_WDS_REQUESTED_SETTINGS_IP_FAMILY |
+-                QMI_WDS_REQUESTED_SETTINGS_OPERATOR_RESERVED_PCO;
++                QMI_WDS_REQUESTED_SETTINGS_OPERATOR_RESERVED_PCO |
++                QMI_WDS_REQUESTED_SETTINGS_PROFILE_ID |
++                QMI_WDS_REQUESTED_SETTINGS_APN_NAME |
++                QMI_WDS_REQUESTED_SETTINGS_APN_TYPE_MASK |
++                QMI_WDS_REQUESTED_SETTINGS_RESOLVED_APN_NAME;
+ 
+     input = qmi_message_wds_get_current_settings_input_new ();
+     qmi_message_wds_get_current_settings_input_set_requested_settings (input, requested, NULL);
+@@ -2840,6 +2896,12 @@ connect_context_step (GTask *task)
+ 
+         if (ctx->profile_id != MM_3GPP_PROFILE_ID_UNKNOWN)
+             mm_bearer_connect_result_set_profile_id (connect_result, ctx->profile_id);
++        if (ctx->apn_name)
++            mm_bearer_connect_result_set_apn_name (connect_result, ctx->apn_name);
++        if (ctx->apn_type_mask)
++            mm_bearer_connect_result_set_apn_type_mask (connect_result, ctx->apn_type_mask);
++        if (ctx->resolved_apn_name)
++            mm_bearer_connect_result_set_resolved_apn_name (connect_result, ctx->resolved_apn_name);
+ 
+         complete_connect (task, connect_result, NULL);
+         return;
+-- 
+2.34.1

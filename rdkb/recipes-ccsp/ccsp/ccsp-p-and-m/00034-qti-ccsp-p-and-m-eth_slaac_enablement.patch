@@ -1,0 +1,266 @@
+This patch file is from Qualcomm Technologies, Inc.
+are provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From e335d4d4bb5dac1f4be6b2c74e0729ed0342cb33 Mon Sep 17 00:00:00 2001
+From: SANKETH GOPAL <sankgopa@qti.qualcomm.com>
+Date: Tue, 22 Sep 2026 06:22:42 +0000
+Subject: [PATCH] Enablement of Eth WAN SLAAC
+
+[Description] : Here we are adding the code to check for the IPv6 address on the eth1 wan interface which is added by kernel based on the accept_ra proc entry and then processing this IPv6 info to get the prefix and create an IPv6 address for the brlan0, then setting the sysevents needed for Zebra to be populated so zebra.conf can be populated properly.
+
+Signed-off-by: Sanketh Gopal <sankgopa@qti.qualcomm.com>
+---
+ .../TR-181/board_sbapi/cosa_dhcpv6_apis.c     |   8 +
+ .../TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c | 179 ++++++++++++++++++
+ 2 files changed, 187 insertions(+)
+
+Index: git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
++++ git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis.c
+@@ -1885,7 +1885,7 @@ static int _dibbler_client_operation(cha
+ 
+ static COSA_DML_DHCPCV6_FULL  g_dhcpv6_client;
+ 
+-static int _dibbler_server_operation(char * arg);
++int _dibbler_server_operation(char * arg);
+ void _cosa_dhcpsv6_refresh_config();
+ static int CosaDmlDHCPv6sTriggerRestart(BOOL OnlyTrigger);
+ #define DHCPS6V_SERVER_RESTART_FIFO "/tmp/ccsp-dhcpv6-server-restart-fifo.txt"
+@@ -3542,7 +3542,7 @@ static int CosaDmlDHCPv6sTriggerRestart(
+ /*
+  *  DHCP Server
+  */
+-static int _dibbler_server_operation(char * arg)
++int _dibbler_server_operation(char * arg)
+ {
+     char cmd[256] = {0};	
+     ULONG Index  = 0;
+@@ -10070,11 +10070,19 @@ dhcpv6c_dbg_thrd(void * in)
+     }
+ 
+     char wan_interface[32]={0};
++    char Eth_slaac_enabled[3]={0};
+     char other_flag_value[3] = {0};
+     while (1) 
+     {
+         commonSyseventGet("current_wan_ifname", wan_interface, sizeof(wan_interface));
++        syscfg_get( NULL, "ethwan_slaac_enable", Eth_slaac_enabled, sizeof(Eth_slaac_enabled));
+         syscfg_get(NULL, "router_other_flag", other_flag_value, sizeof(other_flag_value));
++#ifdef ETHWAN_SLAAC_CONFIGURED
++        if((strstr(wan_interface,"eth") != NULL) && (strncmp(Eth_slaac_enabled,"1",1)==0))
++        {
++            ipv6_ethwan_slaac(wan_interface);
++        }
++#endif//ETHWAN_SLAAC_CONFIGURED
+         if((strncmp(wan_interface,"qmapmux",strlen("qmapmux"))==0) && (strncmp(other_flag_value,"1",1)==0))
+         {
+             FILE *fconfig = fopen(SERVER_CONF_LOCATION,"r");
+Index: git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
+===================================================================
+--- git.orig/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
++++ git/source-arm/TR-181/board_sbapi/cosa_dhcpv6_apis_ext.c
+@@ -15,7 +15,15 @@
+ #include "ipc_msg.h"
+ extern token_t sysevent_token_global;
+ extern int sysevent_fd_global;
+-extern int send_dhcp_data_to_wanmanager (ipc_dhcpv6_data_t *dhcpv6_data);
++extern int send_dhcp_data_to_wanmanager (ipc_dhcpv6_data_t *dhcpv6_data, int msgtype);
++
++#ifdef ETHWAN_SLAAC_CONFIGURED
++extern int _dibbler_server_operation(char * arg);
++#define SERVER_BIN     "dibbler-server"
++#define TMP_SERVER_CONF "/tmp/.dibbler_server_conf"
++#define SERVER_CONF_LOCATION  "/etc/dibbler/server.conf"
++#endif//ETHWAN_SLAAC_CONFIGURED
++
+ #ifdef PREFIX_SHARING_CELLULAR
+ #define SYSEVENT_IPV4_MTU_SIZE             "cellular_wan_v4_mtu"
+ #define SYSEVENT_FIELD_IPV6_DNS_SERVER     "wan6_ns"
+@@ -151,4 +159,183 @@ void UnSetV6Route(char* ifname, char* ro
+ }
+ #endif //PREFIX_SHARING_CELLULAR
+ 
++#ifdef ETHWAN_SLAAC_CONFIGURED
++/*==================================================populateDataForWanMgr===================================================*/
++/*this function is used to populate all the info that needs to be sent to wanmanager from eth slaac after brlan0 configuring*/
+ 
++static void populateDataForWanMgr(char* v6pre, char* prefLft, char* validLft,char* ifname)
++{
++    char dns_Server[256] = {'\0'};
++    char wan_Interface[32]={0};
++    ipc_dhcpv6_data_t dhcpv6_Data;
++    memset(&dhcpv6_Data, 0, sizeof(ipc_dhcpv6_data_t));
++    memset(wan_Interface,0,sizeof(wan_Interface));
++
++    dhcpv6_Data.isExpired = FALSE;
++    dhcpv6_Data.prefixAssigned = TRUE;
++    strlcpy(dhcpv6_Data.sitePrefix, v6pre, sizeof(dhcpv6_Data.sitePrefix));
++    strlcpy(dhcpv6_Data.pdIfAddress, "", sizeof(dhcpv6_Data.pdIfAddress));
++    dhcpv6_Data.prefixPltime = atoi(prefLft);
++    dhcpv6_Data.prefixVltime = atoi(validLft);
++    dhcpv6_Data.maptAssigned = FALSE;
++    dhcpv6_Data.mapeAssigned = FALSE;
++    dhcpv6_Data.prefixCmd = 0;
++    if(ifname == NULL)
++    {
++        commonSyseventGet("current_wan_ifname", wan_Interface, sizeof(wan_Interface));
++        strlcpy(dhcpv6_Data.ifname, wan_Interface, sizeof(dhcpv6_Data.ifname));
++    }
++    else
++    {
++        strlcpy(dhcpv6_Data.ifname, ifname, sizeof(dhcpv6_Data.ifname));
++    }
++    commonSyseventGet(SYSEVENT_FIELD_IPV6_DNS_SERVER, dns_Server, sizeof(dns_Server));
++    if (strlen(dns_Server) != 0)
++    {
++        dhcpv6_Data.dnsAssigned = TRUE;
++        sscanf (dns_Server, "%s %s", dhcpv6_Data.nameserver, dhcpv6_Data.nameserver1);
++    }
++    CcspTraceInfo (("%s %d sending dhcpv6 info for interface - %s\n", __FUNCTION__,__LINE__, dhcpv6_Data.ifname));
++    if (send_dhcp_data_to_wanmanager(&dhcpv6_Data, DHCP6C_STATE_CHANGED) != ANSC_STATUS_SUCCESS) {
++        CcspTraceError(("[%s-%d] Failed to send dhcpv6 data to wanmanager!!! \n", __FUNCTION__, __LINE__));
++    }
++}
++/*===========================================================================
++  FUNCTION:  ipv6_ethwan_slaac
++===========================================================================*/
++/*!
++    @brief
++     To retrieve IPv6 prefix from eth0 IPv6 first 4 octets, updating in
++     sysevents lan_prefix, ipv6_prefix. Getting brlan0 IPv6 address, updating
++     in sysevent lan_ipaddr_v6 and to remove eth0 prefix based route from
++     ip -6 route
++*/
++/*=========================================================================*/
++void ipv6_ethwan_slaac(char* Ifname)
++{
++    FILE *fp1=NULL;
++    FILE *fp2=NULL;
++    FILE *fp3=NULL;
++    FILE *fp4=NULL;
++    char validLft[10]={0};
++    char prefLft[10]={0};
++    char tmpBuf[32] = {0};
++    char tmpBuf2[32] = {0};
++    char tmpBuf3[32] = {0};
++    char v6pre[32]={0};
++    int i=0;
++    char buff[32] = {0};
++    char buff1[128]={0};
++    char lft[100]={0};
++    char cmd[128]={0};
++    FILE *fp = NULL;
++    char other_flag_value[64] = {0};
++    char out[128] = {0};
++
++    commonSyseventGet("lan_prefix", buff, sizeof(buff));
++    fp1 = v_secure_popen("r"," ip -6 addr show dev %s scope global | grep inet6 | awk '{print$2}' | head -1 ",Ifname);
++    if(fp1 != NULL)
++    {
++        fgets(tmpBuf, sizeof(tmpBuf), fp1);
++        v_secure_pclose(fp1);
++    }
++    if( strlen(tmpBuf) != 0)
++    {
++        int count=0;
++        while(count != 4)
++        {
++            if(tmpBuf[i] == ':')
++                count ++;
++            v6pre[i]=tmpBuf[i];
++            i++;
++        }
++        v6pre[i++]=':';
++        v6pre[i++]='/';
++        v6pre[i++]='6';
++        v6pre[i++]='4';
++        v6pre[i]='\0';
++     }
++
++     if((strncmp(buff,v6pre,sizeof(v6pre))!=0) && ( strlen(v6pre) != 0))
++     {
++         CcspTraceInfo (("%s %d Prefix obtained - %s\n", __FUNCTION__,__LINE__, v6pre));
++         commonSyseventGet("lan_ipaddr_v6", buff1, sizeof(buff1));
++         if(strlen(buff1) != 0)
++         {
++             v_secure_system("sysevent set lan_ipaddr_v6_prev %s",buff1);
++             CcspTraceInfo((" %s %d - %s set as lan_ipaddr_v6_prev\n", __FUNCTION__, __LINE__, buff1));
++         }
++         v_secure_system("sysevent set lan_prefix %s",v6pre);
++         char globalIP7[128] = {0};
++
++         if (dhcpv6_assign_global_ip(v6pre, "brlan0", globalIP7) == 0)
++         {
++             v_secure_system("sysevent set lan_ipaddr_v6 %s",globalIP7);
++             commonSyseventSet("lan_prefix_set", globalIP7);
++             commonSyseventSet("ipv6_nameserver", globalIP7);
++             fp2 = v_secure_popen("r","cat /proc/sys/net/ipv6/conf/%s/temp_valid_lft",Ifname);
++             if(fp2 != NULL)
++             {
++                 fgets(tmpBuf2, sizeof(tmpBuf2), fp2);
++                 v_secure_pclose(fp2);
++                 i=0;
++                 while(tmpBuf2[i] != '\n')
++                 {
++                     validLft[i]=tmpBuf2[i];
++                     i++;
++                 }
++                 validLft[i]='\0';
++             }
++             fp3 = v_secure_popen("r","cat /proc/sys/net/ipv6/conf/%s/temp_prefered_lft",Ifname);
++             if(fp3 != NULL)
++             {
++                 fgets(tmpBuf3, sizeof(tmpBuf3), fp3);
++                 v_secure_pclose(fp3);
++                 i=0;
++                 while(tmpBuf3[i] != '\n')
++                 {
++                     prefLft[i]=tmpBuf3[i];
++                     i++;
++                 }
++                 prefLft[i]='\0';
++             }
++             if(strlen(validLft) != 0)
++             {
++                 strlcat(lft," valid_lft ",sizeof(lft));
++                 strlcat(lft,validLft,sizeof(lft));
++             }
++             if(strlen(prefLft) != 0)
++             {
++                 strlcat(lft," preferred_lft ",sizeof(lft));
++                 strlcat(lft,prefLft,sizeof(lft));
++             }
++             snprintf(cmd,sizeof(cmd),"ip -6 addr change %s/64 dev brlan0%s",globalIP7,lft);
++             fp4=popen(cmd,"r");
++             if(fp4 != NULL)
++             {
++                 pclose(fp4);
++             }
++         }
++        v_secure_system("ip -6 route del %s dev brlan0",v6pre);
++        CcspTraceInfo (("%s %d Deleting route [ip -6 route del %s dev brlan0]\n", __FUNCTION__,__LINE__, v6pre));
++        v_secure_system("ip -6 route add %s dev brlan0 metric 100",v6pre);
++        CcspTraceInfo (("%s %d Adding route [ip -6 route add %s dev brlan0 metric 100]\n", __FUNCTION__,__LINE__, v6pre));
++        /*this function is called to populate and send all the necessary IPv6 data to wan manager*/
++        populateDataForWanMgr(v6pre, prefLft, validLft,Ifname);
++        _cosa_dhcpsv6_refresh_config();
++        fp = v_secure_popen("r","busybox ps|grep %s|grep -v grep", SERVER_BIN);
++        _get_shell_output(fp, out, sizeof(out));
++        if (strstr(out, SERVER_BIN))
++        {
++            v_secure_system("kill -15 `pidof " SERVER_BIN "`");
++        }
++        syscfg_get(NULL, "router_other_flag", other_flag_value, sizeof(other_flag_value));
++        if (strcmp(other_flag_value,"1") == 0)
++        {
++            v_secure_system("cp %s %s",TMP_SERVER_CONF,SERVER_CONF_LOCATION);
++            CcspTraceInfo(("%s - Call _dibbler_server_operation start\n",__FUNCTION__));
++            _dibbler_server_operation("start");
++        }
++     }
++}
++#endif//ETHWAN_SLAAC_CONFIGURED

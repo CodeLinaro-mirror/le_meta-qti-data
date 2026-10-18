@@ -1,0 +1,72 @@
+From 8f7ec8bd2a7fbfe9832f47623cf79518eb982d6a Mon Sep 17 00:00:00 2001
+From: Yinxin Sun <yinxsun@qti.qualcomm.com>
+Date: Tue, 25 Aug 2026 18:44:18 +0800
+Subject: [PATCH] wds: add APN type mask and resolved APN name to Get Current
+ Settings
+
+The QMI WDS service (wireless_data_service_v01) exposes two TLVs in the
+Get Current Settings response (0x002D) that libqmi did not previously
+decode:
+
+  0x33  APN Type Mask    (guint64 / QmiWdsApnTypeMask)
+  0x36  Resolved APN Name (string)
+
+Add both optional output TLVs to the message definition so that callers
+can retrieve the APN type flags and the network-resolved APN name from an
+active bearer. Also register the corresponding QmiWdsRequestedSettings
+enum values so callers can explicitly request these TLVs.
+
+Signed-off-by: Yinxin Sun <yinxsun@qti.qualcomm.com>
+---
+ data/qmi-service-wds.json       | 13 +++++++++++++
+ src/libqmi-glib/qmi-enums-wds.h |  4 ++++
+ 2 files changed, 17 insertions(+)
+
+diff --git a/data/qmi-service-wds.json b/data/qmi-service-wds.json
+index 2bdb97be..c70cd042 100644
+--- a/data/qmi-service-wds.json
++++ b/data/qmi-service-wds.json
+@@ -1876,6 +1876,19 @@
+                                         "array-element"      : { "format" : "guint8" } },
+                                       { "name"          : "Container Id",
+                                         "format"        : "guint16" } ],
++                      "prerequisites" : [ { "common-ref" : "Success" } ] },
++                    { "name"          : "APN Type Mask",
++                      "id"            : "0x33",
++                      "type"          : "TLV",
++                      "since"         : "1.32",
++                      "format"        : "guint64",
++                      "public-format" : "QmiWdsApnTypeMask",
++                      "prerequisites" : [ { "common-ref" : "Success" } ] },
++                    { "name"          : "Resolved APN Name",
++                      "id"            : "0x36",
++                      "type"          : "TLV",
++                      "since"         : "1.32",
++                      "format"        : "string",
+                       "prerequisites" : [ { "common-ref" : "Success" } ] } ] },
+ 
+   // *********************************************************************************
+diff --git a/src/libqmi-glib/qmi-enums-wds.h b/src/libqmi-glib/qmi-enums-wds.h
+index a92bef76..750d13a2 100644
+--- a/src/libqmi-glib/qmi-enums-wds.h
++++ b/src/libqmi-glib/qmi-enums-wds.h
+@@ -1246,6 +1246,8 @@ typedef enum { /*< underscore_name=qmi_wds_so_evdo_revb,since=1.18 >*/
+  * @QMI_WDS_REQUESTED_SETTINGS_IMCN_FLAG: IMCN flag.
+  * @QMI_WDS_REQUESTED_SETTINGS_EXTENDED_TECHNOLOGY: extended technology info.
+  * @QMI_WDS_REQUESTED_SETTINGS_OPERATOR_RESERVED_PCO: operator reserved protocol configuration option.
++ * @QMI_WDS_REQUESTED_SETTINGS_APN_TYPE_MASK: APN type mask.
++ * @QMI_WDS_REQUESTED_SETTINGS_RESOLVED_APN_NAME: network-resolved APN name.
+  *
+  * Flags specifying requested WDS settings.
+  *
+@@ -1272,6 +1274,8 @@ typedef enum { /*< since=1.32 >*/
+     QMI_WDS_REQUESTED_SETTINGS_IMCN_FLAG                 = 1 << 16,
+     QMI_WDS_REQUESTED_SETTINGS_EXTENDED_TECHNOLOGY       = 1 << 17,
+     QMI_WDS_REQUESTED_SETTINGS_OPERATOR_RESERVED_PCO     = 1 << 18,
++    QMI_WDS_REQUESTED_SETTINGS_APN_TYPE_MASK             = 1 << 22,
++    QMI_WDS_REQUESTED_SETTINGS_RESOLVED_APN_NAME         = 1 << 26,
+ } QmiWdsRequestedSettings;
+ 
+ /**
+-- 
+2.34.1

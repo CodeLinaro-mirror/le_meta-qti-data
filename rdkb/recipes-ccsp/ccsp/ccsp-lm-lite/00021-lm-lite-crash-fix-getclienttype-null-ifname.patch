@@ -1,0 +1,39 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From 13091caba87a560c3273e8e4dd59ecbb1f88429d Mon Sep 17 00:00:00 2001
+From: Sowmika S <sowms@qti.qualcomm.com>
+Date: Thu, 8 Oct 2026 09:15:35 +0000
+Subject: [PATCH] Added a NULL check on ifname before dereferencing ifname+1 in
+ getClientType() interface-type comparisons
+
+Signed-off-by: Sowmika S <sowms@qti.qualcomm.com>
+---
+ source/lm/lm_main.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+Index: git/source/lm/lm_main.c
+===================================================================
+--- git.orig/source/lm/lm_main.c
++++ git/source/lm/lm_main.c
+@@ -5299,15 +5299,15 @@ static bool getClientType(char *mac,bool
+             if (ifname != NULL &&
+             ((0 == strncmp(ifname+1,"eth0",strlen("eth0"))) || (0 == strncmp(ifname+1,"eth1",strlen("eth1")) && (ifname[1+strlen("eth1")] == '.' || ifname[1+strlen("eth1")] == '\0')) || (0 == strcmp(ifname+1,"eth1s1"))))
+                 strlcpy(client_type, "Ethernet", IFACE_SIZE);
+-            else if ((0 == strcmp(ifname+1,"rndis0")) || (0 == strcmp(ifname+1,"ecm0")))
++            else if (ifname != NULL && ((0 == strcmp(ifname+1,"rndis0")) || (0 == strcmp(ifname+1,"ecm0"))))
+                 strlcpy(client_type, "USB", IFACE_SIZE);
+-            else if ((0 == strncmp(ifname+1,"mld",strlen("mld"))) ||
++            else if (ifname != NULL && ((0 == strncmp(ifname+1,"mld",strlen("mld"))) ||
+                      (0 == strncmp(ifname+1,"phy00-mld",strlen("phy00-mld"))) ||
+                      (0 == strncmp(ifname+1,"p0m",strlen("p0m"))) ||
+-                     (0 == strcmp(ifname+1,"ath0")) || (0 == strcmp(ifname+1,"ath1")) || (0 == strcmp(ifname+1,"ath16")))
++                     (0 == strcmp(ifname+1,"ath0")) || (0 == strcmp(ifname+1,"ath1")) || (0 == strcmp(ifname+1,"ath16"))))
+                 strlcpy(client_type, "WLAN", IFACE_SIZE);
+ #ifdef GUEST_WIFI
+-            else if ((0 == strcmp(ifname+1,"ath2")) || (0 == strcmp(ifname+1,"ath3")) || (0 == strcmp(ifname+1,"ath14")) || (0 == strcmp(ifname+1,"ath15")))
++            else if (ifname != NULL && ((0 == strcmp(ifname+1,"ath2")) || (0 == strcmp(ifname+1,"ath3")) || (0 == strcmp(ifname+1,"ath14")) || (0 == strcmp(ifname+1,"ath15"))))
+                 strlcpy(client_type, "WLAN", IFACE_SIZE);
+ #endif
+             else

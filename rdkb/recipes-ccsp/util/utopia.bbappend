@@ -48,6 +48,13 @@ SRC_URI:append = " \
     file://00042-qti-utopia-timestamp_Fix.patch \
     file://00044-qti-utopia-connmark_entry_empty_tcp_udp_fix.patch \
     file://00045-qti-utopia-managed-devices-udp-block-mangle-fix.patch \
+    file://00046-qti-utopia-firewall_whitelist_Uplink-embedded-traffic-support.patch \
+    file://00047-qti-utopia-RelayMode_support.patch \
+    file://00048-qti-utopia-zebra_BH_Toggle_Fix.patch \
+    file://00049-qti-utopia-UDP_conntrack_deletion_timing_issue.patch \
+    file://00050-qti-utopia-dnsmasq-log-facility-fix.patch \
+    file://00051-qti-utopia-fix-sitefilter-hw-accel-bypass.patch \
+    file://00047-qti-utopia-WLAN-IPPT-toggle.patch \
 "
 do_install:append() {
     install -m 0755 ${UNPACKDIR}/service_sshd_qti.sh \

@@ -1,0 +1,73 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From a62ede9ddd2184ece87499eb4ce724ad3afbbae9 Mon Sep 17 00:00:00 2001
+From: Amirthavarshini N <amirthav@qti.qualcomm.com>
+Date: Mon, 28 Sep 2026 17:47:28 +0000
+Subject: [PATCH] qti-utopia-RelayMode_support
+
+Signed-off-by: Amirthavarshini N <amirthav@qti.qualcomm.com>
+---
+ source/service_routed/service_routed.c | 30 ++++++++++++++++++++------
+ 1 file changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/source/service_routed/service_routed.c b/source/service_routed/service_routed.c
+index 4599911..24ae26d 100644
+--- a/source/service_routed/service_routed.c
++++ b/source/service_routed/service_routed.c
+@@ -2219,26 +2219,42 @@ STATIC int radv_start(struct serv_routed *sr)
+     v_secure_system("zebra -d -f %s -P 0 2> /tmp/.zedra_error", ZEBRA_CONF_FILE);
+     printf("DHCPv6 is %s. Starting zebra Process\n", (bEnabled?"Enabled":"Disabled"));
+ #else
+-    v_secure_system("zebra -d -f %s -P 0 2> /tmp/.zedra_error", ZEBRA_CONF_FILE);
+     char line[50]={0};
+     char wan_interface[16]={0};
+-    char tmpBuf[2]={0};
+-    int  device_mode=0;
++    char wan_status[16]={0};
++    char deviceMode[2]={0};
++    char relayModeEnable[8]={0};
++#define IPV6_MODE "2"
++#define DUAL_MODE "3"
+     pid_t pid = 0;
+     FILE *cmd = v_secure_popen("r","pidof 6brd");
+     if(cmd != NULL)
+     {
+-        fgets(line, sizeof(line), cmd);
++        if(fgets(line, sizeof(line), cmd) == NULL) line[0] = '\0';
+         v_secure_pclose(cmd);
+         pid = (pid_t)strtoul(line, NULL, 10);
+     }
+     sysevent_get(sr->sefd, sr->setok, "current_wan_ifname",wan_interface,sizeof(wan_interface));
+-    syscfg_get(NULL, "last_erouter_mode",tmpBuf,sizeof(tmpBuf));
+-    device_mode=atoi(tmpBuf);
+-    if ((strstr(wan_interface,"qmapmux")!=NULL) && (!pid) && ((device_mode == IPv6_Only) || (device_mode == IPv4IPV6)))
++    sysevent_get(sr->sefd, sr->setok, "wan-status", wan_status, sizeof(wan_status));
++    sysevent_get(sr->sefd, sr->setok, "relay_mode_enable", relayModeEnable, sizeof(relayModeEnable));
++    syscfg_get(NULL, "last_erouter_mode", deviceMode, sizeof(deviceMode));
++    if(strstr(wan_interface,"qmapmux") != NULL || strcmp(relayModeEnable, "true") != 0)
++        v_secure_system("zebra -d -f %s -P 0 2> /tmp/.zedra_error", ZEBRA_CONF_FILE);
++    if ((strstr(wan_interface,"qmapmux")!=NULL) && (!pid) && ((atoi(deviceMode) == IPv6_Only) || (atoi(deviceMode) == IPv4IPV6)))
+     {
+         v_secure_system("6brd -f !%s ~brlan0",wan_interface);
+     }
++    else if((strstr(wan_interface,"eth1") != NULL) && (strcmp(wan_status,"started") == 0) && (strcmp(relayModeEnable, "true") == 0) && ((strcmp(deviceMode, IPV6_MODE) == 0) || (strcmp(deviceMode, DUAL_MODE) == 0)))
++    {
++        if(!pid)
++        {
++            int ret = v_secure_system("6brd -f !%s ~brlan0 &",wan_interface);
++            if (ret != 0)
++            {
++                fprintf(stderr, "%s: v_secure_system failed\n", __FUNCTION__);
++            }
++        }
++    }
+ #endif
+ 
+     return 0;
+-- 
+2.34.1
+

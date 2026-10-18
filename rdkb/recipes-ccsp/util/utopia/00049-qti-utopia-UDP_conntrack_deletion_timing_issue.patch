@@ -1,0 +1,215 @@
+This patch file is from Qualcomm Technologies, Inc. and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From c4a21abe143e3068b78eb3cba196a7f67a9fd83c Mon Sep 17 00:00:00 2001
+From: B Saravanan <saravb@qti.qualcomm.com>
+Date: Tue, 29 Sep 2026 10:52:58 +0530
+Subject: [PATCH] UDP_conntrack_deletion_timing_issue
+
+[Description]:
+ 1. Fix for when switching the firewall mode from Whitelist to Blacklist while continuous IPv4/IPv6 UDP UL data transfer is ongoing  UDP traffic was not blocked.
+ 2. Fix for When deltable is called to delete the only (or last) active Whitelist rule, X_QCOMRule_Count is decremented to 0 in Syscfg. During the subsequent firewall restart, flush_xqcomrule_conntrack_entries() reads the count as 0 and returns immediately without performing any conntrack cleanup.
+
+Signed-off-by: Saravanan B <saravb@qti.qualcomm.com>
+---
+ source/firewall/firewall.c      | 124 ++++++++++++++++++++++++++------
+ source/firewall/firewall_ipv6.c |  24 +------
+ 2 files changed, 104 insertions(+), 44 deletions(-)
+
+Index: git/source/firewall/firewall.c
+===================================================================
+--- git.orig/source/firewall/firewall.c
++++ git/source/firewall/firewall.c
+@@ -3342,25 +3342,6 @@ static int do_x_qcomrule_firewall(FILE*
+                    if(strcmp(protocol, "tcp_udp") == 0)
+                        fprintf(mangle_fp, "-I PREROUTING -i %s %s -d %s \n", current_wan_ifname, rule_udp,current_wan_ipaddr);
+                }
+-                //Conntrack deletion Blacklist
+-                if (0 == rc && strncasecmp(firewall_rule_type, "Blacklist", strlen("Blacklist")) == 0)
+-                {
+-                    if (strcmp(protocol, "tcp") == 0)
+-                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
+-                    else if (strcmp(protocol, "udp") == 0)
+-                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
+-                    else
+-                    {
+-                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
+-                        DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
+-                    }
+-                }
+-                //Conntrack deletion Whitelist
+-                else if (0 == rc && strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
+-                {
+-                    DeleteConntrackEntryForAcceptIPv4FirewallEntries(PROTOCOL_TCP, idx);
+-                    DeleteConntrackEntryForAcceptIPv4FirewallEntries(PROTOCOL_UDP, idx);
+-                }
+                 if (('\0' != destination_ip[0]) && strcmp("0.0.0.0",destination_ip)) {
+                     //Adding destination IPv4 to rule
+                     strlcat(rule, " -d ", sizeof(rule));
+@@ -3377,6 +3358,8 @@ static int do_x_qcomrule_firewall(FILE*
+                     if(strcmp(protocol, "tcp_udp") == 0)
+                         fprintf(mangle_fp, "-I FORWARD -o %s %s\n", current_wan_ifname, rule_udp);
+                 }
++                /* Conntrack deletion moved to flush_xqcomrule_conntrack_entries()
++                 * which is called after iptables-restore completes. */
+             }
+             v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
+         }
+@@ -14874,6 +14857,102 @@ static int prepare_disabled_ipv4_firewal
+    return(0);
+ }
+ 
++/*********************************************************
++ *  Procedure     : flush_xqcomrule_conntrack_entries
++ *  Purpose       : Delete stale conntrack entries after iptables-restore
++ *                  completes so that new Blacklist/Whitelist rules are
++ *                  already active in the kernel before the flush.
++ *                  Called separately for IPv4 (is_ipv6=0) and IPv6 (is_ipv6=1).
++ *********************************************************/
++static void flush_xqcomrule_conntrack_entries(int is_ipv6)
++{
++    char query[MAX_QUERY]={0};
++    char firewall_rule_type[MAX_QUERY]={0};
++    int  count=0, idx=0, rc=0;
++    char namespace[MAX_NAMESPACE]={0};
++    char protocol[10]={0};
++
++    rc = syscfg_get(NULL, "firewall_rule_type", firewall_rule_type, sizeof(firewall_rule_type));
++    if (0 != rc || '\0' == firewall_rule_type[0])
++        return;
++
++    rc = syscfg_get(NULL, "X_QCOMRule_Count", query, sizeof(query));
++    if (0 != rc || '\0' == query[0])
++        return;
++
++    count = atoi(query);
++
++    /* Case 3: All rules deleted but firewall mode still active.
++     * Flush all remaining mark=53 conntrack entries so existing
++     * sessions are not allowed to continue under Whitelist mode. */
++    if (0 == count)
++    {
++        if (strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++        {
++            if (!is_ipv6)
++                v_secure_system("conntrack -D -m mark --mark 53 2>/dev/null");
++            else
++                v_secure_system("conntrack -D -f ipv6 -m mark --mark 53 2>/dev/null");
++        }
++        return;
++    }
++
++    for (idx = 1; idx <= count; idx++)
++    {
++        namespace[0] = '\0';
++        snprintf(query, sizeof(query), "X_QCOMRule_%d", idx);
++        rc = syscfg_get(NULL, query, namespace, sizeof(namespace));
++        if (0 != rc || '\0' == namespace[0])
++            continue;
++
++        query[0] = '\0';
++        rc = syscfg_get(namespace, "Enable", query, sizeof(query));
++        if (0 != rc || '\0' == query[0])
++            continue;
++
++        protocol[0] = '\0';
++        syscfg_get(namespace, "Protocol", protocol, sizeof(protocol));
++
++        if (!is_ipv6) {
++            if (strncasecmp(firewall_rule_type, "Blacklist", strlen("Blacklist")) == 0)
++            {
++                if (strcmp(protocol, "tcp") == 0)
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                else if (strcmp(protocol, "udp") == 0)
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
++                else
++                {
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                    DeleteConntrackEntryForDropIPv4FirewallEntries(PROTOCOL_UDP, idx);
++                }
++            }
++            else if (strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++            {
++                DeleteConntrackEntryForAcceptIPv4FirewallEntries(PROTOCOL_TCP, idx);
++                DeleteConntrackEntryForAcceptIPv4FirewallEntries(PROTOCOL_UDP, idx);
++            }
++        } else {
++            if (strncasecmp(firewall_rule_type, "Blacklist", strlen("Blacklist")) == 0)
++            {
++                if (strcmp(protocol, "tcp") == 0)
++                    DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                else if (strcmp(protocol, "udp") == 0)
++                    DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
++                else
++                {
++                    DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                    DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
++                }
++            }
++            else if (strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
++            {
++                DeleteConntrackEntryForAcceptIPv6FirewallEntries(PROTOCOL_TCP, idx);
++                DeleteConntrackEntryForAcceptIPv6FirewallEntries(PROTOCOL_UDP, idx);
++            }
++        }
++    }
++}
++
+ /*
+  *  Procedure     : prepare_ipv4_firewall
+  *  Purpose       : prepare the iptables-restore file that establishes all
+@@ -15638,6 +15717,11 @@ static int service_start ()
+    v_secure_system("iptables-restore -w 10 -c  < /tmp/.ipt 2> /tmp/.ipv4table_error");
+ #endif
+    FIREWALL_DEBUG("iptables-restore for ipv4 ends\n");
++   /* Flush stale IPv4 conntrack entries AFTER iptables-restore so new
++    * Blacklist/Whitelist rules are already active before deletion.
++    * This prevents continuous UDP traffic from re-marking the entry
++    * via the old rule between conntrack -D and iptables-restore. */
++   flush_xqcomrule_conntrack_entries(0);
+ 
+    //if (!isFirewallEnabled) {
+    //   unlink(filename1);
+@@ -15662,6 +15746,8 @@ static int service_start ()
+    v_secure_system("ip6tables-restore -w 10 < /tmp/.ipt_v6 2> /tmp/.ipv6table_error");
+ #endif
+    FIREWALL_DEBUG("iptables-restore for ipv6 ends\n");
++   /* Flush stale IPv6 conntrack entries AFTER ip6tables-restore. */
++   flush_xqcomrule_conntrack_entries(1);
+ 
+    if (!isDmzEnabled)
+    {
+Index: git/source/firewall/firewall_ipv6.c
+===================================================================
+--- git.orig/source/firewall/firewall_ipv6.c
++++ git/source/firewall/firewall_ipv6.c
+@@ -2230,25 +2230,8 @@ int do_x_qcomrule_firewall_v6(FILE* mang
+                     else if (direction[0] != '\0' && strncasecmp(direction, "Downlink", strlen("Downlink")) == 0)
+                         fprintf(mangle_fp, "-I PREROUTING -i %s %s\n", current_wan_ifname, rule_udp);
+ 	         }
+-                //Deleting conntrack entries Blacklist
+-                if (0 == rc && strncasecmp(firewall_rule_type, "Blacklist", strlen("Blacklist")) == 0)
+-                {
+-                    if (strcmp(protocol, "tcp") == 0)
+-                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
+-                    else if (strcmp(protocol, "udp") == 0)
+-                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
+-                    else
+-                    {
+-                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_TCP, idx);
+-                        DeleteConntrackEntryForDropIPv6FirewallEntries(PROTOCOL_UDP, idx);
+-                    }
+-                }
+-                //Deleting conntrack entries Whitelist
+-                else if (0 == rc && strncasecmp(firewall_rule_type, "Whitelist", strlen("Whitelist")) == 0)
+-                {
+-                    DeleteConntrackEntryForAcceptIPv6FirewallEntries(PROTOCOL_TCP, idx);
+-                    DeleteConntrackEntryForAcceptIPv6FirewallEntries(PROTOCOL_UDP, idx);
+-                }
++                /* Conntrack deletion moved to flush_xqcomrule_conntrack_entries()
++                 * called after ip6tables-restore completes. */
+             }
+             v_secure_system("echo 1 > /proc/sys/net/netfilter/nf_conntrack_tcp_loose");
+         }

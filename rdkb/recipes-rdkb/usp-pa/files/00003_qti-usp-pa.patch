@@ -1,0 +1,24 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From b7e3c1f9d4a2058b6e91c7f3a5d082b4e6c319f1 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Fri, 26 Sep 2026 06:52:00 +0000
+Subject: Add Device.Firewall.X_QCOM.Rule.{i} object to usp_dm_objs.conf
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ conf/usp_dm_objs.conf | 1 +
+ 1 file changed, 1 insertion(+)
+ 
+Index: conf/usp_dm_objs.conf
+===================================================================
+--- a/usp_dm_objs.conf
++++ b/usp_dm_objs.conf
+@@ -56,3 +56,4 @@ Device.WiFi.Radio.{i} RO
+ Device.WiFi.X_RDKCENTRAL-COM_BandSteering.BandSetting.{i} RO
+ Device.WiFi.SSID.{i} RO
+ Device.WiFi.AccessPoint.{i} RO
++Device.Firewall.X_QCOM.Rule.{i} RW

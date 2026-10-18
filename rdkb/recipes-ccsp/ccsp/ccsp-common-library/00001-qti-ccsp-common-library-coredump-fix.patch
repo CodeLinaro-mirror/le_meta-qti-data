@@ -1,0 +1,31 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 935ee8cb250b7657d2d223919af9ffd6dfb1708b Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Tue, 6 Oct 2026 05:47:52 +0000
+Subject: Added NULL check in PSM_Get_Record_Value_rbus , to prevent coredump file from being generated.
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ source/util_api/ccsp_msg_bus/ccsp_base_api.c | 4 +++
+ 1 file changed, 4 insertions(+)
+
+Index: git/source/util_api/ccsp_msg_bus/ccsp_base_api.c
+===================================================================
+--- git.orig/source/util_api/ccsp_msg_bus/ccsp_base_api.c
++++ git/source/util_api/ccsp_msg_bus/ccsp_base_api.c
+@@ -355,6 +355,10 @@ int PSM_Get_Record_Value_rbus
+     int i = 0;
+     char* pTmp = NULL;
+     CCSP_MESSAGE_BUS_INFO *bus_info = (CCSP_MESSAGE_BUS_INFO *)bus_handle;
++    if (bus_info == NULL){
++        CcspTraceError(("%s: bus_handle is NULL, cannot proceed with rbus call\n", __FUNCTION__));
++        return CCSP_ERR_INVALID_PARAMETER_VALUE;
++    }
+     rbusObject_t inParams = NULL, outParams = NULL;
+     rbusObject_Init(&inParams, NULL);
+     rbusProperty_t list = NULL;

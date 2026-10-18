@@ -38,6 +38,11 @@ SRC_URI_append += " \
     file://00015-ModemManager-support-for-factory-test-mode.patch \
     file://00016-qcom-soc-rps-cpus-config.patch \
     file://00017-ModemManager_utc_timestamp_log_update.patch \
+    file://00018-ModemManager_preferedRAT_fix.patch \
+    file://00019-modemmanager-disconnect-extended-ip-indication-on-reset.patch \
+    file://00020-ModemManager_prevent_stale_bearer_connect_completion.patch \
+    file://00021-ModemManager-map-missing-3GPP-call-end-reasons.patch \
+    file://00022-bearer-qmi-request-and-log-apn-info-and-profile-id.patch \
 "
 
 S = "${UNPACKDIR}/git"

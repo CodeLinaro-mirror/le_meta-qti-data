@@ -94,6 +94,7 @@ do_install() {
           ${D}${systemd_unitdir}/system/local-fs.target.wants/dataipa.service
    install -d ${D}${sysconfdir}/data/ipa_be/
    install -m 0444 ${UNPACKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/ipa_ini_file.ini
+   install -m 0444 ${UNPACKDIR}/ipa_ini_file.ini ${D}${sysconfdir}/data/ipa_be/factory_ipa_ini_file.ini
    install -d ${D}${nonarch_base_libdir}/firmware/ipa_be
    ln -sf ${sysconfdir}/data/ipa_be/ipa_ini_file.ini ${D}${nonarch_base_libdir}/firmware/ipa_be/ipa_ini_file.ini
 
@@ -130,7 +131,7 @@ do_deploy() {
     install -m 0644 ${module_path}/ipa/ipanetm.ko   ${DEPLOYDIR}/kernel_modules/ipa/
     install -m 0644 ${UNPACKDIR}/dataipa/stats_mgr/ipa_stats.ko ${DEPLOYDIR}/kernel_modules/ipa/
 }
-addtask do_deploy after do_install before do_build
+addtask do_deploy after do_compile before do_install
 
 FILES:${PN}+="${includedir}/*"
 #FILES:${PN}+="${libdir}/modules/*"

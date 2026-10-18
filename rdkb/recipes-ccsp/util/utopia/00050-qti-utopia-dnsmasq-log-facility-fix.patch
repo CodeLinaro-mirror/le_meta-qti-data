@@ -1,0 +1,31 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 9bc6f527ed39671d375eb28a79154545bac3f265 Mon Sep 17 00:00:00 2001
+From: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+Date: Wed, 30 Sep 2026 17:36:10 +0530
+Subject: [PATCH] dnsmasq_log_facility_fix
+Signed-off-by: Ananthu Gopalakrishna Rao <ananthug@qti.qualcomm.com>
+---
+ .../init/service.d/service_dhcp_server/dhcp_server_functions.sh | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh b/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+index 676960a..3895438 100755
+--- a/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
++++ b/source/scripts/init/service.d/service_dhcp_server/dhcp_server_functions.sh
+@@ -1132,6 +1132,8 @@ fi
+    fi
+ 
+    #echo "interface=$LAN_IFNAME" >> $LOCAL_DHCP_CONF
++   echo "log-queries" >> $LOCAL_DHCP_CONF
++   echo "log-facility=/var/log/messages" >> $LOCAL_DHCP_CONF
+    echo "expand-hosts" >> $LOCAL_DHCP_CONF
+    echo "address=/.c.f.ip6.arpa/" >> $LOCAL_DHCP_CONF
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,117 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+
+From 97ed94a510bafe6566fd9eb8367bde2d0d00f54e Mon Sep 17 00:00:00 2001
+From: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+Date: Tue, 6 Oct 2026 06:58:37 +0000
+Subject: [PATCH] Fix for CPU utilization by wanmanager
+
+[Issue Description]: System call repeated called in a loop causing high CPU utilization
+
+[Fix Description]: Modified the code logic that calls the system call
+
+Signed-off-by: Mourin Prasad B M <mourinpr@qti.qualcomm.com>
+---
+ source/WanManager/wanmgr_net_utils.c | 62 ++++++++++++----------------
+ 1 file changed, 27 insertions(+), 35 deletions(-)
+
+diff --git a/source/WanManager/wanmgr_net_utils.c b/source/WanManager/wanmgr_net_utils.c
+index bb3ad3c..b90054f 100644
+--- a/source/WanManager/wanmgr_net_utils.c
++++ b/source/WanManager/wanmgr_net_utils.c
+@@ -2634,62 +2634,54 @@ bool IsDefaultRoutePresent(char *IfaceName, bool IsV4)
+ 
+ bool WanManager_IsNetworkInterfaceAvailable( char *IfaceName ) 
+ {
+-    int skfd = -1;
+-    struct ifreq ifr = {0};
++    char flagsPath[128] = {0};
++    FILE *fp             = NULL;
+ 
+     if( NULL == IfaceName )
+     {
+        return FALSE;
+     }
+-  
+-    AnscCopyString(ifr.ifr_name, IfaceName);
+-    
+-    skfd = socket(AF_INET, SOCK_DGRAM, 0);
+-    if(skfd == -1)
+-       return FALSE;
+-   
+-    if (ioctl(skfd, SIOCGIFFLAGS, &ifr) < 0) {
+-        if (errno == ENODEV) {
+-            close(skfd); 
+-            return FALSE;
+-        }
++
++    /* If the sysfs flags file exists and can be opened, the interface exists */
++    snprintf(flagsPath, sizeof(flagsPath), "/sys/class/net/%s/flags", IfaceName);
++    fp = fopen(flagsPath, "r");
++    if (fp == NULL)
++    {
++        return FALSE;
+     }
++    fclose(fp);
+ 
+-    close(skfd);
+     return TRUE;
+ }
+ 
+ bool WanManager_IsNetworkInterfaceUp( char *IfaceName ) 
+ {
+-    int skfd = -1;
+-    struct ifreq ifr = {0};
++    char          flagsPath[128] = {0};
++    char          flags[32]      = {0};
++    unsigned long value;
++    FILE         *fp             = NULL;
+ 
+     if( NULL == IfaceName )
+     {
+        return FALSE;
+     }
+-  
+-    AnscCopyString(ifr.ifr_name, IfaceName);
+-    
+-    skfd = socket(AF_INET, SOCK_DGRAM, 0);
+-    if(skfd == -1)
+-       return FALSE;
+-   
+-    if (ioctl(skfd, SIOCGIFFLAGS, &ifr) < 0) {
+-        if (errno == ENODEV) {
+-            close(skfd); 
+-            return FALSE;
+-        }
+-    }
+ 
+-    close(skfd);
++    snprintf(flagsPath, sizeof(flagsPath), "/sys/class/net/%s/flags", IfaceName);
++    fp = fopen(flagsPath, "r");
++    if (fp == NULL)
++    {
++        return FALSE;
++    }
+ 
+-    // Check both IFF_UP and IFF_RUNNING
+-    if ((ifr.ifr_flags & IFF_UP) && (ifr.ifr_flags & IFF_RUNNING)) {
+-        return TRUE; // Interface is up and running
++    if (fgets(flags, sizeof(flags), fp) == NULL)
++    {
++        fclose(fp);
++        return FALSE;
+     }
++    fclose(fp);
+ 
+-    return FALSE;
++    value = strtoul(flags, NULL, 0);
++    return (value & IFF_UP) ? TRUE : FALSE;
+ }
+ 
+ int WanMgr_RdkBus_AddIntfToLanBridge (char * PhyPath, BOOL AddToBridge)
+--
+2.34.1
+

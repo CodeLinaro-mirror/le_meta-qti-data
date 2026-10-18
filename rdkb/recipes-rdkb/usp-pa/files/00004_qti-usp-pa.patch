@@ -1,0 +1,43 @@
+This patch file is from Qualcomm Technologies, Inc.
+and is provided under the following license:
+
+Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+SPDX-License-Identifier: BSD-3-Clause-Clear
+From a1d4f8e2c3b7091e5f62a4d9b0c358e7a2f14c83 Mon Sep 17 00:00:00 2001
+From: Nandakishore S <nans@qti.qualcomm.com>
+Date: Fri, 26 Sep 2026 06:50:00 +0000
+Subject: Add Device.Hosts.Host WANStats and Device.Firewall.X_QCOM parameters to usp_dm_params.conf
+
+Signed-off-by: Nandakishore S <nans@qti.qualcomm.com>
+---
+ conf/usp_dm_params.conf | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+ 
+Index: conf/usp_dm_params.conf
+===================================================================
+--- a/usp_dm_params.conf
++++ b/usp_dm_params.conf
+@@ -1186,6 +1186,8 @@ Device.Hosts.Host.{i}.IPv4AddressNumberO
+ Device.Hosts.Host.{i}.IPv6AddressNumberOfEntries UINT RO
+ Device.Hosts.Host.{i}.IPv4Address.{i}.IPAddress STRING RO
+ Device.Hosts.Host.{i}.IPv6Address.{i}.IPAddress STRING RO
++Device.Hosts.Host.{i}.WANStats.BytesSent STRING RO
++Device.Hosts.Host.{i}.WANStats.BytesReceived STRING RO
+ Device.XHosts.X_CISCO_COM_ConnectedDeviceNumber UINT RO
+ Device.XHosts.XHostNumberOfEntries UINT RO
+ Device.X_RDKCENTRAL-COM_Report.NetworkDevicesStatus.Enabled BOOL RW
+@@ -1896,3 +1898,14 @@ Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.F
+ Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.AdvSecAgentRaptr.Enable BOOL RW
+ Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.RDKRemoteDebugger.Enable BOOL RW
+ Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.RDKRemoteDebugger.IssueType STRING RW
++Device.Firewall.X_QCOM.RuleType STRING RW
++Device.Firewall.X_QCOM.RuleNumberOfEntries UINT RO
++Device.Firewall.X_QCOM.Rule.{i}.Enable BOOL RW
++Device.Firewall.X_QCOM.Rule.{i}.Alias STRING RW
++Device.Firewall.X_QCOM.Rule.{i}.Protocol STRING RW
++Device.Firewall.X_QCOM.Rule.{i}.SourceIP STRING RW
++Device.Firewall.X_QCOM.Rule.{i}.DestIP STRING RW
++Device.Firewall.X_QCOM.Rule.{i}.SourcePort UINT RW
++Device.Firewall.X_QCOM.Rule.{i}.DestPort UINT RW
++Device.Firewall.X_QCOM.Rule.{i}.SourceIPv6Address STRING RW
++Device.Firewall.X_QCOM.Rule.{i}.DestIPv6Address STRING RW
